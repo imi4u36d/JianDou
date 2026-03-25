@@ -43,6 +43,22 @@
           </label>
         </div>
 
+        <div class="mt-3 grid gap-3 md:grid-cols-[1fr_1fr]">
+          <label class="grid gap-2 text-sm text-slate-200">
+            排序方式
+            <select v-model="sortMode" class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white transition duration-200 focus:border-rose-300/60">
+              <option value="updated_desc">最近更新</option>
+              <option value="created_desc">最新创建</option>
+              <option value="progress_desc">进度优先</option>
+              <option value="semantic_desc">语义任务优先</option>
+            </select>
+          </label>
+          <div class="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+            <p class="text-xs uppercase tracking-[0.24em] text-slate-400">运营提醒</p>
+            <p class="mt-2">优先关注带时间戳字幕的任务，它们更容易让模型给出稳定切点。</p>
+          </div>
+        </div>
+
         <div class="mt-4 flex flex-wrap gap-2">
           <button
             class="rounded-full border px-4 py-2 text-sm transition duration-200"
@@ -58,7 +74,7 @@
         </div>
       </div>
 
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <div class="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">总任务数</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.total }}</p>
@@ -78,6 +94,16 @@
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">失败任务</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.failed }}</p>
           <p class="mt-2 text-xs text-slate-400">可重试或复用参数再建</p>
+        </div>
+        <div class="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+          <p class="text-xs uppercase tracking-[0.24em] text-slate-400">语义任务</p>
+          <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.semantic }}</p>
+          <p class="mt-2 text-xs text-slate-400">已提供字幕或台词文本</p>
+        </div>
+        <div class="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+          <p class="text-xs uppercase tracking-[0.24em] text-slate-400">带时间戳字幕</p>
+          <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.timedSemantic }}</p>
+          <p class="mt-2 text-xs text-slate-400">更适合模型按剧情切点规划</p>
         </div>
       </div>
     </div>
@@ -144,6 +170,7 @@ const lastLoadedAt = ref("尚未刷新");
 const searchText = ref("");
 const statusFilter = ref<TaskStatus | "all">("all");
 const platformFilter = ref<string | "all">("all");
+const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "semantic_desc">("updated_desc");
 
 const platformOptions = computed(() => {
   return Array.from(new Set(tasks.value.map((task) => task.platform).filter(Boolean))).sort();
@@ -170,6 +197,11 @@ function applyRouteFilters() {
 
   const nextPlatform = normalizeQueryValue(route.query.platform);
   platformFilter.value = nextPlatform || "all";
+
+  const nextSort = normalizeQueryValue(route.query.sort);
+  sortMode.value = ["updated_desc", "created_desc", "progress_desc", "semantic_desc"].includes(nextSort)
+    ? (nextSort as typeof sortMode.value)
+    : "updated_desc";
 }
 
 const filteredTasks = computed(() => {
@@ -191,12 +223,28 @@ const filteredTasks = computed(() => {
   });
 });
 
+const sortedFilteredTasks = computed(() => {
+  const items = [...filteredTasks.value];
+  switch (sortMode.value) {
+    case "created_desc":
+      return items.sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+    case "progress_desc":
+      return items.sort((left, right) => (right.progress ?? 0) - (left.progress ?? 0));
+    case "semantic_desc":
+      return items.sort((left, right) => Number(Boolean(right.hasTimedTranscript || right.hasTranscript)) - Number(Boolean(left.hasTimedTranscript || left.hasTranscript)));
+    default:
+      return items.sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+  }
+});
+
 const metrics = computed(() => {
   const total = tasks.value.length;
   const running = tasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "running").length;
   const completed = tasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "completed").length;
   const failed = tasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "failed").length;
-  return { total, running, completed, failed };
+  const semantic = tasks.value.filter((task) => task.hasTranscript).length;
+  const timedSemantic = tasks.value.filter((task) => task.hasTimedTranscript).length;
+  return { total, running, completed, failed, semantic, timedSemantic };
 });
 
 const groupedTasks = computed(() => {
@@ -205,25 +253,25 @@ const groupedTasks = computed(() => {
       key: "running",
       title: TASK_LIFECYCLE_GROUP_LABELS.running,
       description: "分析、规划和渲染中的任务会优先显示在这里。",
-      items: filteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "running")
+      items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "running")
     },
     {
       key: "queued",
       title: TASK_LIFECYCLE_GROUP_LABELS.queued,
       description: "等待处理的任务，适合查看队列压力。",
-      items: filteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "queued")
+      items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "queued")
     },
     {
       key: "completed",
       title: TASK_LIFECYCLE_GROUP_LABELS.completed,
       description: "已经完成渲染的素材，可以直接预览和下载。",
-      items: filteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "completed")
+      items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "completed")
     },
     {
       key: "failed",
       title: TASK_LIFECYCLE_GROUP_LABELS.failed,
       description: "失败任务可直接重试，也可以复制参数继续实验。",
-      items: filteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "failed")
+      items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "failed")
     }
   ];
   return groups.filter((group) => group.items.length > 0);
@@ -257,13 +305,17 @@ function writeQuery() {
   if (platformFilter.value !== "all") {
     query.platform = platformFilter.value;
   }
+  if (sortMode.value !== "updated_desc") {
+    query.sort = sortMode.value;
+  }
 
   const currentQuery = route.query;
   const nextQuery = query;
   const sameQuery =
     (normalizeQueryValue(currentQuery.q) || "") === (nextQuery.q || "") &&
     (normalizeQueryValue(currentQuery.status) || "") === (nextQuery.status || "") &&
-    (normalizeQueryValue(currentQuery.platform) || "") === (nextQuery.platform || "");
+    (normalizeQueryValue(currentQuery.platform) || "") === (nextQuery.platform || "") &&
+    (normalizeQueryValue(currentQuery.sort) || "") === (nextQuery.sort || "");
 
   if (!sameQuery) {
     router.replace({ query: nextQuery });
@@ -274,6 +326,7 @@ function clearFilters() {
   searchText.value = "";
   statusFilter.value = "all";
   platformFilter.value = "all";
+  sortMode.value = "updated_desc";
 }
 
 function handleClone(task: TaskListItem) {
@@ -305,7 +358,7 @@ watch(
   { immediate: true, deep: true }
 );
 
-watch([searchText, statusFilter, platformFilter], () => {
+watch([searchText, statusFilter, platformFilter, sortMode], () => {
   writeQuery();
   void loadTasks();
 });

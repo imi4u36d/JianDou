@@ -6,6 +6,7 @@ import type {
   TaskFilters,
   TaskListItem,
   TaskPreset,
+  TaskTraceEvent,
   UploadResponse
 } from "@/types";
 
@@ -36,6 +37,10 @@ export function fetchTasks(filters?: TaskFilters) {
 
 export function fetchTask(taskId: string) {
   return getJson<TaskDetail>(`/tasks/${taskId}`);
+}
+
+export function fetchTaskTrace(taskId: string, limit = 500) {
+  return getJson<TaskTraceEvent[]>(`/tasks/${taskId}/trace?limit=${limit}`);
 }
 
 export function retryTask(taskId: string) {

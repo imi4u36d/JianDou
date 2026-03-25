@@ -107,6 +107,27 @@
           <textarea v-model="form.creativePrompt" rows="4" class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white transition duration-200 placeholder:text-slate-500 focus:border-rose-300/60" placeholder="例如：优先保留冲突点、反转点，节奏更快，适合首刷拉停。"></textarea>
         </label>
 
+        <label class="grid gap-2 text-sm text-slate-200">
+          字幕 / 台词文本（可选）
+          <input ref="transcriptFileInput" type="file" accept=".srt,.vtt,.txt" class="hidden" @change="handleTranscriptFileChange" />
+          <textarea
+            v-model="form.transcriptText"
+            rows="8"
+            class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-sm text-white transition duration-200 placeholder:text-slate-500 focus:border-rose-300/60"
+            placeholder="建议粘贴 SRT / VTT 或带时间戳台词。没有时间戳时，模型只能优化语义，不能稳定决定切点。"
+          ></textarea>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-slate-100 transition duration-200 hover:border-rose-300/40 hover:bg-white/10"
+              @click="transcriptFileInput?.click()"
+            >
+              导入字幕文件
+            </button>
+            <span class="text-xs text-slate-400">{{ transcriptStats.summary }}</span>
+          </div>
+        </label>
+
         <div class="flex flex-wrap items-center gap-4">
           <button
             :disabled="submitting"
@@ -153,6 +174,15 @@
           <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-slate-950/50 px-4 py-3">
             <span>产出数量</span>
             <span class="font-medium text-white">{{ form.outputCount }} 条</span>
+          </div>
+          <div class="flex items-center justify-between rounded-2xl border border-white/8 bg-slate-950/50 px-4 py-3">
+            <span>语义素材</span>
+            <span class="font-medium text-white">{{ transcriptModeLabel }}</span>
+          </div>
+          <div class="rounded-2xl border border-white/8 bg-slate-950/50 px-4 py-3">
+            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">输入质量</p>
+            <p class="mt-2 text-sm font-medium text-white">{{ transcriptStats.quality }}</p>
+            <p class="mt-1 text-xs leading-5 text-slate-400">{{ transcriptStats.hint }}</p>
           </div>
         </div>
       </div>
@@ -254,6 +284,7 @@ const previewUrl = ref("");
 const submitting = ref(false);
 const statusText = ref("等待上传视频");
 const cloneSource = ref<TaskCloneDraft | null>(null);
+const transcriptFileInput = ref<HTMLInputElement | null>(null);
 
 const form = ref<CreateTaskRequest>({
   title: "抖音爆款版",
@@ -266,7 +297,8 @@ const form = ref<CreateTaskRequest>({
   outputCount: fallbackPresets[0].outputCount,
   introTemplate: fallbackPresets[0].introTemplate,
   outroTemplate: fallbackPresets[0].outroTemplate,
-  creativePrompt: fallbackPresets[0].creativePrompt
+  creativePrompt: fallbackPresets[0].creativePrompt,
+  transcriptText: ""
 });
 
 const fileName = computed(() => file.value?.name ?? "未选择文件");
@@ -295,6 +327,41 @@ const cloneFromHint = computed(() => {
     return "已复制历史任务参数，请重新上传对应原视频后提交。";
   }
   return "点击预设卡片即可快速填充任务配置。";
+});
+
+const transcriptModeLabel = computed(() => {
+  const text = form.value.transcriptText?.trim() ?? "";
+  if (!text) {
+    return "未提供";
+  }
+  return /-->/.test(text) ? "带时间戳字幕" : "纯文本语义";
+});
+
+const transcriptStats = computed(() => {
+  const text = form.value.transcriptText?.trim() ?? "";
+  if (!text) {
+    return {
+      summary: "未提供语义输入",
+      quality: "基础模式",
+      hint: "当前只会根据创意提示、元信息和候选片段做规划。"
+    };
+  }
+
+  const lineCount = text.split(/\r?\n/).filter(Boolean).length;
+  const hasTiming = /-->/.test(text);
+  if (hasTiming) {
+    return {
+      summary: `${lineCount} 行字幕/台词`,
+      quality: "语义切点模式",
+      hint: "模型会优先参考字幕时间边界决定切点，适合短剧剧情剪辑。"
+    };
+  }
+
+  return {
+    summary: `${lineCount} 行纯文本`,
+    quality: "语义弱引导模式",
+    hint: "有语义，但没有时间戳，模型更适合优化标题和候选理由。"
+  };
 });
 
 function normalizeQueryValue(value: unknown) {
@@ -363,6 +430,7 @@ function applyCloneSource(task: TaskCloneDraft) {
   form.value.introTemplate = task.introTemplate;
   form.value.outroTemplate = task.outroTemplate;
   form.value.creativePrompt = task.creativePrompt ?? "";
+  form.value.transcriptText = task.transcriptText ?? "";
   form.value.sourceFileName = task.sourceFileName;
   statusText.value = `已从历史任务「${task.title}」复制参数`;
 }
@@ -423,6 +491,22 @@ function onFileChange(event: Event) {
   }
 }
 
+async function handleTranscriptFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const selectedFile = target.files?.[0];
+  if (!selectedFile) {
+    return;
+  }
+  try {
+    form.value.transcriptText = await selectedFile.text();
+    statusText.value = `已导入字幕文件：${selectedFile.name}`;
+  } catch {
+    statusText.value = "字幕文件读取失败";
+  } finally {
+    target.value = "";
+  }
+}
+
 async function submitTask() {
   if (!file.value) {
     statusText.value = "请先选择视频文件";
@@ -432,7 +516,8 @@ async function submitTask() {
   const payload: CreateTaskRequest = {
     ...form.value,
     title: form.value.title.trim(),
-    creativePrompt: form.value.creativePrompt?.trim() || ""
+    creativePrompt: form.value.creativePrompt?.trim() || "",
+    transcriptText: form.value.transcriptText?.trim() || ""
   };
 
   if (!payload.title) {

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib
+import json
 import shutil
 
 from .config import Settings
@@ -85,6 +86,30 @@ class MediaStorage:
         output_dir = self.outputs_root / task_id
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir / f"{clip_index:02d}.mp4"
+
+    def task_context_path(self, task_id: str) -> Path:
+        context_dir = self.temp_root / "task_context"
+        context_dir.mkdir(parents=True, exist_ok=True)
+        return context_dir / f"{task_id}.json"
+
+    def task_trace_path(self, task_id: str) -> Path:
+        trace_dir = self.temp_root / "task_trace"
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        return trace_dir / f"{task_id}.jsonl"
+
+    def save_task_context(self, task_id: str, payload: dict[str, object]) -> None:
+        path = self.task_context_path(task_id)
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def load_task_context(self, task_id: str) -> dict[str, object]:
+        path = self.task_context_path(task_id)
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        return data if isinstance(data, dict) else {}
 
     def delete_path(self, path: str | Path) -> None:
         absolute = Path(path)

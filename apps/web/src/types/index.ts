@@ -50,6 +50,7 @@ export interface CreateTaskRequest {
   introTemplate: string;
   outroTemplate: string;
   creativePrompt?: string;
+  transcriptText?: string;
 }
 
 export interface TaskPreset {
@@ -81,6 +82,9 @@ export interface TaskCloneDraft {
   introTemplate: string;
   outroTemplate: string;
   creativePrompt?: string;
+  transcriptText?: string;
+  hasTimedTranscript?: boolean;
+  transcriptCueCount?: number;
 }
 
 export interface TaskFilters {
@@ -101,6 +105,15 @@ export interface TaskOutput {
   downloadUrl: string;
 }
 
+export interface TaskTraceEvent {
+  timestamp: string;
+  level: string;
+  stage: string;
+  event: string;
+  message: string;
+  payload: Record<string, unknown>;
+}
+
 export interface TaskListItem {
   id: string;
   title: string;
@@ -118,6 +131,8 @@ export interface TaskListItem {
   startedAt?: string | null;
   finishedAt?: string | null;
   completedOutputCount?: number;
+  hasTranscript?: boolean;
+  hasTimedTranscript?: boolean;
 }
 
 export interface TaskDetail extends TaskListItem {
@@ -133,7 +148,45 @@ export interface TaskDetail extends TaskListItem {
   finishedAt?: string | null;
   retryCount?: number;
   completedOutputCount?: number;
+  transcriptPreview?: string | null;
+  hasTranscript?: boolean;
+  hasTimedTranscript?: boolean;
+  transcriptCueCount?: number;
   source?: TaskSourceAssetSummary | null;
   plan?: TaskPlanClip[];
   outputs: TaskOutput[];
+}
+
+export interface HealthModelSummary {
+  provider: string;
+  primary_model: string;
+  fallback_model?: string | null;
+  endpoint_host?: string;
+  api_key_present: boolean;
+  ready: boolean;
+  temperature: number;
+  max_tokens: number;
+  config_errors: string[];
+}
+
+export interface HealthPlanningCapabilities {
+  timed_transcript_supported: boolean;
+  transcript_semantic_planning: boolean;
+  fallback_heuristic_enabled: boolean;
+}
+
+export interface HealthRuntimeSummary {
+  name: string;
+  env: string;
+  execution_mode: string;
+  database_url: string;
+  model_provider: string;
+  storage_root: string;
+  model: HealthModelSummary;
+  planning_capabilities: HealthPlanningCapabilities;
+}
+
+export interface HealthResponse {
+  ok: boolean;
+  runtime: HealthRuntimeSummary;
 }

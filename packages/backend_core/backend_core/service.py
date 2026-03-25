@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session, selectinload, sessionmaker
 from .config import Settings
 from .media import probe_media, render_output
 from .models import SourceAsset, Task, TaskOutput
+from .planner import PlannerChain, PlannerContext, parse_transcript_cues
 from .presets import get_task_presets
-from .planner import PlannerChain, PlannerContext
 from .schemas import (
     ClipPlan,
     CreateTaskRequest,
@@ -21,11 +21,13 @@ from .schemas import (
     TaskDetail,
     TaskListItem,
     TaskOutput as TaskOutputSchema,
+    TaskTraceEvent,
     TaskSpec,
     TaskPreset,
     UploadResponse,
 )
 from .storage import MediaStorage
+from .task_trace import TaskTraceWriter, read_task_trace
 from .utils import clamp, new_id, truncate_text, utcnow
 
 
@@ -89,6 +91,13 @@ class TaskService:
     def list_task_presets(self) -> list[TaskPreset]:
         return get_task_presets()
 
+    def get_task_trace(self, task_id: str, limit: int = 500) -> list[TaskTraceEvent]:
+        with self.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                raise LookupError("task not found")
+        return read_task_trace(self.storage.task_trace_path(task_id), limit=limit)
+
     def create_task(self, payload: CreateTaskRequest) -> TaskDetail:
         if payload.minDurationSeconds > payload.maxDurationSeconds:
             raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
@@ -122,6 +131,27 @@ class TaskService:
             session.commit()
             session.refresh(task)
 
+        self._trace(
+            task.id,
+            "api",
+            "task.created",
+            "Task created from API request.",
+            {
+                "title": payload.title,
+                "platform": payload.platform,
+                "aspect_ratio": payload.aspectRatio,
+                "duration_range": [payload.minDurationSeconds, payload.maxDurationSeconds],
+                "output_count": payload.outputCount,
+                "has_creative_prompt": bool(payload.creativePrompt),
+                "has_transcript": bool(payload.transcriptText),
+                "transcript_cue_count": len(parse_transcript_cues(payload.transcriptText)),
+                "source_asset_id": payload.sourceAssetId,
+            },
+        )
+        self._save_task_context(
+            task.id,
+            transcript_text=payload.transcriptText,
+        )
         self.dispatch_task(task.id)
         return self.get_task_detail(task.id)
 
@@ -187,6 +217,15 @@ class TaskService:
             task.retry_count = (task.retry_count or 0) + 1
             session.commit()
 
+        self._trace(
+            task_id,
+            "api",
+            "task.retry_requested",
+            "Task retry requested.",
+            {
+                "retry_count": self.get_task_detail(task_id).retryCount,
+            },
+        )
         self.dispatch_task(task_id)
         return self.get_task_detail(task_id)
 
@@ -202,18 +241,47 @@ class TaskService:
 
     def dispatch_task(self, task_id: str) -> None:
         if self.settings.using_inline_execution or self.worker is None or self.worker.job_queue is None:
+            self._trace(
+                task_id,
+                "dispatch",
+                "task.dispatched_inline",
+                "Dispatching task using inline thread execution.",
+                {"execution_mode": self.settings.app.execution_mode},
+            )
             thread = threading.Thread(target=self.process_task, args=(task_id,), daemon=True)
             thread.start()
             return
         try:
             self.worker.job_queue.enqueue(task_id)
+            self._trace(
+                task_id,
+                "dispatch",
+                "task.enqueued",
+                "Task enqueued to Redis job queue.",
+                {"queue_mode": True},
+            )
         except Exception:
+            self._trace(
+                task_id,
+                "dispatch",
+                "task.enqueue_failed",
+                "Queue enqueue failed, falling back to inline thread execution.",
+                {"queue_mode": True},
+                "WARN",
+            )
             thread = threading.Thread(target=self.process_task, args=(task_id,), daemon=True)
             thread.start()
 
     def process_task(self, task_id: str) -> None:
         if not self._claim_task(task_id):
             return
+        self._trace(
+            task_id,
+            "pipeline",
+            "task.processing_started",
+            "Task processing started.",
+            {},
+        )
 
         with self.session() as session:
             task = session.get(Task, task_id)
@@ -225,6 +293,14 @@ class TaskService:
                 task.error_message = "source asset missing"
                 task.finished_at = utcnow()
                 session.commit()
+                self._trace(
+                    task_id,
+                    "pipeline",
+                    "task.source_missing",
+                    "Source asset is missing, task cannot continue.",
+                    {"source_asset_id": task.source_asset_id},
+                    "ERROR",
+                )
                 return
             source_asset_id = task.source_asset_id
             source_path = self.storage.root / asset.storage_path
@@ -238,8 +314,22 @@ class TaskService:
                 task.progress = 10
                 task.started_at = task.started_at or utcnow()
                 session.commit()
+                self._trace(
+                    task_id,
+                    "analysis",
+                    "analysis.started",
+                    "Media analysis started.",
+                    {"source_path": source_path.as_posix()},
+                )
 
             probe = probe_media(source_path)
+            self._trace(
+                task_id,
+                "analysis",
+                "analysis.completed",
+                "Media analysis completed.",
+                probe.model_dump(),
+            )
             with self.session() as session:
                 asset = session.get(SourceAsset, source_asset_id)
                 if asset is not None:
@@ -256,6 +346,23 @@ class TaskService:
                 task.status = "PLANNING"
                 task.progress = 25
                 session.commit()
+                context_payload = self._load_task_context(task_id)
+                transcript_text = self._context_transcript(context_payload)
+                transcript_cues = parse_transcript_cues(transcript_text)
+                self._trace(
+                    task_id,
+                    "planning",
+                    "planning.started",
+                    "Planning started.",
+                    {
+                        "has_transcript": bool(transcript_text),
+                        "transcript_cue_count": len(transcript_cues),
+                        "creative_prompt_present": bool(task.creative_prompt),
+                        "model_provider": self.settings.model.provider,
+                        "primary_model": self.settings.model.model_name,
+                        "fallback_model": self.settings.model.fallback_model_name,
+                    },
+                )
 
                 context = PlannerContext(
                     task=TaskSpec(
@@ -268,19 +375,39 @@ class TaskService:
                         introTemplate=task.intro_template,
                         outroTemplate=task.outro_template,
                         creativePrompt=task.creative_prompt,
+                        transcriptText=transcript_text,
                     ),
                     source=probe,
+                    transcriptText=transcript_text,
+                    trace=lambda stage, event, message, payload=None, level="INFO": self._trace(
+                        task_id,
+                        stage,
+                        event,
+                        message,
+                        payload,
+                        level,
+                    ),
                 )
                 clips = self.planner.plan(context)
                 if not clips:
-                    clips = self._fallback_clips(task, probe)
+                    clips = self._fallback_clips(task, probe, transcript_text=transcript_text)
                 else:
                     clips = self._sanitize_clips(task, probe, clips)
                     if not clips:
-                        clips = self._fallback_clips(task, probe)
+                        clips = self._fallback_clips(task, probe, transcript_text=transcript_text)
                 task.plan_json = json.dumps([clip.model_dump() for clip in clips], ensure_ascii=False)
                 task.progress = 35
                 session.commit()
+                self._trace(
+                    task_id,
+                    "planning",
+                    "planning.completed",
+                    "Planning completed.",
+                    {
+                        "clip_count": len(clips),
+                        "clip_titles": [clip.title for clip in clips[:5]],
+                    },
+                )
 
             self._render_outputs(
                 task_id=task_id,
@@ -297,6 +424,15 @@ class TaskService:
                 task.progress = 100
                 task.finished_at = utcnow()
                 session.commit()
+                self._trace(
+                    task_id,
+                    "pipeline",
+                    "task.completed",
+                    "Task completed successfully.",
+                    {
+                        "output_count": len(clips),
+                    },
+                )
         except Exception as exc:
             with self.session() as session:
                 task = session.get(Task, task_id)
@@ -306,6 +442,16 @@ class TaskService:
                     task.error_message = truncate_text(str(exc), 1000)
                     task.finished_at = utcnow()
                     session.commit()
+            self._trace(
+                task_id,
+                "pipeline",
+                "task.failed",
+                "Task failed during processing.",
+                {
+                    "error": str(exc),
+                },
+                "ERROR",
+            )
 
     def _claim_task(self, task_id: str) -> bool:
         with self.session() as session:
@@ -316,9 +462,18 @@ class TaskService:
             task.progress = max(task.progress or 0, 1)
             task.started_at = task.started_at or utcnow()
             session.commit()
+            self._trace(
+                task_id,
+                "pipeline",
+                "task.claimed",
+                "Task claimed for execution.",
+                {
+                    "status": task.status,
+                },
+            )
             return True
 
-    def _fallback_clips(self, task: Task, probe: MediaProbe) -> list[ClipPlan]:
+    def _fallback_clips(self, task: Task, probe: MediaProbe, transcript_text: str | None = None) -> list[ClipPlan]:
         context = PlannerContext(
             task=TaskSpec(
                 title=task.title,
@@ -330,8 +485,10 @@ class TaskService:
                 introTemplate=task.intro_template,
                 outroTemplate=task.outro_template,
                 creativePrompt=task.creative_prompt,
+                transcriptText=transcript_text,
             ),
             source=probe,
+            transcriptText=transcript_text,
         )
         from .planner import HeuristicPlanner
 
@@ -382,6 +539,15 @@ class TaskService:
                 task.status = "RENDERING"
                 task.progress = 40
                 session.commit()
+        self._trace(
+            task_id,
+            "render",
+            "render.started",
+            "Rendering outputs started.",
+            {
+                "clip_count": len(clips),
+            },
+        )
         with self.session() as session:
             task = session.get(Task, task_id)
             if task is None:
@@ -391,6 +557,19 @@ class TaskService:
             outro_template = task.outro_template
         for index, clip in enumerate(clips, start=1):
             output_path = self.storage.task_output_path(task_id, clip.clipIndex)
+            self._trace(
+                task_id,
+                "render",
+                "render.clip_started",
+                f"Rendering clip {clip.clipIndex}.",
+                {
+                    "clip_index": clip.clipIndex,
+                    "title": clip.title,
+                    "start_seconds": clip.startSeconds,
+                    "end_seconds": clip.endSeconds,
+                    "output_path": output_path.as_posix(),
+                },
+            )
             render_output(
                 source_path=source_path,
                 output_path=output_path,
@@ -421,6 +600,17 @@ class TaskService:
                 )
                 task.progress = min(95, 35 + int(60 * (index / total)))
                 session.commit()
+            self._trace(
+                task_id,
+                "render",
+                "render.clip_completed",
+                f"Rendered clip {clip.clipIndex}.",
+                {
+                    "clip_index": clip.clipIndex,
+                    "output_path": output_path.as_posix(),
+                    "progress": min(95, 35 + int(60 * (index / total))),
+                },
+            )
 
     def _delete_outputs(self, session: Session, task: Task) -> None:
         self.storage.remove_output_bundle(task.id)
@@ -428,6 +618,8 @@ class TaskService:
         session.flush()
 
     def _task_to_list_item(self, task: Task) -> TaskListItem:
+        context_payload = self._load_task_context(task.id)
+        transcript_text = self._context_transcript(context_payload)
         return TaskListItem(
             id=task.id,
             title=task.title,
@@ -445,6 +637,8 @@ class TaskService:
             startedAt=_optional_iso(task.started_at),
             finishedAt=_optional_iso(task.finished_at),
             completedOutputCount=len(task.outputs),
+            hasTranscript=bool(transcript_text),
+            hasTimedTranscript=bool(parse_transcript_cues(transcript_text)),
         )
 
     def _source_asset_summary(self, asset: SourceAsset | None) -> SourceAssetSummary | None:
@@ -484,10 +678,53 @@ class TaskService:
                 continue
         return plan
 
+    def _load_task_context(self, task_id: str) -> dict[str, object]:
+        return self.storage.load_task_context(task_id)
+
+    def _trace(
+        self,
+        task_id: str,
+        stage: str,
+        event: str,
+        message: str,
+        payload: dict[str, object] | None = None,
+        level: str = "INFO",
+    ) -> None:
+        writer = TaskTraceWriter(task_id=task_id, trace_path=self.storage.task_trace_path(task_id))
+        writer.log(stage=stage, event=event, message=message, payload=payload, level=level)
+
+    def _save_task_context(self, task_id: str, transcript_text: str | None = None) -> None:
+        normalized = (transcript_text or "").strip()
+        if not normalized:
+            return
+        self.storage.save_task_context(
+            task_id,
+            {
+                "transcriptText": normalized,
+            },
+        )
+
+    def _context_transcript(self, payload: dict[str, object]) -> str | None:
+        raw = payload.get("transcriptText")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+
+    def _transcript_preview(self, transcript_text: str | None, limit: int = 220) -> str | None:
+        if not transcript_text:
+            return None
+        normalized = " ".join(line.strip() for line in transcript_text.splitlines() if line.strip())
+        if len(normalized) <= limit:
+            return normalized
+        return normalized[: limit - 3] + "..."
+
     def _task_to_draft(self, task: Task, asset: SourceAsset | None) -> TaskDraft:
         title = task.title.strip()
         if title and not title.endswith("复制版"):
             title = f"{title} 复制版"
+        context_payload = self._load_task_context(task.id)
+        transcript_text = self._context_transcript(context_payload)
+        transcript_cues = parse_transcript_cues(transcript_text)
         return TaskDraft(
             sourceTaskId=task.id,
             sourceAssetId=task.source_asset_id,
@@ -501,6 +738,9 @@ class TaskService:
             introTemplate=task.intro_template,
             outroTemplate=task.outro_template,
             creativePrompt=task.creative_prompt,
+            transcriptText=transcript_text,
+            hasTimedTranscript=bool(transcript_cues),
+            transcriptCueCount=len(transcript_cues),
             source=self._source_asset_summary(asset),
         )
 
@@ -523,6 +763,9 @@ class TaskService:
             )
         source_asset = task.source_asset if hasattr(task, "source_asset") else None
         plan = self._parse_plan(task)
+        context_payload = self._load_task_context(task.id)
+        transcript_text = self._context_transcript(context_payload)
+        transcript_cues = parse_transcript_cues(transcript_text)
         return TaskDetail(
             id=task.id,
             title=task.title,
@@ -544,6 +787,10 @@ class TaskService:
             finishedAt=_optional_iso(task.finished_at),
             retryCount=task.retry_count or 0,
             completedOutputCount=len(outputs),
+            transcriptPreview=self._transcript_preview(transcript_text),
+            hasTranscript=bool(transcript_text),
+            hasTimedTranscript=bool(transcript_cues),
+            transcriptCueCount=len(transcript_cues),
             source=self._source_asset_summary(source_asset),
             plan=plan,
             outputs=outputs,

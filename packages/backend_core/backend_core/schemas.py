@@ -33,6 +33,7 @@ class CreateTaskRequest(BaseModel):
     introTemplate: str
     outroTemplate: str
     creativePrompt: str | None = None
+    transcriptText: str | None = None
 
 
 class SourceAssetSummary(BaseModel):
@@ -65,6 +66,15 @@ class TaskOutput(BaseModel):
     downloadUrl: str
 
 
+class TaskTraceEvent(BaseModel):
+    timestamp: str
+    level: str
+    stage: str
+    event: str
+    message: str
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
 class TaskListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,6 +94,8 @@ class TaskListItem(BaseModel):
     startedAt: str | None = None
     finishedAt: str | None = None
     completedOutputCount: int = 0
+    hasTranscript: bool = False
+    hasTimedTranscript: bool = False
 
 
 class TaskDraft(BaseModel):
@@ -99,6 +111,9 @@ class TaskDraft(BaseModel):
     introTemplate: str
     outroTemplate: str
     creativePrompt: str | None = None
+    transcriptText: str | None = None
+    hasTimedTranscript: bool = False
+    transcriptCueCount: int = 0
     source: SourceAssetSummary | None = None
 
 
@@ -115,6 +130,10 @@ class TaskDetail(TaskListItem):
     finishedAt: str | None = None
     retryCount: int = 0
     completedOutputCount: int = 0
+    transcriptPreview: str | None = None
+    hasTranscript: bool = False
+    hasTimedTranscript: bool = False
+    transcriptCueCount: int = 0
     source: SourceAssetSummary | None = None
     plan: list[ClipPlan] = Field(default_factory=list)
     outputs: list[TaskOutput] = Field(default_factory=list)
@@ -147,6 +166,7 @@ class TaskSpec(BaseModel):
     introTemplate: str
     outroTemplate: str
     creativePrompt: str | None = None
+    transcriptText: str | None = None
 
 
 class TaskPreset(BaseModel):

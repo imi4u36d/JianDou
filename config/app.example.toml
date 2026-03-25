@@ -22,10 +22,13 @@ public_base_url = "http://127.0.0.1:8000/storage"
 
 [model]
 provider = "qwen"
-model_name = "qwen-plus"
+model_name = "qwen-max-latest"
+fallback_model_name = "qwen-plus"
 endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 api_key = "replace-with-your-key"
 timeout_seconds = 45
+temperature = 0.15
+max_tokens = 2000
 
 [pipeline]
 default_aspect_ratio = "9:16"
@@ -33,4 +36,3 @@ max_output_count = 10
 max_source_minutes = 120
 default_intro_template = "hook"
 default_outro_template = "brand"
-

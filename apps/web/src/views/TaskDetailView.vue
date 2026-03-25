@@ -85,6 +85,13 @@
             </div>
           </div>
 
+          <div v-if="task.hasTranscript" class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+            <p class="text-xs uppercase tracking-[0.24em] text-slate-400">语义规划输入</p>
+            <p class="mt-2 text-sm font-medium text-white">{{ task.hasTimedTranscript ? "已提供带时间戳字幕/台词" : "已提供纯文本台词/字幕" }}</p>
+            <p class="mt-1 text-xs text-slate-400">时间轴片段：{{ task.transcriptCueCount ?? 0 }} 条</p>
+            <p v-if="task.transcriptPreview" class="mt-2 text-sm leading-6 text-slate-300">{{ task.transcriptPreview }}</p>
+          </div>
+
           <div v-if="task.plan?.length" class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
             <p class="text-xs uppercase tracking-[0.24em] text-slate-400">规划方案</p>
             <div v-if="task.plan?.length" class="mt-4 grid gap-3">
@@ -120,6 +127,47 @@
 
           <div v-if="task.errorMessage" class="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-200">
             {{ task.errorMessage }}
+          </div>
+        </div>
+
+        <div class="mt-6 rounded-[28px] border border-white/10 bg-slate-950/45 p-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-[0.24em] text-slate-400">Trace</p>
+              <h3 class="mt-2 text-lg font-semibold text-white">全链路日志追踪</h3>
+              <p class="mt-1 text-sm text-slate-400">包含 API 创建、调度、分析、规划、LLM 调用、渲染与失败信息。</p>
+            </div>
+            <button class="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-100 transition duration-200 hover:border-rose-300/40 hover:bg-white/10" type="button" @click="loadTrace">
+              刷新日志
+            </button>
+          </div>
+
+          <div v-if="traceLoading" class="mt-4 text-sm text-slate-400">正在加载任务日志...</div>
+          <div v-else-if="traceErrorMessage" class="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+            {{ traceErrorMessage }}
+          </div>
+          <div v-else-if="traceEvents.length === 0" class="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
+            当前任务还没有可展示的 trace 事件。
+          </div>
+          <div v-else class="mt-4 grid gap-3">
+            <article
+              v-for="entry in traceEvents"
+              :key="`${entry.timestamp}-${entry.event}`"
+              class="rounded-2xl border border-white/8 bg-white/[0.04] p-4"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <span :class="traceStageClass(entry.stage)" class="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em]">
+                  {{ entry.stage }}
+                </span>
+                <span :class="traceLevelClass(entry.level)" class="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em]">
+                  {{ entry.level }}
+                </span>
+                <span class="text-xs text-slate-500">{{ formatTime(entry.timestamp) }}</span>
+              </div>
+              <p class="mt-3 text-sm font-medium text-white">{{ entry.message }}</p>
+              <p class="mt-1 font-mono text-xs text-slate-500">{{ entry.event }}</p>
+              <pre v-if="Object.keys(entry.payload || {}).length" class="mt-3 overflow-x-auto rounded-xl border border-white/8 bg-slate-950/70 p-3 text-xs leading-6 text-slate-300">{{ formatTracePayload(entry.payload) }}</pre>
+            </article>
           </div>
         </div>
       </template>
@@ -183,8 +231,8 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getRuntimeConfig } from "@/api/runtime-config";
-import { fetchTask, retryTask } from "@/api/tasks";
-import type { TaskDetail, TaskStatus } from "@/types";
+import { fetchTask, fetchTaskTrace, retryTask } from "@/api/tasks";
+import type { TaskDetail, TaskStatus, TaskTraceEvent } from "@/types";
 import PageHeader from "@/components/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import TimelineStage from "@/components/TimelineStage.vue";
@@ -197,6 +245,9 @@ const router = useRouter();
 const task = ref<TaskDetail | null>(null);
 const loading = ref(true);
 const errorMessage = ref("");
+const traceEvents = ref<TaskTraceEvent[]>([]);
+const traceLoading = ref(false);
+const traceErrorMessage = ref("");
 
 const taskId = computed(() => {
   const value = route.params.id;
@@ -322,6 +373,22 @@ async function loadTask() {
   }
 }
 
+async function loadTrace() {
+  traceErrorMessage.value = "";
+  if (!taskId.value) {
+    traceEvents.value = [];
+    return;
+  }
+  traceLoading.value = true;
+  try {
+    traceEvents.value = await fetchTaskTrace(taskId.value, 800);
+  } catch (error) {
+    traceErrorMessage.value = error instanceof Error ? error.message : "加载任务日志失败";
+  } finally {
+    traceLoading.value = false;
+  }
+}
+
 async function handleRetry() {
   errorMessage.value = "";
   if (!taskId.value) {
@@ -331,6 +398,7 @@ async function handleRetry() {
   loading.value = true;
   try {
     task.value = await retryTask(taskId.value);
+    await loadTrace();
     if (isTerminalTaskStatus(task.value.status)) {
       stop();
     } else {
@@ -350,8 +418,41 @@ function openCloneFlow() {
   router.push({ path: "/tasks/new", query: { cloneFrom: taskId.value } });
 }
 
+function traceStageClass(stage: string) {
+  switch (stage) {
+    case "llm":
+      return "bg-fuchsia-500/15 text-fuchsia-100";
+    case "render":
+      return "bg-amber-500/15 text-amber-100";
+    case "analysis":
+      return "bg-cyan-500/15 text-cyan-100";
+    case "planning":
+      return "bg-sky-500/15 text-sky-100";
+    case "api":
+      return "bg-emerald-500/15 text-emerald-100";
+    default:
+      return "bg-white/10 text-slate-200";
+  }
+}
+
+function traceLevelClass(level: string) {
+  switch (level.toUpperCase()) {
+    case "ERROR":
+      return "bg-rose-500/15 text-rose-100";
+    case "WARN":
+      return "bg-amber-500/15 text-amber-100";
+    default:
+      return "bg-white/10 text-slate-200";
+  }
+}
+
+function formatTracePayload(payload: Record<string, unknown>) {
+  return JSON.stringify(payload, null, 2);
+}
+
 const { start, stop } = usePolling(async () => {
   await loadTask();
+  await loadTrace();
   if (task.value && isTerminalTaskStatus(task.value.status)) {
     stop();
   }
@@ -363,6 +464,8 @@ watch(
     onCleanup(stop);
     task.value = null;
     errorMessage.value = "";
+    traceEvents.value = [];
+    traceErrorMessage.value = "";
     loading.value = true;
     await start();
   },

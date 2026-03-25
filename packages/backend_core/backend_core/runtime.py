@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .config import Settings, load_settings
 from .db import build_sqlite_url, create_sqlalchemy_engine, init_database, build_session_factory
@@ -22,6 +23,31 @@ class BackendRuntime:
     worker: TaskWorker
 
     def describe(self) -> dict[str, object]:
+        endpoint = self.settings.model.endpoint.strip()
+        endpoint_host = ""
+        if endpoint:
+            try:
+                endpoint_host = urlparse(endpoint).netloc or endpoint
+            except Exception:
+                endpoint_host = endpoint
+
+        model_ready = bool(
+            self.settings.model.provider
+            and self.settings.model.model_name
+            and endpoint
+            and self.settings.model.api_key
+        )
+
+        config_errors: list[str] = []
+        if not self.settings.model.provider:
+            config_errors.append("missing provider")
+        if not self.settings.model.model_name:
+            config_errors.append("missing model_name")
+        if not endpoint:
+            config_errors.append("missing endpoint")
+        if not self.settings.model.api_key:
+            config_errors.append("missing api_key")
+
         return {
             "name": self.settings.app.name,
             "env": self.settings.app.env,
@@ -29,6 +55,22 @@ class BackendRuntime:
             "database_url": self.database_url,
             "model_provider": self.settings.model.provider,
             "storage_root": str(self.settings.storage_root),
+            "model": {
+                "provider": self.settings.model.provider,
+                "primary_model": self.settings.model.model_name,
+                "fallback_model": self.settings.model.fallback_model_name,
+                "endpoint_host": endpoint_host,
+                "api_key_present": bool(self.settings.model.api_key),
+                "ready": model_ready,
+                "temperature": self.settings.model.temperature,
+                "max_tokens": self.settings.model.max_tokens,
+                "config_errors": config_errors,
+            },
+            "planning_capabilities": {
+                "timed_transcript_supported": True,
+                "transcript_semantic_planning": True,
+                "fallback_heuristic_enabled": True,
+            },
         }
 
 

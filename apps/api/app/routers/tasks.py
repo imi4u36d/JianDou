@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from backend_core.schemas import CreateTaskRequest, TaskDetail, TaskDraft, TaskListItem, TaskStatus
+from backend_core.schemas import CreateTaskRequest, TaskDetail, TaskDraft, TaskListItem, TaskStatus, TaskTraceEvent
 
 
 router = APIRouter(tags=["tasks"])
@@ -40,6 +40,18 @@ def list_tasks(
 def get_task(request: Request, task_id: str) -> TaskDetail:
     try:
         return request.app.state.runtime.service.get_task_detail(task_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tasks/{task_id}/trace", response_model=list[TaskTraceEvent])
+def get_task_trace(
+    request: Request,
+    task_id: str,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> list[TaskTraceEvent]:
+    try:
+        return request.app.state.runtime.service.get_task_trace(task_id, limit=limit)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

@@ -83,3 +83,63 @@
 - `npm --prefix apps/web run build`
 - `python3 -m py_compile apps/api/app/main.py apps/api/app/routers/tasks.py apps/api/app/routers/presets.py packages/backend_core/backend_core/*.py`
 - `./.venv/bin/python -c "from apps.api.app.main import app; ..."`
+
+## 2026-03-25（三次迭代）
+
+### 阶段
+
+V4-V8 路线规划与模型就绪层补强
+
+### 本次开发目标
+
+- 在不额外消耗模型 token 做自检的前提下，确保模型配置与规划能力可见
+- 把字幕 / 台词输入体验提升为真正的语义规划入口
+- 为后续五个版本建立清晰的版本路线
+
+### 已落实内容
+
+1. 模型就绪层
+- 健康检查返回更丰富的运行时模型信息
+- 前端全局头部展示主模型、回退模型、配置是否就绪和规划能力
+
+2. 字幕驱动输入
+- 新建页支持导入 `.srt/.vtt/.txt`
+- 新建页展示语义输入质量与时间戳模式提示
+- 详情页展示字幕输入摘要和时间轴片段数
+
+3. 五个后续版本路线
+- V4：模型就绪层
+- V5：字幕驱动切片
+- V6：批量运营工作台
+- V7：人工审核与微调
+- V8：策略复盘台
+
+## 2026-03-25（四次迭代）
+
+### 阶段
+
+全链路任务日志追踪
+
+### 本次开发目标
+
+- 为每个任务建立可查询的 trace 事件流
+- 覆盖 API 创建、任务调度、素材分析、规划、Qwen 调用、渲染和失败
+- 尤其增强大模型调用细节，方便排查 prompt、回退和响应问题
+
+### 已落实内容
+
+1. 后端 trace 能力
+- 为每个任务写入 `storage/temp/task_trace/<task_id>.jsonl`
+- 新增 `GET /api/v1/tasks/{taskId}/trace`
+- 记录 API 创建、调度、分析、规划、LLM 尝试、回退、HTTP/网络错误、响应摘录、渲染片段开始/完成、任务完成/失败
+
+2. 大模型细节
+- 记录主模型 / 回退模型尝试过程
+- 记录 prompt 长度和 prompt 摘录
+- 记录响应摘录和解析出的 clip 数量
+- 不记录 API Key
+
+3. 前端可视化
+- 任务详情页新增“全链路日志追踪”面板
+- 用 stage / level 分组显示任务事件
+- `llm` 阶段会直接显示模型调用相关上下文

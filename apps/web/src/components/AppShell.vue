@@ -21,7 +21,7 @@
         </nav>
       </div>
 
-      <div class="grid gap-3 px-5 py-4 sm:grid-cols-3 sm:px-6">
+      <div class="grid gap-3 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4 sm:px-6">
         <div class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
           <p class="text-xs uppercase tracking-[0.32em] text-slate-400">流程</p>
           <p class="mt-2 text-sm font-medium text-white">Upload → Plan → Render</p>
@@ -34,8 +34,27 @@
         </div>
         <div class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
           <p class="text-xs uppercase tracking-[0.32em] text-slate-400">模式</p>
-          <p class="mt-2 text-sm font-medium text-white">Dark workbench</p>
+          <p class="mt-2 text-sm font-medium text-white">{{ executionModeLabel }}</p>
           <p class="mt-2 text-xs leading-5 text-slate-400">高对比、低噪音、适合长时间盯任务队列。</p>
+        </div>
+        <div class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-[0.32em] text-slate-400">模型状态</p>
+              <p class="mt-2 text-sm font-medium text-white">{{ modelTitle }}</p>
+            </div>
+            <span
+              class="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em]"
+              :class="modelBadgeClass"
+            >
+              {{ modelStatusLabel }}
+            </span>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-slate-400">{{ modelDescription }}</p>
+          <p v-if="health?.runtime.model.primary_model" class="mt-2 text-[11px] text-slate-500">
+            {{ health.runtime.model.primary_model }}
+            <template v-if="health.runtime.model.fallback_model"> / {{ health.runtime.model.fallback_model }}</template>
+          </p>
         </div>
       </div>
     </header>
@@ -44,3 +63,62 @@
     </main>
   </div>
 </template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
+import { fetchHealth } from "@/api/health";
+import type { HealthResponse } from "@/types";
+
+const health = ref<HealthResponse | null>(null);
+
+const modelStatusLabel = computed(() => {
+  if (!health.value) {
+    return "加载中";
+  }
+  return health.value.runtime.model.ready ? "就绪" : "待配置";
+});
+
+const modelBadgeClass = computed(() => {
+  if (!health.value) {
+    return "bg-slate-500/15 text-slate-200";
+  }
+  return health.value.runtime.model.ready
+    ? "bg-emerald-500/15 text-emerald-100"
+    : "bg-amber-500/15 text-amber-100";
+});
+
+const modelTitle = computed(() => {
+  if (!health.value) {
+    return "读取运行状态中";
+  }
+  return health.value.runtime.model.ready ? "大模型规划已接通" : "模型配置未完成";
+});
+
+const modelDescription = computed(() => {
+  if (!health.value) {
+    return "正在读取 API、模型和规划能力配置。";
+  }
+  if (health.value.runtime.model.ready) {
+    return health.value.runtime.planning_capabilities.timed_transcript_supported
+      ? "支持带时间戳字幕驱动的语义规划，不需要消耗 token 做在线自检。"
+      : "已配置模型，但语义规划能力未完全打开。";
+  }
+  const errors = health.value.runtime.model.config_errors.join(", ");
+  return errors ? `缺失项：${errors}` : "当前仅能依赖本地启发式切条。";
+});
+
+const executionModeLabel = computed(() => {
+  if (!health.value) {
+    return "Dark workbench";
+  }
+  return health.value.runtime.execution_mode === "queue" ? "Queue workbench" : "Inline workbench";
+});
+
+onMounted(async () => {
+  try {
+    health.value = await fetchHealth();
+  } catch {
+    health.value = null;
+  }
+});
+</script>
