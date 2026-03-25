@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: ai-cut-backend-core
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: SQLAlchemy>=2.0

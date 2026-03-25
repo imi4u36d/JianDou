@@ -1,0 +1,36 @@
+[app]
+name = "AI Cut"
+env = "local"
+api_host = "0.0.0.0"
+api_port = 8000
+web_origin = "http://localhost:5173"
+execution_mode = "inline"
+
+[database]
+url = "mysql+pymysql://root:root@127.0.0.1:3306/ai_cut?charset=utf8mb4_general_ci"
+echo = false
+
+[redis]
+url = "redis://127.0.0.1:6379/0"
+
+[storage]
+root_dir = "storage"
+uploads_dir = "storage/uploads"
+outputs_dir = "storage/outputs"
+temp_dir = "storage/temp"
+public_base_url = "http://127.0.0.1:8000/storage"
+
+[model]
+provider = "qwen"
+model_name = "qwen-plus"
+endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+api_key = ""
+timeout_seconds = 45
+
+[pipeline]
+default_aspect_ratio = "9:16"
+max_output_count = 10
+max_source_minutes = 120
+default_intro_template = "hook"
+default_outro_template = "brand"
+

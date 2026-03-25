@@ -1,0 +1,7 @@
+fastapi>=0.110
+pydantic>=2.7
+SQLAlchemy>=2.0
+python-multipart>=0.0.9
+uvicorn>=0.30
+redis>=5.0
+pymysql>=1.1

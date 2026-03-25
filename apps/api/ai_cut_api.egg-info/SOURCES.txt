@@ -1,0 +1,12 @@
+pyproject.toml
+ai_cut_api.egg-info/PKG-INFO
+ai_cut_api.egg-info/SOURCES.txt
+ai_cut_api.egg-info/dependency_links.txt
+ai_cut_api.egg-info/requires.txt
+ai_cut_api.egg-info/top_level.txt
+app/__init__.py
+app/main.py
+app/routers/__init__.py
+app/routers/health.py
+app/routers/tasks.py
+app/routers/uploads.py
