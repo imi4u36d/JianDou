@@ -4,7 +4,7 @@
 
 ## 1. 健康检查
 
-### `GET /health`
+### `GET /api/v1/health`
 
 返回服务状态与基础依赖信息。
 
@@ -62,18 +62,29 @@
 {
   "title": "第12集高能转化版",
   "sourceAssetId": "video_xxx",
+  "sourceAssetIds": ["video_xxx"],
   "sourceFileName": "episode12.mp4",
+  "sourceFileNames": ["episode12.mp4"],
+  "editingMode": "drama",
+  "mixcutEnabled": false,
+  "mixcutContentType": "generic",
+  "mixcutStylePreset": "director",
   "platform": "douyin",
   "aspectRatio": "9:16",
   "minDurationSeconds": 15,
   "maxDurationSeconds": 30,
   "outputCount": 3,
-  "introTemplate": "hook",
-  "outroTemplate": "brand",
+  "introTemplate": "flash_hook",
+  "outroTemplate": "suspense_hold",
   "creativePrompt": "优先保留冲突和反转",
   "transcriptText": "1\n00:00:02,000 --> 00:00:06,000\n你居然背着我把合同签了？"
 }
 ```
+
+模式约束：
+
+- `editingMode=drama`：仅允许 1 条 `sourceAssetIds`
+- `editingMode=mixcut`：至少 2 条 `sourceAssetIds`
 
 响应内容包含：
 

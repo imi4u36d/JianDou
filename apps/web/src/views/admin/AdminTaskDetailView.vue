@@ -1,138 +1,154 @@
 <template>
-  <section class="space-y-6">
-    <PageHeader
-      eyebrow="Admin Task"
-      :title="task?.title || '任务详情'"
-      description="管理侧只关注处理动作、异常原因和日志，不再承载创作型交互。"
-    >
-      <div class="flex flex-wrap gap-2">
-        <button :class="adminSecondaryButton" :disabled="actionLoading" type="button" @click="cloneTaskToWorkbench">
-          复制到前台
-        </button>
-        <button v-if="task?.status === 'FAILED'" :class="adminWarningButton" :disabled="actionLoading" type="button" @click="retryTaskAction">
-          失败重试
-        </button>
-        <button :class="adminDangerButton" :disabled="actionLoading || runningTask" type="button" @click="deleteTaskAction">
-          删除
-        </button>
+  <section class="space-y-4">
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-900">任务详情</h2>
+          <p class="mt-1 text-sm text-slate-600">面向运维的任务诊断视图：状态、参数、方案、日志。</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button :class="secondaryButtonClass" :disabled="actionLoading" type="button" @click="cloneTaskToWorkbench">复制到前台</button>
+          <button v-if="task?.status === 'FAILED'" :class="warningButtonClass" :disabled="actionLoading" type="button" @click="retryTaskAction">失败重试</button>
+          <button :class="dangerButtonClass" :disabled="actionLoading || runningTask" type="button" @click="deleteTaskAction">删除</button>
+        </div>
       </div>
-    </PageHeader>
+    </div>
 
-    <div v-if="errorMessage" class="rounded-[24px] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+    <div v-if="errorMessage" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
       {{ errorMessage }}
     </div>
 
-    <div v-if="loading" class="rounded-[24px] border border-white/10 bg-white/[0.04] p-8 text-sm text-slate-300">
+    <div v-if="loading" class="rounded-lg border border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
       正在读取任务详情...
     </div>
 
     <template v-else-if="task">
-      <div class="grid gap-6 xl:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
-        <section class="grid gap-4 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(13,19,38,0.94),rgba(8,14,28,0.92))] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.3)]">
-          <div class="grid gap-3 sm:grid-cols-2">
-            <article class="rounded-[22px] border border-white/8 bg-slate-950/55 p-4">
-              <p class="text-[11px] uppercase tracking-[0.28em] text-slate-500">状态</p>
-              <p class="mt-2 text-lg font-semibold text-white">{{ task.status }}</p>
-              <p class="mt-1 text-sm text-slate-400">进度 {{ task.progress }}%</p>
+      <div class="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="border-b border-slate-200 px-4 py-3">
+            <h3 class="text-base font-semibold text-slate-900">基础信息</h3>
+          </div>
+          <div class="grid gap-3 p-4 sm:grid-cols-2">
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">任务标题</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.title }}</p>
             </article>
-            <article class="rounded-[22px] border border-white/8 bg-slate-950/55 p-4">
-              <p class="text-[11px] uppercase tracking-[0.28em] text-slate-500">平台 / 比例</p>
-              <p class="mt-2 text-lg font-semibold text-white">{{ task.platform }}</p>
-              <p class="mt-1 text-sm text-slate-400">{{ task.aspectRatio }}</p>
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">状态</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.status }} · {{ task.progress }}%</p>
             </article>
-            <article class="rounded-[22px] border border-white/8 bg-slate-950/55 p-4">
-              <p class="text-[11px] uppercase tracking-[0.28em] text-slate-500">输出</p>
-              <p class="mt-2 text-lg font-semibold text-white">{{ task.completedOutputCount ?? 0 }} / {{ task.outputCount }}</p>
-              <p class="mt-1 text-sm text-slate-400">{{ task.minDurationSeconds }}-{{ task.maxDurationSeconds }} 秒</p>
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">平台 / 比例</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.platform }} · {{ task.aspectRatio }}</p>
             </article>
-            <article class="rounded-[22px] border border-white/8 bg-slate-950/55 p-4">
-              <p class="text-[11px] uppercase tracking-[0.28em] text-slate-500">素材</p>
-              <p class="mt-2 break-all text-sm font-semibold text-white">{{ task.sourceFileName }}</p>
-              <p class="mt-1 text-sm text-slate-400">{{ task.source?.originalFileName || "未关联原始资产名" }}</p>
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">输出</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.completedOutputCount ?? 0 }} / {{ task.outputCount }}</p>
+            </article>
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">时长区间</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.minDurationSeconds }} - {{ task.maxDurationSeconds }} 秒</p>
+            </article>
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">源文件</p>
+              <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ task.sourceFileName }}</p>
             </article>
           </div>
 
-          <article class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-200">规划方式</span>
-              <span class="text-xs text-slate-500">{{ planningSummary.label }}</span>
+          <div class="border-t border-slate-200 px-4 py-3">
+            <h4 class="text-sm font-semibold text-slate-900">规划摘要</h4>
+            <p class="mt-1 text-sm text-slate-700">{{ planningSummary.title }}</p>
+            <p class="mt-1 text-xs text-slate-500">{{ planningSummary.detail }}</p>
+          </div>
+
+          <div v-if="task.errorMessage" class="border-t border-slate-200 px-4 py-3">
+            <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ task.errorMessage }}
             </div>
-            <p class="mt-3 text-base font-semibold text-white">{{ planningSummary.title }}</p>
-            <p class="mt-1 text-sm leading-6 text-slate-300">{{ planningSummary.detail }}</p>
-          </article>
-
-          <div v-if="task.errorMessage" class="rounded-[22px] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
-            {{ task.errorMessage }}
           </div>
 
-          <div v-if="task.plan?.length" class="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <p class="text-[11px] uppercase tracking-[0.28em] text-slate-500">规划方案</p>
-            <div class="mt-3 grid gap-3">
-              <article v-for="clip in task.plan" :key="clip.clipIndex" class="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="break-words text-sm font-semibold text-white">#{{ clip.clipIndex }} {{ clip.title }}</p>
-                    <p class="mt-1 break-words text-sm leading-6 text-slate-300">{{ clip.reason }}</p>
-                  </div>
-                  <span class="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-200">{{ clip.durationSeconds.toFixed(1) }}s</span>
-                </div>
-                <p class="mt-3 text-xs text-slate-400">{{ clip.startSeconds.toFixed(1) }}s - {{ clip.endSeconds.toFixed(1) }}s</p>
-              </article>
+          <div v-if="task.plan?.length" class="border-t border-slate-200 p-4">
+            <div class="mb-2 flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-900">规划方案</h4>
+              <span class="text-xs text-slate-500">{{ task.plan.length }} 条</span>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-slate-200">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-medium">序号</th>
+                    <th class="px-3 py-2 text-left font-medium">标题</th>
+                    <th class="px-3 py-2 text-left font-medium">时长</th>
+                    <th class="px-3 py-2 text-left font-medium">时间窗</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="clip in task.plan" :key="clip.clipIndex" class="border-t border-slate-200">
+                    <td class="px-3 py-2 text-slate-700">#{{ clip.clipIndex }}</td>
+                    <td class="px-3 py-2">
+                      <p class="font-medium text-slate-900">{{ clip.title }}</p>
+                      <p class="mt-0.5 text-xs text-slate-500">{{ clip.reason }}</p>
+                    </td>
+                    <td class="px-3 py-2 text-slate-700">{{ clip.durationSeconds.toFixed(1) }}s</td>
+                    <td class="px-3 py-2 text-slate-700">{{ clip.startSeconds.toFixed(1) }}s - {{ clip.endSeconds.toFixed(1) }}s</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
 
-        <section class="grid gap-4 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(13,19,38,0.92),rgba(8,14,28,0.9))] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
-          <div class="flex flex-wrap items-end justify-between gap-3">
+        <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-4 py-3">
             <div>
-              <p class="text-[11px] uppercase tracking-[0.32em] text-sky-300/80">Trace</p>
-              <h3 class="mt-2 text-lg font-semibold text-white">任务日志</h3>
-              <p class="mt-1 text-sm text-slate-400">默认只看摘要，展开后再读完整事件流。</p>
+              <h3 class="text-base font-semibold text-slate-900">任务日志</h3>
+              <p class="mt-1 text-sm text-slate-600">默认显示最新摘要，可展开完整事件流。</p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button :class="adminSecondaryButton" type="button" @click="refresh">
-                刷新
-              </button>
-              <button :class="adminGhostButton" type="button" @click="traceExpanded = !traceExpanded">
-                {{ traceExpanded ? "收起日志" : "展开日志" }}
-              </button>
+              <button :class="secondaryButtonClass" type="button" @click="refresh">刷新</button>
+              <button :class="ghostButtonClass" type="button" @click="traceExpanded = !traceExpanded">{{ traceExpanded ? "收起日志" : "展开日志" }}</button>
             </div>
           </div>
 
-          <article :class="traceFocusToneClass" class="rounded-[22px] border p-4">
-            <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-500">
-              <span>当前重点</span>
-              <span>{{ traceFocus?.timestamp ? formatTime(traceFocus.timestamp) : "暂无日志" }}</span>
+          <div class="space-y-3 p-4">
+            <article class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">当前重点</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ traceFocus?.message || "暂无日志" }}</p>
+              <p class="mt-1 text-xs text-slate-500">{{ traceFocus?.timestamp ? formatTime(traceFocus.timestamp) : "" }}</p>
+            </article>
+
+            <div v-if="traceEvents.length === 0" class="rounded-lg border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500">
+              当前没有日志。
             </div>
-            <p class="mt-3 text-sm font-semibold text-white">{{ traceFocus?.message || "还没有可展示的关键事件" }}</p>
-            <p v-if="traceFocus" class="mt-1 break-all font-mono text-[11px] text-slate-500">{{ traceFocus.event }}</p>
-          </article>
 
-          <div v-if="!traceExpanded" class="grid gap-3">
-            <article v-for="entry in tracePreview" :key="`${entry.timestamp}-${entry.event}`" class="rounded-[22px] border border-white/8 bg-slate-950/55 p-4">
-              <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                <span>{{ entry.level }}</span>
-                <span>{{ entry.stage }}</span>
-                <span>{{ formatTime(entry.timestamp) }}</span>
-              </div>
-              <p class="mt-3 text-sm font-semibold text-white">{{ entry.message }}</p>
-            </article>
-          </div>
-
-          <div v-else class="grid gap-3">
-            <article v-for="entry in orderedTraceEvents" :key="`${entry.timestamp}-${entry.event}`" class="rounded-[22px] border border-white/8 bg-slate-950/55 p-4">
-              <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                <span>{{ entry.level }}</span>
-                <span>{{ entry.stage }}</span>
-                <span>{{ formatTime(entry.timestamp) }}</span>
-              </div>
-              <p class="mt-3 text-sm font-semibold text-white">{{ entry.message }}</p>
-              <p class="mt-2 break-all font-mono text-[11px] text-slate-500">{{ entry.event }}</p>
-            </article>
-          </div>
-
-          <div v-if="traceEvents.length === 0" class="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
-            当前没有日志。
+            <div v-else class="overflow-x-auto rounded-lg border border-slate-200">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-medium">时间</th>
+                    <th class="px-3 py-2 text-left font-medium">级别</th>
+                    <th class="px-3 py-2 text-left font-medium">阶段</th>
+                    <th class="px-3 py-2 text-left font-medium">消息</th>
+                    <th class="px-3 py-2 text-left font-medium">事件</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="entry in traceExpanded ? orderedTraceEvents : tracePreview"
+                    :key="`${entry.timestamp}-${entry.event}`"
+                    class="border-t border-slate-200"
+                  >
+                    <td class="px-3 py-2 text-xs text-slate-500">{{ formatTime(entry.timestamp) }}</td>
+                    <td class="px-3 py-2">
+                      <span :class="logLevelClass(entry.level)" class="rounded px-2 py-0.5 text-xs font-medium">{{ entry.level }}</span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-700">{{ entry.stage }}</td>
+                    <td class="px-3 py-2 text-slate-700">{{ entry.message }}</td>
+                    <td class="px-3 py-2 break-all text-xs text-slate-500">{{ entry.event }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </div>
@@ -144,7 +160,6 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { cloneAdminTask, deleteAdminTask, fetchAdminTask, fetchAdminTaskTrace, retryAdminTask } from "@/api/admin";
-import PageHeader from "@/components/PageHeader.vue";
 import type { TaskDetail, TaskTraceEvent } from "@/types";
 
 const route = useRoute();
@@ -156,10 +171,14 @@ const actionLoading = ref(false);
 const errorMessage = ref("");
 const traceExpanded = ref(false);
 
-const adminSecondaryButton = "btn-secondary";
-const adminGhostButton = "btn-ghost";
-const adminWarningButton = "btn-warning";
-const adminDangerButton = "btn-danger";
+const secondaryButtonClass =
+  "inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50";
+const ghostButtonClass =
+  "inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50";
+const warningButtonClass =
+  "inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50";
+const dangerButtonClass =
+  "inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50";
 
 const taskId = computed(() => String(route.params.id || ""));
 const runningTask = computed(() => Boolean(task.value && (task.value.status === "ANALYZING" || task.value.status === "PLANNING" || task.value.status === "RENDERING")));
@@ -188,19 +207,17 @@ const planningSummary = computed(() => {
 
 const orderedTraceEvents = computed(() => [...traceEvents.value].reverse());
 const traceFocus = computed(() => orderedTraceEvents.value[0] ?? null);
-const tracePreview = computed(() => orderedTraceEvents.value.slice(0, 3));
-const traceFocusToneClass = computed(() => {
-  if (!traceFocus.value) {
-    return "border-white/8 bg-white/[0.04]";
+const tracePreview = computed(() => orderedTraceEvents.value.slice(0, 5));
+
+function logLevelClass(level: string) {
+  if (level === "ERROR") {
+    return "bg-rose-100 text-rose-700";
   }
-  if (traceFocus.value.level === "ERROR") {
-    return "border-rose-400/20 bg-rose-500/10";
+  if (level === "WARN") {
+    return "bg-amber-100 text-amber-700";
   }
-  if (traceFocus.value.level === "WARN") {
-    return "border-amber-400/20 bg-amber-500/10";
-  }
-  return "border-sky-400/20 bg-sky-500/10";
-});
+  return "bg-slate-100 text-slate-700";
+}
 
 function formatTime(value: string) {
   return new Date(value).toLocaleString();

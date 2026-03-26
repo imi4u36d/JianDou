@@ -46,7 +46,10 @@
               <p class="text-xs uppercase tracking-[0.28em] text-slate-400">{{ presetBadge(preset) }}</p>
               <h3 class="mt-2 text-base font-semibold text-white">{{ preset.name }}</h3>
             </div>
-            <span class="surface-chip text-[11px] font-semibold">{{ platformLabel(preset.platform) }}</span>
+            <div class="flex flex-wrap justify-end gap-2">
+              <span class="surface-chip text-[11px] font-semibold">{{ presetModeLabel(preset) }}</span>
+              <span class="surface-chip text-[11px] font-semibold">{{ platformLabel(preset.platform) }}</span>
+            </div>
           </div>
           <p class="mt-3 text-sm leading-6 text-slate-300">{{ preset.description }}</p>
           <div class="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
@@ -56,6 +59,7 @@
           </div>
         </button>
       </div>
+      <p class="mb-6 text-xs text-slate-400">{{ presetModeHint }}</p>
 
       <form class="grid gap-5" @submit.prevent="submitTask">
         <label class="grid gap-2 text-sm text-slate-200">
@@ -117,7 +121,7 @@
             </article>
           </div>
           <div v-else class="rounded-[22px] border border-dashed border-white/12 bg-slate-950/40 p-5 text-sm text-slate-400">
-            暂未选择素材。{{ editingMode === "mixcut" ? "建议至少选择 2 条视频用于混剪，能显著提升分镜编排空间。" : "短剧模式也建议上传主视频和辅助素材，便于模型保留对白和卡点。" }}
+            暂未选择素材。{{ editingMode === "mixcut" ? "建议至少选择 2 条视频用于混剪，能显著提升分镜编排空间。" : "短剧模式只支持 1 条主视频；如需多素材编排请切换到混剪模式。" }}
           </div>
 
           <div class="surface-tile grid gap-3 p-4" :class="editingMode === 'mixcut' ? 'border-sky-300/20 bg-[linear-gradient(180deg,rgba(8,47,73,0.52),rgba(8,16,32,0.58))]' : 'border-rose-300/18 bg-[linear-gradient(180deg,rgba(88,28,135,0.15),rgba(8,16,32,0.52))]'">
@@ -276,11 +280,11 @@
 
           <div class="flex flex-wrap items-center gap-4">
           <button
-            :disabled="submitting"
+            :disabled="submitting || !isFormReady"
             class="btn-primary"
             type="submit"
           >
-            {{ submitting ? "提交中..." : "开始生成" }}
+            {{ submitButtonLabel }}
           </button>
           <p class="text-sm text-slate-300">{{ statusText }}</p>
         </div>
@@ -412,6 +416,29 @@
             <p class="mt-2 text-sm font-medium text-white">{{ transcriptStats.quality }}</p>
             <p class="mt-1 text-xs leading-5 text-slate-400">{{ transcriptStats.hint }}</p>
           </div>
+          <div class="surface-tile px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs uppercase tracking-[0.22em] text-slate-400">提交校验</p>
+              <span class="surface-chip text-[11px] font-semibold">
+                {{ isFormReady ? "可提交" : "待修正" }}
+              </span>
+            </div>
+            <ul class="mt-3 grid gap-2 text-xs">
+              <li
+                v-for="item in validationChecklist"
+                :key="item.key"
+                class="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/40 px-3 py-2"
+              >
+                <div>
+                  <p class="font-medium text-slate-200">{{ item.label }}</p>
+                  <p class="mt-0.5 text-slate-500">{{ item.hint }}</p>
+                </div>
+                <span :class="item.passed ? 'text-emerald-300' : 'text-rose-300'" class="shrink-0 font-semibold">
+                  {{ item.passed ? "通过" : "待修正" }}
+                </span>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -540,12 +567,20 @@ interface SourceFileDraft {
   isPrimary: boolean;
 }
 
+interface CreateValidationItem {
+  key: string;
+  label: string;
+  hint: string;
+  passed: boolean;
+}
+
 const fallbackPresets: TaskPreset[] = [
   {
     key: "douyin_banger",
     name: "抖音爆款版",
     description: "高节奏、高冲突，适合竖屏投放和首刷停留优化。",
     defaultTitle: "抖音爆款版",
+    editingMode: "drama",
     platform: "douyin",
     aspectRatio: "9:16",
     minDurationSeconds: 15,
@@ -560,6 +595,7 @@ const fallbackPresets: TaskPreset[] = [
     name: "关系推进版",
     description: "更强调人物关系和剧情递进，适合转化与追更双目标。",
     defaultTitle: "关系推进版",
+    editingMode: "drama",
     platform: "wechat",
     aspectRatio: "9:16",
     minDurationSeconds: 20,
@@ -574,6 +610,7 @@ const fallbackPresets: TaskPreset[] = [
     name: "追更连载版",
     description: "适合剧集连续切条，强调冲突升级和下一条追更欲望。",
     defaultTitle: "追更连载版",
+    editingMode: "drama",
     platform: "kuaishou",
     aspectRatio: "9:16",
     minDurationSeconds: 20,
@@ -582,6 +619,23 @@ const fallbackPresets: TaskPreset[] = [
     introTemplate: "cold_open",
     outroTemplate: "follow_hook",
     creativePrompt: "优先保留冲突升级、角色关系变化和关键反转，最后一拍一定要留出追更钩子。"
+  },
+  {
+    key: "travel_storyboard_mixcut",
+    name: "旅行分镜混剪",
+    description: "适合多段旅游素材的导演感混剪，强调镜头编排和地点氛围推进。",
+    defaultTitle: "旅行分镜混剪版",
+    editingMode: "mixcut",
+    platform: "xiaohongshu",
+    aspectRatio: "9:16",
+    minDurationSeconds: 20,
+    maxDurationSeconds: 45,
+    outputCount: 3,
+    introTemplate: "cold_open",
+    outroTemplate: "suspense_hold",
+    creativePrompt: "先设计分镜脚本，再组织多素材镜头；开场可用静帧快闪，主体用景别和地点切换推进，结尾留余韵。",
+    mixcutContentType: "travel",
+    mixcutStylePreset: "travel_landscape"
   }
 ];
 
@@ -642,7 +696,7 @@ const fileSummary = computed(() => {
 });
 const primaryPreviewUrl = computed(() => primarySourceFile.value?.previewUrl ?? "");
 
-const activePreset = computed(() => availablePresets.value.find((preset) => preset.key === selectedPresetKey.value) ?? null);
+const activePreset = computed(() => visiblePresets.value.find((preset) => preset.key === selectedPresetKey.value) ?? null);
 const mixcutEnabled = computed(() => editingMode.value === "mixcut");
 const editingModeLabel = computed(() => (editingMode.value === "mixcut" ? "混剪模式" : "短剧剪辑模式"));
 const editingModeStatusLabel = computed(() =>
@@ -656,7 +710,7 @@ const editingModePromptChipLabel = computed(() =>
 const sourcePanelHint = computed(() =>
   editingMode.value === "mixcut"
     ? "支持一次选择多个视频，混剪模式会围绕题材、风格和分镜脚本整理输入。"
-    : "支持选择一个主视频，也可以额外追加辅助素材，短剧模式会围绕高燃卡点和对白完整整理输入。"
+    : "短剧模式只支持一个主视频，系统会围绕高燃卡点和对白完整整理输入。"
 );
 const dramaModeHint = computed(() =>
   "短剧模式更看重高燃卡点、对白完整、冲突升级和情绪落点。系统会优先围绕剧情推进来生成提示词与切点。"
@@ -707,8 +761,60 @@ const mixcutTransitionLabel = computed(() => {
   }
   return "硬切转场";
 });
+const visiblePresets = computed(() => {
+  const mode = editingMode.value;
+  const presets = availablePresets.value.filter((preset) => resolvePresetMode(preset) === mode);
+  return presets.length ? presets : availablePresets.value;
+});
+const hiddenPresetCount = computed(() => Math.max(0, availablePresets.value.length - visiblePresets.value.length));
+const presetModeHint = computed(() => {
+  if (!hiddenPresetCount.value) {
+    return "预设已按当前模式完整展示。";
+  }
+  return `已按${editingMode.value === "mixcut" ? "混剪" : "短剧"}模式筛选，另有 ${hiddenPresetCount.value} 个其它模式预设。`;
+});
+const validationChecklist = computed<CreateValidationItem[]>(() => {
+  const titleValid = Boolean(form.value.title.trim());
+  const sourceCountValid =
+    sourceFileCount.value >= 1 &&
+    (mixcutEnabled.value ? sourceFileCount.value >= 2 : sourceFileCount.value === 1);
+  const durationValid = form.value.minDurationSeconds <= form.value.maxDurationSeconds;
+  const outputCountValid = form.value.outputCount >= 1 && form.value.outputCount <= 10;
 
-const visiblePresets = computed(() => availablePresets.value);
+  return [
+    {
+      key: "title",
+      label: "任务标题",
+      hint: "需填写非空标题",
+      passed: titleValid,
+    },
+    {
+      key: "sources",
+      label: "素材数量",
+      hint: mixcutEnabled.value ? "混剪至少 2 条素材" : "短剧仅允许 1 条主素材",
+      passed: sourceCountValid,
+    },
+    {
+      key: "duration",
+      label: "时长区间",
+      hint: "最小时长不能大于最大时长",
+      passed: durationValid,
+    },
+    {
+      key: "output",
+      label: "产出数量",
+      hint: "需在 1-10 条之间",
+      passed: outputCountValid,
+    },
+  ];
+});
+const isFormReady = computed(() => validationChecklist.value.every((item) => item.passed));
+const submitButtonLabel = computed(() => {
+  if (submitting.value) {
+    return "提交中...";
+  }
+  return isFormReady.value ? "开始生成" : "请先修正参数";
+});
 
 const sourceHint = computed(() => {
   if (cloneSource.value) {
@@ -781,7 +887,18 @@ function platformLabel(platform: string) {
   }
 }
 
+function resolvePresetMode(preset: TaskPreset): EditingMode {
+  return preset.editingMode === "mixcut" ? "mixcut" : "drama";
+}
+
+function presetModeLabel(preset: TaskPreset) {
+  return resolvePresetMode(preset) === "mixcut" ? "混剪" : "短剧";
+}
+
 function presetBadge(preset: TaskPreset) {
+  if (resolvePresetMode(preset) === "mixcut") {
+    return "多素材分镜";
+  }
   switch (preset.platform) {
     case "douyin":
       return "首刷拉停";
@@ -832,16 +949,47 @@ function syncCreativePromptWithMode(prompt: string) {
   form.value.creativePrompt = applyModePrompt(prompt);
 }
 
+function keepOnlyPrimarySourceFile() {
+  if (sourceFiles.value.length <= 1) {
+    return 0;
+  }
+  const primary = primarySourceFile.value ?? sourceFiles.value[0];
+  if (!primary) {
+    return 0;
+  }
+  const removed = sourceFiles.value.filter((item) => item.id !== primary.id);
+  removed.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+  sourceFiles.value = [
+    {
+      ...primary,
+      isPrimary: true,
+    },
+  ];
+  form.value.sourceFileName = primary.file.name;
+  form.value.sourceAssetIds = [primary.id];
+  form.value.sourceFileNames = [primary.file.name];
+  return removed.length;
+}
+
 function setEditingMode(mode: EditingMode) {
+  if (mode === editingMode.value) {
+    return;
+  }
+  let modeStatus = mode === "mixcut" ? "已切换到混剪模式" : "已切换到短剧剪辑模式";
   editingMode.value = mode;
   form.value.editingMode = mode;
   form.value.mixcutEnabled = mode === "mixcut";
   if (mode === "mixcut") {
     form.value.mixcutContentType = form.value.mixcutContentType || "generic";
     ensureMixcutStyleSelection();
+  } else {
+    const removedCount = keepOnlyPrimarySourceFile();
+    if (removedCount > 0) {
+      modeStatus = `已切换到短剧剪辑模式，并保留主素材，移除了 ${removedCount} 条辅助素材`;
+    }
   }
   syncCreativePromptWithMode(form.value.creativePrompt || "");
-  statusText.value = mode === "mixcut" ? "已切换到混剪模式" : "已切换到短剧剪辑模式";
+  statusText.value = modeStatus;
 }
 
 function clearSourceFiles() {
@@ -894,6 +1042,10 @@ function removeSourceFile(id: string) {
 }
 
 function applyPreset(preset: TaskPreset) {
+  const presetMode = resolvePresetMode(preset);
+  if (presetMode !== editingMode.value) {
+    setEditingMode(presetMode);
+  }
   selectedPresetKey.value = preset.key;
   form.value.platform = preset.platform;
   form.value.aspectRatio = preset.aspectRatio;
@@ -904,6 +1056,10 @@ function applyPreset(preset: TaskPreset) {
   form.value.outroTemplate = preset.outroTemplate;
   form.value.editingMode = editingMode.value;
   form.value.mixcutEnabled = mixcutEnabled.value;
+  if (presetMode === "mixcut") {
+    form.value.mixcutContentType = preset.mixcutContentType || form.value.mixcutContentType || "generic";
+    form.value.mixcutStylePreset = preset.mixcutStylePreset || form.value.mixcutStylePreset || "director";
+  }
   ensureMixcutStyleSelection();
   syncCreativePromptWithMode(preset.creativePrompt ?? "");
   promptSource.value = "模板建议";
@@ -916,7 +1072,13 @@ function applyPreset(preset: TaskPreset) {
 function applyCloneSource(task: TaskCloneDraft) {
   clearSourceFiles();
   cloneSource.value = task;
-  const matchedPreset = availablePresets.value.find((preset) => preset.platform === task.platform && preset.aspectRatio === task.aspectRatio);
+  const cloneMode = task.editingMode || (task.mixcutEnabled ? "mixcut" : "drama");
+  const matchedPreset = availablePresets.value.find(
+    (preset) =>
+      resolvePresetMode(preset) === cloneMode &&
+      preset.platform === task.platform &&
+      preset.aspectRatio === task.aspectRatio
+  );
   selectedPresetKey.value = matchedPreset?.key ?? "custom";
   form.value.title = task.title;
   form.value.platform = task.platform;
@@ -926,7 +1088,7 @@ function applyCloneSource(task: TaskCloneDraft) {
   form.value.outputCount = task.outputCount;
   form.value.introTemplate = task.introTemplate;
   form.value.outroTemplate = task.outroTemplate;
-  editingMode.value = task.editingMode || (task.mixcutEnabled ? "mixcut" : "drama");
+  editingMode.value = cloneMode;
   form.value.editingMode = editingMode.value;
   form.value.mixcutEnabled = mixcutEnabled.value;
   form.value.mixcutContentType = task.mixcutContentType || "generic";
@@ -981,16 +1143,21 @@ function restorePresetPrompt() {
 
 async function loadPresets() {
   try {
-    const remotePresets = await fetchPresets();
+    const remotePresets = (await fetchPresets()).map((preset) => ({
+      ...preset,
+      editingMode: resolvePresetMode(preset),
+    }));
     if (remotePresets.length > 0) {
       availablePresets.value = remotePresets;
       if (!availablePresets.value.some((preset) => preset.key === selectedPresetKey.value)) {
-        selectedPresetKey.value = availablePresets.value[0].key;
+        const fallbackPreset = availablePresets.value.find((preset) => resolvePresetMode(preset) === editingMode.value);
+        selectedPresetKey.value = (fallbackPreset ?? availablePresets.value[0]).key;
       }
       if (cloneSource.value) {
         applyCloneSource(cloneSource.value);
       } else {
-        applyPreset(availablePresets.value[0]);
+        const fallbackPreset = availablePresets.value.find((preset) => resolvePresetMode(preset) === editingMode.value);
+        applyPreset(fallbackPreset ?? availablePresets.value[0]);
       }
     }
   } catch {
@@ -1048,6 +1215,11 @@ function onFileChange(event: Event) {
   }
   form.value.sourceAssetIds = sourceFiles.value.map((item) => item.id);
   form.value.sourceFileNames = sourceFiles.value.map((item) => item.file.name);
+  if (editingMode.value === "drama" && sourceFiles.value.length > 1) {
+    setEditingMode("mixcut");
+    statusText.value = `已添加 ${added.length} 条素材，当前共 ${sourceFiles.value.length} 条；系统已自动切换到混剪模式`;
+    return;
+  }
   statusText.value = `已添加 ${added.length} 条素材，当前共 ${sourceFiles.value.length} 条`;
 }
 
@@ -1068,12 +1240,9 @@ async function handleTranscriptFileChange(event: Event) {
 }
 
 async function submitTask() {
-  if (!sourceFiles.value.length) {
-    statusText.value = "请先选择至少一个视频文件";
-    return;
-  }
-  if (mixcutEnabled.value && sourceFiles.value.length < 2) {
-    statusText.value = "混剪模式至少需要 2 条视频素材";
+  if (!isFormReady.value) {
+    const firstFailed = validationChecklist.value.find((item) => !item.passed);
+    statusText.value = firstFailed ? `${firstFailed.label}未通过：${firstFailed.hint}` : "请先修正参数";
     return;
   }
 
@@ -1136,7 +1305,10 @@ watch(
     const cloneFrom = normalizeQueryValue(route.query.cloneFrom);
     if (!cloneFrom) {
       cloneSource.value = null;
-      applyPreset(availablePresets.value[0]);
+      const fallbackPreset = visiblePresets.value[0] ?? availablePresets.value[0];
+      if (fallbackPreset) {
+        applyPreset(fallbackPreset);
+      }
       return;
     }
     cloneSource.value = null;

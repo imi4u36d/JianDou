@@ -108,6 +108,7 @@ export interface TaskPreset {
   name: string;
   description: string;
   defaultTitle: string;
+  editingMode?: EditingMode;
   platform: string;
   aspectRatio: "9:16" | "16:9";
   minDurationSeconds: number;
@@ -116,6 +117,8 @@ export interface TaskPreset {
   introTemplate: string;
   outroTemplate: string;
   creativePrompt?: string;
+  mixcutContentType?: string;
+  mixcutStylePreset?: string;
 }
 
 export interface TaskCloneDraft {
