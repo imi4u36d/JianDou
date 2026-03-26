@@ -1,6 +1,8 @@
 import { deleteJson, getJson, postForm, postJson } from "./client";
 import type {
   CreateTaskRequest,
+  GenerateCreativePromptRequest,
+  GenerateCreativePromptResponse,
   TaskCloneDraft,
   TaskDeleteResult,
   TaskDetail,
@@ -19,6 +21,10 @@ export function uploadVideo(file: File) {
 
 export function createTask(payload: CreateTaskRequest) {
   return postJson<TaskDetail>("/tasks", payload);
+}
+
+export function generateCreativePrompt(payload: GenerateCreativePromptRequest) {
+  return postJson<GenerateCreativePromptResponse>("/tasks/generate-prompt", payload);
 }
 
 export function fetchTasks(filters?: TaskFilters) {

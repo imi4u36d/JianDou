@@ -1,18 +1,24 @@
 <template>
-  <section class="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
-    <div class="min-w-0 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,35,0.88),rgba(8,11,24,0.78))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+  <section class="grid min-w-0 gap-6">
+    <div class="relative min-w-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,35,0.9),rgba(8,11,24,0.8))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+      <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
       <PageHeader
         eyebrow="Progress"
         :title="task?.title || '任务详情'"
         description="查看任务状态、阶段进度、规划方案和渲染输出，快速判断当前素材的生产质量。"
       >
         <div class="flex flex-wrap gap-2">
-          <button class="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-100 transition duration-200 hover:border-rose-300/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50" :disabled="actionLoading" type="button" @click="openCloneFlow">
+          <button
+            class="btn-primary"
+            :disabled="actionLoading"
+            type="button"
+            @click="openCloneFlow"
+          >
             复制参数
           </button>
           <button
             v-if="task?.status === 'FAILED'"
-            class="rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+            class="btn-warning"
             :disabled="actionLoading"
             type="button"
             @click="handleRetry"
@@ -20,7 +26,7 @@
             失败重试
           </button>
           <button
-            class="rounded-full border border-white/10 bg-slate-950/55 px-4 py-2 text-sm text-slate-200 transition duration-200 hover:border-rose-300/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            class="btn-danger"
             :disabled="actionLoading || runningTask"
             type="button"
             @click="handleDelete"
@@ -30,10 +36,29 @@
         </div>
       </PageHeader>
 
+      <div v-if="task" class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+          <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">当前状态</p>
+          <p class="mt-2 text-lg font-semibold text-white">{{ statusHint }}</p>
+        </div>
+        <div class="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+          <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">任务进度</p>
+          <p class="mt-2 text-lg font-semibold text-white">{{ task.progress }}%</p>
+        </div>
+        <div class="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+          <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">输出 / 目标</p>
+          <p class="mt-2 text-lg font-semibold text-white">{{ completedOutputCount }} / {{ task.outputCount }}</p>
+        </div>
+        <div class="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+          <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">规划模式</p>
+          <p class="mt-2 text-sm font-semibold text-white">{{ planningModeSummary.label }}</p>
+        </div>
+      </div>
+
       <div v-if="errorMessage" class="mb-4 rounded-[24px] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p>{{ errorMessage }}</p>
-          <button class="rounded-full border border-rose-300/30 px-4 py-2 text-xs font-medium text-rose-50 transition hover:bg-rose-500/20" type="button" @click="loadTask">
+          <button class="btn-secondary btn-sm" type="button" @click="loadTask">
             重新加载
           </button>
         </div>
@@ -44,7 +69,7 @@
       </div>
 
       <template v-else-if="task">
-        <div class="grid gap-4 rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
+        <div class="grid gap-4 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
           <div class="flex flex-wrap items-center gap-3">
             <StatusBadge :status="task.status" />
             <span class="text-sm text-slate-300">{{ task.progress }}%</span>
@@ -88,7 +113,7 @@
           </div>
         </div>
 
-        <div class="mt-6 grid gap-4 rounded-[28px] border border-white/10 bg-slate-950/45 p-5">
+        <div class="mt-6 grid gap-4 rounded-[28px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_16px_50px_rgba(0,0,0,0.16)]">
           <div class="grid gap-1 min-w-0">
             <span class="text-xs uppercase tracking-[0.24em] text-slate-400">任务配置</span>
             <span class="break-words text-sm text-slate-200">{{ task.platform }} · {{ task.aspectRatio }} · {{ task.minDurationSeconds }}-{{ task.maxDurationSeconds }} 秒 · {{ task.outputCount }} 条</span>
@@ -98,10 +123,63 @@
               <p class="text-xs uppercase tracking-[0.24em] text-slate-400">源文件</p>
               <p class="mt-2 break-all text-sm text-white">{{ task.sourceFileName }}</p>
               <p v-if="task.source?.originalFileName" class="mt-1 break-all text-xs text-slate-400">原始资产：{{ task.source.originalFileName }}</p>
+              <p class="mt-1 text-xs text-slate-400">
+                {{ sourceModeSummary }}
+              </p>
+              <div v-if="task.sourceAssets?.length" class="mt-3 flex flex-wrap gap-2">
+                <span
+                  v-for="asset in task.sourceAssets"
+                  :key="asset.assetId"
+                  class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-200"
+                >
+                  {{ asset.originalFileName }}
+                </span>
+              </div>
             </div>
             <div v-if="task.creativePrompt" class="min-w-0">
               <p class="text-xs uppercase tracking-[0.24em] text-slate-400">创意补充</p>
               <p class="mt-2 break-words text-sm leading-6 text-slate-300">{{ task.creativePrompt }}</p>
+            </div>
+          </div>
+
+          <div class="grid gap-3 rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs uppercase tracking-[0.24em] text-slate-400">{{ strategyOverviewTitle }}</p>
+                <p class="mt-2 text-base font-semibold text-white">
+                  {{ strategyOverviewHeadline }}
+                </p>
+              </div>
+              <span class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
+                {{ strategyOverviewBadge }}
+              </span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span class="surface-chip">{{ editingModeLabel }}</span>
+              <span class="surface-chip">片头 · {{ introTemplateLabel(task.introTemplate) }}</span>
+              <span v-if="isMixcutMode" class="surface-chip">题材 · {{ mixcutContentTypeLabel(task.mixcutContentType) }}</span>
+              <span v-if="isMixcutMode" class="surface-chip">风格 · {{ mixcutStyleLabel(task.mixcutContentType, task.mixcutStylePreset) }}</span>
+              <span v-if="isMixcutMode && task.mixcutTemplate" class="surface-chip">模板 · {{ mixcutTemplateLabel(task.mixcutTemplate) }}</span>
+              <span v-if="!isMixcutMode" class="surface-chip">对白完整优先</span>
+              <span v-if="!isMixcutMode" class="surface-chip">高燃卡点优先</span>
+              <span class="surface-chip">片尾 · {{ outroTemplateLabel(task.outroTemplate) }}</span>
+            </div>
+            <div class="grid gap-3 md:grid-cols-3">
+              <div class="rounded-[20px] border border-white/8 bg-slate-950/45 p-4">
+                <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">{{ isMixcutMode ? "开场" : "高燃起势" }}</p>
+                <p class="mt-2 text-sm font-semibold text-white">{{ introTemplateLabel(task.introTemplate) }}</p>
+                <p class="mt-2 text-xs leading-5 text-slate-400">{{ introTemplateHint(task.introTemplate) }}</p>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-slate-950/45 p-4">
+                <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">{{ isMixcutMode ? "推进" : "剧情推进" }}</p>
+                <p class="mt-2 text-sm font-semibold text-white">{{ strategyCenterHeadline }}</p>
+                <p class="mt-2 text-xs leading-5 text-slate-400">{{ strategyCenterDetail }}</p>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-slate-950/45 p-4">
+                <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">{{ isMixcutMode ? "收束" : "悬念收束" }}</p>
+                <p class="mt-2 text-sm font-semibold text-white">{{ outroTemplateLabel(task.outroTemplate) }}</p>
+                <p class="mt-2 text-xs leading-5 text-slate-400">{{ outroTemplateHint(task.outroTemplate) }}</p>
+              </div>
             </div>
           </div>
 
@@ -112,24 +190,177 @@
             <p v-if="task.transcriptPreview" class="mt-2 break-words text-sm leading-6 text-slate-300">{{ task.transcriptPreview }}</p>
           </div>
 
-          <div v-if="task.plan?.length" class="min-w-0 rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-            <p class="text-xs uppercase tracking-[0.24em] text-slate-400">规划方案</p>
-            <div v-if="task.plan?.length" class="mt-4 grid gap-3">
-              <article v-for="clip in task.plan" :key="clip.clipIndex" class="min-w-0 rounded-2xl border border-white/8 bg-slate-950/50 p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="min-w-0">
-                    <p class="break-words text-sm font-semibold text-white">#{{ clip.clipIndex }} {{ clip.title }}</p>
-                    <p class="mt-2 break-words text-sm leading-6 text-slate-300">{{ clip.reason }}</p>
-                  </div>
-                  <span class="shrink-0 rounded-full bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200">{{ clip.durationSeconds.toFixed(1) }}s</span>
-                </div>
-                <div class="mt-4 grid gap-3 text-xs text-slate-400 sm:grid-cols-3">
-                  <div>起点 {{ clip.startSeconds.toFixed(1) }}s</div>
-                  <div>终点 {{ clip.endSeconds.toFixed(1) }}s</div>
-                  <div>时长 {{ clip.durationSeconds.toFixed(1) }}s</div>
-                </div>
-              </article>
+          <div v-if="task.plan?.length" class="min-w-0 rounded-[28px] border border-white/8 bg-white/[0.04] p-5">
+            <div class="planning-panel-header">
+              <div class="min-w-0">
+                <p class="text-xs uppercase tracking-[0.28em] text-slate-400">Planning Deck</p>
+                <h3 class="mt-3 text-xl font-semibold text-white">{{ planningDeckTitle }}</h3>
+                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{{ planningDeckDescription }}</p>
+              </div>
+              <div class="planning-overview-grid">
+                <article class="planning-overview-card">
+                  <span class="planning-overview-label">方案数</span>
+                  <strong class="planning-overview-value">{{ planOverview.clipCount }}</strong>
+                  <span class="planning-overview-note">本次规划输出</span>
+                </article>
+                <article class="planning-overview-card">
+                  <span class="planning-overview-label">镜头单元</span>
+                  <strong class="planning-overview-value">{{ planOverview.segmentCount }}</strong>
+                  <span class="planning-overview-note">静帧 + 运动镜头</span>
+                </article>
+                <article class="planning-overview-card">
+                  <span class="planning-overview-label">静帧镜头</span>
+                  <strong class="planning-overview-value">{{ planOverview.frameCount }}</strong>
+                  <span class="planning-overview-note">定格 / 预埋信息</span>
+                </article>
+                <article class="planning-overview-card">
+                  <span class="planning-overview-label">覆盖素材</span>
+                  <strong class="planning-overview-value">{{ planOverview.sourceCount }}</strong>
+                  <span class="planning-overview-note">参与编排的来源</span>
+                </article>
+              </div>
             </div>
+
+            <div class="planning-selector mt-5">
+              <button
+                v-for="(clip, index) in task.plan"
+                :key="clip.clipIndex"
+                type="button"
+                class="planning-selector-tab"
+                :class="index === activePlanIndex ? 'planning-selector-tab-active' : ''"
+                @click="activePlanIndex = index"
+              >
+                <span class="text-[11px] uppercase tracking-[0.28em] text-slate-500">Plan {{ clip.clipIndex }}</span>
+                <strong class="mt-2 line-clamp-2 text-sm font-semibold text-white">{{ clip.title }}</strong>
+                <span class="mt-2 text-xs text-slate-400">{{ clip.durationSeconds.toFixed(1) }}s · {{ clip.segments?.length ?? 1 }} 单元</span>
+              </button>
+            </div>
+
+            <article v-if="currentPlanClip" class="planning-clip-card mt-5 min-w-0 overflow-hidden rounded-[30px] border border-white/8 p-5">
+              <div class="planning-focus-layout">
+                <section class="planning-focus-main min-w-0">
+                  <div class="planning-focus-hero">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500">Current Focus</p>
+                        <h4 class="mt-3 break-words text-2xl font-semibold text-white">#{{ currentPlanClip.clipIndex }} {{ currentPlanClip.title }}</h4>
+                      </div>
+                      <div class="flex flex-wrap justify-end gap-2">
+                        <span class="surface-chip">{{ currentPlanClip.durationSeconds.toFixed(1) }}s</span>
+                        <span class="surface-chip">{{ currentPlanClip.segments?.length ? `${currentPlanClip.segments.length} 个镜头单元` : "单段直剪" }}</span>
+                      </div>
+                    </div>
+                    <p class="mt-4 max-w-3xl break-words text-sm leading-7 text-slate-300">{{ currentPlanClip.reason }}</p>
+                    <div class="mt-5 flex flex-wrap gap-2">
+                      <span class="surface-chip">{{ editingModeLabel }}</span>
+                      <span class="surface-chip">{{ clipSegmentSourcesLabel(currentPlanClip) }}</span>
+                      <span class="surface-chip">转场 · {{ storyboardTransitionLabel(currentPlanClip.transitionStyle || task.mixcutTransitionStyle, task.mixcutStylePreset) }}</span>
+                      <span class="surface-chip">静帧 {{ clipFrameCount(currentPlanClip) }}</span>
+                      <span class="surface-chip">插叙 {{ clipInsertCount(currentPlanClip) }}</span>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <article class="planning-metric-card">
+                      <span class="planning-metric-label">时间窗</span>
+                      <strong class="planning-metric-value">{{ currentPlanClip.startSeconds.toFixed(1) }}s → {{ currentPlanClip.endSeconds.toFixed(1) }}s</strong>
+                      <span class="planning-metric-note">模型与规则共同收敛后的执行区间</span>
+                    </article>
+                    <article class="planning-metric-card">
+                      <span class="planning-metric-label">覆盖素材</span>
+                      <strong class="planning-metric-value">{{ clipUniqueSourceCount(currentPlanClip) }}</strong>
+                      <span class="planning-metric-note">当前方案使用的来源数量</span>
+                    </article>
+                    <article class="planning-metric-card">
+                      <span class="planning-metric-label">导演脚本</span>
+                      <strong class="planning-metric-value">{{ storyboardLanes(currentPlanClip).length }}</strong>
+                      <span class="planning-metric-note">当前方案被拆成的叙事段落</span>
+                    </article>
+                    <article class="planning-metric-card">
+                      <span class="planning-metric-label">运动镜头</span>
+                      <strong class="planning-metric-value">{{ clipMotionCount(currentPlanClip) }}</strong>
+                      <span class="planning-metric-note">承担推进、承接和落点的运动片段</span>
+                    </article>
+                  </div>
+                </section>
+
+                <section v-if="currentPlanClip.segments?.length" class="planning-focus-side min-w-0">
+                  <div class="planning-script-stage rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(5,10,22,0.88),rgba(8,16,32,0.72))] p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p class="text-[11px] uppercase tracking-[0.26em] text-slate-500">Director Beats</p>
+                        <p class="mt-2 text-sm font-semibold text-white">当前方案分镜脚本</p>
+                      </div>
+                      <span class="surface-chip text-[11px] font-semibold">{{ currentPlanClip.segments.length }} 个单元</span>
+                    </div>
+
+                    <div class="mt-4 grid gap-3">
+                      <article
+                        v-for="lane in storyboardLanes(currentPlanClip)"
+                        :key="`${currentPlanClip.clipIndex}-${lane.key}`"
+                        :class="focusCardClass(lane.tone)"
+                        class="rounded-[22px] border p-4"
+                      >
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <p class="text-[11px] uppercase tracking-[0.26em] text-slate-500">{{ lane.label }}</p>
+                            <p class="mt-2 text-sm font-semibold text-white">{{ lane.title }}</p>
+                          </div>
+                          <span class="planning-beat-pill" :class="storyboardSegmentClass(lane.tone)">{{ lane.segments.length }} 段</span>
+                        </div>
+                        <p class="mt-2 text-xs leading-5 text-slate-400">{{ lane.detail }}</p>
+                      </article>
+                    </div>
+
+                    <div class="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(2,6,23,0.46),rgba(15,23,42,0.2))] p-4">
+                      <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.26em] text-slate-500">
+                        <span>镜头轨道</span>
+                        <span class="text-slate-600">·</span>
+                        <span>{{ currentPlanClip.startSeconds.toFixed(1) }}s</span>
+                        <span class="text-slate-600">→</span>
+                        <span>{{ currentPlanClip.endSeconds.toFixed(1) }}s</span>
+                      </div>
+                      <div class="storyboard-track mt-4">
+                        <article
+                          v-for="(segment, segmentIndex) in currentPlanClip.segments"
+                          :key="`${currentPlanClip.clipIndex}-${segment.sourceAssetId}-${segmentIndex}`"
+                          class="storyboard-segment rounded-[24px] border p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-950/80"
+                          :class="[storyboardSegmentClass(storyboardSegmentMeta(currentPlanClip, segment, segmentIndex).tone)]"
+                          :style="storyboardSegmentStyle(currentPlanClip, segment, segmentIndex, storyboardSegmentMeta(currentPlanClip, segment, segmentIndex).tone)"
+                        >
+                          <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                              <p class="text-[11px] uppercase tracking-[0.26em] text-slate-500">镜头 {{ segmentIndex + 1 }}</p>
+                              <p class="mt-2 break-words text-sm font-semibold text-white">{{ storyboardSegmentMeta(currentPlanClip, segment, segmentIndex).label }}</p>
+                              <p class="mt-2 text-[11px] leading-5 text-slate-300">{{ storyboardSegmentMeta(currentPlanClip, segment, segmentIndex).detail }}</p>
+                            </div>
+                            <span class="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-slate-200">
+                              {{ segment.durationSeconds.toFixed(1) }}s
+                            </span>
+                          </div>
+                          <div class="mt-4 flex items-center gap-2">
+                            <div class="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                              <div class="h-full rounded-full transition-all duration-300" :class="progressBarClass(storyboardSegmentMeta(currentPlanClip, segment, segmentIndex).tone)" :style="{ width: `${Math.max(25, Math.min(100, (segment.durationSeconds / currentPlanClip.durationSeconds) * 100))}%` }"></div>
+                            </div>
+                            <span v-if="segmentIndex < currentPlanClip.segments.length - 1" class="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-slate-100">
+                              {{ storyboardTransitionLabel(currentPlanClip.transitionStyle || task.mixcutTransitionStyle, task.mixcutStylePreset) }}
+                            </span>
+                          </div>
+                          <div class="mt-3 grid gap-2 text-[11px] text-slate-400 sm:grid-cols-2">
+                            <span class="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1">{{ storyboardSourceLabel(segment, segmentIndex) }}</span>
+                            <span class="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1">{{ storyboardSegmentRole(currentPlanClip, segment, segmentIndex) }}</span>
+                            <span class="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1">{{ storyboardSegmentRange(segment) }}</span>
+                            <span v-if="segment.frameTimestampSeconds !== undefined && segment.frameTimestampSeconds !== null" class="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1">
+                              静帧点 {{ segment.frameTimestampSeconds.toFixed(1) }}s
+                            </span>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </article>
           </div>
 
           <div v-if="task.source" class="grid gap-3 sm:grid-cols-2">
@@ -150,7 +381,94 @@
           </div>
         </div>
 
-        <div class="mt-6 rounded-[28px] border border-white/10 bg-slate-950/45 p-5">
+        <div class="mt-6 rounded-[28px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_16px_50px_rgba(0,0,0,0.16)]">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-[0.24em] text-slate-400">Outputs Panel</p>
+              <h3 class="mt-2 text-lg font-semibold text-white">生成结果</h3>
+              <p class="mt-1 text-sm text-slate-400">结果区改成折叠面板，先看任务与规划，需要时再展开预览和下载。</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="grid grid-cols-2 gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
+                <div>
+                  <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">完成输出</p>
+                  <p class="mt-1 text-base font-semibold text-white">{{ completedOutputCount }}</p>
+                </div>
+                <div>
+                  <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">渲染目标</p>
+                  <p class="mt-1 text-base font-semibold text-white">{{ task.outputCount }}</p>
+                </div>
+              </div>
+              <button class="btn-secondary" type="button" @click="outputsExpanded = !outputsExpanded">
+                {{ outputsExpanded ? "收起结果面板" : "展开结果面板" }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="task.outputs.length === 0" class="mt-4 rounded-[24px] border border-dashed border-white/15 bg-slate-950/40 p-8 text-center text-sm text-slate-300">
+            任务完成后会在这里展示剪辑结果。
+          </div>
+
+          <div v-else-if="!outputsExpanded" class="mt-4 grid gap-4">
+            <div class="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">结果摘要</p>
+                  <p class="mt-2 text-base font-semibold text-white">{{ task.outputs.length }} 条成片已生成，可按需展开查看预览与下载。</p>
+                  <p class="mt-1 text-sm text-slate-400">默认折叠，避免视频预览区把规划方案和日志信息挤得过窄。</p>
+                </div>
+                <span class="surface-chip">{{ task.outputs[0]?.title || "等待首条结果" }}</span>
+              </div>
+            </div>
+
+            <div class="grid gap-3 lg:grid-cols-3">
+              <article
+                v-for="output in task.outputs.slice(0, 3)"
+                :key="output.id"
+                class="min-w-0 rounded-[22px] border border-white/10 bg-slate-950/40 p-4"
+              >
+                <p class="text-[11px] uppercase tracking-[0.24em] text-slate-400">Clip {{ output.clipIndex }}</p>
+                <p class="mt-2 line-clamp-2 text-sm font-semibold text-white">{{ output.title }}</p>
+                <p class="mt-2 line-clamp-3 text-sm leading-6 text-slate-300">{{ output.reason }}</p>
+                <div class="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-400">
+                  <span class="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1">{{ output.startSeconds.toFixed(1) }}s → {{ output.endSeconds.toFixed(1) }}s</span>
+                  <span class="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1">{{ output.durationSeconds.toFixed(1) }}s</span>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div v-else class="mt-4 grid gap-4">
+            <article v-for="output in task.outputs" :key="output.id" class="min-w-0 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
+              <div class="flex flex-col gap-4 xl:flex-row">
+                <video :src="resolveStorageUrl(output.previewUrl)" controls class="aspect-[9/16] w-full max-w-[240px] shrink-0 rounded-2xl border border-white/10 bg-black object-cover"></video>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                      <h3 class="line-clamp-2 break-words text-lg font-semibold text-white">{{ output.title }}</h3>
+                      <p class="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-300">{{ output.reason }}</p>
+                    </div>
+                    <a
+                      :href="resolveStorageUrl(output.downloadUrl)"
+                      class="btn-primary shrink-0"
+                      download
+                    >
+                      下载
+                    </a>
+                  </div>
+                  <div class="mt-4 grid gap-3 text-sm text-slate-300 sm:grid-cols-2 xl:grid-cols-4">
+                    <div>序号：{{ output.clipIndex }}</div>
+                    <div>起点：{{ output.startSeconds.toFixed(1) }}s</div>
+                    <div>终点：{{ output.endSeconds.toFixed(1) }}s</div>
+                    <div>时长：{{ output.durationSeconds.toFixed(1) }}s</div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="mt-6 rounded-[28px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_16px_50px_rgba(0,0,0,0.16)]">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p class="text-xs uppercase tracking-[0.24em] text-slate-400">Live Trace</p>
@@ -158,10 +476,18 @@
               <p class="mt-1 text-sm text-slate-400">默认只展示摘要，展开后再查看实时事件流，避免长日志压住主要内容。</p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button class="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-100 transition duration-200 hover:border-rose-300/40 hover:bg-white/10" type="button" @click="loadTrace">
+              <button
+                class="btn-secondary"
+                type="button"
+                @click="loadTrace"
+              >
                 刷新日志
               </button>
-              <button class="rounded-full border border-white/10 bg-slate-950/55 px-4 py-2 text-sm text-slate-100 transition duration-200 hover:border-rose-300/40 hover:bg-white/10" type="button" @click="traceExpanded = !traceExpanded">
+              <button
+                class="btn-ghost"
+                type="button"
+                @click="traceExpanded = !traceExpanded"
+              >
                 {{ traceExpanded ? "收起实时日志" : "展开实时日志" }}
               </button>
             </div>
@@ -262,8 +588,11 @@
                 <p class="mt-3 break-words text-sm font-semibold text-white">{{ entry.title }}</p>
                 <p v-if="entry.detail" class="mt-1 break-words text-sm leading-6 text-slate-300">{{ entry.detail }}</p>
                 <div v-if="entry.tags.length" class="mt-3 flex flex-wrap gap-2">
-                  <span v-for="tag in entry.tags" :key="tag" class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-200">
+                  <span v-for="tag in entry.tags.slice(0, 3)" :key="tag" class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-200">
                     {{ tag }}
+                  </span>
+                  <span v-if="entry.tags.length > 3" class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-200">
+                    +{{ entry.tags.length - 3 }}
                   </span>
                 </div>
                 <p class="mt-3 break-all font-mono text-[11px] text-slate-500">{{ entry.event }}</p>
@@ -274,57 +603,6 @@
       </template>
     </div>
 
-    <div class="min-w-0 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,35,0.86),rgba(8,11,24,0.72))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.32)]">
-      <PageHeader
-        eyebrow="Outputs"
-        title="生成结果"
-        description="预览和下载生成素材，并按片段查看每条内容的规划理由。"
-      />
-
-      <div v-if="loading && !task" class="rounded-[24px] border border-dashed border-white/15 bg-slate-950/40 p-8 text-center text-sm text-slate-300">
-        任务完成后会在这里展示剪辑结果。
-      </div>
-
-      <div v-else-if="!task || task.outputs.length === 0" class="rounded-[24px] border border-dashed border-white/15 bg-slate-950/40 p-8 text-center text-sm text-slate-300">
-        任务完成后会在这里展示剪辑结果。
-      </div>
-
-      <div v-else class="grid gap-4">
-        <div class="grid grid-cols-2 gap-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
-          <div>
-            <p class="text-xs uppercase tracking-[0.24em] text-slate-400">完成输出</p>
-            <p class="mt-2 text-lg font-semibold text-white">{{ completedOutputCount }}</p>
-          </div>
-          <div>
-            <p class="text-xs uppercase tracking-[0.24em] text-slate-400">渲染目标</p>
-            <p class="mt-2 text-lg font-semibold text-white">{{ task.outputCount }}</p>
-          </div>
-        </div>
-
-        <article v-for="output in task.outputs" :key="output.id" class="min-w-0 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
-          <div class="flex flex-col gap-4 xl:flex-row">
-            <video :src="resolveStorageUrl(output.previewUrl)" controls class="aspect-[9/16] w-full max-w-[240px] shrink-0 rounded-2xl border border-white/10 bg-black object-cover"></video>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                  <h3 class="break-words text-lg font-semibold text-white">{{ output.title }}</h3>
-                  <p class="mt-2 break-words text-sm leading-6 text-slate-300">{{ output.reason }}</p>
-                </div>
-                <a :href="resolveStorageUrl(output.downloadUrl)" class="shrink-0 rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-rose-400" download>
-                  下载
-                </a>
-              </div>
-              <div class="mt-4 grid gap-3 text-sm text-slate-300 sm:grid-cols-2 xl:grid-cols-4">
-                <div>序号：{{ output.clipIndex }}</div>
-                <div>起点：{{ output.startSeconds.toFixed(1) }}s</div>
-                <div>终点：{{ output.endSeconds.toFixed(1) }}s</div>
-                <div>时长：{{ output.durationSeconds.toFixed(1) }}s</div>
-              </div>
-            </div>
-          </div>
-        </article>
-      </div>
-    </div>
   </section>
 </template>
 
@@ -333,7 +611,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getRuntimeConfig } from "@/api/runtime-config";
 import { deleteTask, fetchTask, fetchTaskTrace, retryTask } from "@/api/tasks";
-import type { TaskDetail, TaskStatus, TaskTraceEvent } from "@/types";
+import type { TaskDetail, TaskPlanClip, TaskPlanSegment, TaskStatus, TaskTraceEvent } from "@/types";
 import PageHeader from "@/components/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import TimelineStage from "@/components/TimelineStage.vue";
@@ -380,6 +658,23 @@ interface PlanningModeSummary {
   tone: TraceTone;
 }
 
+interface StoryboardLane {
+  key: string;
+  label: string;
+  title: string;
+  detail: string;
+  tone: TraceTone;
+  kind: "flash" | "insert" | "motion" | "landing" | "single";
+  segments: TaskPlanSegment[];
+}
+
+interface StoryboardSegmentMeta {
+  label: string;
+  detail: string;
+  tone: TraceTone;
+  kind: "flash" | "insert" | "motion" | "landing" | "single";
+}
+
 const route = useRoute();
 const router = useRouter();
 const task = ref<TaskDetail | null>(null);
@@ -389,7 +684,9 @@ const traceEvents = ref<TaskTraceEvent[]>([]);
 const traceLoading = ref(false);
 const traceErrorMessage = ref("");
 const traceExpanded = ref(false);
+const outputsExpanded = ref(false);
 const actionLoading = ref(false);
+const activePlanIndex = ref(0);
 
 const taskId = computed(() => {
   const value = route.params.id;
@@ -409,6 +706,58 @@ const statusHint = computed(() => {
 const completedOutputCount = computed(() => task.value?.completedOutputCount ?? task.value?.outputs.length ?? 0);
 const runningTask = computed(() => Boolean(task.value && !isTerminalTaskStatus(task.value.status)));
 const traceEventsDesc = computed(() => [...traceEvents.value].reverse());
+const planOverview = computed(() => {
+  const plan = task.value?.plan ?? [];
+  const segments = plan.flatMap((clip) => clip.segments ?? []);
+  const sourceCount = new Set(segments.map((segment) => segment.sourceAssetId).filter(Boolean)).size;
+  return {
+    clipCount: plan.length,
+    segmentCount: segments.length,
+    frameCount: segments.filter((segment) => (segment.segmentKind || "").toLowerCase() === "frame").length,
+    sourceCount,
+  };
+});
+const isMixcutMode = computed(() => (task.value?.editingMode || "drama") === "mixcut");
+const editingModeLabel = computed(() => (isMixcutMode.value ? "混剪模式" : "短剧剪辑模式"));
+const planningDeckTitle = computed(() => (isMixcutMode.value ? "导演规划方案" : "剧情卡点方案"));
+const planningDeckDescription = computed(() =>
+  isMixcutMode.value
+    ? "先看整体脚本密度和镜头结构，再聚焦单条方案的导演意图、分镜单元和素材轨道。"
+    : "先看整体卡点分布和对白保护，再聚焦单条方案的剧情意图、时间窗和情绪落点。"
+);
+const sourceModeSummary = computed(() => {
+  const sourceCount = task.value?.sourceAssetCount ?? task.value?.sourceAssetIds?.length ?? 1;
+  return isMixcutMode.value ? `混剪编排 · 共 ${sourceCount} 条素材` : "短剧剪辑 · 单素材剧情卡点";
+});
+const strategyOverviewTitle = computed(() => (isMixcutMode.value ? "导演策略" : "短剧策略"));
+const strategyOverviewHeadline = computed(() =>
+  isMixcutMode.value
+    ? `混剪导演编排 · ${mixcutMetaLabel(task.value?.mixcutContentType, task.value?.mixcutStylePreset)}`
+    : "短剧高燃卡点 · 对白完整 / 情绪推进"
+);
+const strategyOverviewBadge = computed(() =>
+  isMixcutMode.value
+    ? mixcutTransitionLabel(task.value?.mixcutTransitionStyle, task.value?.mixcutStylePreset)
+    : "对白边界保护"
+);
+const strategyCenterHeadline = computed(() =>
+  isMixcutMode.value
+    ? `${mixcutContentTypeLabel(task.value?.mixcutContentType)} / ${mixcutStyleLabel(task.value?.mixcutContentType, task.value?.mixcutStylePreset)}`
+    : "高燃卡点 / 对白完整"
+);
+const strategyCenterDetail = computed(() =>
+  isMixcutMode.value
+    ? mixcutMetaLabel(task.value?.mixcutContentType, task.value?.mixcutStylePreset)
+    : "当前会优先围绕冲突升级、反转爆点和完整对白去规划时间窗，不做导演式跨素材分镜。"
+);
+const currentPlanClip = computed(() => {
+  const plan = task.value?.plan ?? [];
+  if (!plan.length) {
+    return null;
+  }
+  const normalizedIndex = Math.max(0, Math.min(activePlanIndex.value, plan.length - 1));
+  return plan[normalizedIndex] ?? plan[0] ?? null;
+});
 
 function lastTraceEvent(...events: string[]) {
   for (const entry of traceEventsDesc.value) {
@@ -459,6 +808,350 @@ function formatBytes(value?: number | null) {
     return `${(value / 1024).toFixed(1)} KB`;
   }
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function clipSegmentSourcesLabel(clip: TaskPlanClip) {
+  const sourceNames = Array.from(new Set((clip.segments ?? []).map((segment) => segment.sourceFileName).filter(Boolean)));
+  if (!sourceNames.length) {
+    return "未拆分出素材来源";
+  }
+  if (sourceNames.length === 1) {
+    return `来源素材：${sourceNames[0]}`;
+  }
+  return `涉及素材：${sourceNames.join("、")}`;
+}
+
+function clipUniqueSourceCount(clip: TaskPlanClip) {
+  return new Set((clip.segments ?? []).map((segment) => segment.sourceAssetId).filter(Boolean)).size || 1;
+}
+
+function clipFrameCount(clip: TaskPlanClip) {
+  return (clip.segments ?? []).filter((segment) => (segment.segmentKind || "").toLowerCase() === "frame").length;
+}
+
+function clipInsertCount(clip: TaskPlanClip) {
+  return (clip.segments ?? []).filter((segment) => ((segment.segmentRole || segment.shotRole || "").toLowerCase().includes("insert"))).length;
+}
+
+function clipMotionCount(clip: TaskPlanClip) {
+  return (clip.segments ?? []).filter((segment) => (segment.segmentKind || "video").toLowerCase() !== "frame").length;
+}
+
+function storyboardSegmentMeta(clip: TaskPlanClip, segment: TaskPlanSegment, segmentIndex: number): StoryboardSegmentMeta {
+  const total = clip.segments?.length ?? 0;
+  const explicitKind = (segment.segmentKind || "").toLowerCase();
+  const explicitRole = (segment.segmentRole || segment.shotRole || "").toLowerCase();
+  const isStill = explicitKind.includes("frame") || explicitRole.includes("flash");
+
+  if (total <= 1) {
+    return {
+      label: "单段完整镜头",
+      detail: "这一段会直接完整展开，不额外拆成插叙或静帧脚本。",
+      tone: "sky",
+      kind: "single",
+    };
+  }
+
+  if (explicitRole.includes("flashback") || explicitRole.includes("insert")) {
+    return {
+      label: "插叙镜头",
+      detail: "用来提前透露后置信息、制造对照或做回望感插入。",
+      tone: "fuchsia",
+      kind: "insert",
+    };
+  }
+
+  if (isStill) {
+    return {
+      label: "静帧快闪",
+      detail: "从视频中截出的定格帧，适合快速轮播、地点建立或信息预埋。",
+      tone: "amber",
+      kind: "flash",
+    };
+  }
+
+  if (explicitRole.includes("landing") || segmentIndex >= total - 1) {
+    return {
+      label: "收束镜头",
+      detail: "适合情绪收束、悬念落点或结尾定格。",
+      tone: "rose",
+      kind: "landing",
+    };
+  }
+
+  return {
+    label: explicitRole.includes("scene_open") ? "起势运动镜头" : "运动展开",
+    detail: explicitRole.includes("scene_open")
+      ? "负责把画面从静帧/预埋信息推进到真正运动状态。"
+      : "用于动作展开、内容推进和节奏承接。",
+    tone: "sky",
+    kind: "motion",
+  };
+}
+
+function storyboardLanes(clip: TaskPlanClip): StoryboardLane[] {
+  const segments = clip.segments ?? [];
+  if (!segments.length) {
+    return [];
+  }
+  if (segments.length === 1) {
+    return [
+      {
+        key: "single",
+        label: "单段直剪",
+        title: "完整镜头",
+        detail: "当前片段没有拆成分镜，直接作为完整镜头处理。",
+        tone: "sky",
+        kind: "single",
+        segments,
+      },
+    ];
+  }
+  const lanes: StoryboardLane[] = [];
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const meta = storyboardSegmentMeta(clip, segment, index);
+    const lastLane = lanes[lanes.length - 1];
+    if (lastLane && lastLane.kind === meta.kind) {
+      lastLane.segments.push(segment);
+      lastLane.title = `${lastLane.segments.length} 个${lastLane.label}`;
+      continue;
+    }
+    lanes.push({
+      key: `${meta.kind}-${lanes.length}`,
+      label: meta.label,
+      title: `1 个${meta.label}`,
+      detail: meta.detail,
+      tone: meta.tone,
+      kind: meta.kind,
+      segments: [segment],
+    });
+  }
+  return lanes;
+}
+
+function storyboardSegmentActualIndex(clip: TaskPlanClip, segment: TaskPlanSegment, fallbackIndex: number) {
+  const segments = clip.segments ?? [];
+  const exactIndex = segments.findIndex((entry) => (
+    entry.sourceAssetId === segment.sourceAssetId
+    && entry.sourceFileName === segment.sourceFileName
+    && entry.startSeconds === segment.startSeconds
+    && entry.endSeconds === segment.endSeconds
+    && (entry.segmentKind || "") === (segment.segmentKind || "")
+  ));
+  return exactIndex >= 0 ? exactIndex : fallbackIndex;
+}
+
+function storyboardSegmentRange(segment: TaskPlanSegment) {
+  if ((segment.segmentKind || "").toLowerCase() === "frame" && segment.frameTimestampSeconds !== undefined && segment.frameTimestampSeconds !== null) {
+    return `截帧 ${segment.frameTimestampSeconds.toFixed(1)}s`;
+  }
+  return `${segment.startSeconds.toFixed(1)}s - ${segment.endSeconds.toFixed(1)}s`;
+}
+
+function mixcutMetaLabel(contentType?: string | null, stylePreset?: string | null) {
+  const contentTypeLabelMap: Record<string, string> = {
+    generic: "通用混剪",
+    travel: "旅游混剪",
+    drama: "剧情混剪",
+    vlog: "Vlog 混剪",
+    food: "美食混剪",
+    fashion: "时尚混剪",
+    sports: "运动混剪",
+  };
+  const styleLabelMap: Record<string, string> = {
+    director: "导演感推进",
+    music_sync: "音乐卡点",
+    travel_citywalk: "城市漫游",
+    travel_landscape: "风景大片",
+    travel_healing: "治愈慢游",
+    travel_roadtrip: "公路旅拍",
+  };
+  const contentTypeLabel = contentType ? contentTypeLabelMap[contentType] || contentType : "通用混剪";
+  const styleLabel = stylePreset ? styleLabelMap[stylePreset] || stylePreset : "导演感推进";
+  return `策略：${contentTypeLabel} / ${styleLabel}`;
+}
+
+function mixcutTransitionLabel(transitionStyle?: string | null, stylePreset?: string | null) {
+  if (transitionStyle === "crossfade") {
+    return "叠化转场";
+  }
+  if (transitionStyle === "flash") {
+    return "白闪转场";
+  }
+  if (transitionStyle === "fade_black") {
+    return "黑场过渡";
+  }
+  if (stylePreset === "music_sync" || stylePreset === "travel_citywalk") {
+    return "白闪转场";
+  }
+  if (stylePreset === "travel_landscape" || stylePreset === "travel_healing" || stylePreset === "travel_roadtrip") {
+    return "叠化转场";
+  }
+  return "硬切转场";
+}
+
+function mixcutTemplateLabel(template?: string | null) {
+  switch (template) {
+    case "director_crossfade_story":
+      return "导演感叠化混剪模板";
+    case "travel_crossfade_story":
+      return "旅行叠化混剪模板";
+    case "music_sync_flash_montage":
+      return "音乐白闪混剪模板";
+    default:
+      return "单素材直切模板";
+  }
+}
+
+function introTemplateLabel(template?: string | null) {
+  switch (template) {
+    case "cold_open":
+      return "冷开场直切";
+    case "flash_hook":
+      return "爆点闪切片头";
+    case "pressure_build":
+      return "情绪压迫片头";
+    default:
+      return "不加片头";
+  }
+}
+
+function introTemplateHint(template?: string | null) {
+  switch (template) {
+    case "cold_open":
+      return "开头直接进入剧情现场，尽量不做额外铺垫。";
+    case "flash_hook":
+      return "先给爆点，再回剧情，适合首刷拉停。";
+    case "pressure_build":
+      return "先压氛围和情绪，再推进到关键对白。";
+    default:
+      return "直接切入正文，不额外增加片头。";
+  }
+}
+
+function outroTemplateLabel(template?: string | null) {
+  switch (template) {
+    case "suspense_hold":
+      return "悬念停顿片尾";
+    case "follow_hook":
+      return "追更钩子片尾";
+    case "question_freeze":
+      return "反问定格片尾";
+    default:
+      return "不加片尾";
+  }
+}
+
+function outroTemplateHint(template?: string | null) {
+  switch (template) {
+    case "suspense_hold":
+      return "停在一句没说完或表情反转前，制造停留。";
+    case "follow_hook":
+      return "保留下一集欲望，适合连续剧切条。";
+    case "question_freeze":
+      return "停在质问、反讽或答案未揭晓的位置。";
+    default:
+      return "直接收尾，不额外增加片尾。";
+  }
+}
+
+function mixcutContentTypeLabel(contentType?: string | null) {
+  switch (contentType) {
+    case "travel":
+      return "旅游混剪";
+    case "drama":
+      return "剧情混剪";
+    case "vlog":
+      return "Vlog 混剪";
+    case "food":
+      return "美食混剪";
+    case "fashion":
+      return "时尚混剪";
+    case "sports":
+      return "运动混剪";
+    default:
+      return "通用混剪";
+  }
+}
+
+function mixcutStyleLabel(contentType?: string | null, stylePreset?: string | null) {
+  switch (stylePreset) {
+    case "music_sync":
+      return "音乐卡点";
+    case "travel_citywalk":
+      return "城市漫游";
+    case "travel_landscape":
+      return "风景大片";
+    case "travel_healing":
+      return "治愈慢游";
+    case "travel_roadtrip":
+      return "公路旅拍";
+    default:
+      return contentType === "travel" ? "导演感推进" : "导演感推进";
+  }
+}
+
+function storyboardSegmentStyle(clip: TaskPlanClip, segment: TaskPlanSegment, segmentIndex: number, tone: TraceTone) {
+  const ratio = clip.durationSeconds > 0 ? segment.durationSeconds / clip.durationSeconds : 1;
+  const growth = Math.max(1.3, Math.min(4.6, ratio * 4.8));
+  const accentShift = Math.max(0, Math.min(100, segmentIndex * 8));
+  return {
+    "--storyboard-grow": String(growth),
+    "--storyboard-accent-shift": `${accentShift}%`,
+    "--storyboard-accent-color": storyboardAccentColor(tone),
+  } as Record<string, string>;
+}
+
+function storyboardAccentColor(tone?: TraceTone) {
+  switch (tone) {
+    case "amber":
+      return "rgba(245, 158, 11, 0.9)";
+    case "sky":
+      return "rgba(56, 189, 248, 0.9)";
+    case "fuchsia":
+      return "rgba(217, 70, 239, 0.88)";
+    case "emerald":
+      return "rgba(16, 185, 129, 0.88)";
+    case "rose":
+      return "rgba(244, 63, 94, 0.9)";
+    default:
+      return "rgba(59, 130, 246, 0.88)";
+  }
+}
+
+function storyboardTransitionLabel(transitionStyle?: string | null, stylePreset?: string | null) {
+  return mixcutTransitionLabel(transitionStyle, stylePreset);
+}
+
+function storyboardSourceLabel(segment: TaskPlanSegment, segmentIndex: number) {
+  const source = segment.sourceFileName || "未知素材";
+  const role = (segment.segmentRole || "").toLowerCase();
+  if ((segment.segmentKind || "").toLowerCase() === "frame") {
+    return role.includes("flashback") ? `插叙定格 · ${source}` : `定格来源 · ${source}`;
+  }
+  return segmentIndex === 0 ? `起势来源 · ${source}` : `镜头来源 · ${source}`;
+}
+
+function storyboardSegmentRole(clip: TaskPlanClip, segment: TaskPlanSegment, segmentIndex: number) {
+  return storyboardSegmentMeta(clip, segment, segmentIndex).label;
+}
+
+function storyboardSegmentClass(tone: TraceTone) {
+  switch (tone) {
+    case "amber":
+      return "border-amber-400/20 bg-gradient-to-br from-amber-500/12 via-white/[0.035] to-white/[0.02]";
+    case "sky":
+      return "border-sky-400/20 bg-gradient-to-br from-sky-500/12 via-white/[0.035] to-white/[0.02]";
+    case "rose":
+      return "border-rose-400/20 bg-gradient-to-br from-rose-500/12 via-white/[0.035] to-white/[0.02]";
+    case "fuchsia":
+      return "border-fuchsia-400/20 bg-gradient-to-br from-fuchsia-500/12 via-white/[0.035] to-white/[0.02]";
+    case "emerald":
+      return "border-emerald-400/20 bg-gradient-to-br from-emerald-500/12 via-white/[0.035] to-white/[0.02]";
+    default:
+      return "border-white/8 bg-gradient-to-br from-white/[0.05] via-white/[0.03] to-white/[0.02]";
+  }
 }
 
 function payloadString(payload: Record<string, unknown>, key: string) {
@@ -533,6 +1226,8 @@ function stageLabel(stage: string) {
       return "素材分析";
     case "audio":
       return "音频节奏";
+    case "scene":
+      return "镜头边界";
     case "planning":
       return "方案规划";
     case "vision":
@@ -707,6 +1402,7 @@ function describeTraceEvent(entry: TaskTraceEvent) {
           transcriptCueCount ? `带 ${transcriptCueCount} 条时间轴字幕` : payloadBoolean(payload, "has_transcript") ? "带文本字幕输入" : "无字幕输入",
           payloadBoolean(payload, "creative_prompt_present") ? "带创意补充" : "无创意补充",
           payloadString(payload, "primary_model") ? `主模型 ${payloadString(payload, "primary_model")}` : "",
+          payloadString(payload, "mixcut_content_type") ? mixcutMetaLabel(payloadString(payload, "mixcut_content_type"), payloadString(payload, "mixcut_style_preset")) : "",
         ]),
         tags: [
           payloadString(payload, "fallback_model") ? `回退 ${payloadString(payload, "fallback_model")}` : "",
@@ -731,6 +1427,14 @@ function describeTraceEvent(entry: TaskTraceEvent) {
         tone: "amber" as const,
         important: true,
       };
+    case "scene.changes_detected":
+      return {
+        title: payloadNumber(payload, "scene_change_count") ? `已检测到 ${payloadNumber(payload, "scene_change_count")} 个镜头切换点` : "已检测到镜头切换边界",
+        detail: "这些镜头边界会参与抽帧和最终裁剪边界修正，减少从动作半截切入或切出。",
+        tags: [],
+        tone: "sky" as const,
+        important: true,
+      };
     case "heuristic.start":
       return {
         title: "未使用大模型，已切到本地规则规划",
@@ -749,47 +1453,73 @@ function describeTraceEvent(entry: TaskTraceEvent) {
       };
     case "vision.attempt":
       return {
-        title: "开始识别视频剧情事件",
-        detail: joinParts([model ? `视觉模型 ${model}` : "", frameCount ? `准备分析 ${frameCount} 张关键帧` : "准备分析视频关键帧"]),
+        title: "开始逐素材分析完整镜头",
+        detail: joinParts([
+          model ? `视觉模型 ${model}` : "",
+          payloadNumber(payload, "source_count") ? `共 ${payloadNumber(payload, "source_count")} 条素材` : "",
+          frameCount ? `单次请求含 ${frameCount} 张镜头采样帧` : "准备分析完整镜头采样帧",
+        ]),
         tags: [],
         tone: "sky" as const,
         important: true,
       };
     case "vision.request":
       return {
-        title: "视觉模型已收到关键帧和时间轴信号",
+        title: "视觉模型已收到逐镜头分析请求",
         detail: joinParts([
           model ? `模型 ${model}` : "",
-          frameCount ? `${frameCount} 张关键帧` : "",
-          transcriptCueCount ? `融合 ${transcriptCueCount} 条字幕时间轴` : payloadBoolean(payload, "has_transcript") ? "带字幕上下文" : "无字幕上下文",
-          audioPeakCount ? `融合 ${audioPeakCount} 个音频卡点` : "",
+          payloadString(payload, "source_file_name") ? `素材 ${payloadString(payload, "source_file_name")}` : "",
+          payloadNumber(payload, "shot_count") ? `覆盖 ${payloadNumber(payload, "shot_count")} 个镜头段` : "",
+          frameCount ? `${frameCount} 张镜头采样帧` : "",
+          transcriptCueCount ? `带 ${transcriptCueCount} 条字幕上下文` : payloadBoolean(payload, "has_transcript") ? "带字幕上下文" : "无字幕上下文",
         ]),
         tags: [],
         tone: "sky" as const,
         important: true,
       };
+    case "vision.analysis_saved":
+      return {
+        title: "完整镜头分析 JSON 已落盘",
+        detail: joinParts([
+          payloadNumber(payload, "source_count") ? `${payloadNumber(payload, "source_count")} 条素材` : "",
+          payloadNumber(payload, "shot_count") ? `${payloadNumber(payload, "shot_count")} 个镜头段` : "",
+          payloadString(payload, "analysis_path") ? shortText(payloadString(payload, "analysis_path"), 120) : "",
+        ]),
+        tags: ["可用于复盘"],
+        tone: "emerald" as const,
+        important: true,
+      };
     case "vision.response":
       {
+        const parsedShotCount = payloadNumber(payload, "parsed_shot_count");
         const parsedEventCount = payloadNumber(payload, "parsed_event_count");
         const eventTitles = payloadStringArray(payload, "event_titles");
         const eventTypes = payloadStringArray(payload, "event_types");
         const parsedClipCount = payloadNumber(payload, "parsed_clip_count");
         return {
-          title: parsedEventCount ? `视觉理解返回了 ${parsedEventCount} 个剧情事件` : parsedClipCount ? `视频内容理解返回了 ${parsedClipCount} 条高点方案` : "视频内容理解已返回结果",
+          title: parsedShotCount
+            ? `视觉理解返回了 ${parsedShotCount} 个镜头分析结果`
+            : parsedEventCount
+              ? `视觉理解返回了 ${parsedEventCount} 个高层事件`
+              : parsedClipCount
+                ? `视频内容理解返回了 ${parsedClipCount} 条高点方案`
+                : "视频内容理解已返回结果",
           detail: contentExcerpt
             ? `返回摘录：${shortText(contentExcerpt, 160)}`
-            : parsedEventCount
-              ? "视觉模型已经把高燃、冲突、反转这类事件定位到了具体时间点，后续会再做最终切点规划。"
-              : "视觉模型已基于关键帧识别出可剪辑的高燃或卡点时刻。",
-          tags: [model ? `模型 ${model}` : "", ...eventTypes.slice(0, 3), ...eventTitles.slice(0, 2), ...clipTitles.slice(0, 2)].filter(Boolean),
+            : parsedShotCount
+              ? "视觉模型已经覆盖式分析了该素材的完整镜头内容，接下来会交给融合模型自动生成分镜脚本和时间点。"
+              : parsedEventCount
+                ? "视觉模型已经归纳出高层事件，后续会再做最终切点规划。"
+                : "视觉模型已返回完整镜头内容理解结果。",
+          tags: [model ? `模型 ${model}` : "", ...(parsedShotCount ? [`镜头 ${parsedShotCount} 段`] : []), ...eventTypes.slice(0, 3), ...eventTitles.slice(0, 2), ...clipTitles.slice(0, 2)].filter(Boolean),
           tone: "sky" as const,
           important: true,
         };
       }
     case "fusion.vision_fallback":
       return {
-        title: "视觉事件识别失败，已降级继续规划",
-        detail: "视觉模型这轮没成功返回，系统会改用字幕时间轴、音频卡点和候选片段继续做最终剪辑规划。",
+        title: "完整镜头分析失败，已降级继续规划",
+        detail: "视觉模型这轮没成功返回完整镜头 JSON，系统会改用字幕时间轴、音频卡点和候选片段继续做最终剪辑规划。",
         tags: [],
         tone: "amber" as const,
         important: true,
@@ -799,7 +1529,7 @@ function describeTraceEvent(entry: TaskTraceEvent) {
         title: "开始生成最终剪辑时间点",
         detail: joinParts([
           model ? `融合模型 ${model}` : "",
-          payloadBoolean(payload, "used_visual_events") ? "已接入视觉事件结果" : "当前不带视觉事件结果",
+          payloadNumber(payload, "visual_shot_count") ? `已接入 ${payloadNumber(payload, "visual_shot_count")} 个镜头段分析` : payloadBoolean(payload, "used_visual_events") ? "已接入视觉分析结果" : "当前不带视觉分析结果",
         ]),
         tags: [payloadString(payload, "visual_model") ? `视觉 ${payloadString(payload, "visual_model")}` : ""].filter(Boolean),
         tone: "fuchsia" as const,
@@ -813,9 +1543,12 @@ function describeTraceEvent(entry: TaskTraceEvent) {
           promptLength ? `Prompt ${promptLength} 字符` : "",
           transcriptCueCount ? `字幕时间轴 ${transcriptCueCount} 条` : "",
           audioPeakCount ? `音频卡点 ${audioPeakCount} 个` : "",
+          payloadNumber(payload, "scene_change_count") ? `镜头边界 ${payloadNumber(payload, "scene_change_count")} 个` : "",
+          payloadNumber(payload, "visual_shot_count") ? `镜头分析 ${payloadNumber(payload, "visual_shot_count")} 段` : "",
           payloadNumber(payload, "visual_event_count") ? `视觉事件 ${payloadNumber(payload, "visual_event_count")} 个` : "",
+          payloadString(payload, "mixcut_content_type") ? mixcutMetaLabel(payloadString(payload, "mixcut_content_type"), payloadString(payload, "mixcut_style_preset")) : "",
         ]),
-        tags: [payloadBoolean(payload, "used_visual_events") ? "视觉事件已接入" : "未接入视觉事件"].filter(Boolean),
+        tags: [payloadNumber(payload, "visual_shot_count") ? "完整镜头分析已接入" : payloadBoolean(payload, "used_visual_events") ? "视觉事件已接入" : "未接入视觉分析"].filter(Boolean),
         tone: "fuchsia" as const,
         important: true,
       };
@@ -825,7 +1558,7 @@ function describeTraceEvent(entry: TaskTraceEvent) {
         detail: contentExcerpt ? `返回摘录：${shortText(contentExcerpt, 160)}` : "最终剪辑时间点已经确定，后续会按这些切点执行 FFmpeg 渲染。",
         tags: [
           model ? `模型 ${model}` : "",
-          payloadBoolean(payload, "used_visual_events") ? "已结合视觉事件" : "未结合视觉事件",
+          payloadNumber(payload, "visual_shot_count") ? `已结合 ${payloadNumber(payload, "visual_shot_count")} 段镜头分析` : payloadBoolean(payload, "used_visual_events") ? "已结合视觉事件" : "未结合视觉分析",
           ...clipTitles.slice(0, 3),
         ].filter(Boolean),
         tone: "fuchsia" as const,
@@ -990,7 +1723,10 @@ function describeTraceEvent(entry: TaskTraceEvent) {
     case "render.started":
       return {
         title: "开始执行 FFmpeg 剪辑",
-        detail: clipCount ? `本轮计划输出 ${clipCount} 条成片。` : "开始按规划方案输出成片。",
+        detail: joinParts([
+          clipCount ? `本轮计划输出 ${clipCount} 条成片` : "开始按规划方案输出成片",
+          payloadString(payload, "transition_style") ? `默认转场 ${payloadString(payload, "transition_style")}` : "",
+        ]),
         tags: [],
         tone: "amber" as const,
         important: true,
@@ -1001,8 +1737,11 @@ function describeTraceEvent(entry: TaskTraceEvent) {
         detail: joinParts([
           payloadString(payload, "title"),
           clipTimeLabel(startSeconds, endSeconds),
+          payloadNumber(payload, "segment_count") && payloadNumber(payload, "segment_count")! > 1
+            ? `${payloadNumber(payload, "segment_count")} 段混剪`
+            : "",
         ]),
-        tags: [],
+        tags: [payloadString(payload, "transition_style") ? `转场 ${payloadString(payload, "transition_style")}` : ""].filter(Boolean),
         tone: "amber" as const,
         important: false,
       };
@@ -1012,8 +1751,14 @@ function describeTraceEvent(entry: TaskTraceEvent) {
         detail: joinParts([
           payloadString(payload, "title"),
           progress ? `任务进度 ${progress}%` : "",
+          payloadNumber(payload, "segment_count") && payloadNumber(payload, "segment_count")! > 1
+            ? `${payloadNumber(payload, "segment_count")} 段混剪已拼接`
+            : "",
         ]),
-        tags: [],
+        tags: [
+          payloadString(payload, "transition_style") ? `转场 ${payloadString(payload, "transition_style")}` : "",
+          ...payloadStringArray(payload, "segment_sources").slice(0, 2),
+        ].filter(Boolean),
         tone: "emerald" as const,
         important: true,
       };
@@ -1111,15 +1856,19 @@ const planningModeSummary = computed<PlanningModeSummary>(() => {
     const model = payloadString(payload, "model");
     const visualModel = payloadString(payload, "visual_model");
     const parsedClipCount = payloadNumber(payload, "parsed_clip_count");
+    const visualShotCount = payloadNumber(payload, "visual_shot_count");
+    const visualSourceCount = payloadNumber(payload, "visual_source_count");
     const visualEventCount = payloadNumber(payload, "visual_event_count");
     const usedVisualEvents = payloadBoolean(payload, "used_visual_events");
     return {
-      label: usedVisualEvents ? "已使用视觉理解 + 融合规划" : "已使用融合规划",
+      label: usedVisualEvents ? "已使用四信号融合规划" : "已使用融合规划",
       title: model ? `本次最终切点由 ${model} 规划` : "本次最终切点已由融合模型规划完成",
       detail: usedVisualEvents
         ? joinParts([
-            visualModel ? `先由 ${visualModel} 识别剧情事件` : "先完成了视觉事件识别",
-            visualEventCount ? `共提取 ${visualEventCount} 个剧情事件` : "",
+            visualModel ? `先由 ${visualModel} 完成逐镜头分析` : "先完成了逐镜头完整分析",
+            visualSourceCount ? `覆盖 ${visualSourceCount} 条素材` : "",
+            visualShotCount ? `共分析 ${visualShotCount} 个镜头段` : "",
+            visualEventCount ? `补充归纳 ${visualEventCount} 个高层事件` : "",
             parsedClipCount ? `再生成 ${parsedClipCount} 条最终剪辑方案` : "再输出最终剪辑方案",
           ])
         : parsedClipCount
@@ -1132,20 +1881,21 @@ const planningModeSummary = computed<PlanningModeSummary>(() => {
   if (visionResponse) {
     const payload = visionResponse.payload || {};
     const model = payloadString(payload, "model");
+    const parsedShotCount = payloadNumber(payload, "parsed_shot_count");
     const parsedEventCount = payloadNumber(payload, "parsed_event_count");
     const parsedClipCount = payloadNumber(payload, "parsed_clip_count");
     return {
-      label: "视觉事件已识别",
-      title: model ? `上游已由 ${model} 完成剧情事件识别` : "上游已完成剧情事件识别",
-      detail: parsedEventCount
+      label: "逐镜头分析已完成",
+      title: model ? `上游已由 ${model} 完成完整镜头分析` : "上游已完成完整镜头分析",
+      detail: parsedShotCount
         ? task.value?.hasTimedTranscript
-          ? `视觉模型已经结合字幕时间轴和音频卡点识别出 ${parsedEventCount} 个关键事件，接下来会再做最终时间点规划。`
-          : `视觉模型已经识别出 ${parsedEventCount} 个关键事件，接下来会再做最终时间点规划。`
+          ? `视觉模型已覆盖 ${parsedShotCount} 个镜头段，并保留字幕上下文给后续融合规划使用。`
+          : `视觉模型已覆盖 ${parsedShotCount} 个镜头段，接下来会再做最终时间点规划。`
+        : parsedEventCount
+          ? `视觉模型已额外归纳 ${parsedEventCount} 个高层事件，接下来会再做最终时间点规划。`
         : parsedClipCount
           ? `旧版任务直接从视觉模型拿到了 ${parsedClipCount} 条方案。`
-          : task.value?.hasTimedTranscript
-            ? "视觉模型已经结合字幕时间轴和音频卡点返回内容理解结果，接下来会按剧情强点规划最终切点。"
-            : "视觉模型已经返回视频内容理解结果，接下来会按识别到的剧情强点规划最终切点。",
+          : "视觉模型已经返回逐镜头内容理解结果，接下来会交给融合模型自动生成分镜脚本和剪辑时间点。",
       tone: "sky",
     };
   }
@@ -1194,7 +1944,7 @@ const planningModeSummary = computed<PlanningModeSummary>(() => {
   if (fusionAttempt || (task.value?.status === "PLANNING" && visionResponse)) {
     return {
       label: "等待融合规划返回",
-      title: "系统正在结合视觉事件、字幕和音频输出最终切点",
+      title: "系统正在结合逐镜头分析、字幕和音频输出最终切点",
       detail: "只有出现“融合规划已返回结果”或“本次最终切点由某个模型规划”，才代表这次真正拿到了最终剪辑时间点。",
       tone: "fuchsia",
     };
@@ -1212,8 +1962,8 @@ const planningModeSummary = computed<PlanningModeSummary>(() => {
   if (visionAttempt || (task.value?.status === "PLANNING" && planningStarted)) {
     return {
       label: "等待视频理解返回",
-      title: "系统正在分析视频关键帧里的剧情事件",
-      detail: "只有出现“视觉理解已返回结果”或“视觉事件已识别”，才代表这次真的分析了视频内容。",
+      title: "系统正在逐素材分析完整镜头内容",
+      detail: "只有出现“视觉理解已返回结果”或“逐镜头分析已完成”，才代表这次真的分析了视频里的完整镜头内容。",
       tone: "sky",
     };
   }
@@ -1269,8 +2019,8 @@ const currentFocus = computed<TraceFocusItem>(() => {
   const activeVision = lastTraceEvent("vision.request", "vision.attempt");
   if (task.value?.status === "PLANNING" && activeVision && !hasTraceEvent("vision.response", "fusion.response", "heuristic.completed", "planning.completed")) {
     return {
-      title: "正在识别视频里的剧情事件",
-      detail: describeTraceEvent(activeVision).detail || "系统正在把关键帧送给视觉模型，寻找高燃、反转和冲突事件。",
+      title: "正在生成完整镜头分析 JSON",
+      detail: describeTraceEvent(activeVision).detail || "系统正在把每个视频的镜头采样帧送给视觉模型，覆盖式分析每个镜头内容。",
       tone: "sky",
       timestamp: activeVision.timestamp,
     };
@@ -1280,7 +2030,7 @@ const currentFocus = computed<TraceFocusItem>(() => {
   if (task.value?.status === "PLANNING" && activeFusion && !hasTraceEvent("fusion.response", "heuristic.completed", "planning.completed")) {
     return {
       title: "正在输出最终剪辑时间点",
-      detail: describeTraceEvent(activeFusion).detail || "系统正在把视觉事件、字幕和音频卡点融合成最终剪辑方案。",
+      detail: describeTraceEvent(activeFusion).detail || "系统正在把逐镜头完整分析 JSON、字幕和音频卡点融合成最终剪辑方案。",
       tone: "fuchsia",
       timestamp: activeFusion.timestamp,
     };
@@ -1330,6 +2080,7 @@ const stageProgressItems = computed<TraceProgressItem[]>(() => {
   const analysisCompleted = lastTraceEvent("analysis.completed");
   const analysisStarted = lastTraceEvent("analysis.started");
   const audioDetected = lastTraceEvent("audio.peaks_detected");
+  const sceneDetected = lastTraceEvent("scene.changes_detected");
   const visionResponse = lastTraceEvent("vision.response");
   const visionFailed = lastTraceEvent("vision.timeout", "vision.http_error", "vision.network_error");
   const visionAttempt = lastTraceEvent("vision.request", "vision.attempt");
@@ -1391,6 +2142,8 @@ const stageProgressItems = computed<TraceProgressItem[]>(() => {
         ? describeTraceEvent(fusionResponse).detail
         : visionResponse
         ? describeTraceEvent(visionResponse).detail
+        : sceneDetected
+          ? describeTraceEvent(sceneDetected).detail
         : audioDetected
           ? describeTraceEvent(audioDetected).detail
         : llmResponse
@@ -1410,9 +2163,9 @@ const stageProgressItems = computed<TraceProgressItem[]>(() => {
               : llmAttempt
                 ? describeTraceEvent(llmAttempt).detail || "正在准备规划请求。"
               : "等待进入规划阶段。",
-      progress: fusionResponse || llmResponse || heuristicCompleted || lastTraceEvent("planning.completed") ? 100 : fusionAttempt ? 82 : visionResponse ? 62 : audioDetected || visionAttempt || llmAttempt || task.value?.status === "PLANNING" ? 42 : 0,
+      progress: fusionResponse || llmResponse || heuristicCompleted || lastTraceEvent("planning.completed") ? 100 : fusionAttempt ? 82 : visionResponse ? 62 : sceneDetected || audioDetected || visionAttempt || llmAttempt || task.value?.status === "PLANNING" ? 42 : 0,
       status: llmStatus,
-      tone: llmStatus === "error" ? "rose" : heuristicCompleted ? "amber" : fusionResponse ? "fuchsia" : fusionAttempt ? "fuchsia" : visionResponse ? "sky" : audioDetected ? "amber" : llmResponse ? "fuchsia" : visionAttempt ? "sky" : llmStatus === "active" ? "fuchsia" : "slate",
+      tone: llmStatus === "error" ? "rose" : heuristicCompleted ? "amber" : fusionResponse ? "fuchsia" : fusionAttempt ? "fuchsia" : visionResponse ? "sky" : sceneDetected ? "sky" : audioDetected ? "amber" : llmResponse ? "fuchsia" : visionAttempt ? "sky" : llmStatus === "active" ? "fuchsia" : "slate",
     },
     {
       key: "render",
@@ -1575,10 +2328,23 @@ const { start, stop } = usePolling(async () => {
 }, 3000);
 
 watch(
+  () => task.value?.plan?.length ?? 0,
+  (length) => {
+    if (!length) {
+      activePlanIndex.value = 0;
+      return;
+    }
+    activePlanIndex.value = Math.max(0, Math.min(activePlanIndex.value, length - 1));
+  }
+);
+
+watch(
   taskId,
   async (_, __, onCleanup) => {
     onCleanup(stop);
     task.value = null;
+    activePlanIndex.value = 0;
+    outputsExpanded.value = false;
     errorMessage.value = "";
     traceEvents.value = [];
     traceErrorMessage.value = "";

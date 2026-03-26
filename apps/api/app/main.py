@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend_core.runtime import build_runtime
+from .routers.admin import router as admin_router
 from .routers.health import router as health_router
 from .routers.presets import router as presets_router
 from .routers.tasks import router as tasks_router
@@ -46,6 +47,7 @@ def _startup() -> None:
 
 
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(admin_router, prefix="/api/v1")
 app.include_router(presets_router, prefix="/api/v1")
 app.include_router(uploads_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")

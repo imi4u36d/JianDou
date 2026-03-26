@@ -6,6 +6,8 @@ export type TaskStatus =
   | "COMPLETED"
   | "FAILED";
 
+export type EditingMode = "drama" | "mixcut";
+
 export interface TaskPlanClip {
   clipIndex: number;
   title: string;
@@ -13,6 +15,26 @@ export interface TaskPlanClip {
   startSeconds: number;
   endSeconds: number;
   durationSeconds: number;
+  sourceAssetId?: string | null;
+  sourceFileName?: string | null;
+  segments?: TaskPlanSegment[];
+  transitionStyle?: string | null;
+  layoutStyle?: string | null;
+  effectStyle?: string | null;
+  mixcutTemplate?: string | null;
+}
+
+export interface TaskPlanSegment {
+  sourceAssetId: string;
+  sourceFileName: string;
+  startSeconds: number;
+  endSeconds: number;
+  durationSeconds: number;
+  shotRole?: string | null;
+  segmentKind?: string | null;
+  segmentRole?: string | null;
+  frameTimestampSeconds?: number | null;
+  framePreviewUrl?: string | null;
 }
 
 export interface TaskSourceAssetSummary {
@@ -40,8 +62,13 @@ export interface UploadResponse {
 
 export interface CreateTaskRequest {
   title: string;
-  sourceAssetId: string;
-  sourceFileName: string;
+  sourceAssetId?: string;
+  sourceFileName?: string;
+  sourceAssetIds: string[];
+  sourceFileNames: string[];
+  editingMode?: EditingMode;
+  mixcutContentType?: string;
+  mixcutStylePreset?: string;
   platform: string;
   aspectRatio: "9:16" | "16:9";
   minDurationSeconds: number;
@@ -51,6 +78,29 @@ export interface CreateTaskRequest {
   outroTemplate: string;
   creativePrompt?: string;
   transcriptText?: string;
+  mixcutEnabled?: boolean;
+}
+
+export interface GenerateCreativePromptRequest {
+  title: string;
+  platform: string;
+  aspectRatio: "9:16" | "16:9";
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+  outputCount: number;
+  introTemplate: string;
+  outroTemplate: string;
+  transcriptText?: string;
+  sourceFileNames?: string[];
+  editingMode?: EditingMode;
+  mixcutEnabled?: boolean;
+  mixcutContentType?: string;
+  mixcutStylePreset?: string;
+}
+
+export interface GenerateCreativePromptResponse {
+  prompt: string;
+  source: string;
 }
 
 export interface TaskPreset {
@@ -71,8 +121,20 @@ export interface TaskPreset {
 export interface TaskCloneDraft {
   sourceTaskId: string;
   sourceAssetId: string;
+  sourceAssetIds?: string[];
   source?: TaskSourceAssetSummary | null;
   sourceFileName: string;
+  sourceFileNames?: string[];
+  sourceAssetCount?: number;
+  editingMode?: EditingMode;
+  mixcutEnabled?: boolean;
+  mixcutContentType?: string;
+  mixcutStylePreset?: string;
+  mixcutTransitionStyle?: string;
+  mixcutLayoutStyle?: string;
+  mixcutEffectStyle?: string;
+  mixcutTemplate?: string;
+  sourceAssets?: TaskSourceAssetSummary[];
   title: string;
   platform: string;
   aspectRatio: "9:16" | "16:9";
@@ -138,10 +200,22 @@ export interface TaskListItem {
   completedOutputCount?: number;
   hasTranscript?: boolean;
   hasTimedTranscript?: boolean;
+  sourceAssetCount?: number;
+  editingMode?: EditingMode;
+  mixcutEnabled?: boolean;
 }
 
 export interface TaskDetail extends TaskListItem {
   sourceFileName: string;
+  sourceFileNames?: string[];
+  sourceAssetIds?: string[];
+  editingMode?: EditingMode;
+  mixcutContentType?: string;
+  mixcutStylePreset?: string;
+  mixcutTransitionStyle?: string;
+  mixcutLayoutStyle?: string;
+  mixcutEffectStyle?: string;
+  mixcutTemplate?: string;
   aspectRatio: string;
   minDurationSeconds: number;
   maxDurationSeconds: number;
@@ -158,6 +232,7 @@ export interface TaskDetail extends TaskListItem {
   hasTimedTranscript?: boolean;
   transcriptCueCount?: number;
   source?: TaskSourceAssetSummary | null;
+  sourceAssets?: TaskSourceAssetSummary[];
   plan?: TaskPlanClip[];
   outputs: TaskOutput[];
 }
@@ -183,6 +258,7 @@ export interface HealthPlanningCapabilities {
   visual_event_reasoning: boolean;
   subtitle_visual_fusion: boolean;
   audio_peak_signal: boolean;
+  scene_boundary_signal: boolean;
   fusion_timeline_planning: boolean;
   fallback_heuristic_enabled: boolean;
 }
@@ -201,4 +277,49 @@ export interface HealthRuntimeSummary {
 export interface HealthResponse {
   ok: boolean;
   runtime: HealthRuntimeSummary;
+}
+
+export interface AdminOverviewCounts {
+  totalTasks: number;
+  runningTasks: number;
+  queuedTasks: number;
+  completedTasks: number;
+  failedTasks: number;
+  semanticTasks: number;
+  timedSemanticTasks: number;
+  averageProgress: number;
+}
+
+export interface AdminOverview {
+  generatedAt: string;
+  counts: AdminOverviewCounts;
+  modelReady: boolean;
+  primaryModel: string;
+  visionModel?: string | null;
+  recentTasks: TaskListItem[];
+  recentFailures: TaskListItem[];
+  recentRunningTasks: TaskListItem[];
+  recentTraceCount: number;
+}
+
+export interface AdminTraceEvent extends TaskTraceEvent {
+  taskId: string;
+  taskTitle?: string | null;
+  taskStatus?: string | null;
+}
+
+export interface AdminTaskFilters extends TaskFilters {
+  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "status_desc";
+}
+
+export interface AdminTaskBatchFailure {
+  taskId: string;
+  reason: string;
+}
+
+export interface AdminTaskBatchResult {
+  action: "retry" | "delete";
+  requestedCount: number;
+  succeededTaskIds: string[];
+  failed: AdminTaskBatchFailure[];
 }

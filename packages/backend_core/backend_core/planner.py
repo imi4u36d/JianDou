@@ -12,9 +12,9 @@ import urllib.error
 import urllib.request
 
 from .config import Settings
-from .media import sample_audio_peaks, sample_video_frames
+from .media import detect_scene_changes, sample_audio_peaks, sample_video_frames
 from .schemas import ClipPlan, MediaProbe, TaskSpec
-from .utils import clamp, extract_json_object
+from .utils import clamp, extract_json_object, truncate_text
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,8 @@ class PlannerContext:
     source: MediaProbe
     transcriptText: str | None = None
     sourcePath: str | None = None
+    sourceTimeline: list[dict[str, object]] | None = None
+    workDir: str | None = None
     trace: Callable[[str, str, str, dict[str, object] | None, str], None] | None = None
 
 
@@ -31,6 +33,14 @@ class TranscriptCue:
     startSeconds: float
     endSeconds: float
     text: str
+
+
+@dataclass(frozen=True)
+class DialogueBlock:
+    startSeconds: float
+    endSeconds: float
+    text: str
+    cues: list[TranscriptCue]
 
 
 @dataclass(frozen=True)
@@ -44,16 +54,50 @@ class VisualInsight:
 
 
 @dataclass(frozen=True)
+class VisualShot:
+    sourceAssetId: str
+    sourceFileName: str
+    shotIndex: int
+    localStartSeconds: float
+    localEndSeconds: float
+    timelineStartSeconds: float
+    timelineEndSeconds: float
+    summary: str
+    subjects: list[str]
+    action: str | None = None
+    emotion: str | None = None
+    location: str | None = None
+    visualHook: str | None = None
+    dialogueHint: str | None = None
+    storyRole: str | None = None
+    confidence: float | None = None
+
+
+@dataclass(frozen=True)
+class VisionSourceAnalysis:
+    sourceAssetId: str
+    sourceFileName: str
+    sourceDurationSeconds: float
+    timelineStartOffset: float
+    timelineEndOffset: float
+    shots: list[VisualShot]
+    events: list[VisualInsight]
+
+
+@dataclass(frozen=True)
 class SignalBundle:
     transcriptCues: list[TranscriptCue]
     selectedTranscriptCues: list[TranscriptCue]
     transcriptTimestamps: list[float]
     audioPeaks: list[tuple[float, float]]
+    sceneChanges: list[float]
 
 
 @dataclass(frozen=True)
 class VisionAnalysisResult:
     modelName: str
+    sources: list[VisionSourceAnalysis]
+    shots: list[VisualShot]
     events: list[VisualInsight]
     frameTimestamps: list[float]
     signals: SignalBundle
@@ -68,11 +112,47 @@ class HeuristicPlanner:
     def __init__(self, settings: Settings):
         self.settings = settings
 
+    def _is_mixcut_mode(self, task: TaskSpec) -> bool:
+        return (task.editingMode or "drama") == "mixcut" or bool(task.mixcutEnabled)
+
+    def _mixcut_plan_profile(self, task: TaskSpec) -> dict[str, str]:
+        content_type = (task.mixcutContentType or "").strip()
+        style_preset = (task.mixcutStylePreset or "").strip()
+        if not self._is_mixcut_mode(task):
+            return {
+                "transition_style": "cut",
+                "layout_style": "single_focus",
+                "effect_style": "none",
+                "mixcut_template": "single_focus_cut",
+            }
+        if style_preset == "music_sync":
+            return {
+                "transition_style": "flash",
+                "layout_style": "beat_montage",
+                "effect_style": "flash_cut",
+                "mixcut_template": "music_sync_flash_montage",
+            }
+        if content_type == "travel" or style_preset in {"travel_citywalk", "travel_landscape", "travel_healing", "travel_roadtrip"}:
+            return {
+                "transition_style": "crossfade",
+                "layout_style": "travel_story",
+                "effect_style": "crossfade",
+                "mixcut_template": "travel_crossfade_story",
+            }
+        return {
+            "transition_style": "crossfade",
+            "layout_style": "director_story",
+            "effect_style": "crossfade",
+            "mixcut_template": "director_crossfade_story",
+        }
+
     def plan(self, context: PlannerContext) -> list[ClipPlan]:
         task = context.task
         source = context.source
         clip_count = max(1, min(task.outputCount, self.settings.pipeline.max_output_count))
         transcript_cues = parse_transcript_cues(context.transcriptText)
+        mixcut_profile = self._mixcut_plan_profile(task)
+        is_mixcut_mode = self._is_mixcut_mode(task)
         if context.trace is not None:
             context.trace(
                 "planning",
@@ -81,6 +161,11 @@ class HeuristicPlanner:
                 {
                     "clip_count": clip_count,
                     "transcript_cue_count": len(transcript_cues),
+                    "editing_mode": task.editingMode,
+                    "mixcut_transition_style": mixcut_profile["transition_style"],
+                    "mixcut_layout_style": mixcut_profile["layout_style"],
+                    "mixcut_effect_style": mixcut_profile["effect_style"],
+                    "mixcut_template": mixcut_profile["mixcut_template"],
                 },
                 "INFO",
             )
@@ -107,12 +192,12 @@ class HeuristicPlanner:
                 semantic_hint = f"参考字幕片段：{cue.text[:80]}"
             elif clip_count == 1:
                 start_seconds = max(0.0, (source.durationSeconds - target_duration) / 2)
-                title_hint = task.creativePrompt.strip() if task.creativePrompt else "高能切片"
+                title_hint = task.creativePrompt.strip() if task.creativePrompt else ("混剪导演感切片" if is_mixcut_mode else "高能切片")
                 semantic_hint = ""
             else:
                 ratio = index / max(1, clip_count - 1)
                 start_seconds = window * ratio
-                title_hint = task.creativePrompt.strip() if task.creativePrompt else "高能切片"
+                title_hint = task.creativePrompt.strip() if task.creativePrompt else ("混剪导演感切片" if is_mixcut_mode else "高能切片")
                 semantic_hint = ""
             end_seconds = min(source.durationSeconds, start_seconds + target_duration)
             duration_seconds = max(1.0, end_seconds - start_seconds)
@@ -125,6 +210,10 @@ class HeuristicPlanner:
             )
             if task.creativePrompt:
                 reason += f" 创意提示：{task.creativePrompt[:120]}"
+            if is_mixcut_mode:
+                reason += " 当前为混剪模式，会优先考虑跨素材导演感分镜和镜头编排。"
+            else:
+                reason += " 当前为短剧模式，会优先考虑高燃卡点、对白完整和情绪推进。"
             if semantic_hint:
                 reason += f" {semantic_hint}"
             clips.append(
@@ -135,6 +224,10 @@ class HeuristicPlanner:
                     startSeconds=round(start_seconds, 3),
                     endSeconds=round(end_seconds, 3),
                     durationSeconds=round(duration_seconds, 3),
+                    transitionStyle=mixcut_profile["transition_style"],
+                    layoutStyle=mixcut_profile["layout_style"],
+                    effectStyle=mixcut_profile["effect_style"],
+                    mixcutTemplate=mixcut_profile["mixcut_template"],
                 )
             )
         if context.trace is not None:
@@ -145,6 +238,10 @@ class HeuristicPlanner:
                 {
                     "clip_count": len(clips),
                     "clip_titles": [clip.title for clip in clips[:5]],
+                    "mixcut_transition_style": mixcut_profile["transition_style"],
+                    "mixcut_layout_style": mixcut_profile["layout_style"],
+                    "mixcut_effect_style": mixcut_profile["effect_style"],
+                    "mixcut_template": mixcut_profile["mixcut_template"],
                 },
                 "INFO",
             )
@@ -249,6 +346,7 @@ def select_audio_signal_timestamps(context: PlannerContext, frame_count: int) ->
 def merge_signal_timestamps(
     transcript_timestamps: list[float],
     audio_peak_timestamps: list[tuple[float, float]],
+    scene_change_timestamps: list[float],
     duration_seconds: float,
     limit: int,
 ) -> list[float]:
@@ -259,6 +357,8 @@ def merge_signal_timestamps(
         candidates.append((timestamp, 4.0))
     for timestamp, energy in audio_peak_timestamps:
         candidates.append((timestamp, 1.5 + min(energy * 12.0, 3.0)))
+    for timestamp in scene_change_timestamps:
+        candidates.append((timestamp, 2.6))
     if not candidates:
         return []
 
@@ -284,11 +384,18 @@ def collect_signal_bundle(context: PlannerContext, frame_count: int) -> SignalBu
         for cue in selected_transcript_cues
     ]
     audio_peaks = select_audio_signal_timestamps(context, frame_count)
+    scene_changes: list[float] = []
+    if context.sourcePath:
+        try:
+            scene_changes = [item.timestamp_seconds for item in detect_scene_changes(context.sourcePath, context.source.durationSeconds, max_changes=frame_count)]
+        except Exception:
+            scene_changes = []
     return SignalBundle(
         transcriptCues=transcript_cues,
         selectedTranscriptCues=selected_transcript_cues,
         transcriptTimestamps=transcript_timestamps,
         audioPeaks=audio_peaks,
+        sceneChanges=scene_changes,
     )
 
 
@@ -297,7 +404,203 @@ def _signal_sources(context: PlannerContext, signals: SignalBundle) -> list[str]
         "video_frames",
         "timed_transcript" if signals.transcriptCues else ("creative_prompt" if context.task.creativePrompt else "no_transcript"),
         "audio_peaks" if signals.audioPeaks else "no_audio_signal",
+        "scene_boundaries" if signals.sceneChanges else "no_scene_signal",
     ]
+
+
+def _nearest_dialogue_block(signals: SignalBundle, timestamp_seconds: float) -> DialogueBlock | None:
+    blocks = build_dialogue_blocks(signals.transcriptCues)
+    if not blocks:
+        return None
+    return min(
+        blocks,
+        key=lambda block: abs(((block.startSeconds + block.endSeconds) / 2) - timestamp_seconds),
+    )
+
+
+def _suggest_event_window(
+    *,
+    focus_seconds: float,
+    signals: SignalBundle,
+    source_duration: float,
+    min_duration: float,
+    max_duration: float,
+) -> tuple[float, float]:
+    boundaries = [0.0, *signals.sceneChanges, source_duration]
+    block = _nearest_dialogue_block(signals, focus_seconds)
+    local_window = max(min_duration * 0.92, min(max_duration * 0.72, 4.2))
+    start_seconds = max(0.0, focus_seconds - local_window * 0.42)
+    end_seconds = min(source_duration, focus_seconds + local_window * 0.58)
+
+    if block is not None and block.startSeconds <= focus_seconds <= block.endSeconds:
+        start_seconds = min(start_seconds, max(0.0, block.startSeconds - 0.35))
+        end_seconds = max(end_seconds, min(source_duration, block.endSeconds + 0.3))
+
+    nearby_start_boundaries = [item for item in boundaries if abs(item - start_seconds) <= 1.2]
+    nearby_end_boundaries = [item for item in boundaries if abs(item - end_seconds) <= 1.2]
+    if nearby_start_boundaries:
+        start_seconds = min(nearby_start_boundaries, key=lambda item: abs(item - start_seconds))
+    if nearby_end_boundaries:
+        end_seconds = min(nearby_end_boundaries, key=lambda item: abs(item - end_seconds))
+
+    if end_seconds - start_seconds < min_duration:
+        deficit = min_duration - (end_seconds - start_seconds)
+        start_seconds = max(0.0, start_seconds - deficit * 0.45)
+        end_seconds = min(source_duration, end_seconds + deficit * 0.55)
+
+    if end_seconds - start_seconds > max_duration:
+        overflow = (end_seconds - start_seconds) - max_duration
+        start_seconds += overflow * 0.45
+        end_seconds -= overflow * 0.55
+
+    start_seconds = clamp(start_seconds, 0.0, max(0.0, source_duration - 0.5))
+    end_seconds = clamp(end_seconds, start_seconds + 0.5, source_duration)
+    return round(start_seconds, 3), round(end_seconds, 3)
+
+
+def _source_entries(context: PlannerContext) -> list[dict[str, object]]:
+    entries = context.sourceTimeline or []
+    normalized: list[dict[str, object]] = []
+    for index, entry in enumerate(entries):
+        source_path = entry.get("source_path")
+        if source_path is None:
+            continue
+        normalized.append(
+            {
+                "asset_id": str(entry.get("asset_id") or f"source-{index + 1}"),
+                "file_name": str(entry.get("file_name") or f"素材 {index + 1}"),
+                "source_path": Path(str(source_path)),
+                "duration_seconds": max(0.6, float(entry.get("duration_seconds") or context.source.durationSeconds)),
+                "start_offset": float(entry.get("start_offset") or 0.0),
+                "end_offset": float(entry.get("end_offset") or context.source.durationSeconds),
+            }
+        )
+    if normalized:
+        return normalized
+    if context.sourcePath:
+        return [
+            {
+                "asset_id": context.task.sourceAssetIds[0] if context.task.sourceAssetIds else "source-1",
+                "file_name": context.task.sourceFileNames[0] if context.task.sourceFileNames else context.task.title,
+                "source_path": Path(context.sourcePath),
+                "duration_seconds": max(0.6, float(context.source.durationSeconds)),
+                "start_offset": 0.0,
+                "end_offset": float(context.source.durationSeconds),
+            }
+        ]
+    return []
+
+
+def _uniform_shot_windows(duration_seconds: float, segment_count: int) -> list[tuple[float, float]]:
+    safe_duration = max(0.6, float(duration_seconds))
+    normalized_count = max(1, min(segment_count, 18))
+    step = safe_duration / normalized_count
+    windows: list[tuple[float, float]] = []
+    for index in range(normalized_count):
+        start = round(step * index, 3)
+        end = round(safe_duration if index == normalized_count - 1 else step * (index + 1), 3)
+        if end - start < 0.45:
+            end = round(min(safe_duration, start + 0.45), 3)
+        windows.append((start, end))
+    return windows
+
+
+def _shot_windows_for_source(
+    source_path: Path,
+    duration_seconds: float,
+    desired_count: int,
+) -> list[tuple[float, float]]:
+    safe_duration = max(0.6, float(duration_seconds))
+    scene_candidates: list[float] = []
+    try:
+        scene_candidates = [
+            item.timestamp_seconds
+            for item in detect_scene_changes(
+                source_path,
+                safe_duration,
+                max_changes=max(6, min(24, desired_count * 2)),
+            )
+        ]
+    except Exception:
+        scene_candidates = []
+
+    if not scene_candidates:
+        return _uniform_shot_windows(safe_duration, max(4, min(desired_count, 12)))
+
+    boundaries = [0.0]
+    for timestamp in scene_candidates:
+        bounded = round(min(max(0.0, float(timestamp)), max(0.0, safe_duration - 0.2)), 3)
+        if bounded <= boundaries[-1] + 0.25:
+            continue
+        boundaries.append(bounded)
+    boundaries.append(round(safe_duration, 3))
+
+    windows: list[tuple[float, float]] = []
+    for index in range(len(boundaries) - 1):
+        start = boundaries[index]
+        end = boundaries[index + 1]
+        if end - start < 0.45 and windows:
+            previous_start, _ = windows[-1]
+            windows[-1] = (previous_start, round(end, 3))
+            continue
+        if end - start < 0.45:
+            end = round(min(safe_duration, start + 0.45), 3)
+        windows.append((round(start, 3), round(end, 3)))
+
+    if len(windows) > max(6, min(24, desired_count * 2)):
+        stride = max(1, round(len(windows) / max(6, min(24, desired_count * 2))))
+        windows = [window for idx, window in enumerate(windows) if idx % stride == 0][: max(6, min(24, desired_count * 2))]
+        if windows[-1][1] < safe_duration:
+            windows[-1] = (windows[-1][0], round(safe_duration, 3))
+    return windows
+
+
+def _shot_frame_requests(shot_windows: list[tuple[float, float]]) -> list[tuple[int, str, float]]:
+    requests: list[tuple[int, str, float]] = []
+    for shot_index, (start_seconds, end_seconds) in enumerate(shot_windows, start=1):
+        duration_seconds = max(0.45, end_seconds - start_seconds)
+        midpoint = round(start_seconds + duration_seconds * 0.5, 3)
+        requests.append((shot_index, "中段画面", midpoint))
+        if duration_seconds >= 5.2:
+            requests.append((shot_index, "前段画面", round(start_seconds + duration_seconds * 0.28, 3)))
+            requests.append((shot_index, "后段画面", round(end_seconds - duration_seconds * 0.22, 3)))
+    return requests
+
+
+def _vision_shot_payload(result: VisionAnalysisResult | None) -> list[dict[str, object]]:
+    if result is None:
+        return []
+    payload: list[dict[str, object]] = []
+    for source in result.sources:
+        payload.append(
+            {
+                "sourceAssetId": source.sourceAssetId,
+                "sourceFileName": source.sourceFileName,
+                "sourceDurationSeconds": round(source.sourceDurationSeconds, 3),
+                "timelineStartOffset": round(source.timelineStartOffset, 3),
+                "timelineEndOffset": round(source.timelineEndOffset, 3),
+                "shots": [
+                    {
+                        "shotIndex": shot.shotIndex,
+                        "localStartSeconds": round(shot.localStartSeconds, 3),
+                        "localEndSeconds": round(shot.localEndSeconds, 3),
+                        "timelineStartSeconds": round(shot.timelineStartSeconds, 3),
+                        "timelineEndSeconds": round(shot.timelineEndSeconds, 3),
+                        "summary": truncate_text(shot.summary, 120),
+                        "subjects": shot.subjects[:4],
+                        "action": truncate_text(shot.action or "", 64) or None,
+                        "emotion": truncate_text(shot.emotion or "", 48) or None,
+                        "location": truncate_text(shot.location or "", 48) or None,
+                        "visualHook": truncate_text(shot.visualHook or "", 72) or None,
+                        "dialogueHint": truncate_text(shot.dialogueHint or "", 72) or None,
+                        "storyRole": truncate_text(shot.storyRole or "", 40) or None,
+                        "confidence": shot.confidence,
+                    }
+                    for shot in source.shots
+                ],
+            }
+        )
+    return payload
 
 
 class VisionEventAnalyzer:
@@ -309,61 +612,94 @@ class VisionEventAnalyzer:
         context: PlannerContext,
         model_name: str,
         signals: SignalBundle,
-    ) -> tuple[list[dict[str, object]], list[float], dict[str, object]]:
-        if not context.sourcePath:
-            raise RuntimeError("video source path is missing")
+        source_entry: dict[str, object],
+    ) -> tuple[list[dict[str, object]], list[float], dict[str, object], list[dict[str, float | int | str]]]:
+        source_path = Path(str(source_entry["source_path"]))
+        source_duration = float(source_entry["duration_seconds"])
+        desired_shot_count = max(
+            self.settings.model.vision_frame_count * 2,
+            min(18, max(6, int(source_duration / 4.0))),
+        )
+        shot_windows = _shot_windows_for_source(source_path, source_duration, desired_shot_count)
+        shot_requests = _shot_frame_requests(shot_windows)
+        if not shot_requests:
+            raise RuntimeError("no visual shot windows extracted")
 
         with tempfile.TemporaryDirectory(prefix="ai-cut-vision-") as temp_dir:
-            merged_timestamps = merge_signal_timestamps(
-                transcript_timestamps=signals.transcriptTimestamps,
-                audio_peak_timestamps=signals.audioPeaks,
-                duration_seconds=context.source.durationSeconds,
-                limit=self.settings.model.vision_frame_count,
-            )
             samples = sample_video_frames(
-                source_path=context.sourcePath,
+                source_path=source_path,
                 output_dir=temp_dir,
-                duration_seconds=context.source.durationSeconds,
-                frame_count=self.settings.model.vision_frame_count,
-                timestamps=merged_timestamps or signals.transcriptTimestamps or None,
+                duration_seconds=source_duration,
+                frame_count=len(shot_requests),
+                timestamps=[timestamp for _, _, timestamp in shot_requests],
             )
             if not samples:
                 raise RuntimeError("no visual samples extracted")
+
+            shot_payload = [
+                {
+                    "shotIndex": shot_index,
+                    "localStartSeconds": round(start_seconds, 3),
+                    "localEndSeconds": round(end_seconds, 3),
+                    "timelineStartSeconds": round(float(source_entry["start_offset"]) + start_seconds, 3),
+                    "timelineEndSeconds": round(float(source_entry["start_offset"]) + end_seconds, 3),
+                }
+                for shot_index, (start_seconds, end_seconds) in enumerate(shot_windows, start=1)
+            ]
+
+            editing_mode = context.task.editingMode or "drama"
+            vision_role_prompt = (
+                "你是短剧逐镜头内容分析助手，只输出 JSON。"
+                if editing_mode == "drama"
+                else "你是混剪逐镜头内容分析助手，只输出 JSON。"
+            )
+            vision_goal_prompt = (
+                "请覆盖这个视频中的每一个镜头段，描述镜头里发生了什么、人物状态、动作、情绪和最适合承担的剧情作用。"
+                if editing_mode == "drama"
+                else "请覆盖这个视频中的每一个镜头段，描述镜头里发生了什么、景别、动作、氛围和最适合承担的分镜作用。"
+            )
 
             content: list[dict[str, object]] = [
                 {
                     "type": "text",
                     "text": (
-                        "你是短剧视频内容理解助手，只输出 JSON。"
-                        "你会看到一组按时间采样的关键帧，每张图前都标明对应秒数。"
-                        "如果给了带时间戳字幕，请把字幕视为第二路强信号，优先关注字幕冲突点附近的画面。"
-                        "如果给了音频峰值时间点，请把音频卡点视为第三路强信号，优先关注节奏爆点附近的画面。"
-                        "请识别最适合短视频剪辑的高燃、冲突、反转、悬念、情绪爆发或视觉卡点，并输出 events。"
-                        "不要直接输出最终剪辑片段，不要机械地按开头、中间、结尾平均分配。"
+                        f"{vision_role_prompt}"
+                        "当前只分析这一个源视频，必须覆盖下方给出的每个镜头段，不能只挑高点。"
+                        "镜头边界只是分段依据，不代表重要性排序。"
+                        f"{vision_goal_prompt}"
+                        "不要直接输出最终剪辑时间点。"
                         "输出格式必须为："
-                        '{"events":[{"eventIndex":1,"title":"...","reason":"...","timestampSeconds":12.3,"confidence":0.92,"eventType":"冲突升级","relatedSubtitle":"..."}]}\n'
+                        '{"shots":[{"shotIndex":1,"summary":"...","subjects":["..."],"action":"...","emotion":"...","location":"...","visualHook":"...","dialogueHint":"...","storyRole":"...","confidence":0.88}],"events":[{"eventIndex":1,"title":"...","reason":"...","timestampSeconds":12.3,"confidence":0.92,"eventType":"...","relatedSubtitle":"..."}]}\n'
                         f"任务要求：{json.dumps(context.task.model_dump(), ensure_ascii=False)}\n"
-                        f"视频信息：{json.dumps(context.source.model_dump(), ensure_ascii=False)}\n"
+                        f"当前源视频：{json.dumps({'sourceAssetId': source_entry['asset_id'], 'sourceFileName': source_entry['file_name'], 'sourceDurationSeconds': source_duration, 'timelineStartOffset': float(source_entry['start_offset']), 'timelineEndOffset': float(source_entry['end_offset'])}, ensure_ascii=False)}\n"
+                        f"镜头段清单：{json.dumps(shot_payload, ensure_ascii=False)}\n"
                         f"创意补充：{json.dumps((context.task.creativePrompt or '').strip(), ensure_ascii=False)}\n"
                         f"字幕摘录：{json.dumps(truncate_transcript(context.transcriptText, 320), ensure_ascii=False)}\n"
-                        f"强信号字幕时间轴：{json.dumps([cue.__dict__ for cue in signals.selectedTranscriptCues[:12]], ensure_ascii=False)}\n"
-                        f"音频峰值时间点：{json.dumps([{'timestampSeconds': timestamp, 'energy': round(energy, 4)} for timestamp, energy in signals.audioPeaks[:12]], ensure_ascii=False)}\n"
                         "要求："
-                        "1. 识别 4-8 个最值得剪辑的剧情/情绪事件。"
-                        "2. timestampSeconds 必须指向事件最强的画面或情绪时间点。"
-                        "3. reason 要说明这是哪个冲突/反转/卡点。"
-                        "4. eventType 需要是类似 冲突升级/情绪爆发/反转揭示/悬念停顿/动作卡点 的短标签。"
-                        "5. relatedSubtitle 尽量填与该事件最相关的一句字幕，没有就留空。"
+                        "1. shots 必须尽量覆盖镜头段清单中的每个 shotIndex，不要遗漏。"
+                        "2. summary 要概括镜头内实际内容，不要写抽象空话。"
+                        "3. storyRole 要写成类似 起势/对白推进/反应镜头/氛围建立/动作推进/收束/插叙 的短标签。"
+                        "4. 如果能归纳更高层的事件，再额外输出 events；events 可以为空。"
                     ),
                 }
             ]
             timestamps: list[float] = []
-            for index, sample in enumerate(samples, start=1):
+            sample_index = 0
+            for shot_index, frame_label, timestamp in shot_requests:
+                if sample_index >= len(samples):
+                    break
+                sample = samples[sample_index]
+                sample_index += 1
                 timestamps.append(sample.timestamp_seconds)
+                shot_window = shot_windows[shot_index - 1]
                 content.append(
                     {
                         "type": "text",
-                        "text": f"关键帧 {index}，对应时间点 {sample.timestamp_seconds:.1f} 秒。",
+                        "text": (
+                            f"镜头 {shot_index}，局部时间 {shot_window[0]:.1f}-{shot_window[1]:.1f} 秒，"
+                            f"合成时间轴 {float(source_entry['start_offset']) + shot_window[0]:.1f}-{float(source_entry['start_offset']) + shot_window[1]:.1f} 秒，"
+                            f"{frame_label}，采样时间 {timestamp:.1f} 秒。"
+                        ),
                     }
                 )
                 content.append(
@@ -375,28 +711,42 @@ class VisionEventAnalyzer:
                     }
                 )
             messages = [
-                {"role": "system", "content": "You are a precise JSON-only video highlight planner."},
+                {"role": "system", "content": "You are a precise JSON-only shot analysis engine."},
                 {"role": "user", "content": content},
             ]
         signal_meta = {
             "audio_peak_count": len(signals.audioPeaks),
             "transcript_cue_count": len(signals.transcriptCues),
+            "scene_change_count": len(signals.sceneChanges),
             "signal_sources": _signal_sources(context, signals),
+            "source_asset_id": str(source_entry["asset_id"]),
+            "source_file_name": str(source_entry["file_name"]),
+            "shot_count": len(shot_windows),
         }
-        return messages, timestamps, signal_meta
+        return messages, timestamps, signal_meta, shot_payload
 
-    def _call_model(self, model_name: str, context: PlannerContext, signals: SignalBundle) -> VisionAnalysisResult:
-        messages, frame_timestamps, signal_meta = self._build_messages(context, model_name, signals)
+    def _call_model(
+        self,
+        model_name: str,
+        context: PlannerContext,
+        signals: SignalBundle,
+        source_entry: dict[str, object],
+    ) -> VisionSourceAnalysis:
+        messages, frame_timestamps, signal_meta, shot_payload = self._build_messages(context, model_name, signals, source_entry)
         if context.trace is not None:
             context.trace(
                 "vision",
                 "vision.request",
-                f"已向视觉模型 {model_name} 发送画面事件识别请求。",
+                f"已向视觉模型 {model_name} 发送完整镜头分析请求。",
                 {
                     "model": model_name,
+                    "source_asset_id": str(source_entry["asset_id"]),
+                    "source_file_name": str(source_entry["file_name"]),
                     "frame_count": len(frame_timestamps),
                     "frame_timestamps": frame_timestamps,
+                    "shot_count": len(shot_payload),
                     "has_transcript": bool(signals.transcriptCues),
+                    "editing_mode": "mixcut" if context.task.editingMode == "mixcut" else "drama",
                     **signal_meta,
                 },
                 "INFO",
@@ -427,6 +777,8 @@ class VisionEventAnalyzer:
                     f"视觉模型 {model_name} 在 {self.settings.model.timeout_seconds} 秒内没有返回结果。",
                     {
                         "model": model_name,
+                        "source_asset_id": str(source_entry["asset_id"]),
+                        "source_file_name": str(source_entry["file_name"]),
                         "timeout_seconds": self.settings.model.timeout_seconds,
                         "frame_count": len(frame_timestamps),
                     },
@@ -442,6 +794,8 @@ class VisionEventAnalyzer:
                     f"视觉模型 {model_name} 请求失败，返回 HTTP {exc.code}。",
                     {
                         "model": model_name,
+                        "source_asset_id": str(source_entry["asset_id"]),
+                        "source_file_name": str(source_entry["file_name"]),
                         "status_code": exc.code,
                         "response_excerpt": truncate_transcript(body, 1000),
                     },
@@ -456,6 +810,8 @@ class VisionEventAnalyzer:
                     f"视觉模型 {model_name} 请求在收到响应前失败。",
                     {
                         "model": model_name,
+                        "source_asset_id": str(source_entry["asset_id"]),
+                        "source_file_name": str(source_entry["file_name"]),
                         "error": str(exc),
                     },
                     "ERROR",
@@ -474,16 +830,21 @@ class VisionEventAnalyzer:
                     content = output.get("text", "") or output.get("content", "")
         json_text = extract_json_object(content or raw)
         parsed = json.loads(json_text)
+        shot_items = parsed.get("shots", [])
         events = parsed.get("events", [])
         if context.trace is not None:
             context.trace(
                 "vision",
                 "vision.response",
-                f"视觉模型 {model_name} 已返回画面事件理解结果。",
+                f"视觉模型 {model_name} 已返回完整镜头分析结果。",
                 {
                     "model": model_name,
+                    "source_asset_id": str(source_entry["asset_id"]),
+                    "source_file_name": str(source_entry["file_name"]),
                     "frame_count": len(frame_timestamps),
                     "frame_timestamps": frame_timestamps,
+                    "shot_count": len(shot_payload),
+                    "parsed_shot_count": len(shot_items) if isinstance(shot_items, list) else 0,
                     "parsed_event_count": len(events) if isinstance(events, list) else 0,
                     "event_titles": [
                         str(event.get("title", f"事件 {index + 1}"))[:80]
@@ -498,6 +859,38 @@ class VisionEventAnalyzer:
                 },
                 "INFO",
             )
+        shot_map = {
+            int(item.get("shotIndex", index)): item
+            for index, item in enumerate(shot_items if isinstance(shot_items, list) else [], start=1)
+            if isinstance(item, dict)
+        }
+        shots: list[VisualShot] = []
+        for shot in shot_payload:
+            shot_index = int(shot["shotIndex"])
+            shot_item = shot_map.get(shot_index, {})
+            subjects = shot_item.get("subjects", [])
+            if not isinstance(subjects, list):
+                subjects = []
+            shots.append(
+                VisualShot(
+                    sourceAssetId=str(source_entry["asset_id"]),
+                    sourceFileName=str(source_entry["file_name"]),
+                    shotIndex=shot_index,
+                    localStartSeconds=float(shot["localStartSeconds"]),
+                    localEndSeconds=float(shot["localEndSeconds"]),
+                    timelineStartSeconds=float(shot["timelineStartSeconds"]),
+                    timelineEndSeconds=float(shot["timelineEndSeconds"]),
+                    summary=truncate_text(str(shot_item.get("summary", f"镜头 {shot_index} 内容待补充")), 160),
+                    subjects=[truncate_text(str(item), 32) for item in subjects[:4] if str(item).strip()],
+                    action=truncate_text(str(shot_item.get("action", "")).strip(), 80) or None,
+                    emotion=truncate_text(str(shot_item.get("emotion", "")).strip(), 48) or None,
+                    location=truncate_text(str(shot_item.get("location", "")).strip(), 48) or None,
+                    visualHook=truncate_text(str(shot_item.get("visualHook", "")).strip(), 96) or None,
+                    dialogueHint=truncate_text(str(shot_item.get("dialogueHint", "")).strip(), 96) or None,
+                    storyRole=truncate_text(str(shot_item.get("storyRole", "")).strip(), 40) or None,
+                    confidence=float(shot_item.get("confidence")) if shot_item.get("confidence") is not None else None,
+                )
+            )
         result: list[VisualInsight] = []
         for index, event in enumerate(events, start=1):
             result.append(
@@ -510,15 +903,21 @@ class VisionEventAnalyzer:
                     relatedSubtitle=str(event.get("relatedSubtitle", "")).strip() or None,
                 )
             )
-        return VisionAnalysisResult(
-            modelName=model_name,
+        return VisionSourceAnalysis(
+            sourceAssetId=str(source_entry["asset_id"]),
+            sourceFileName=str(source_entry["file_name"]),
+            sourceDurationSeconds=float(source_entry["duration_seconds"]),
+            timelineStartOffset=float(source_entry["start_offset"]),
+            timelineEndOffset=float(source_entry["end_offset"]),
+            shots=shots,
             events=result,
-            frameTimestamps=frame_timestamps,
-            signals=signals,
         )
 
     def analyze(self, context: PlannerContext, signals: SignalBundle) -> VisionAnalysisResult | None:
-        if not self.settings.model.api_key or not self.settings.model.endpoint or not context.sourcePath:
+        if not self.settings.model.api_key or not self.settings.model.endpoint:
+            return None
+        source_entries = _source_entries(context)
+        if not source_entries:
             return None
 
         model_names = [self.settings.model.vision_model_name or ""]
@@ -526,22 +925,75 @@ class VisionEventAnalyzer:
             model_names.append(self.settings.model.vision_fallback_model_name)
 
         last_error: Exception | None = None
+        collected_sources: list[VisionSourceAnalysis] = []
+        all_frame_timestamps: list[float] = []
         for model_name in [item for item in model_names if item]:
             try:
                 if context.trace is not None:
                     context.trace(
                         "vision",
                         "vision.attempt",
-                        f"开始调用视觉模型 {model_name} 分析视频内容高点。",
+                        f"开始调用视觉模型 {model_name} 逐素材分析完整镜头内容。",
                         {
                             "model": model_name,
-                            "frame_count": self.settings.model.vision_frame_count,
+                            "source_count": len(source_entries),
+                            "frame_budget_per_source": self.settings.model.vision_frame_count,
                         },
                         "INFO",
                     )
-                analysis = self._call_model(model_name, context, signals)
-                if analysis.events:
-                    return analysis
+                collected_sources = []
+                all_frame_timestamps = []
+                for source_entry in source_entries:
+                    source_analysis = self._call_model(model_name, context, signals, source_entry)
+                    collected_sources.append(source_analysis)
+                    all_frame_timestamps.extend(
+                        [shot.timelineStartSeconds for shot in source_analysis.shots]
+                    )
+                analysis = VisionAnalysisResult(
+                    modelName=model_name,
+                    sources=collected_sources,
+                    shots=[shot for source in collected_sources for shot in source.shots],
+                    events=[event for source in collected_sources for event in source.events],
+                    frameTimestamps=sorted(round(timestamp, 3) for timestamp in all_frame_timestamps),
+                    signals=signals,
+                )
+                if context.workDir:
+                    output_path = Path(context.workDir) / "vision_analysis.json"
+                    output_path.write_text(
+                        json.dumps(
+                            {
+                                "model": model_name,
+                                "editingMode": context.task.editingMode,
+                                "sources": _vision_shot_payload(analysis),
+                                "events": [
+                                    {
+                                        "title": event.title,
+                                        "reason": event.reason,
+                                        "timestampSeconds": event.focusSeconds,
+                                        "confidence": event.confidence,
+                                        "eventType": event.eventType,
+                                        "relatedSubtitle": event.relatedSubtitle,
+                                    }
+                                    for event in analysis.events
+                                ],
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+                    if context.trace is not None:
+                        context.trace(
+                            "vision",
+                            "vision.analysis_saved",
+                            "完整镜头分析 JSON 已写入任务工作目录。",
+                            {
+                                "analysis_path": output_path.as_posix(),
+                                "source_count": len(analysis.sources),
+                                "shot_count": len(analysis.shots),
+                            },
+                            "INFO",
+                        )
                 return analysis
             except Exception as exc:
                 if context.trace is not None:
@@ -569,6 +1021,17 @@ class FusionPlanner:
     def _trace_signal_candidates(self, context: PlannerContext, signals: SignalBundle) -> None:
         if context.trace is None:
             return
+        if signals.sceneChanges:
+            context.trace(
+                "scene",
+                "scene.changes_detected",
+                "已检测到镜头切换边界，加入切点候选。",
+                {
+                    "scene_change_count": len(signals.sceneChanges),
+                    "timestamps": signals.sceneChanges[:16],
+                },
+                "INFO",
+            )
         if signals.audioPeaks:
             context.trace(
                 "audio",
@@ -619,6 +1082,8 @@ class FusionPlanner:
             {"timestampSeconds": timestamp, "energy": round(energy, 4)}
             for timestamp, energy in signals.audioPeaks[:12]
         ]
+        scene_changes_payload = signals.sceneChanges[:12]
+        visual_shot_payload = _vision_shot_payload(vision_analysis)
         visual_events_payload = [
             {
                 "eventIndex": index,
@@ -628,23 +1093,73 @@ class FusionPlanner:
                 "confidence": event.confidence,
                 "eventType": event.eventType,
                 "relatedSubtitle": event.relatedSubtitle,
+                "suggestedWindow": {
+                    "startSeconds": suggested_window[0],
+                    "endSeconds": suggested_window[1],
+                },
             }
             for index, event in enumerate(vision_analysis.events[:8], start=1)
+            for suggested_window in [
+                _suggest_event_window(
+                    focus_seconds=event.focusSeconds,
+                    signals=signals,
+                    source_duration=context.source.durationSeconds,
+                    min_duration=float(context.task.minDurationSeconds),
+                    max_duration=float(context.task.maxDurationSeconds),
+                )
+            ]
         ] if vision_analysis else []
+        editing_mode = context.task.editingMode or "drama"
+        role_header = "你是一个短剧剪辑规划引擎，只输出 JSON，不要解释。" if editing_mode == "drama" else "你是一个视频混剪融合规划引擎，只输出 JSON，不要解释。"
+        goal_header = (
+            "目标：基于视觉事件理解、字幕时间轴、音频卡点和候选片段，输出更容易停留、对白更完整、情绪爆点更准确的短剧切条方案。"
+            if editing_mode == "drama"
+            else "目标：基于视觉事件理解、字幕时间轴、音频卡点和候选片段，输出更容易停留、节奏更顺、信息更完整的混剪分镜方案。"
+        )
+        mode_rules = (
+            "当前是短剧模式，请优先围绕高燃卡点、对白完整、反转、冲突升级和情绪爆点来决定切点，不要引入跨素材分镜脚本语义。\n"
+            if editing_mode == "drama"
+            else
+            "当前是混剪模式，说明输入由多个素材按顺序拼接成统一时间线，你可以主动利用素材边界附近的镜头差异做导演感混剪，并自行生成动态分镜脚本。\n"
+            "如果 mixcutContentType=travel，请优先考虑景别变化、地点切换、氛围递进、镜头呼吸和音乐节奏，而不是剧情对白冲突。\n"
+            "如果 mixcutTemplate 已指定，请遵循对应视觉语义：director_crossfade_story 偏跨素材情绪推进，travel_crossfade_story 偏地点与景别切换，music_sync_flash_montage 偏鼓点卡切和白闪节奏。\n"
+            "你可以适度使用静帧快闪、插叙、回望镜头或对照镜头，但不要把结构写死成标准三段式。\n"
+        )
+        reason_rule = (
+            "4. title 要像投放素材标题，reason 要说明这是哪个冲突/反转/高燃卡点。\n"
+            if editing_mode == "drama"
+            else
+            "4. title 要像投放素材标题，reason 要说明这是哪个分镜设计、地点/情绪推进或镜头编排亮点。\n"
+            "4.1 如果 mixcutContentType=travel，title 和 reason 要更像旅行混剪标题与镜头设计，强调地点、氛围、景别和节奏推进。\n"
+        )
+        mode_tail_rules = (
+            "7. 当前是短剧模式，不要把不同素材拼成导演脚本，优先围绕剧情高点和对白边界取点。\n"
+            if editing_mode == "drama"
+            else
+            "7. 当前是混剪模式，优先选择能体现不同素材对照、情绪递进、插叙回望或节奏推进的窗口，不要只围绕首个素材取点。\n"
+            "8. 如果 mixcutStylePreset 偏向 travel_citywalk、travel_landscape、travel_healing 或 travel_roadtrip，请在 reason 中体现对应的镜头节奏和转场感觉。\n"
+            "9. 如有必要，可以让某个后置情绪镜头以前插叙的形式提前出现，但最终时间点仍要可执行、连续且不切断关键对白。\n"
+        )
         return (
-            "你是一个短剧投放剪辑融合规划引擎，只输出 JSON，不要解释。\n"
-            "目标：基于视觉事件理解、字幕时间轴、音频卡点和候选片段，输出更容易停留、冲突更强、信息更完整的切条方案。\n"
-            "你必须优先利用上游视觉事件和带时间戳字幕来决定切点；如果视觉事件为空，再退化为基于字幕、音频和候选片段规划。\n"
+            f"{role_header}\n"
+            f"{goal_header}\n"
+            "你必须先阅读上游 VL 给出的逐素材、逐镜头完整分析 JSON，再决定分镜脚本或剪辑时间点。\n"
+            "字幕、音频卡点和镜头切换点只作为辅助微调信号，不能覆盖掉逐镜头内容理解。\n"
+            "如果视觉事件里带了 suggestedWindow，可以把它当作参考，但最终应服从完整镜头分析 JSON。\n"
+            f"{mode_rules}"
             "任务要求如下：\n"
             f"{json.dumps(task, ensure_ascii=False)}\n"
             "视频信息如下：\n"
             f"{json.dumps(source, ensure_ascii=False)}\n"
+            f"素材文件列表：{json.dumps(context.task.sourceFileNames[:8], ensure_ascii=False)}\n"
+            f"VL 逐镜头完整分析 JSON（优先阅读）：\n{json.dumps(visual_shot_payload, ensure_ascii=False)}\n"
             f"视觉事件理解结果（若为空表示视觉模型未返回可用事件）：\n{json.dumps(visual_events_payload, ensure_ascii=False)}\n"
             f"视觉事件来源模型：{json.dumps(vision_analysis.modelName if vision_analysis else '', ensure_ascii=False)}\n"
             f"强信号字幕时间轴：\n{json.dumps(signal_transcript_payload, ensure_ascii=False)}\n"
             f"音频峰值时间点：\n{json.dumps(audio_peaks_payload, ensure_ascii=False)}\n"
+            f"镜头切换时间点：\n{json.dumps(scene_changes_payload, ensure_ascii=False)}\n"
             "如果提供了带时间戳字幕/台词，请将切点尽量贴近字幕时间边界，并确保不要把人物对白从中间截断。"
-            "开头和结尾尽量贴近动作、句子或情绪落点边界，不要从连续动作的半截突然切入或切出。\n"
+            "开头和结尾尽量贴近动作、句子、镜头切换或情绪落点边界，不要从连续动作的半截突然切入或切出。\n"
             "请在候选片段基础上优化标题、理由和具体时间点，输出格式必须为："
             '{"clips":[{"clipIndex":1,"title":"...","reason":"...","startSeconds":0,"endSeconds":10,"durationSeconds":10}]}\n'
             "候选片段：\n"
@@ -655,10 +1170,12 @@ class FusionPlanner:
             f"{json.dumps(transcript_excerpt, ensure_ascii=False)}\n"
             "要求：\n"
             "1. 输出 clips 数量必须等于 outputCount。\n"
-            "2. startSeconds/endSeconds 必须围绕视觉事件或字幕冲突点，不要均匀平铺。\n"
+            "2. startSeconds/endSeconds 必须先尊重逐镜头完整分析 JSON，再结合字幕/音频/镜头切换微调，不要均匀平铺。\n"
             "3. durationSeconds 必须等于 endSeconds-startSeconds，且满足时长区间。\n"
-            "4. title 要像投放素材标题，reason 要说明这是哪个冲突/反转/高燃卡点。\n"
+            f"{reason_rule}"
             "5. 优先完整保留一句关键对白或一个完整动作，不要切断句子中段。\n"
+            "6. 如果镜头切换时间点足够接近 clip 边界，优先把边界贴近镜头切换点。\n"
+            f"{mode_tail_rules}"
         )
 
     def _call_model(
@@ -683,10 +1200,19 @@ class FusionPlanner:
                     "has_transcript": bool(signals.transcriptCues),
                     "transcript_cue_count": len(signals.transcriptCues),
                     "audio_peak_count": len(signals.audioPeaks),
+                    "scene_change_count": len(signals.sceneChanges),
+                    "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
+                    "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
                     "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,
                     "used_visual_events": bool(vision_analysis and vision_analysis.events),
                     "visual_model": vision_analysis.modelName if vision_analysis else "",
                     "signal_sources": _signal_sources(context, signals),
+                    "editing_mode": context.task.editingMode,
+                    "mixcut_enabled": context.task.editingMode == "mixcut",
+                    "mixcut_content_type": context.task.mixcutContentType or "",
+                    "mixcut_style_preset": context.task.mixcutStylePreset or "",
+                    "source_asset_count": len(context.task.sourceAssetIds),
+                    "source_file_names": context.task.sourceFileNames[:8],
                 },
                 "INFO",
             )
@@ -777,6 +1303,8 @@ class FusionPlanner:
                     "raw_length": len(raw),
                     "content_excerpt": truncate_transcript(content or raw, 1200),
                     "parsed_clip_count": len(clips) if isinstance(clips, list) else 0,
+                    "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
+                    "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
                     "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,
                     "used_visual_events": bool(vision_analysis and vision_analysis.events),
                     "visual_model": vision_analysis.modelName if vision_analysis else "",
@@ -822,6 +1350,8 @@ class FusionPlanner:
                             "error": str(exc),
                             "transcript_cue_count": len(signals.transcriptCues),
                             "audio_peak_count": len(signals.audioPeaks),
+                            "scene_change_count": len(signals.sceneChanges),
+                            "source_count": len(_source_entries(context)),
                         },
                         "WARN",
                     )
@@ -840,6 +1370,8 @@ class FusionPlanner:
                         f"开始调用融合规划模型 {model_name} 生成最终剪辑方案。",
                         {
                             "model": model_name,
+                            "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
+                            "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
                             "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,
                             "used_visual_events": bool(vision_analysis and vision_analysis.events),
                             "visual_model": vision_analysis.modelName if vision_analysis else "",
@@ -936,6 +1468,40 @@ def parse_transcript_cues(text: str | None) -> list[TranscriptCue]:
             )
         )
     return cues
+
+
+def build_dialogue_blocks(cues: list[TranscriptCue], max_gap_seconds: float = 0.45) -> list[DialogueBlock]:
+    if not cues:
+        return []
+
+    ordered = sorted(cues, key=lambda cue: (cue.startSeconds, cue.endSeconds))
+    blocks: list[DialogueBlock] = []
+    current: list[TranscriptCue] = [ordered[0]]
+
+    for cue in ordered[1:]:
+        previous = current[-1]
+        if cue.startSeconds - previous.endSeconds <= max_gap_seconds:
+            current.append(cue)
+            continue
+        blocks.append(
+            DialogueBlock(
+                startSeconds=current[0].startSeconds,
+                endSeconds=current[-1].endSeconds,
+                text=" ".join(item.text for item in current)[:800],
+                cues=current[:],
+            )
+        )
+        current = [cue]
+
+    blocks.append(
+        DialogueBlock(
+            startSeconds=current[0].startSeconds,
+            endSeconds=current[-1].endSeconds,
+            text=" ".join(item.text for item in current)[:800],
+            cues=current[:],
+        )
+    )
+    return blocks
 
 
 def truncate_transcript(text: str | None, limit: int = 4000) -> str:

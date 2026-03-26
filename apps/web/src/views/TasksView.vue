@@ -1,30 +1,34 @@
 <template>
-  <section class="space-y-6">
+  <section class="space-y-5 xl:space-y-6">
     <PageHeader
       eyebrow="Workspace"
       title="任务列表"
-      description="查看当前排队、处理中、已完成和失败任务，直接进入详情或复制参数继续创建。"
+      description="高密度查看当前排队、处理中、已完成和失败任务，直接进入详情、复制参数或切换紧凑巡检模式。"
     >
-      <RouterLink to="/tasks/new" class="rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-rose-400">
+      <RouterLink
+        to="/tasks/new"
+        class="btn-primary"
+      >
         创建新任务
       </RouterLink>
     </PageHeader>
 
-    <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-      <div class="min-w-0 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,15,35,0.82),rgba(8,11,24,0.68))] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
-        <div class="grid gap-3 md:grid-cols-[1.3fr_0.7fr_0.7fr]">
+    <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.05fr)_320px] 2xl:grid-cols-[minmax(0,1.1fr)_360px]">
+      <div class="surface-panel min-w-0 p-5 backdrop-blur-xl lg:sticky lg:top-6">
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/50 to-transparent"></div>
+        <div class="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
           <label class="grid gap-2 text-sm text-slate-200">
             搜索任务
             <input
               v-model="searchText"
-              class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition duration-200 placeholder:text-slate-500 focus:border-rose-300/60"
+              class="field-input"
               placeholder="按标题、文件名或平台检索"
               type="search"
             />
           </label>
           <label class="grid gap-2 text-sm text-slate-200">
             状态筛选
-            <select v-model="statusFilter" class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white transition duration-200 focus:border-rose-300/60">
+            <select v-model="statusFilter" class="field-select">
               <option value="all">全部状态</option>
               <option value="PENDING">排队中</option>
               <option value="ANALYZING">分析中</option>
@@ -36,42 +40,42 @@
           </label>
           <label class="grid gap-2 text-sm text-slate-200">
             平台筛选
-            <select v-model="platformFilter" class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white transition duration-200 focus:border-rose-300/60">
+            <select v-model="platformFilter" class="field-select">
               <option value="all">全部平台</option>
               <option v-for="platform in platformOptions" :key="platform" :value="platform">{{ platformLabel(platform) }}</option>
             </select>
           </label>
         </div>
 
-        <div class="mt-3 grid gap-3 md:grid-cols-[1fr_1fr]">
+        <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <label class="grid gap-2 text-sm text-slate-200">
             排序方式
-            <select v-model="sortMode" class="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white transition duration-200 focus:border-rose-300/60">
+            <select v-model="sortMode" class="field-select">
               <option value="updated_desc">最近更新</option>
               <option value="created_desc">最新创建</option>
               <option value="progress_desc">进度优先</option>
               <option value="semantic_desc">语义任务优先</option>
             </select>
           </label>
-          <div class="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+          <div class="surface-tile px-4 py-3 text-sm text-slate-300">
             <p class="text-xs uppercase tracking-[0.24em] text-slate-400">工作台提示</p>
-            <p class="mt-2">高密度模式更适合任务多时巡检，卡片模式更适合看单个任务摘要。</p>
+            <p class="mt-2 leading-6">高密度模式更适合批量巡检，卡片模式更适合查看单条任务的语义和输出。</p>
           </div>
         </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-2">
-          <div class="inline-flex rounded-full border border-white/10 bg-slate-950/55 p-1">
+          <div class="segmented-shell">
             <button
-              class="min-h-[40px] rounded-full px-4 text-sm transition duration-200"
-              :class="viewMode === 'rows' ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10 hover:text-white'"
+              class="btn-segment"
+              :class="viewMode === 'rows' ? 'btn-segment-active' : ''"
               type="button"
               @click="viewMode = 'rows'"
             >
               紧凑行
             </button>
             <button
-              class="min-h-[40px] rounded-full px-4 text-sm transition duration-200"
-              :class="viewMode === 'cards' ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10 hover:text-white'"
+              class="btn-segment"
+              :class="viewMode === 'cards' ? 'btn-segment-active' : ''"
               type="button"
               @click="viewMode = 'cards'"
             >
@@ -79,49 +83,54 @@
             </button>
           </div>
           <button
-            class="rounded-full border px-4 py-2 text-sm transition duration-200"
-            :class="isFilterActive ? 'border-rose-300/40 bg-rose-500/15 text-rose-100' : 'border-white/10 bg-white/[0.04] text-slate-200 hover:border-rose-300/40 hover:bg-white/10'"
+            :class="isFilterActive ? 'btn-warning' : 'btn-ghost'"
             type="button"
             @click="clearFilters"
           >
             清空筛选
           </button>
-          <div class="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-300">
+          <div class="surface-chip whitespace-nowrap">
             当前筛选：{{ filteredTasks.length }} / {{ tasks.length }}
           </div>
-          <div class="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-300">
+          <div class="surface-chip whitespace-nowrap">
             当前视图：{{ viewMode === "rows" ? "紧凑巡检" : "卡片摘要" }}
           </div>
         </div>
       </div>
 
       <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <div class="min-w-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <div class="surface-tile relative min-w-0 overflow-hidden p-4">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-sky-300/0 via-sky-300/60 to-sky-300/0"></div>
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">总任务数</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.total }}</p>
           <p class="mt-2 text-xs text-slate-400">包含所有状态的任务</p>
         </div>
-        <div class="min-w-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <div class="surface-tile relative min-w-0 overflow-hidden p-4">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-emerald-300/0 via-emerald-300/60 to-emerald-300/0"></div>
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">进行中</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.running }}</p>
           <p class="mt-2 text-xs text-slate-400">分析、规划和渲染中的任务</p>
         </div>
-        <div class="min-w-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <div class="surface-tile relative min-w-0 overflow-hidden p-4">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-fuchsia-300/0 via-fuchsia-300/60 to-fuchsia-300/0"></div>
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">已完成</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.completed }}</p>
           <p class="mt-2 text-xs text-slate-400">可直接预览和下载</p>
         </div>
-        <div class="min-w-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <div class="surface-tile relative min-w-0 overflow-hidden p-4">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-rose-300/0 via-rose-300/60 to-rose-300/0"></div>
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">失败任务</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.failed }}</p>
           <p class="mt-2 text-xs text-slate-400">可重试或复用参数再建</p>
         </div>
-        <div class="min-w-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <div class="surface-tile relative min-w-0 overflow-hidden p-4">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-amber-300/0 via-amber-300/60 to-amber-300/0"></div>
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">语义任务</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.semantic }}</p>
           <p class="mt-2 text-xs text-slate-400">已提供字幕或台词文本</p>
         </div>
-        <div class="min-w-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <div class="surface-tile relative min-w-0 overflow-hidden p-4">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-cyan-300/0 via-cyan-300/60 to-cyan-300/0"></div>
           <p class="text-xs uppercase tracking-[0.24em] text-slate-400">带时间戳字幕</p>
           <p class="mt-3 text-3xl font-semibold text-white">{{ metrics.timedSemantic }}</p>
           <p class="mt-2 text-xs text-slate-400">更适合模型按剧情切点规划</p>
@@ -132,39 +141,37 @@
     <div v-if="errorMessage" class="rounded-[24px] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p>{{ errorMessage }}</p>
-        <button class="rounded-full border border-rose-300/30 px-4 py-2 text-xs font-medium text-rose-50 transition hover:bg-rose-500/20" type="button" @click="loadTasks">
+        <button class="btn-secondary btn-sm" type="button" @click="loadTasks">
           重新加载
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="rounded-[24px] border border-white/10 bg-white/[0.04] p-10 text-center text-slate-300">
+    <div v-if="loading" class="surface-tile p-10 text-center text-slate-300">
       正在加载任务列表...
     </div>
 
     <template v-else>
-      <div v-if="filteredTasks.length === 0" class="rounded-[24px] border border-dashed border-white/15 bg-white/[0.04] p-10 text-center">
+      <div v-if="filteredTasks.length === 0" class="surface-tile border-dashed p-10 text-center">
         <h3 class="text-lg font-medium text-white">没有匹配的任务</h3>
         <p class="mt-2 text-sm text-slate-300">尝试清空搜索和筛选，或者新建一个任务。</p>
-        <button class="mt-5 rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-rose-400" type="button" @click="clearFilters">
+        <button class="btn-warning mt-5" type="button" @click="clearFilters">
           清空筛选
         </button>
       </div>
 
       <div v-else class="grid gap-5">
-        <section v-for="group in groupedTasks" :key="group.key" class="grid gap-4">
+        <section v-for="group in groupedTasks" :key="group.key" class="surface-panel relative grid gap-4 p-5">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 class="text-lg font-semibold text-white">{{ group.title }}</h3>
-              <p class="mt-1 text-sm text-slate-400">{{ group.description }}</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">分组</p>
+              <h3 class="mt-2 text-lg font-semibold text-white">{{ group.title }}</h3>
+              <p class="mt-1 max-w-2xl line-clamp-2 text-sm leading-6 text-slate-400">{{ group.description }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <span class="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-slate-200">{{ group.items.length }} 条</span>
-              <button
-                class="min-h-[40px] rounded-full border border-white/10 bg-slate-950/50 px-4 py-2 text-sm text-slate-200 transition duration-200 hover:border-rose-300/35 hover:text-white"
-                type="button"
-                @click="toggleGroup(group.key)"
-              >
+              <span class="surface-chip shrink-0 text-xs font-medium">{{ group.items.length }} 条</span>
+              <button class="btn-ghost btn-sm" type="button" @click="toggleGroup(group.key)">
                 {{ isGroupCollapsed(group.key) ? "展开" : "折叠" }}
               </button>
             </div>
@@ -193,7 +200,7 @@
               />
             </div>
           </div>
-          <div v-else class="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
+          <div v-else class="surface-tile border-dashed p-4 text-sm text-slate-400">
             该分组已折叠，点击右上角可展开查看。
           </div>
         </section>
