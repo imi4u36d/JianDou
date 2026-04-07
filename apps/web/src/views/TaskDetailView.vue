@@ -160,7 +160,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getRuntimeConfig } from "@/api/runtime-config";
-import { deleteTask, fetchTask, fetchTaskTrace, retryTask } from "@/api/tasks";
+import { deleteTask, fetchTask, retryTask } from "@/api/tasks";
 import type { TaskDetail, TaskPlanClip, TaskPlanSegment, TaskStatus, TaskTraceEvent } from "@/types";
 import HintBell from "@/components/HintBell.vue";
 import TimelineStage from "@/components/TimelineStage.vue";
@@ -501,7 +501,6 @@ function storyboardSegmentRange(segment: TaskPlanSegment) {
 function mixcutMetaLabel(contentType?: string | null, stylePreset?: string | null) {
   const contentTypeLabelMap: Record<string, string> = {
     generic: "通用混剪",
-    travel: "旅游混剪",
     drama: "剧情混剪",
     vlog: "Vlog 混剪",
     food: "美食混剪",
@@ -511,12 +510,8 @@ function mixcutMetaLabel(contentType?: string | null, stylePreset?: string | nul
   const styleLabelMap: Record<string, string> = {
     director: "导演感推进",
     music_sync: "音乐卡点",
-    travel_citywalk: "城市漫游",
-    travel_landscape: "风景大片",
-    travel_healing: "治愈慢游",
-    travel_roadtrip: "公路旅拍",
   };
-  const contentTypeLabel = contentType ? contentTypeLabelMap[contentType] || contentType : "通用混剪";
+  const contentTypeLabel = contentType ? contentTypeLabelMap[contentType] || "通用混剪" : "通用混剪";
   const styleLabel = stylePreset ? styleLabelMap[stylePreset] || stylePreset : "导演感推进";
   return `策略：${contentTypeLabel} / ${styleLabel}`;
 }
@@ -531,11 +526,8 @@ function mixcutTransitionLabel(transitionStyle?: string | null, stylePreset?: st
   if (transitionStyle === "fade_black") {
     return "黑场过渡";
   }
-  if (stylePreset === "music_sync" || stylePreset === "travel_citywalk") {
+  if (stylePreset === "music_sync") {
     return "白闪转场";
-  }
-  if (stylePreset === "travel_landscape" || stylePreset === "travel_healing" || stylePreset === "travel_roadtrip") {
-    return "叠化转场";
   }
   return "硬切转场";
 }
@@ -544,8 +536,6 @@ function mixcutTemplateLabel(template?: string | null) {
   switch (template) {
     case "director_crossfade_story":
       return "导演感叠化混剪模板";
-    case "travel_crossfade_story":
-      return "旅行叠化混剪模板";
     case "music_sync_flash_montage":
       return "音乐白闪混剪模板";
     default:
@@ -607,8 +597,6 @@ function outroTemplateHint(template?: string | null) {
 
 function mixcutContentTypeLabel(contentType?: string | null) {
   switch (contentType) {
-    case "travel":
-      return "旅游混剪";
     case "drama":
       return "剧情混剪";
     case "vlog":
@@ -628,16 +616,8 @@ function mixcutStyleLabel(contentType?: string | null, stylePreset?: string | nu
   switch (stylePreset) {
     case "music_sync":
       return "音乐卡点";
-    case "travel_citywalk":
-      return "城市漫游";
-    case "travel_landscape":
-      return "风景大片";
-    case "travel_healing":
-      return "治愈慢游";
-    case "travel_roadtrip":
-      return "公路旅拍";
     default:
-      return contentType === "travel" ? "导演感推进" : "导演感推进";
+      return contentType === "drama" ? "导演感推进" : "导演感推进";
   }
 }
 
@@ -1387,140 +1367,58 @@ const renderStageProgress = computed(() => {
 });
 
 const planningModeSummary = computed<PlanningModeSummary>(() => {
-  const visionResponse = lastTraceEvent("vision.response");
-  const visionAttempt = lastTraceEvent("vision.request", "vision.attempt");
-  const visionFailure = lastTraceEvent("vision.timeout", "vision.http_error", "vision.network_error", "vision.attempt_failed");
-  const fusionResponse = lastTraceEvent("fusion.response");
-  const fusionAttempt = lastTraceEvent("fusion.request", "fusion.attempt");
-  const fusionFailure = lastTraceEvent("fusion.timeout", "fusion.http_error", "fusion.network_error", "fusion.attempt_failed");
-  const fusionVisionFallback = lastTraceEvent("fusion.vision_fallback");
-  const llmResponse = lastTraceEvent("qwen.response");
-  const llmAttempt = lastTraceEvent("qwen.request", "qwen.attempt");
-  const llmFailure = lastTraceEvent("qwen.timeout", "qwen.http_error", "qwen.network_error", "qwen.attempt_failed");
-  const heuristicCompleted = lastTraceEvent("heuristic.completed");
-  const planningStarted = lastTraceEvent("planning.started", "heuristic.start");
-
-  if (fusionResponse) {
-    const payload = fusionResponse.payload || {};
-    const model = payloadString(payload, "model");
-    const visualModel = payloadString(payload, "visual_model");
-    const parsedClipCount = payloadNumber(payload, "parsed_clip_count");
-    const visualShotCount = payloadNumber(payload, "visual_shot_count");
-    const visualSourceCount = payloadNumber(payload, "visual_source_count");
-    const visualEventCount = payloadNumber(payload, "visual_event_count");
-    const usedVisualEvents = payloadBoolean(payload, "used_visual_events");
+  if (!task.value) {
     return {
-      label: usedVisualEvents ? "已使用四信号融合规划" : "已使用融合规划",
-      title: model ? `本次最终切点由 ${model} 规划` : "本次最终切点已由融合模型规划完成",
-      detail: usedVisualEvents
-        ? joinParts([
-            visualModel ? `先由 ${visualModel} 完成逐镜头分析` : "先完成了逐镜头完整分析",
-            visualSourceCount ? `覆盖 ${visualSourceCount} 条素材` : "",
-            visualShotCount ? `共分析 ${visualShotCount} 个镜头段` : "",
-            visualEventCount ? `补充归纳 ${visualEventCount} 个高层事件` : "",
-            parsedClipCount ? `再生成 ${parsedClipCount} 条最终剪辑方案` : "再输出最终剪辑方案",
-          ])
-        : parsedClipCount
-          ? `当前直接根据字幕时间轴、音频卡点和候选片段生成了 ${parsedClipCount} 条最终剪辑方案。`
-          : "当前由融合规划模型输出最终剪辑方案。",
-      tone: usedVisualEvents ? "fuchsia" : "sky",
+      label: "等待任务加载",
+      title: "尚未读取到任务信息",
+      detail: "任务详情加载完成后会显示规划模式与当前状态。",
+      tone: "slate",
     };
   }
-
-  if (visionResponse) {
-    const payload = visionResponse.payload || {};
-    const model = payloadString(payload, "model");
-    const parsedShotCount = payloadNumber(payload, "parsed_shot_count");
-    const parsedEventCount = payloadNumber(payload, "parsed_event_count");
-    const parsedClipCount = payloadNumber(payload, "parsed_clip_count");
+  if (task.value.status === "FAILED") {
     return {
-      label: "逐镜头分析已完成",
-      title: model ? `上游已由 ${model} 完成完整镜头分析` : "上游已完成完整镜头分析",
-      detail: parsedShotCount
-        ? task.value?.hasTimedTranscript
-          ? `视觉模型已覆盖 ${parsedShotCount} 个镜头段，并保留字幕上下文给后续融合规划使用。`
-          : `视觉模型已覆盖 ${parsedShotCount} 个镜头段，接下来会再做最终时间点规划。`
-        : parsedEventCount
-          ? `视觉模型已额外归纳 ${parsedEventCount} 个高层事件，接下来会再做最终时间点规划。`
-        : parsedClipCount
-          ? `旧版任务直接从视觉模型拿到了 ${parsedClipCount} 条方案。`
-          : "视觉模型已经返回逐镜头内容理解结果，接下来会交给融合模型自动生成分镜脚本和剪辑时间点。",
+      label: "规划中断",
+      title: "任务在执行过程中失败",
+      detail: task.value.errorMessage || "请重试任务或复制参数重新创建。",
+      tone: "rose",
+    };
+  }
+  if (task.value.status === "COMPLETED") {
+    return {
+      label: "规划完成",
+      title: "规划已落地并完成渲染",
+      detail: `当前已生成 ${completedOutputCount.value} / ${task.value.outputCount} 条输出。`,
+      tone: "emerald",
+    };
+  }
+  if (task.value.status === "RENDERING") {
+    return {
+      label: "执行渲染中",
+      title: "正在按规划方案输出成片",
+      detail: `当前已完成 ${completedOutputCount.value} / ${task.value.outputCount} 条输出。`,
+      tone: "amber",
+    };
+  }
+  if (task.value.status === "PLANNING") {
+    return {
+      label: isMixcutMode.value ? "混剪规划中" : "短剧规划中",
+      title: isMixcutMode.value ? "正在组织多素材分镜脚本" : "正在生成剧情卡点方案",
+      detail: "任务会在规划完成后进入渲染阶段。",
       tone: "sky",
     };
   }
-
-  if ((fusionFailure || visionFailure || fusionVisionFallback) && heuristicCompleted) {
+  if (task.value.status === "ANALYZING") {
     return {
-      label: "模型失败后回退",
-      title: "模型规划没有成功返回，已回退到本地规则规划",
-      detail: "这说明系统尝试过视觉理解或融合规划，但中途失败、超时或解析异常，最终退回本地规则来保证任务继续执行。",
-      tone: "amber",
-    };
-  }
-
-  if (llmResponse) {
-    const payload = llmResponse.payload || {};
-    const model = payloadString(payload, "model");
-    const parsedClipCount = payloadNumber(payload, "parsed_clip_count");
-    return {
-      label: "已使用大模型",
-      title: model ? `本次规划由 ${model} 完成` : "本次规划已使用大模型完成",
-      detail: parsedClipCount
-        ? `大模型已经返回 ${parsedClipCount} 条剪辑方案，后续 FFmpeg 会按这些切点执行。`
-        : "大模型已经返回规划结果，这次不是本地启发式规划。",
-      tone: "fuchsia",
-    };
-  }
-
-  if (heuristicCompleted && llmFailure) {
-    return {
-      label: "大模型失败后回退",
-      title: "大模型没有成功返回，已改用本地规则规划",
-      detail: "这表示系统尝试过大模型，但请求失败、超时或解析失败，最终回退到启发式规划来保证任务继续执行。",
-      tone: "amber",
-    };
-  }
-
-  if (heuristicCompleted) {
-    return {
-      label: "未使用大模型",
-      title: "当前使用的是本地启发式规划",
-      detail: "“启发式规划”就是没有真正拿到大模型方案，而是按时长、字幕时间轴和基础规则自动切片。",
-      tone: "amber",
-    };
-  }
-
-  if (fusionAttempt || (task.value?.status === "PLANNING" && visionResponse)) {
-    return {
-      label: "等待融合规划返回",
-      title: "系统正在结合逐镜头分析、字幕和音频输出最终切点",
-      detail: "只有出现“融合规划已返回结果”或“本次最终切点由某个模型规划”，才代表这次真正拿到了最终剪辑时间点。",
-      tone: "fuchsia",
-    };
-  }
-
-  if (llmAttempt || (task.value?.status === "PLANNING" && planningStarted && !heuristicCompleted)) {
-    return {
-      label: "等待大模型返回",
-      title: "系统正在调用大模型生成剪辑方案",
-      detail: "只有出现“大模型已返回规划结果”或“本次规划由某个模型完成”，才代表这次真的用了大模型。",
-      tone: "fuchsia",
-    };
-  }
-
-  if (visionAttempt || (task.value?.status === "PLANNING" && planningStarted)) {
-    return {
-      label: "等待视频理解返回",
-      title: "系统正在逐素材分析完整镜头内容",
-      detail: "只有出现“视觉理解已返回结果”或“逐镜头分析已完成”，才代表这次真的分析了视频里的完整镜头内容。",
+      label: "素材分析中",
+      title: "正在读取素材基础信息",
+      detail: "分析完成后会自动进入规划阶段。",
       tone: "sky",
     };
   }
-
   return {
-    label: "等待规划开始",
-    title: "还没进入最终规划结果阶段",
-    detail: "任务进入规划阶段后，这里会明确告诉你是大模型规划，还是回退为本地启发式规划。",
+    label: "排队中",
+    title: "任务已创建，等待执行器处理",
+    detail: "进入执行后会自动刷新为分析与规划状态。",
     tone: "slate",
   };
 });
@@ -1618,7 +1516,7 @@ const currentFocus = computed<TraceFocusItem>(() => {
   const created = lastTraceEvent("task.created", "task.enqueued", "task.dispatched_inline");
   return {
     title: "任务已创建，等待更多进度",
-    detail: "详情页会每 3 秒自动刷新一次，新的大模型调用和剪辑结果会直接出现在这里。",
+    detail: "详情页会每 5 秒自动刷新一次，新的大模型调用和剪辑结果会直接出现在这里。",
     tone: "slate",
     timestamp: created?.timestamp,
   };
@@ -1803,22 +1701,6 @@ async function loadTask() {
   }
 }
 
-async function loadTrace() {
-  traceErrorMessage.value = "";
-  if (!taskId.value) {
-    traceEvents.value = [];
-    return;
-  }
-  traceLoading.value = true;
-  try {
-    traceEvents.value = await fetchTaskTrace(taskId.value, 800);
-  } catch (error) {
-    traceErrorMessage.value = error instanceof Error ? error.message : "加载任务日志失败";
-  } finally {
-    traceLoading.value = false;
-  }
-}
-
 async function handleRetry() {
   errorMessage.value = "";
   if (!taskId.value) {
@@ -1828,7 +1710,6 @@ async function handleRetry() {
   actionLoading.value = true;
   try {
     task.value = await retryTask(taskId.value);
-    await loadTrace();
     if (isTerminalTaskStatus(task.value.status)) {
       stop();
     } else {
@@ -1870,11 +1751,10 @@ function openCloneFlow() {
 
 const { start, stop } = usePolling(async () => {
   await loadTask();
-  await loadTrace();
   if (task.value && isTerminalTaskStatus(task.value.status)) {
     stop();
   }
-}, 3000);
+}, 5000);
 
 watch(
   () => task.value?.plan?.length ?? 0,
@@ -1895,9 +1775,6 @@ watch(
     activePlanIndex.value = 0;
     outputsExpanded.value = false;
     errorMessage.value = "";
-    traceEvents.value = [];
-    traceErrorMessage.value = "";
-    traceExpanded.value = false;
     loading.value = true;
     await start();
   },
@@ -1913,16 +1790,10 @@ watch(
 
 .task-alert,
 .glass-panel {
-  border-radius: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.6)),
-    radial-gradient(circle at top right, rgba(173, 210, 255, 0.24), transparent 30%);
-  box-shadow:
-    0 22px 54px rgba(121, 144, 177, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  border-radius: 1.5rem;
+  border: 1px solid #dbe4ee;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
 }
 
 .task-alert {
@@ -1931,9 +1802,8 @@ watch(
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.2rem;
-  color: #a34760;
-  background:
-    linear-gradient(180deg, rgba(255, 244, 246, 0.96), rgba(255, 234, 238, 0.8));
+  color: #be123c;
+  background: #fff1f2;
 }
 
 .glass-panel {
@@ -1945,7 +1815,7 @@ watch(
 .glass-placeholder {
   min-height: 10rem;
   place-items: center;
-  color: #576b82;
+  color: #475569;
   text-align: center;
 }
 
@@ -1974,7 +1844,7 @@ watch(
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #62788f;
+  color: #475569;
 }
 
 .hero-copy h1,
@@ -1983,7 +1853,7 @@ watch(
   font-size: clamp(1.9rem, 3vw, 2.6rem);
   line-height: 1;
   letter-spacing: -0.04em;
-  color: #12233d;
+  color: #0f172a;
 }
 
 .hero-subtext,
@@ -1991,7 +1861,7 @@ watch(
 .glass-config p,
 .plan-hero p {
   margin: 0.75rem 0 0;
-  color: #566b82;
+  color: #475569;
   line-height: 1.7;
 }
 
@@ -2019,21 +1889,21 @@ watch(
 }
 
 .button.primary {
-  background: linear-gradient(135deg, rgba(133, 165, 255, 0.98), rgba(95, 132, 255, 1));
+  background: linear-gradient(135deg, #0e7490, #0891b2);
   color: #f8fbff;
-  box-shadow: 0 16px 34px rgba(95, 132, 255, 0.22);
+  box-shadow: 0 10px 20px rgba(8, 145, 178, 0.22);
 }
 
 .button.warning {
-  background: linear-gradient(180deg, rgba(255, 245, 220, 0.94), rgba(255, 235, 196, 0.98));
-  color: #8b5a16;
-  border-color: rgba(255, 214, 133, 0.72);
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fcd34d;
 }
 
 .button.danger {
-  background: linear-gradient(180deg, rgba(255, 238, 241, 0.96), rgba(255, 225, 231, 0.98));
-  color: #b34a66;
-  border-color: rgba(235, 151, 171, 0.74);
+  background: #fff1f2;
+  color: #be123c;
+  border-color: #fda4af;
 }
 
 .glass-stats {
@@ -2047,12 +1917,10 @@ watch(
 .glass-plan,
 .plan-tab,
 .plan-hero {
-  border-radius: 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.76);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.56));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 14px 30px rgba(121, 144, 177, 0.08);
+  border-radius: 1rem;
+  border: 1px solid #dbe4ee;
+  background: #f8fafc;
+  box-shadow: none;
 }
 
 .glass-stats article {
@@ -2067,7 +1935,7 @@ watch(
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #74879c;
+  color: #64748b;
 }
 
 .glass-stats strong {
@@ -2076,13 +1944,13 @@ watch(
   font-size: 1.7rem;
   line-height: 1;
   letter-spacing: -0.04em;
-  color: #12233d;
+  color: #0f172a;
 }
 
 .glass-stats small {
   display: block;
   margin-top: 0.4rem;
-  color: #5c7188;
+  color: #475569;
 }
 
 .glass-timeline {
@@ -2105,7 +1973,7 @@ watch(
 
 .glass-config dd {
   margin: 0.45rem 0 0;
-  color: #12233d;
+  color: #0f172a;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -2145,10 +2013,10 @@ watch(
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.76);
-  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   padding: 0.45rem 0.8rem;
-  color: #30475f;
+  color: #334155;
 }
 
 .plan-tabs {
@@ -2167,21 +2035,20 @@ watch(
 
 .plan-tab strong,
 .plan-title h3 {
-  color: #12233d;
+  color: #0f172a;
 }
 
 .plan-tab span {
-  color: #61768d;
+  color: #475569;
   font-size: 0.85rem;
 }
 
 .plan-tab.active,
 .plan-tab:hover {
   transform: translateY(-1px);
-  border-color: rgba(149, 179, 255, 0.62);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 18px 36px rgba(121, 144, 177, 0.12);
+  border-color: #67e8f9;
+  background: #ecfeff;
+  box-shadow: 0 8px 18px rgba(8, 145, 178, 0.14);
 }
 
 .plan-hero {
@@ -2199,7 +2066,7 @@ watch(
 }
 
 .plan-title span {
-  color: #62788f;
+  color: #475569;
   font-weight: 700;
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <section class="admin-page">
+  <section class="admin-page admin-system-view">
     <div class="admin-panel px-5 py-5">
       <div class="admin-heading-block">
         <p class="admin-eyebrow">System</p>
@@ -153,3 +153,21 @@ onMounted(async () => {
   await loadTraces();
 });
 </script>
+
+<style scoped>
+.admin-system-view :deep(.admin-panel) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.admin-system-view :deep(.admin-panel-soft) {
+  border: 1px solid #dbe4ee;
+  background: #f8fafc;
+}
+
+.admin-system-view :deep(.admin-table th) {
+  background: #f1f5f9;
+}
+</style>

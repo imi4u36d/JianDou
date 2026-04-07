@@ -34,6 +34,7 @@ from .schemas import (
     CreateTaskRequest,
     GenerateCreativePromptRequest,
     GenerateCreativePromptResponse,
+    GenerationOptionsResponse,
     MediaProbe,
     SourceAssetSummary,
     TaskDeleteResult,
@@ -48,6 +49,14 @@ from .schemas import (
 )
 from .storage import MediaStorage
 from .task_trace import TaskTraceWriter, read_task_trace
+from .text_generation import (
+    GenerationVersionInfo,
+    GenerateTextMediaRequest,
+    GenerateTextMediaResponse,
+    GenerateTextScriptRequest,
+    GenerateTextScriptResponse,
+    TextGenerationEngine,
+)
 from .utils import clamp, isoformat_utc, new_id, parse_json_object, truncate_text, utcnow
 
 
@@ -104,7 +113,6 @@ MIXCUT_PROMPT_APPENDIX = (
 
 MIXCUT_CONTENT_TYPE_LABELS = {
     "generic": "通用混剪",
-    "travel": "旅游混剪",
     "drama": "剧情混剪",
     "vlog": "Vlog 混剪",
     "food": "美食混剪",
@@ -115,10 +123,6 @@ MIXCUT_CONTENT_TYPE_LABELS = {
 MIXCUT_STYLE_PRESET_LABELS = {
     "director": "导演感推进",
     "music_sync": "音乐卡点",
-    "travel_citywalk": "城市漫游",
-    "travel_landscape": "风景大片",
-    "travel_healing": "治愈慢游",
-    "travel_roadtrip": "公路旅拍",
 }
 
 EDITING_MODE_STYLE_HINTS = {
@@ -136,7 +140,6 @@ MIXCUT_TRANSITION_STYLE_LABELS = {
 MIXCUT_LAYOUT_STYLE_LABELS = {
     "single_focus": "单素材聚焦",
     "director_story": "导演感拼接",
-    "travel_story": "旅行故事线",
     "beat_montage": "节奏卡点拼接",
 }
 
@@ -150,8 +153,15 @@ MIXCUT_EFFECT_STYLE_LABELS = {
 MIXCUT_TEMPLATE_LABELS = {
     "single_focus_cut": "单素材直切模板",
     "director_crossfade_story": "导演感叠化混剪模板",
-    "travel_crossfade_story": "旅行叠化混剪模板",
     "music_sync_flash_montage": "音乐白闪混剪模板",
+}
+
+DISABLED_MIXCUT_CONTENT_TYPES = {"travel"}
+DISABLED_MIXCUT_STYLE_PRESETS = {
+    "travel_citywalk",
+    "travel_landscape",
+    "travel_healing",
+    "travel_roadtrip",
 }
 
 
@@ -167,6 +177,7 @@ class TaskService:
         self.session_factory = session_factory
         self.storage = storage
         self.planner = planner
+        self.text_generator = TextGenerationEngine(settings=settings, storage=storage)
         self.worker = None
 
     def set_worker(self, worker) -> None:
@@ -199,6 +210,30 @@ class TaskService:
     def list_task_presets(self) -> list[TaskPreset]:
         return get_task_presets()
 
+    def list_generation_options(self) -> GenerationOptionsResponse:
+        return self.text_generator.list_options()
+
+    def list_generation_versions(self) -> list[GenerationVersionInfo]:
+        return self.text_generator.list_versions()
+
+    def generate_text_image(
+        self,
+        payload: GenerateTextMediaRequest | dict[str, object],
+    ) -> GenerateTextMediaResponse:
+        return self.text_generator.generate_text_image(payload)
+
+    def generate_text_video(
+        self,
+        payload: GenerateTextMediaRequest | dict[str, object],
+    ) -> GenerateTextMediaResponse:
+        return self.text_generator.generate_text_video(payload)
+
+    def generate_text_script(
+        self,
+        payload: GenerateTextScriptRequest | dict[str, object],
+    ) -> GenerateTextScriptResponse:
+        return self.text_generator.generate_text_script(payload)
+
     def _normalize_editing_mode(
         self,
         editing_mode: str | None,
@@ -211,6 +246,18 @@ class TaskService:
             return "mixcut"
         return "drama"
 
+    def _normalize_mixcut_content_type(self, value: str | None) -> str | None:
+        normalized = (value or "").strip()
+        if not normalized or normalized in DISABLED_MIXCUT_CONTENT_TYPES:
+            return None
+        return normalized
+
+    def _normalize_mixcut_style_preset(self, value: str | None) -> str | None:
+        normalized = (value or "").strip()
+        if not normalized or normalized in DISABLED_MIXCUT_STYLE_PRESETS:
+            return None
+        return normalized
+
     def _editing_mode_label(self, editing_mode: str | None) -> str:
         return EDITING_MODE_LABELS.get(self._normalize_editing_mode(editing_mode), "短剧剪辑")
 
@@ -219,58 +266,29 @@ class TaskService:
             raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
 
         editing_mode = self._normalize_editing_mode(payload.editingMode, payload.mixcutEnabled)
-        fallback_prompt = self._build_fallback_creative_prompt(payload)
         if not self.settings.model.api_key or not self.settings.model.endpoint:
-            return GenerateCreativePromptResponse(
-                prompt=self._append_editing_mode_prompt(
-                    fallback_prompt,
-                    editing_mode=editing_mode,
-                    source_count=len(payload.sourceFileNames),
-                    source_names=payload.sourceFileNames,
-                    mixcut_content_type=payload.mixcutContentType,
-                    mixcut_style_preset=payload.mixcutStylePreset,
-                ),
-                source="fallback",
-            )
+            raise RuntimeError("creative prompt provider is not configured")
 
-        model_names = [self.settings.model.model_name]
-        if self.settings.model.fallback_model_name:
-            model_names.append(self.settings.model.fallback_model_name)
-
-        for model_name in dict.fromkeys(model_names):
-            try:
-                generated = self._call_creative_prompt_model(model_name, payload, fallback_prompt)
-                if generated:
-                    return GenerateCreativePromptResponse(
-                        prompt=self._append_editing_mode_prompt(
-                            generated,
-                            editing_mode=editing_mode,
-                            source_count=len(payload.sourceFileNames),
-                            source_names=payload.sourceFileNames,
-                            mixcut_content_type=payload.mixcutContentType,
-                            mixcut_style_preset=payload.mixcutStylePreset,
-                        ),
-                        source=model_name,
-                    )
-            except Exception:
-                continue
+        model_name = self.settings.model.model_name
+        generated = self._call_creative_prompt_model(model_name, payload)
+        if not generated:
+            raise RuntimeError("creative prompt model returned empty prompt")
         return GenerateCreativePromptResponse(
             prompt=self._append_editing_mode_prompt(
-                fallback_prompt,
+                generated,
                 editing_mode=editing_mode,
                 source_count=len(payload.sourceFileNames),
                 source_names=payload.sourceFileNames,
                 mixcut_content_type=payload.mixcutContentType,
                 mixcut_style_preset=payload.mixcutStylePreset,
             ),
-            source="fallback",
+            source=model_name,
         )
 
     def _call_creative_prompt_model(
         self,
         model_name: str,
         payload: GenerateCreativePromptRequest,
-        fallback_prompt: str,
     ) -> str:
         transcript_excerpt = truncate_text((payload.transcriptText or "").strip(), 1400) or ""
         editing_mode = self._normalize_editing_mode(payload.editingMode, payload.mixcutEnabled)
@@ -296,10 +314,9 @@ class TaskService:
             f"片尾模板：{OUTRO_TEMPLATE_LABELS.get(payload.outroTemplate, payload.outroTemplate)}\n"
             f"素材文件：{json.dumps(getattr(payload, 'sourceFileNames', [])[:6], ensure_ascii=False)}\n"
             f"混剪模式：{'开启' if editing_mode == 'mixcut' else '关闭'}\n"
-            f"混剪题材：{MIXCUT_CONTENT_TYPE_LABELS.get((payload.mixcutContentType or '').strip(), payload.mixcutContentType or '未指定')}\n"
-            f"混剪风格：{MIXCUT_STYLE_PRESET_LABELS.get((payload.mixcutStylePreset or '').strip(), payload.mixcutStylePreset or '未指定')}\n"
+            f"混剪题材：{MIXCUT_CONTENT_TYPE_LABELS.get((self._normalize_mixcut_content_type(payload.mixcutContentType) or ''), payload.mixcutContentType or '未指定')}\n"
+            f"混剪风格：{MIXCUT_STYLE_PRESET_LABELS.get((self._normalize_mixcut_style_preset(payload.mixcutStylePreset) or ''), payload.mixcutStylePreset or '未指定')}\n"
             f"字幕/台词摘录：{json.dumps(transcript_excerpt, ensure_ascii=False)}\n"
-            f"如果信息不足，可以参考这个本地建议：{json.dumps(fallback_prompt, ensure_ascii=False)}\n"
             '输出格式：{"prompt":"..."}'
         )
         body = {
@@ -347,9 +364,7 @@ class TaskService:
         intro = INTRO_TEMPLATE_LABELS.get(payload.introTemplate, payload.introTemplate)
         outro = OUTRO_TEMPLATE_LABELS.get(payload.outroTemplate, payload.outroTemplate)
         editing_mode = self._normalize_editing_mode(payload.editingMode, payload.mixcutEnabled)
-        if editing_mode == "mixcut" and (payload.mixcutContentType or "").strip() == "travel":
-            semantic_hint = "优先选择景别丰富、地点切换明确、氛围递进明显和音乐节奏卡点自然的镜头"
-        elif editing_mode == "mixcut":
+        if editing_mode == "mixcut":
             semantic_hint = "优先编排镜头脚本，适度插入静帧、回望和对照镜头"
         elif payload.transcriptText and "-->" in payload.transcriptText:
             semantic_hint = "优先贴近字幕时间轴，完整保留关键对白和情绪爆点"
@@ -357,7 +372,7 @@ class TaskService:
             semantic_hint = "优先抓住对白冲突、反转信息和情绪升级"
         else:
             semantic_hint = "优先寻找高燃冲突、表情反转和动作爆点"
-        style_label = MIXCUT_STYLE_PRESET_LABELS.get((payload.mixcutStylePreset or "").strip(), "")
+        style_label = MIXCUT_STYLE_PRESET_LABELS.get((self._normalize_mixcut_style_preset(payload.mixcutStylePreset) or ""), "")
         return (
             f"围绕《{payload.title}》做{payload.platform}平台投放剪辑，目标时长{duration_label}，"
             f"{semantic_hint}，开头采用{intro}，结尾落在{outro}，"
@@ -393,10 +408,10 @@ class TaskService:
             if preview:
                 details.append(f"素材示例：{preview}")
         if normalized_mode == "mixcut":
-            content_type_label = MIXCUT_CONTENT_TYPE_LABELS.get((mixcut_content_type or "").strip(), "")
+            content_type_label = MIXCUT_CONTENT_TYPE_LABELS.get((self._normalize_mixcut_content_type(mixcut_content_type) or ""), "")
             if content_type_label:
                 details.append(f"题材：{content_type_label}")
-            style_label = MIXCUT_STYLE_PRESET_LABELS.get((mixcut_style_preset or "").strip(), "")
+            style_label = MIXCUT_STYLE_PRESET_LABELS.get((self._normalize_mixcut_style_preset(mixcut_style_preset) or ""), "")
             if style_label:
                 details.append(f"风格：{style_label}")
         if details:
@@ -481,21 +496,14 @@ class TaskService:
                 "effect_style": "none",
                 "mixcut_template": "single_focus_cut",
             }
-        content_type = (mixcut_content_type or "").strip()
-        style_preset = (mixcut_style_preset or "").strip()
+        content_type = self._normalize_mixcut_content_type(mixcut_content_type)
+        style_preset = self._normalize_mixcut_style_preset(mixcut_style_preset)
         if style_preset == "music_sync":
             return {
                 "transition_style": "flash",
                 "layout_style": "beat_montage",
                 "effect_style": "flash_cut",
                 "mixcut_template": "music_sync_flash_montage",
-            }
-        if content_type == "travel" or style_preset in {"travel_citywalk", "travel_landscape", "travel_healing", "travel_roadtrip"}:
-            return {
-                "transition_style": "crossfade",
-                "layout_style": "travel_story",
-                "effect_style": "crossfade",
-                "mixcut_template": "travel_crossfade_story",
             }
         return {
             "transition_style": "crossfade",
@@ -526,8 +534,8 @@ class TaskService:
             mixcut_content_type = None
             mixcut_style_preset = None
             if mixcut_enabled:
-                mixcut_content_type = (payload.mixcutContentType or "").strip() or None
-                mixcut_style_preset = (payload.mixcutStylePreset or "").strip() or None
+                mixcut_content_type = self._normalize_mixcut_content_type(payload.mixcutContentType)
+                mixcut_style_preset = self._normalize_mixcut_style_preset(payload.mixcutStylePreset)
             mixcut_profile = self._resolve_mixcut_visual_profile(
                 editing_mode=editing_mode,
                 mixcut_content_type=mixcut_content_type,
@@ -1195,7 +1203,7 @@ class TaskService:
                 )
                 clips = self.planner.plan(context)
                 if not clips:
-                    clips = self._fallback_clips(task, probe, transcript_text=transcript_text)
+                    raise RuntimeError("planner returned no clips")
                 else:
                     clips = self._sanitize_clips(
                         task,
@@ -1209,7 +1217,7 @@ class TaskService:
                         mixcut_style_preset=mixcut_style_preset,
                     )
                     if not clips:
-                        clips = self._fallback_clips(task, probe, transcript_text=transcript_text)
+                        raise RuntimeError("planner produced no valid clips after sanitization")
                 task.plan_json = json.dumps([clip.model_dump() for clip in clips], ensure_ascii=False)
                 task.progress = 35
                 session.commit()
@@ -1297,51 +1305,7 @@ class TaskService:
             return True
 
     def _fallback_clips(self, task: Task, probe: MediaProbe, transcript_text: str | None = None) -> list[ClipPlan]:
-        context_payload = self._load_task_context(task.id)
-        source_asset_ids = self._context_source_asset_ids(context_payload) or [task.source_asset_id]
-        source_file_names = self._context_source_file_names(context_payload) or [task.source_file_name]
-        editing_mode = self._context_editing_mode(context_payload)
-        mixcut_enabled = editing_mode == "mixcut"
-        mixcut_content_type = self._context_mixcut_content_type(context_payload) if mixcut_enabled else None
-        mixcut_style_preset = self._context_mixcut_style_preset(context_payload) if mixcut_enabled else None
-        mixcut_profile = self._resolve_mixcut_visual_profile(
-            editing_mode=editing_mode,
-            mixcut_content_type=mixcut_content_type,
-            mixcut_style_preset=mixcut_style_preset,
-            source_asset_count=len(source_asset_ids),
-        )
-        context = PlannerContext(
-            task=TaskSpec(
-                title=task.title,
-                platform=task.platform,
-                aspectRatio=task.aspect_ratio,
-                minDurationSeconds=task.min_duration_seconds,
-                maxDurationSeconds=task.max_duration_seconds,
-                outputCount=task.output_count,
-                introTemplate=task.intro_template,
-                outroTemplate=task.outro_template,
-                sourceAssetIds=source_asset_ids,
-                sourceFileNames=source_file_names,
-                editingMode=editing_mode,
-                mixcutEnabled=mixcut_enabled,
-                mixcutContentType=mixcut_content_type,
-                mixcutStylePreset=mixcut_style_preset,
-                mixcutTransitionStyle=mixcut_profile["transition_style"],
-                mixcutLayoutStyle=mixcut_profile["layout_style"],
-                mixcutEffectStyle=mixcut_profile["effect_style"],
-                mixcutTemplate=mixcut_profile["mixcut_template"],
-                creativePrompt=task.creative_prompt,
-                transcriptText=transcript_text,
-            ),
-            source=probe,
-            transcriptText=transcript_text,
-            sourcePath=None,
-            sourceTimeline=None,
-            workDir=None,
-        )
-        from .planner import HeuristicPlanner
-
-        return HeuristicPlanner(self.settings).plan(context)
+        raise RuntimeError("heuristic fallback is disabled")
 
     def _load_source_timeline(
         self,
@@ -1523,8 +1487,8 @@ class TaskService:
         if not mixcut_enabled or len(normalized_videos) < 2:
             return normalized_videos
 
-        style_preset = (mixcut_style_preset or "").strip()
-        content_type = (mixcut_content_type or "").strip()
+        style_preset = self._normalize_mixcut_style_preset(mixcut_style_preset)
+        content_type = self._normalize_mixcut_content_type(mixcut_content_type)
         candidate_indexes: list[int] = []
         seen_source_ids: set[str] = set()
         for index, segment in enumerate(normalized_videos):
@@ -1543,15 +1507,12 @@ class TaskService:
                     candidate_indexes.append(index)
 
         opening_limit = 3 if style_preset == "music_sync" else 2
-        if content_type == "travel":
-            opening_limit = max(opening_limit, 2)
         opening_limit = min(opening_limit, len(candidate_indexes))
         opening_indexes = set(candidate_indexes[:opening_limit])
         bridge_indexes = candidate_indexes[opening_limit:]
 
         frame_segments: list[ClipSegment] = []
         adjusted_videos: list[ClipSegment] = []
-        intro_positions = opening_indexes
         insert_positions = bridge_indexes
         insert_frames: list[ClipSegment] = []
         for index, segment in enumerate(normalized_videos):
@@ -1559,7 +1520,7 @@ class TaskService:
             if index in opening_indexes or index in insert_positions:
                 if index in opening_indexes:
                     hold_floor = 1.0
-                    hold_ceiling = 1.4 if style_preset == "music_sync" else 2.4 if content_type == "travel" else 1.9
+                    hold_ceiling = 1.4 if style_preset == "music_sync" else 1.9
                     reserved_motion = 0.9
                 else:
                     hold_floor = 1.0
@@ -1618,10 +1579,7 @@ class TaskService:
                     index == 0
                     or (
                         index < len(adjusted_videos) - 1
-                        and (
-                            content_type == "travel"
-                            or style_preset in {"director", "travel_landscape", "travel_healing", "travel_roadtrip"}
-                        )
+                        and style_preset in {"director", "music_sync"}
                     )
                 )
             )
@@ -2247,13 +2205,13 @@ class TaskService:
     def _context_mixcut_content_type(self, payload: dict[str, object]) -> str | None:
         raw = payload.get("mixcutContentType")
         if isinstance(raw, str) and raw.strip():
-            return raw.strip()
+            return self._normalize_mixcut_content_type(raw)
         return None
 
     def _context_mixcut_style_preset(self, payload: dict[str, object]) -> str | None:
         raw = payload.get("mixcutStylePreset")
         if isinstance(raw, str) and raw.strip():
-            return raw.strip()
+            return self._normalize_mixcut_style_preset(raw)
         return None
 
     def _context_mixcut_transition_style(self, payload: dict[str, object]) -> str | None:
@@ -2299,8 +2257,6 @@ class TaskService:
         style = (self._context_mixcut_style_preset(payload) or "").strip()
         if style == "music_sync":
             return "flash"
-        if style in {"travel_citywalk", "travel_landscape", "travel_healing", "travel_roadtrip"}:
-            return "crossfade"
         return "crossfade"
 
     def _trace(

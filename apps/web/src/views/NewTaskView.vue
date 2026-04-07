@@ -1,6 +1,6 @@
 <template>
-  <section class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-    <div class="surface-panel surface-panel-warm p-6">
+  <section class="new-task-view grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div class="surface-panel surface-panel-warm new-task-main p-6">
       <PageHeader
         eyebrow="创建任务"
         title="新任务"
@@ -340,7 +340,7 @@
       </form>
     </div>
 
-    <aside class="space-y-4">
+    <aside class="new-task-aside space-y-4">
       <div class="surface-panel surface-panel-warm p-6">
         <PageHeader
           :eyebrow="editingMode === 'mixcut' ? 'Preview' : 'Preview'"
@@ -560,7 +560,6 @@ const outroTemplateOptions = [
 
 const mixcutContentTypeOptions = [
   { value: "generic", label: "通用混剪", hint: "适合还没明确题材时，优先做节奏推进和镜头对照。" },
-  { value: "travel", label: "旅游混剪", hint: "更关注景别、地点切换、氛围推进和卡点节奏。" },
   { value: "drama", label: "剧情混剪", hint: "更关注冲突、对白、反转和情绪递进。" },
 ] as const;
 
@@ -597,12 +596,6 @@ const mixcutStyleOptions = {
   generic: [
     { value: "director", label: "导演感推进", hint: "适合通用混剪，突出镜头对照和节奏推进。" },
     { value: "music_sync", label: "音乐卡点", hint: "强化节奏点和快切感，更适合强节奏 BGM。" },
-  ],
-  travel: [
-    { value: "travel_citywalk", label: "城市漫游", hint: "适合街景、店铺、人流和 citywalk 氛围。" },
-    { value: "travel_landscape", label: "风景大片", hint: "适合航拍、地标、景观和空间建立。" },
-    { value: "travel_healing", label: "治愈慢游", hint: "适合慢节奏、柔和氛围和治愈感旅行片。" },
-    { value: "travel_roadtrip", label: "公路旅拍", hint: "适合移动镜头、窗景、路况和出发感。" },
   ],
   drama: [
     { value: "director", label: "导演感推进", hint: "适合冲突递进、人物关系对照和高点收束。" },
@@ -689,23 +682,6 @@ const fallbackPresets: TaskPreset[] = [
     creativePrompt: "优先保留冲突升级、角色关系变化和关键反转，最后一拍一定要留出追更钩子。"
   },
   {
-    key: "travel_storyboard_mixcut",
-    name: "旅行分镜混剪",
-    description: "适合多段旅游素材的导演感混剪，强调镜头编排和地点氛围推进。",
-    defaultTitle: "旅行分镜混剪版",
-    editingMode: "mixcut",
-    platform: "xiaohongshu",
-    aspectRatio: "9:16",
-    minDurationSeconds: 20,
-    maxDurationSeconds: 45,
-    outputCount: 3,
-    introTemplate: "cold_open",
-    outroTemplate: "suspense_hold",
-    creativePrompt: "先设计分镜脚本，再组织多素材镜头；开场可用静帧快闪，主体用景别和地点切换推进，结尾留余韵。",
-    mixcutContentType: "travel",
-    mixcutStylePreset: "travel_landscape"
-  },
-  {
     key: "music_sync_mixcut",
     name: "音乐卡点混剪",
     description: "适合节奏感强的多素材混剪，优先对白闪快切、鼓点对齐和爆点推进。",
@@ -739,40 +715,6 @@ const fallbackPresets: TaskPreset[] = [
     mixcutContentType: "drama",
     mixcutStylePreset: "director"
   },
-  {
-    key: "citywalk_mixcut",
-    name: "城市漫游混剪",
-    description: "适合街景、店铺、人流和 citywalk 素材，突出地点切换和步行节奏。",
-    defaultTitle: "城市漫游混剪版",
-    editingMode: "mixcut",
-    platform: "xiaohongshu",
-    aspectRatio: "9:16",
-    minDurationSeconds: 18,
-    maxDurationSeconds: 40,
-    outputCount: 3,
-    introTemplate: "cold_open",
-    outroTemplate: "question_freeze",
-    creativePrompt: "请围绕城市路径设计分镜，优先保留街景切换、路人氛围和店铺亮点，形成由进入城市到沉浸漫游的镜头推进。",
-    mixcutContentType: "travel",
-    mixcutStylePreset: "travel_citywalk"
-  },
-  {
-    key: "healing_travel_mixcut",
-    name: "治愈慢游混剪",
-    description: "适合慢节奏旅行和氛围片段，强调留白、呼吸感和柔和收束。",
-    defaultTitle: "治愈慢游混剪版",
-    editingMode: "mixcut",
-    platform: "xiaohongshu",
-    aspectRatio: "9:16",
-    minDurationSeconds: 24,
-    maxDurationSeconds: 50,
-    outputCount: 2,
-    introTemplate: "none",
-    outroTemplate: "suspense_hold",
-    creativePrompt: "请按治愈旅行短片思路组织多素材镜头，减少过密快切，优先保留风声、光影、停顿和人物驻足感，结尾留一点余韵。",
-    mixcutContentType: "travel",
-    mixcutStylePreset: "travel_healing"
-  }
 ];
 
 const availablePresets = ref<TaskPreset[]>(fallbackPresets);
@@ -889,11 +831,8 @@ const mixcutStrategyLabel = computed(() => {
 const currentPromptSeed = computed(() => (mixcutEnabled.value ? mixcutPromptSeed : dramaPromptSeed));
 const currentPromptSuffix = computed(() => (mixcutEnabled.value ? mixcutPromptSuffix : dramaPromptSuffix));
 const mixcutTransitionLabel = computed(() => {
-  if (form.value.mixcutStylePreset === "music_sync" || form.value.mixcutStylePreset === "travel_citywalk") {
+  if (form.value.mixcutStylePreset === "music_sync") {
     return "白闪转场";
-  }
-  if (form.value.mixcutStylePreset === "travel_landscape" || form.value.mixcutStylePreset === "travel_healing" || form.value.mixcutStylePreset === "travel_roadtrip") {
-    return "黑场过渡";
   }
   return "硬切转场";
 });
@@ -1472,3 +1411,56 @@ onBeforeUnmount(() => {
   sourceFiles.value.forEach((item) => URL.revokeObjectURL(item.previewUrl));
 });
 </script>
+
+<style scoped>
+.new-task-view :deep(.surface-panel) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1.5rem;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+}
+
+.new-task-view :deep(.surface-panel-warm) {
+  background: linear-gradient(180deg, #ffffff, #f8fafc 85%);
+}
+
+.new-task-view :deep(.surface-tile),
+.new-task-view :deep(.surface-tile-strong) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1rem;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.new-task-view :deep(.surface-chip) {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.new-task-view :deep(.field-input),
+.new-task-view :deep(.field-select),
+.new-task-view :deep(.field-textarea) {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.new-task-view :deep(.field-input:focus),
+.new-task-view :deep(.field-select:focus),
+.new-task-view :deep(.field-textarea:focus) {
+  border-color: #0891b2;
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+}
+
+.new-task-view :deep(.btn-primary) {
+  background: linear-gradient(135deg, #0e7490, #0891b2);
+}
+
+.new-task-view :deep(.btn-primary:hover:not(:disabled)) {
+  box-shadow: 0 10px 22px rgba(8, 145, 178, 0.26);
+}
+
+.new-task-view :deep(.storyboard-track) {
+  gap: 0.75rem;
+}
+</style>

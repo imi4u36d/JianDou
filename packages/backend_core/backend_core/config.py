@@ -67,6 +67,16 @@ class ModelSettings:
     vision_model_name: str | None
     vision_fallback_model_name: str | None
     endpoint: str
+    video_endpoint: str
+    video_task_endpoint: str
+    video_model_name: str
+    video_prompt_extend: bool
+    video_poll_interval_seconds: int
+    video_poll_timeout_seconds: int
+    video_generation_endpoint: str
+    video_generation_default_model: str
+    video_generation_poll_interval_seconds: int
+    video_generation_max_wait_seconds: int
     api_key: str
     timeout_seconds: int
     temperature: float
@@ -178,6 +188,75 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
             )
             or "qwen3-vl-flash",
             endpoint=_env("AI_CUT_MODEL_ENDPOINT", model.get("endpoint", "")) or "",
+            video_endpoint=_env(
+                "AI_CUT_VIDEO_ENDPOINT",
+                model.get("video_endpoint")
+                or model.get("video_generation_endpoint")
+                or "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+            )
+            or "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+            video_task_endpoint=_env(
+                "AI_CUT_VIDEO_TASK_ENDPOINT",
+                model.get("video_task_endpoint", "https://dashscope.aliyuncs.com/api/v1/tasks"),
+            )
+            or "https://dashscope.aliyuncs.com/api/v1/tasks",
+            video_model_name=_env(
+                "AI_CUT_VIDEO_MODEL_NAME",
+                model.get("video_model_name")
+                or model.get("video_generation_default_model")
+                or "wan2.6-i2v",
+            )
+            or "wan2.6-i2v",
+            video_prompt_extend=_coerce_bool(
+                _env("AI_CUT_VIDEO_PROMPT_EXTEND", str(model.get("video_prompt_extend", True))),
+                True,
+            ),
+            video_poll_interval_seconds=int(
+                _env(
+                    "AI_CUT_VIDEO_POLL_INTERVAL",
+                    str(
+                        model.get("video_poll_interval_seconds")
+                        or model.get("video_generation_poll_interval_seconds")
+                        or 10
+                    ),
+                )
+                or 10
+            ),
+            video_poll_timeout_seconds=int(
+                _env(
+                    "AI_CUT_VIDEO_POLL_TIMEOUT",
+                    str(
+                        model.get("video_poll_timeout_seconds")
+                        or model.get("video_generation_max_wait_seconds")
+                        or 900
+                    ),
+                )
+                or 900
+            ),
+            video_generation_endpoint=_env(
+                "AI_CUT_VIDEO_GENERATION_ENDPOINT",
+                model.get("video_generation_endpoint", "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"),
+            )
+            or "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+            video_generation_default_model=_env(
+                "AI_CUT_VIDEO_GENERATION_DEFAULT_MODEL",
+                model.get("video_generation_default_model", "wan2.6-i2v"),
+            )
+            or "wan2.6-i2v",
+            video_generation_poll_interval_seconds=int(
+                _env(
+                    "AI_CUT_VIDEO_GENERATION_POLL_INTERVAL",
+                    str(model.get("video_generation_poll_interval_seconds", 10)),
+                )
+                or 10
+            ),
+            video_generation_max_wait_seconds=int(
+                _env(
+                    "AI_CUT_VIDEO_GENERATION_MAX_WAIT",
+                    str(model.get("video_generation_max_wait_seconds", 900)),
+                )
+                or 900
+            ),
             api_key=_env("AI_CUT_MODEL_API_KEY", model.get("api_key", "")) or "",
             timeout_seconds=int(_env("AI_CUT_MODEL_TIMEOUT", str(model.get("timeout_seconds", 45))) or 45),
             temperature=float(_env("AI_CUT_MODEL_TEMPERATURE", str(model.get("temperature", 0.15))) or 0.15),

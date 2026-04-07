@@ -1,8 +1,9 @@
 <template>
-  <div class="relative z-10 min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_28%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.08),transparent_24%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_48%,#f8fafc_100%)] text-slate-900">
+  <div class="admin-shell relative z-10 min-h-screen text-slate-900">
+    <div class="admin-shell-decor" aria-hidden="true"></div>
     <div class="mx-auto flex min-h-screen max-w-[1600px] flex-col px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
       <header class="admin-panel overflow-hidden">
-        <div class="admin-panel-header border-b border-slate-200/80">
+        <div class="admin-panel-header border-b border-slate-300/80">
           <div class="admin-heading-block min-w-0">
             <p class="admin-eyebrow">Admin Console</p>
             <h1 class="admin-title">AI Cut 管理系统</h1>
@@ -19,7 +20,7 @@
           </div>
         </div>
 
-        <div class="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-3 px-4 py-4 sm:px-5">
           <nav class="flex flex-wrap gap-2">
             <RouterLink to="/admin/dashboard" :class="[navButtonClass, isAdminNavActive('/admin/dashboard') ? navButtonActiveClass : '']">总览</RouterLink>
             <RouterLink to="/admin/tasks" :class="[navButtonClass, isAdminNavActive('/admin/tasks') ? navButtonActiveClass : '']">任务管理</RouterLink>
@@ -33,7 +34,7 @@
         </div>
       </header>
 
-      <main class="flex-1 py-5">
+      <main class="flex-1 py-5 sm:py-6">
         <RouterView />
       </main>
     </div>

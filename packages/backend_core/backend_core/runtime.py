@@ -6,10 +6,10 @@ from urllib.parse import urlparse
 
 from .config import Settings, load_settings
 from .db import build_sqlite_url, create_sqlalchemy_engine, init_database, build_session_factory
+from .agent_platform import AgentPlatformService
 from .planner import build_planner
 from .storage import MediaStorage
 from .worker import TaskWorker
-from .service import TaskService
 
 
 @dataclass
@@ -19,7 +19,7 @@ class BackendRuntime:
     engine: object
     session_factory: object
     storage: MediaStorage
-    service: TaskService
+    service: AgentPlatformService
     worker: TaskWorker
 
     def describe(self) -> dict[str, object]:
@@ -80,8 +80,9 @@ class BackendRuntime:
                 "audio_peak_signal": True,
                 "scene_boundary_signal": True,
                 "fusion_timeline_planning": bool(self.settings.model.model_name),
-                "fallback_heuristic_enabled": True,
+                "fallback_heuristic_enabled": False,
             },
+            "agents": self.service.get_agent_dashboard().model_dump(),
         }
 
 
@@ -125,7 +126,7 @@ def build_runtime(config_path: str | Path | None = None) -> BackendRuntime:
     session_factory = build_session_factory(engine)
     storage = MediaStorage(settings)
     planner = build_planner(settings)
-    service = TaskService(
+    service = AgentPlatformService(
         settings=settings,
         session_factory=session_factory,
         storage=storage,

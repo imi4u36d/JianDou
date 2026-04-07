@@ -1,5 +1,5 @@
 <template>
-  <section class="admin-panel overflow-hidden">
+  <section class="admin-panel model-status-strip overflow-hidden">
     <div class="admin-panel-header">
       <div>
         <h3 class="text-base font-semibold text-slate-900">模型与规划能力</h3>
@@ -139,3 +139,20 @@ onMounted(() => {
   void loadHealth();
 });
 </script>
+
+<style scoped>
+.model-status-strip :deep(.admin-table-wrap) {
+  border-radius: 1rem;
+  border: 1px solid #dbe4ee;
+  background: #f8fafc;
+}
+
+.model-status-strip :deep(.admin-table th) {
+  background: #f1f5f9;
+}
+
+.model-status-strip :deep(.admin-table td),
+.model-status-strip :deep(.admin-table th) {
+  border-color: #e2e8f0;
+}
+</style>

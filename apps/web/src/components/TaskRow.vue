@@ -1,6 +1,6 @@
 <template>
-  <article class="relative grid min-w-0 gap-4 overflow-hidden rounded-[28px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.72))] px-4 py-4 shadow-[0_14px_34px_rgba(121,144,177,0.1)] lg:grid-cols-[minmax(0,2.15fr)_minmax(0,1.05fr)_minmax(220px,240px)]">
-    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"></div>
+  <article class="relative grid min-w-0 gap-4 overflow-hidden rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_26px_rgba(15,23,42,0.08)] lg:grid-cols-[minmax(0,2.15fr)_minmax(0,1.05fr)_minmax(220px,240px)]">
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
     <div class="pointer-events-none absolute left-0 top-0 h-full w-1 rounded-r-full" :class="statusRailClass"></div>
     <div class="min-w-0 pl-2 sm:pl-3">
       <div class="flex flex-wrap items-center gap-2">
@@ -12,8 +12,8 @@
       </div>
       <h3 class="mt-3 line-clamp-2 text-[16px] font-semibold leading-6 text-slate-900">{{ task.title }}</h3>
       <p class="mt-1 truncate text-sm text-slate-600" :title="task.sourceFileName || '源文件信息待同步'">{{ task.sourceFileName || "源文件信息待同步" }}</p>
-      <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200/75">
-        <div class="h-full rounded-full bg-gradient-to-r from-sky-500 via-indigo-400 to-cyan-300 transition-all duration-300" :style="{ width: `${task.progress}%` }"></div>
+      <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+        <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 transition-all duration-300" :style="{ width: `${task.progress}%` }"></div>
       </div>
       <div class="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
         <span>进度 {{ task.progress }}%</span>
@@ -24,11 +24,11 @@
     </div>
 
     <div class="grid gap-2 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-1">
-      <div class="surface-tile p-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-[11px] uppercase tracking-[0.24em] text-slate-500">更新时间</p>
         <p class="mt-2 text-sm font-medium text-slate-900">{{ updatedAtLabel }}</p>
       </div>
-      <div class="surface-tile p-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-[11px] uppercase tracking-[0.24em] text-slate-500">状态说明</p>
         <p class="mt-2 text-sm font-medium text-slate-900">{{ lifecycleLabel }}</p>
       </div>

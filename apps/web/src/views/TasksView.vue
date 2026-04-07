@@ -1,8 +1,9 @@
 <template>
-  <section class="space-y-6">
+  <section class="tasks-view space-y-6">
     <PageHeader
       eyebrow="Workspace"
       title="任务"
+      description="筛选、排序并进入任务详情，快速定位进行中与失败任务。"
     >
       <div class="flex items-center gap-2">
         <HintBell
@@ -169,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { deleteTask, fetchTasks, retryTask } from "@/api/tasks";
 import type { TaskListItem, TaskStatus } from "@/types";
@@ -194,6 +195,7 @@ const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "semant
 const viewMode = ref<"rows" | "cards">("rows");
 const managingTaskId = ref("");
 const collapsedGroups = ref<Record<string, boolean>>({});
+let querySyncTimer: number | null = null;
 
 const platformOptions = computed(() => {
   return Array.from(new Set(tasks.value.map((task) => task.platform).filter(Boolean))).sort();
@@ -307,11 +309,8 @@ async function loadTasks() {
   errorMessage.value = "";
   loading.value = tasks.value.length === 0;
   try {
-    tasks.value = await fetchTasks({
-      q: searchText.value,
-      status: statusFilter.value,
-      platform: platformFilter.value
-    });
+    // Keep filtering local so typing and toggling view mode do not trigger extra requests.
+    tasks.value = await fetchTasks();
     lastLoadedAt.value = new Date().toLocaleString();
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "加载任务列表失败";
@@ -350,6 +349,16 @@ function writeQuery() {
   if (!sameQuery) {
     router.replace({ query: nextQuery });
   }
+}
+
+function scheduleWriteQuery() {
+  if (querySyncTimer !== null) {
+    window.clearTimeout(querySyncTimer);
+  }
+  querySyncTimer = window.setTimeout(() => {
+    querySyncTimer = null;
+    writeQuery();
+  }, 160);
 }
 
 function clearFilters() {
@@ -436,11 +445,62 @@ watch(
 );
 
 watch([searchText, statusFilter, platformFilter, sortMode, viewMode], () => {
-  writeQuery();
-  void loadTasks();
+  scheduleWriteQuery();
 });
 
 onMounted(async () => {
   await start();
 });
+
+onUnmounted(() => {
+  if (querySyncTimer !== null) {
+    window.clearTimeout(querySyncTimer);
+    querySyncTimer = null;
+  }
+});
 </script>
+
+<style scoped>
+.tasks-view {
+  --accent: #0891b2;
+}
+
+.tasks-view :deep(.surface-panel) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1.5rem;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.tasks-view :deep(.surface-tile) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1rem;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.tasks-view :deep(.surface-chip) {
+  border-color: #cfe8ef;
+  background: #ecfeff;
+  color: #0e7490;
+}
+
+.tasks-view :deep(.segmented-shell) {
+  border-color: #dbe4ee;
+  background: #f8fafc;
+}
+
+.tasks-view :deep(.btn-segment-active) {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.tasks-view :deep(.btn-primary) {
+  background: linear-gradient(135deg, #0e7490, #0891b2);
+}
+
+.tasks-view :deep(.btn-primary:hover:not(:disabled)) {
+  box-shadow: 0 10px 20px rgba(8, 145, 178, 0.24);
+}
+</style>

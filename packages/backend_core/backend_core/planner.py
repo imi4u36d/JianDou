@@ -136,13 +136,6 @@ class HeuristicPlanner:
                 "effect_style": "flash_cut",
                 "mixcut_template": "music_sync_flash_montage",
             }
-        if content_type == "travel" or style_preset in {"travel_citywalk", "travel_landscape", "travel_healing", "travel_roadtrip"}:
-            return {
-                "transition_style": "crossfade",
-                "layout_style": "travel_story",
-                "effect_style": "crossfade",
-                "mixcut_template": "travel_crossfade_story",
-            }
         return {
             "transition_style": "crossfade",
             "layout_style": "director_story",
@@ -949,162 +942,117 @@ class VisionEventAnalyzer:
 
     def analyze(self, context: PlannerContext, signals: SignalBundle) -> VisionAnalysisResult | None:
         if not self.settings.model.api_key or not self.settings.model.endpoint:
-            return None
+            raise RuntimeError("Vision analyzer provider is not configured")
         source_entries = _source_entries(context)
         if not source_entries:
             return None
 
-        model_names = [self.settings.model.vision_model_name or ""]
-        if self.settings.model.vision_fallback_model_name:
-            model_names.append(self.settings.model.vision_fallback_model_name)
+        model_name = (self.settings.model.vision_model_name or "").strip()
+        if not model_name:
+            raise RuntimeError("Vision model is not configured")
 
-        last_error: Exception | None = None
         collected_sources: list[VisionSourceAnalysis] = []
         all_frame_timestamps: list[float] = []
-        for model_name in [item for item in model_names if item]:
-            try:
-                if context.trace is not None:
-                    context.trace(
-                        "vision",
-                        "vision.attempt",
-                        f"开始调用视觉模型 {model_name} 逐素材分析完整镜头内容。",
-                        {
-                            "model": model_name,
-                            "source_count": len(source_entries),
-                            "frame_budget_per_source": self.settings.model.vision_frame_count,
-                        },
-                        "INFO",
-                    )
-                collected_sources = []
-                all_frame_timestamps = []
-                skipped_sources: list[str] = []
-                for source_entry in source_entries:
-                    source_label = str(source_entry["file_name"])
-                    source_analysis: VisionSourceAnalysis | None = None
-                    for attempt in range(2):
-                        try:
-                            source_analysis = self._call_model(model_name, context, signals, source_entry)
-                            break
-                        except VisionSourceParseError as exc:
-                            if attempt == 0:
-                                if context.trace is not None:
-                                    context.trace(
-                                        "vision",
-                                        "vision.source_retry_scheduled",
-                                        f"素材 {source_label} 的视觉 JSON 解析失败，准备重试一次。",
-                                        {
-                                            "model": model_name,
-                                            "source_asset_id": str(source_entry["asset_id"]),
-                                            "source_file_name": source_label,
-                                            "attempt": attempt + 1,
-                                            "max_attempts": 2,
-                                            "error": str(exc),
-                                        },
-                                        "WARN",
-                                    )
-                                continue
-                            skipped_sources.append(source_label)
-                            if context.trace is not None:
-                                context.trace(
-                                    "vision",
-                                    "vision.source_skipped",
-                                    f"素材 {source_label} 连续两次返回非法 JSON，已跳过该素材。",
-                                    {
-                                        "model": model_name,
-                                        "source_asset_id": str(source_entry["asset_id"]),
-                                        "source_file_name": source_label,
-                                        "attempts": 2,
-                                        "error": str(exc),
-                                    },
-                                    "WARN",
-                                )
-                    if source_analysis is None:
+        if context.trace is not None:
+            context.trace(
+                "vision",
+                "vision.attempt",
+                f"开始调用视觉模型 {model_name} 逐素材分析完整镜头内容。",
+                {
+                    "model": model_name,
+                    "source_count": len(source_entries),
+                    "frame_budget_per_source": self.settings.model.vision_frame_count,
+                },
+                "INFO",
+            )
+
+        for source_entry in source_entries:
+            source_label = str(source_entry["file_name"])
+            source_analysis: VisionSourceAnalysis | None = None
+            last_exc: Exception | None = None
+            for attempt in range(2):
+                try:
+                    source_analysis = self._call_model(model_name, context, signals, source_entry)
+                    break
+                except VisionSourceParseError as exc:
+                    last_exc = exc
+                    if attempt == 0:
+                        if context.trace is not None:
+                            context.trace(
+                                "vision",
+                                "vision.source_retry_scheduled",
+                                f"素材 {source_label} 的视觉 JSON 解析失败，准备重试一次。",
+                                {
+                                    "model": model_name,
+                                    "source_asset_id": str(source_entry["asset_id"]),
+                                    "source_file_name": source_label,
+                                    "attempt": attempt + 1,
+                                    "max_attempts": 2,
+                                    "error": str(exc),
+                                },
+                                "WARN",
+                            )
                         continue
-                    collected_sources.append(source_analysis)
-                    all_frame_timestamps.extend(
-                        [shot.timelineStartSeconds for shot in source_analysis.shots]
-                    )
-                if not collected_sources:
                     raise RuntimeError(
-                        f"Vision model {model_name} produced no parsable source analysis"
-                    )
-                analysis = VisionAnalysisResult(
-                    modelName=model_name,
-                    sources=collected_sources,
-                    shots=[shot for source in collected_sources for shot in source.shots],
-                    events=[event for source in collected_sources for event in source.events],
-                    frameTimestamps=sorted(round(timestamp, 3) for timestamp in all_frame_timestamps),
-                    signals=signals,
+                        f"视觉模型返回非法 JSON，素材 {source_label} 连续两次解析失败: {exc}"
+                    ) from exc
+            if source_analysis is None:
+                if last_exc is not None:
+                    raise RuntimeError(f"视觉模型分析失败，素材 {source_label}: {last_exc}") from last_exc
+                raise RuntimeError(f"视觉模型分析失败，素材 {source_label} 未返回结果")
+
+            collected_sources.append(source_analysis)
+            all_frame_timestamps.extend([shot.timelineStartSeconds for shot in source_analysis.shots])
+
+        if not collected_sources:
+            raise RuntimeError(f"Vision model {model_name} produced no source analysis")
+
+        analysis = VisionAnalysisResult(
+            modelName=model_name,
+            sources=collected_sources,
+            shots=[shot for source in collected_sources for shot in source.shots],
+            events=[event for source in collected_sources for event in source.events],
+            frameTimestamps=sorted(round(timestamp, 3) for timestamp in all_frame_timestamps),
+            signals=signals,
+        )
+        if context.workDir:
+            output_path = Path(context.workDir) / "vision_analysis.json"
+            output_path.write_text(
+                json.dumps(
+                    {
+                        "model": model_name,
+                        "editingMode": context.task.editingMode,
+                        "sources": _vision_shot_payload(analysis),
+                        "events": [
+                            {
+                                "title": event.title,
+                                "reason": event.reason,
+                                "timestampSeconds": event.focusSeconds,
+                                "confidence": event.confidence,
+                                "eventType": event.eventType,
+                                "relatedSubtitle": event.relatedSubtitle,
+                            }
+                            for event in analysis.events
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            if context.trace is not None:
+                context.trace(
+                    "vision",
+                    "vision.analysis_saved",
+                    "完整镜头分析 JSON 已写入任务工作目录。",
+                    {
+                        "analysis_path": output_path.as_posix(),
+                        "source_count": len(analysis.sources),
+                        "shot_count": len(analysis.shots),
+                    },
+                    "INFO",
                 )
-                if context.workDir:
-                    output_path = Path(context.workDir) / "vision_analysis.json"
-                    output_path.write_text(
-                        json.dumps(
-                            {
-                                "model": model_name,
-                                "editingMode": context.task.editingMode,
-                                "sources": _vision_shot_payload(analysis),
-                                "events": [
-                                    {
-                                        "title": event.title,
-                                        "reason": event.reason,
-                                        "timestampSeconds": event.focusSeconds,
-                                        "confidence": event.confidence,
-                                        "eventType": event.eventType,
-                                        "relatedSubtitle": event.relatedSubtitle,
-                                    }
-                                    for event in analysis.events
-                                ],
-                            },
-                            ensure_ascii=False,
-                            indent=2,
-                        ),
-                        encoding="utf-8",
-                    )
-                    if context.trace is not None:
-                        context.trace(
-                            "vision",
-                            "vision.analysis_saved",
-                            "完整镜头分析 JSON 已写入任务工作目录。",
-                            {
-                                "analysis_path": output_path.as_posix(),
-                                "source_count": len(analysis.sources),
-                                "shot_count": len(analysis.shots),
-                                "skipped_source_count": len(skipped_sources),
-                                "skipped_sources": skipped_sources,
-                            },
-                            "INFO",
-                        )
-                if skipped_sources and context.trace is not None:
-                    context.trace(
-                        "vision",
-                        "vision.analysis_partial",
-                        "部分素材视觉分析失败，已跳过错误素材并继续规划。",
-                        {
-                            "model": model_name,
-                            "parsed_source_count": len(collected_sources),
-                            "skipped_source_count": len(skipped_sources),
-                            "skipped_sources": skipped_sources,
-                        },
-                        "WARN",
-                    )
-                return analysis
-            except Exception as exc:
-                if context.trace is not None:
-                    context.trace(
-                        "vision",
-                        "vision.attempt_failed",
-                        f"视觉模型 {model_name} 调用失败，准备尝试下一个回退模型。",
-                        {
-                            "model": model_name,
-                            "error": str(exc),
-                        },
-                        "WARN",
-                    )
-                last_error = exc
-        if last_error is not None:
-            raise last_error
-        return None
+        return analysis
 
 
 class FusionPlanner:
@@ -1215,24 +1163,21 @@ class FusionPlanner:
             if editing_mode == "drama"
             else
             "当前是混剪模式，说明输入由多个素材按顺序拼接成统一时间线，你可以主动利用素材边界附近的镜头差异做导演感混剪，并自行生成动态分镜脚本。\n"
-            "如果 mixcutContentType=travel，请优先考虑景别变化、地点切换、氛围递进、镜头呼吸和音乐节奏，而不是剧情对白冲突。\n"
-            "如果 mixcutTemplate 已指定，请遵循对应视觉语义：director_crossfade_story 偏跨素材情绪推进，travel_crossfade_story 偏地点与景别切换，music_sync_flash_montage 偏鼓点卡切和白闪节奏。\n"
+            "如果 mixcutTemplate 已指定，请遵循对应视觉语义：director_crossfade_story 偏跨素材情绪推进，music_sync_flash_montage 偏鼓点卡切和白闪节奏。\n"
             "你可以适度使用静帧快闪、插叙、回望镜头或对照镜头，但不要把结构写死成标准三段式。\n"
         )
         reason_rule = (
             "4. title 要像投放素材标题，reason 要说明这是哪个冲突/反转/高燃卡点。\n"
             if editing_mode == "drama"
             else
-            "4. title 要像投放素材标题，reason 要说明这是哪个分镜设计、地点/情绪推进或镜头编排亮点。\n"
-            "4.1 如果 mixcutContentType=travel，title 和 reason 要更像旅行混剪标题与镜头设计，强调地点、氛围、景别和节奏推进。\n"
+            "4. title 要像投放素材标题，reason 要说明这是哪个分镜设计、情绪推进或镜头编排亮点。\n"
         )
         mode_tail_rules = (
             "7. 当前是短剧模式，不要把不同素材拼成导演脚本，优先围绕剧情高点和对白边界取点。\n"
             if editing_mode == "drama"
             else
             "7. 当前是混剪模式，优先选择能体现不同素材对照、情绪递进、插叙回望或节奏推进的窗口，不要只围绕首个素材取点。\n"
-            "8. 如果 mixcutStylePreset 偏向 travel_citywalk、travel_landscape、travel_healing 或 travel_roadtrip，请在 reason 中体现对应的镜头节奏和转场感觉。\n"
-            "9. 如有必要，可以让某个后置情绪镜头以前插叙的形式提前出现，但最终时间点仍要可执行、连续且不切断关键对白。\n"
+            "8. 如有必要，可以让某个后置情绪镜头以前插叙的形式提前出现，但最终时间点仍要可执行、连续且不切断关键对白。\n"
         )
         return (
             f"{role_header}\n"
@@ -1460,65 +1405,28 @@ class FusionPlanner:
 
         vision_analysis: VisionAnalysisResult | None = None
         if self.vision_analyzer is not None and context.sourcePath:
-            try:
-                vision_analysis = self.vision_analyzer.analyze(context, signals)
-            except Exception as exc:
-                if context.trace is not None:
-                    context.trace(
-                        "fusion",
-                        "fusion.vision_fallback",
-                        "视觉事件识别失败，改用字幕、音频和候选片段继续规划。",
-                        {
-                            "error": str(exc),
-                            "transcript_cue_count": len(signals.transcriptCues),
-                            "audio_peak_count": len(signals.audioPeaks),
-                            "scene_change_count": len(signals.sceneChanges),
-                            "source_count": len(_source_entries(context)),
-                        },
-                        "WARN",
-                    )
+            vision_analysis = self.vision_analyzer.analyze(context, signals)
 
-        model_names = [self.settings.model.model_name]
-        if self.settings.model.fallback_model_name:
-            model_names.append(self.settings.model.fallback_model_name)
-
-        last_error: Exception | None = None
-        for model_name in model_names:
-            try:
-                if context.trace is not None:
-                    context.trace(
-                        "fusion",
-                        "fusion.attempt",
-                        f"开始调用融合规划模型 {model_name} 生成最终剪辑方案。",
-                        {
-                            "model": model_name,
-                            "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
-                            "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
-                            "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,
-                            "used_visual_events": bool(vision_analysis and vision_analysis.events),
-                            "visual_model": vision_analysis.modelName if vision_analysis else "",
-                        },
-                        "INFO",
-                    )
-                clips = self._call_model(model_name, context, signals, vision_analysis)
-                if clips:
-                    return clips
-            except Exception as exc:
-                if context.trace is not None:
-                    context.trace(
-                        "fusion",
-                        "fusion.attempt_failed",
-                        f"融合规划模型 {model_name} 调用失败，准备尝试下一个回退模型。",
-                        {
-                            "model": model_name,
-                            "error": str(exc),
-                        },
-                        "WARN",
-                    )
-                last_error = exc
-        if last_error is not None:
-            raise last_error
-        return []
+        model_name = self.settings.model.model_name
+        if context.trace is not None:
+            context.trace(
+                "fusion",
+                "fusion.attempt",
+                f"开始调用融合规划模型 {model_name} 生成最终剪辑方案。",
+                {
+                    "model": model_name,
+                    "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
+                    "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
+                    "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,
+                    "used_visual_events": bool(vision_analysis and vision_analysis.events),
+                    "visual_model": vision_analysis.modelName if vision_analysis else "",
+                },
+                "INFO",
+            )
+        clips = self._call_model(model_name, context, signals, vision_analysis)
+        if not clips:
+            raise RuntimeError("Fusion planner returned no clips")
+        return clips
 
 
 class PlannerChain:
@@ -1526,24 +1434,15 @@ class PlannerChain:
         self.planners = planners
 
     def plan(self, context: PlannerContext) -> list[ClipPlan]:
-        last_error: Exception | None = None
         for planner in self.planners:
-            try:
-                clips = planner.plan(context)
-                if clips:
-                    return clips
-            except Exception as exc:  # noqa: PERF203 - planner fallback
-                last_error = exc
-        if last_error is not None:
-            raise last_error
-        return []
+            clips = planner.plan(context)
+            if clips:
+                return clips
+        raise RuntimeError("No planner produced clips")
 
 
 def build_planner(settings: Settings) -> PlannerChain:
-    planners: list[Planner] = []
-    if settings.model.provider.lower() == "qwen":
-        planners.append(FusionPlanner(settings, vision_analyzer=VisionEventAnalyzer(settings)))
-    planners.append(HeuristicPlanner(settings))
+    planners: list[Planner] = [FusionPlanner(settings, vision_analyzer=VisionEventAnalyzer(settings))]
     return PlannerChain(planners)
 
 

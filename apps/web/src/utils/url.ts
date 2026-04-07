@@ -7,7 +7,10 @@ export function resolveRuntimeUrl(input: string | null | undefined, baseUrl: str
     return input;
   }
 
+  if (input.startsWith("/")) {
+    return new URL(input, document.baseURI).toString();
+  }
+
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const normalizedInput = input.startsWith("/") ? input.slice(1) : input;
-  return new URL(normalizedInput, normalizedBase).toString();
+  return new URL(input, normalizedBase).toString();
 }

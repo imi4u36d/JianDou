@@ -1,5 +1,5 @@
 <template>
-  <section class="admin-page">
+  <section class="admin-page admin-tasks-view">
     <div class="admin-panel px-5 py-5">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="admin-heading-block">
@@ -548,3 +548,25 @@ onMounted(async () => {
   await start();
 });
 </script>
+
+<style scoped>
+.admin-tasks-view :deep(.admin-panel) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.admin-tasks-view :deep(.admin-metric-card) {
+  border-color: #dbe4ee;
+  background: #f8fafc;
+}
+
+.admin-tasks-view :deep(.admin-table th) {
+  background: #f1f5f9;
+}
+
+.admin-tasks-view :deep(.admin-table tr:hover td) {
+  background: #f8fafc;
+}
+</style>

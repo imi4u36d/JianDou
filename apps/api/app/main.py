@@ -7,7 +7,17 @@ import sys
 def _bootstrap_path() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     packages_root = repo_root / "packages"
-    for candidate in (repo_root, packages_root):
+    package_projects: list[Path] = []
+    if packages_root.exists():
+        package_projects = sorted(
+            [
+                child
+                for child in packages_root.iterdir()
+                if child.is_dir() and (child / "pyproject.toml").exists()
+            ]
+        )
+
+    for candidate in [repo_root, *package_projects, packages_root]:
         candidate_str = str(candidate)
         if candidate_str not in sys.path:
             sys.path.insert(0, candidate_str)
@@ -20,7 +30,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend_core.runtime import build_runtime
+from .routers.agents import router as agents_router
 from .routers.admin import router as admin_router
+from .routers.generations import router as generations_router
 from .routers.health import router as health_router
 from .routers.presets import router as presets_router
 from .routers.tasks import router as tasks_router
@@ -69,6 +81,8 @@ def _startup() -> None:
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(agents_router, prefix="/api/v1")
+app.include_router(generations_router, prefix="/api/v1")
 app.include_router(presets_router, prefix="/api/v1")
 app.include_router(uploads_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")

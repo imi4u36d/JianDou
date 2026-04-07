@@ -103,6 +103,144 @@ export interface GenerateCreativePromptResponse {
   source: string;
 }
 
+export interface GenerateScriptRequest {
+  text: string;
+  visualStyle?: string | null;
+}
+
+export interface GenerateScriptResponse {
+  id: string;
+  sourceText: string;
+  visualStyle: string;
+  outputFormat?: "markdown";
+  scriptMarkdown: string;
+  markdownFilePath?: string | null;
+  markdownFileUrl?: string | null;
+  downloadUrl?: string | null;
+  source: string;
+  createdAt: string;
+  modelInfo?: GenerationModelInfo | null;
+  callChain?: GenerationCallLogEntry[];
+  metadata?: Record<string, unknown>;
+}
+
+export type GenerationMediaKind = "image" | "video";
+
+export interface GenerationVersionInfo {
+  version: number;
+  label: string;
+  isDefault?: boolean;
+  supportedKinds?: GenerationMediaKind[];
+  description?: string | null;
+}
+
+export interface GenerationVideoModelInfo {
+  value: string;
+  label: string;
+  description?: string | null;
+  isDefault?: boolean;
+  supportedSizes?: string[];
+  supportedDurations?: number[];
+  aliases?: string[];
+}
+
+export interface GenerationStylePresetOption {
+  key: string;
+  label: string;
+  description?: string;
+  mediaKinds?: GenerationMediaKind[];
+}
+
+export interface GenerationImageSizeOption {
+  value: string;
+  label: string;
+  width?: number;
+  height?: number;
+}
+
+export interface GenerationVideoSizeOption {
+  value: string;
+  label: string;
+  width?: number;
+  height?: number;
+  supportedModels?: string[];
+}
+
+export interface GenerationVideoDurationOption {
+  value: number;
+  label: string;
+  supportedModels?: string[];
+}
+
+export interface GenerationOptionsResponse {
+  versions: number[];
+  versionDetails?: GenerationVersionInfo[];
+  defaultVersion?: number;
+  stylePresets: GenerationStylePresetOption[];
+  imageSizes: GenerationImageSizeOption[];
+  videoModels: GenerationVideoModelInfo[];
+  defaultVideoModel?: string | null;
+  videoSizes: GenerationVideoSizeOption[];
+  videoDurations: GenerationVideoDurationOption[];
+  defaultStylePreset?: string | null;
+  defaultImageSize?: string;
+  defaultVideoSize?: string;
+  defaultVideoDurationSeconds?: number;
+}
+
+export interface GenerateMediaRequest {
+  prompt: string;
+  mediaKind: GenerationMediaKind;
+  version: number;
+  stylePreset?: string | null;
+  providerModel?: string | null;
+  imageSize?: string;
+  videoSize?: string;
+  videoDurationSeconds?: number;
+}
+
+export interface GenerationModelInfo {
+  provider?: string | null;
+  modelName?: string | null;
+  providerModel?: string | null;
+  endpointHost?: string | null;
+  temperature?: number | null;
+  maxTokens?: number | null;
+  timeoutSeconds?: number | null;
+  strategyVersion?: number | null;
+  strategyVersionLabel?: string | null;
+  strategySummary?: string | null;
+  mediaKind?: GenerationMediaKind | null;
+}
+
+export interface GenerationCallLogEntry {
+  timestamp: string;
+  stage: string;
+  event: string;
+  status: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface GenerateMediaResponse {
+  id: string;
+  mediaKind: GenerationMediaKind;
+  prompt: string;
+  version: number;
+  outputUrl: string;
+  thumbnailUrl?: string | null;
+  stylePreset?: string | null;
+  providerModel?: string | null;
+  mimeType?: string | null;
+  width?: number | null;
+  height?: number | null;
+  durationSeconds?: number | null;
+  createdAt?: string | null;
+  modelInfo?: GenerationModelInfo | null;
+  callChain?: GenerationCallLogEntry[];
+  metadata?: Record<string, unknown>;
+}
+
 export interface TaskPreset {
   key: string;
   name: string;
@@ -325,4 +463,69 @@ export interface AdminTaskBatchResult {
   requestedCount: number;
   succeededTaskIds: string[];
   failed: AdminTaskBatchFailure[];
+}
+
+export type AgentId = "ai-drama" | "drama-editor" | "visual-lab" | "script-director";
+
+export type AgentRunStatus = "idle" | "queued" | "running" | "completed" | "failed";
+
+export type AgentArtifactKind = string;
+
+export interface AgentDefinition {
+  id: AgentId;
+  name: string;
+  subtitle: string;
+  description: string;
+  accent: string;
+  accentSoft: string;
+  icon: string;
+  route: string;
+  deliveryLabel: string;
+  capabilities: string[];
+  defaultPrompt: string;
+}
+
+export interface AgentRunEvent {
+  timestamp: string;
+  level: "info" | "success" | "warn" | "error";
+  stage: string;
+  event: string;
+  message: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface AgentRunArtifact {
+  kind: AgentArtifactKind;
+  label: string;
+  url?: string | null;
+  mimeType?: string | null;
+  text?: string | null;
+  json?: Record<string, unknown> | null;
+}
+
+export interface AgentRunSummary {
+  id: string;
+  agentId: AgentId;
+  title: string;
+  summary: string;
+  status: AgentRunStatus;
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+  sourceLabel: string;
+  resultLabel: string;
+  artifactCount: number;
+  sourceTaskId?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationSeconds?: number | null;
+  latencyMs?: number | null;
+}
+
+export interface AgentRunDetail extends AgentRunSummary {
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  events: AgentRunEvent[];
+  artifacts: AgentRunArtifact[];
+  monitor: Record<string, unknown>;
 }

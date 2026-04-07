@@ -1,5 +1,5 @@
 <template>
-  <section class="admin-page">
+  <section class="admin-page admin-task-detail-view">
     <div class="admin-panel px-5 py-5">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="admin-heading-block">
@@ -157,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { cloneAdminTask, deleteAdminTask, fetchAdminTask, fetchAdminTaskTrace, retryAdminTask } from "@/api/admin";
 import type { TaskDetail, TaskTraceEvent } from "@/types";
@@ -275,8 +275,22 @@ watch(taskId, () => {
   traceExpanded.value = false;
   void refresh();
 }, { immediate: true });
-
-onMounted(async () => {
-  await refresh();
-});
 </script>
+
+<style scoped>
+.admin-task-detail-view :deep(.admin-panel) {
+  border: 1px solid #dbe4ee;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.admin-task-detail-view :deep(.admin-panel-soft) {
+  border: 1px solid #dbe4ee;
+  background: #f8fafc;
+}
+
+.admin-task-detail-view :deep(.admin-table th) {
+  background: #f1f5f9;
+}
+</style>

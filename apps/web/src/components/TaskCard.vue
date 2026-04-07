@@ -1,14 +1,14 @@
 <template>
   <article
-    class="group relative min-w-0 overflow-hidden rounded-[30px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.72))] p-5 shadow-[0_18px_40px_rgba(121,144,177,0.12)] transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_24px_48px_rgba(121,144,177,0.16)]"
+    class="group relative min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] transition duration-200 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
     :class="statusFrameClass"
   >
-    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"></div>
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
     <div class="pointer-events-none absolute left-0 top-0 h-full w-1 rounded-r-full" :class="statusRailClass"></div>
-    <div class="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-sky-200/45 blur-3xl transition duration-300 group-hover:bg-indigo-200/50"></div>
+    <div class="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-cyan-100/70 blur-3xl transition duration-300 group-hover:bg-cyan-200/80"></div>
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">{{ task.platform }} / {{ task.aspectRatio ?? "9:16" }}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{{ task.platform }} / {{ task.aspectRatio ?? "9:16" }}</p>
         <h3 class="mt-2 line-clamp-2 text-[18px] font-semibold leading-7 text-slate-900">{{ task.title }}</h3>
         <p class="mt-2 truncate text-sm leading-6 text-slate-600" :title="task.sourceFileName || '源文件信息待同步'">
           {{ task.sourceFileName || "源文件信息待同步" }}
@@ -28,26 +28,26 @@
     </div>
 
     <div class="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-600">
-      <div class="surface-tile p-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs uppercase tracking-[0.24em] text-slate-500">进度</p>
         <p class="mt-2 text-base font-semibold text-slate-900">{{ task.progress }}%</p>
       </div>
-      <div class="surface-tile p-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs uppercase tracking-[0.24em] text-slate-500">输出</p>
         <p class="mt-2 text-base font-semibold text-slate-900">{{ completedOutputCount }} / {{ task.outputCount }}</p>
       </div>
-      <div class="surface-tile p-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs uppercase tracking-[0.24em] text-slate-500">时长</p>
         <p class="mt-2 text-base font-semibold text-slate-900">{{ durationLabel }}</p>
       </div>
-      <div class="surface-tile p-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs uppercase tracking-[0.24em] text-slate-500">重试</p>
         <p class="mt-2 text-base font-semibold text-slate-900">{{ retryCount }}</p>
       </div>
     </div>
 
-    <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-200/75">
-      <div class="h-full rounded-full bg-gradient-to-r from-sky-500 via-indigo-400 to-cyan-300 transition-all duration-300" :style="{ width: `${task.progress}%` }"></div>
+    <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+      <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 transition-all duration-300" :style="{ width: `${task.progress}%` }"></div>
     </div>
 
     <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
@@ -143,11 +143,11 @@ const statusRailClass = computed(() => {
 const statusFrameClass = computed(() => {
   switch (lifecycleGroup.value) {
     case "completed":
-      return "hover:shadow-[0_24px_48px_rgba(60,159,139,0.12)]";
+      return "hover:shadow-[0_18px_40px_rgba(16,185,129,0.14)]";
     case "failed":
-      return "hover:shadow-[0_24px_48px_rgba(217,95,119,0.12)]";
+      return "hover:shadow-[0_18px_40px_rgba(244,63,94,0.14)]";
     case "running":
-      return "hover:shadow-[0_24px_48px_rgba(107,146,255,0.12)]";
+      return "hover:shadow-[0_18px_40px_rgba(14,165,233,0.14)]";
     default:
       return "";
   }

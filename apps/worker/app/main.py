@@ -7,7 +7,17 @@ import sys
 def _bootstrap_path() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     packages_root = repo_root / "packages"
-    for candidate in (repo_root, packages_root):
+    package_projects: list[Path] = []
+    if packages_root.exists():
+        package_projects = sorted(
+            [
+                child
+                for child in packages_root.iterdir()
+                if child.is_dir() and (child / "pyproject.toml").exists()
+            ]
+        )
+
+    for candidate in [repo_root, *package_projects, packages_root]:
         candidate_str = str(candidate)
         if candidate_str not in sys.path:
             sys.path.insert(0, candidate_str)

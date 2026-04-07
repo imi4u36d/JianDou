@@ -114,12 +114,10 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.64));
-  color: #6b7f96;
-  box-shadow:
-    0 10px 24px rgba(122, 144, 177, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -128,17 +126,13 @@ onBeforeUnmount(() => {
 
 .hint-bell:hover {
   transform: translateY(-1px);
-  color: #385b85;
-  box-shadow:
-    0 12px 28px rgba(122, 144, 177, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
 .hint-bell-active {
-  color: #385b85;
-  box-shadow:
-    0 12px 28px rgba(122, 144, 177, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+  color: #0f172a;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
 }
 
 .hint-bell svg {
@@ -153,8 +147,8 @@ onBeforeUnmount(() => {
   height: 0.32rem;
   width: 0.32rem;
   border-radius: 9999px;
-  background: #6b92ff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+  background: #0891b2;
+  box-shadow: 0 0 0 2px #f8fafc;
 }
 
 .hint-popover {
@@ -162,16 +156,12 @@ onBeforeUnmount(() => {
   top: calc(100% + 0.7rem);
   z-index: 30;
   width: min(18rem, calc(100vw - 3rem));
-  border-radius: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72)),
-    radial-gradient(circle at top right, rgba(173, 210, 255, 0.24), transparent 32%);
+  border-radius: 1rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   padding: 0.95rem 1rem;
-  color: #18304d;
-  box-shadow:
-    0 18px 42px rgba(121, 144, 177, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
 }
 
 .hint-title {
@@ -180,20 +170,20 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #51677f;
+  color: #475569;
 }
 
 .hint-text {
   margin: 0.55rem 0 0;
   font-size: 0.9rem;
   line-height: 1.6;
-  color: #31485f;
+  color: #334155;
 }
 
 .hint-list {
   margin: 0.6rem 0 0;
   padding-left: 1rem;
-  color: #31485f;
+  color: #334155;
 }
 
 .hint-list li {

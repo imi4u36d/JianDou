@@ -27,6 +27,7 @@ fallback_model_name = "qwen-plus"
 vision_model_name = "qwen-vl-plus-latest"
 vision_fallback_model_name = "qwen3-vl-flash"
 endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+video_model_name = "wan2.6-i2v"
 api_key = "sk-99288f8924374446be68b09ebc5c7015"
 timeout_seconds = 120
 temperature = 0.15
