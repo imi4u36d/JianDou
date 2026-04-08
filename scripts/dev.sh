@@ -37,6 +37,45 @@ require_command() {
   fi
 }
 
+collect_listen_pids() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+    return
+  fi
+  if command -v ss >/dev/null 2>&1; then
+    ss -lptn "sport = :${port}" 2>/dev/null | awk -F'pid=' 'NR>1 && NF>1 {split($2,a,","); print a[1]}' || true
+    return
+  fi
+}
+
+stop_service_if_running() {
+  local service_name="$1"
+  local port="$2"
+  local pids=""
+  pids="$(collect_listen_pids "$port" | tr '\n' ' ')"
+
+  if [[ -z "${pids// }" ]]; then
+    return
+  fi
+
+  echo "检测到 ${service_name} 端口 ${port} 已被占用，尝试关闭旧进程: ${pids}"
+  for pid in $pids; do
+    if [[ "$pid" != "$$" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+
+  sleep 1
+
+  for pid in $pids; do
+    if [[ "$pid" != "$$" ]] && kill -0 "$pid" 2>/dev/null; then
+      echo "进程 ${pid} 未退出，发送 SIGKILL"
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
 if [[ ! -d "$API_DIR" || ! -d "$WEB_DIR" ]]; then
   echo "请在项目根目录下运行此脚本。"
   exit 1
@@ -54,6 +93,9 @@ if [[ ! -d "$WEB_DIR/node_modules" ]]; then
   echo "未找到前端依赖，请先执行: npm --prefix apps/web install"
   exit 1
 fi
+
+stop_service_if_running "后端" "$API_PORT"
+stop_service_if_running "前端" "$WEB_PORT"
 
 trap cleanup EXIT INT TERM
 

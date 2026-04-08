@@ -3,19 +3,16 @@
     <PageHeader
       eyebrow="Generative Studio"
       title="文本生成图片 / 视频"
-      description="输入一句描述，选择媒体类型与策略版本，直接产出可预览素材。"
+      description="输入一句描述，选择媒体类型与生成参数，直接产出可预览素材。"
     >
       <div class="flex flex-wrap items-center gap-2">
-        <span class="surface-chip">版本 {{ versionRangeLabel }}</span>
         <span class="surface-chip">{{ optionsSourceLabel }}</span>
       </div>
     </PageHeader>
 
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
       <form class="surface-panel surface-panel-warm grid gap-5 p-6" @submit.prevent="handleSubmit">
-        <div v-if="optionsLoading" class="surface-tile p-4 text-sm text-slate-600">
-          正在加载版本与可选参数...
-        </div>
+        <div v-if="optionsLoading" class="surface-tile p-4 text-sm text-slate-600">正在加载可选参数...</div>
         <div v-else-if="optionsError" class="surface-tile border border-amber-200 bg-amber-50/85 p-4 text-sm text-amber-800">
           {{ optionsError }}
         </div>
@@ -55,19 +52,26 @@
 
           <div class="grid gap-4 sm:grid-cols-2">
             <label class="grid gap-2 text-sm text-slate-700">
-              策略版本
-              <select v-model.number="form.version" class="field-select">
-                <option v-for="item in versionOptions" :key="item.version" :value="item.version">{{ item.label }}</option>
-              </select>
-              <p class="text-xs text-slate-500">这里的 v1-v10 只代表提示词策略版本，不是底层模型版本。</p>
-            </label>
-            <label class="grid gap-2 text-sm text-slate-700">
               风格预设（可选）
               <select v-model="form.stylePreset" class="field-select">
                 <option value="">不指定</option>
                 <option v-for="preset in availableStylePresets" :key="preset.key" :value="preset.key">{{ preset.label }}</option>
               </select>
               <p v-if="selectedStylePreset?.description" class="text-xs text-slate-500">{{ selectedStylePreset.description }}</p>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-700">
+              文本分析模型
+              <select v-model="form.textAnalysisModel" class="field-select">
+                <option v-for="model in availableTextAnalysisModels" :key="model.value" :value="model.value">
+                  {{ model.label }}{{ model.description ? ` · ${model.description}` : "" }}
+                </option>
+              </select>
+              <TextModelProbeInline
+                ref="textModelProbeRef"
+                :model-value="form.textAnalysisModel"
+                :disabled="optionsLoading || submitting"
+              />
+              <p class="text-xs text-slate-500">负责理解人物、对白、语境和剧情结构。</p>
             </label>
           </div>
 
@@ -126,8 +130,8 @@
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">当前参数</p>
           <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
             <span class="surface-chip">{{ form.mediaKind === "image" ? "图片生成" : "视频生成" }}</span>
-            <span class="surface-chip">策略 v{{ form.version }}</span>
             <span class="surface-chip">{{ form.stylePreset || "无风格预设" }}</span>
+            <span class="surface-chip">{{ selectedTextAnalysisModel?.label || form.textAnalysisModel || "未选文本分析模型" }}</span>
             <span v-if="form.mediaKind === 'video'" class="surface-chip">{{ selectedVideoModel?.label || form.providerModel || "未选视频模型" }}</span>
             <span v-if="form.mediaKind === 'video'" class="surface-chip">{{ form.videoSize }}</span>
             <span class="surface-chip">{{ form.mediaKind === "image" ? form.imageSize : `${form.videoDurationSeconds} 秒` }}</span>
@@ -143,8 +147,10 @@
             <span v-if="result" class="surface-chip text-xs">{{ result.mediaKind === "image" ? "Image" : "Video" }}</span>
           </div>
 
-          <div v-if="submitting" class="surface-tile mt-4 p-8 text-center text-sm text-slate-600">
-            正在生成素材，请稍候...
+          <div v-if="submitting || activeRunPending" class="surface-tile mt-4 grid gap-2 p-8 text-center text-sm text-slate-600">
+            <p class="text-base font-semibold text-slate-800">{{ activeRunStage }}</p>
+            <p>{{ activeRunMessage }}</p>
+            <p v-if="activeRun" class="text-xs text-slate-500">运行 ID：{{ activeRun.id }} · {{ activeRun.progress }}%</p>
           </div>
 
           <div v-else-if="result" class="mt-4 grid gap-4">
@@ -214,20 +220,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
-import { fetchGenerationOptions, generateMediaFromText } from "@/api/generation";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { fetchGenerationOptions } from "@/api/generation";
+import { fetchAgentRun, runVisualAgent } from "@/api/agents";
 import { getRuntimeConfig } from "@/api/runtime-config";
 import PageHeader from "@/components/PageHeader.vue";
+import TextModelProbeInline from "@/components/TextModelProbeInline.vue";
 import type {
+  AgentRunDetail,
   GenerateMediaRequest,
   GenerateMediaResponse,
   GenerationMediaKind,
   GenerationOptionsResponse,
+  GenerationTextAnalysisModelInfo,
   GenerationVideoDurationOption,
   GenerationVideoModelInfo,
   GenerationVideoSizeOption,
 } from "@/types";
+import { isAgentRunActive, mediaResultFromAgentRun } from "@/utils/agent-run";
 import { resolveRuntimeUrl } from "@/utils/url";
+
+const ACTIVE_RUN_STORAGE_KEY = "ai-cut:text-generate:active-run-id";
 
 const FALLBACK_VIDEO_MODELS: GenerationVideoModelInfo[] = [
   { value: "wan2.6-i2v", label: "wan2.6-i2v", isDefault: true },
@@ -237,6 +250,7 @@ const FALLBACK_VIDEO_MODELS: GenerationVideoModelInfo[] = [
   { value: "wan2.2-t2v-plus", label: "wan2.2-t2v-plus" },
   { value: "wanx2.1-t2v-turbo", label: "wanx2.1-t2v-turbo" },
   { value: "wanx2.1-t2v-plus", label: "wanx2.1-t2v-plus" },
+  { value: "seeddance-1.5-pro", label: "SeedDance 1.5 Pro", provider: "volcengine", family: "seeddance", generationMode: "i2v" },
 ];
 const FALLBACK_VIDEO_SIZES: GenerationVideoSizeOption[] = [
   { value: "1080x1920", label: "1080 × 1920", width: 1080, height: 1920 },
@@ -248,17 +262,22 @@ const FALLBACK_VIDEO_DURATIONS: GenerationVideoDurationOption[] = [
   { value: 6, label: "6 秒" },
   { value: 8, label: "8 秒" },
 ];
+const FALLBACK_TEXT_ANALYSIS_MODELS: GenerationTextAnalysisModelInfo[] = [
+  { value: "gpt-5.4", label: "GPT-5.4", provider: "openai", family: "gpt", isDefault: true },
+  { value: "qwen3.6-plus", label: "Qwen 3.6 Plus", provider: "aliyun-bailian", family: "qwen" },
+];
 const FALLBACK_OPTIONS: GenerationOptionsResponse = {
-  versions: Array.from({ length: 10 }, (_, index) => index + 1),
-  defaultVersion: 1,
+  versions: [],
   stylePresets: [],
   imageSizes: [
     { value: "768x768", label: "768 × 768" },
     { value: "1024x1024", label: "1024 × 1024" },
     { value: "1365x768", label: "1365 × 768" },
   ],
+  textAnalysisModels: [...FALLBACK_TEXT_ANALYSIS_MODELS],
+  defaultTextAnalysisModel: "gpt-5.4",
   videoModels: [...FALLBACK_VIDEO_MODELS],
-  defaultVideoModel: "wan2.6-i2v",
+  defaultVideoModel: "wan2.6-t2v",
   videoSizes: [...FALLBACK_VIDEO_SIZES],
   videoDurations: [...FALLBACK_VIDEO_DURATIONS],
   defaultStylePreset: null,
@@ -270,9 +289,9 @@ const FALLBACK_OPTIONS: GenerationOptionsResponse = {
 function cloneFallbackOptions(): GenerationOptionsResponse {
   return {
     ...FALLBACK_OPTIONS,
-    versions: [...FALLBACK_OPTIONS.versions],
     stylePresets: [...FALLBACK_OPTIONS.stylePresets],
     imageSizes: [...FALLBACK_OPTIONS.imageSizes],
+    textAnalysisModels: [...(FALLBACK_OPTIONS.textAnalysisModels || [])],
     videoModels: [...FALLBACK_OPTIONS.videoModels],
     videoSizes: [...FALLBACK_OPTIONS.videoSizes],
     videoDurations: [...FALLBACK_OPTIONS.videoDurations],
@@ -284,11 +303,11 @@ function normalizeGenerationOptions(raw: GenerationOptionsResponse | null | unde
     return cloneFallbackOptions();
   }
   return {
-    versions: raw.versions?.length ? [...raw.versions] : [...FALLBACK_OPTIONS.versions],
-    versionDetails: raw.versionDetails?.length ? [...raw.versionDetails] : undefined,
-    defaultVersion: raw.defaultVersion ?? FALLBACK_OPTIONS.defaultVersion,
+    versions: raw.versions?.length ? [...raw.versions] : [],
     stylePresets: raw.stylePresets?.length ? [...raw.stylePresets] : [],
     imageSizes: raw.imageSizes?.length ? [...raw.imageSizes] : [...FALLBACK_OPTIONS.imageSizes],
+    textAnalysisModels: raw.textAnalysisModels?.length ? [...raw.textAnalysisModels] : [...(FALLBACK_OPTIONS.textAnalysisModels || [])],
+    defaultTextAnalysisModel: raw.defaultTextAnalysisModel ?? FALLBACK_OPTIONS.defaultTextAnalysisModel ?? null,
     videoModels: raw.videoModels?.length ? [...raw.videoModels] : [...FALLBACK_OPTIONS.videoModels],
     defaultVideoModel: raw.defaultVideoModel ?? FALLBACK_OPTIONS.defaultVideoModel,
     videoSizes: raw.videoSizes?.length ? [...raw.videoSizes] : [...FALLBACK_OPTIONS.videoSizes],
@@ -307,12 +326,16 @@ const optionsFromApi = ref(true);
 const submitting = ref(false);
 const submitError = ref("");
 const result = ref<GenerateMediaResponse | null>(null);
+const activeRun = ref<AgentRunDetail | null>(null);
+const textModelProbeRef = ref<{ ensureReady: (force?: boolean) => Promise<boolean> } | null>(null);
+
+let activeRunPollTimer: number | null = null;
 
 const form = reactive<{
   prompt: string;
   mediaKind: GenerationMediaKind;
-  version: number;
   stylePreset: string;
+  textAnalysisModel: string;
   providerModel: string;
   imageSize: string;
   videoSize: string;
@@ -320,8 +343,8 @@ const form = reactive<{
 }>({
   prompt: "",
   mediaKind: "image",
-  version: options.value.defaultVersion ?? options.value.versions[0] ?? 1,
   stylePreset: "",
+  textAnalysisModel: options.value.defaultTextAnalysisModel ?? options.value.textAnalysisModels?.[0]?.value ?? "gpt-5.4",
   providerModel: options.value.defaultVideoModel ?? options.value.videoModels[0]?.value ?? "",
   imageSize: options.value.defaultImageSize ?? options.value.imageSizes[0]?.value ?? "",
   videoSize: options.value.defaultVideoSize ?? options.value.videoSizes[0]?.value ?? "",
@@ -332,7 +355,15 @@ const availableStylePresets = computed(() =>
   options.value.stylePresets.filter((item) => !item.mediaKinds?.length || item.mediaKinds.includes(form.mediaKind))
 );
 
-const availableVideoModels = computed(() => options.value.videoModels.length ? options.value.videoModels : FALLBACK_VIDEO_MODELS);
+const availableTextAnalysisModels = computed(() =>
+  options.value.textAnalysisModels?.length ? options.value.textAnalysisModels : FALLBACK_TEXT_ANALYSIS_MODELS
+);
+
+const availableVideoModels = computed(() => {
+  const source = options.value.videoModels.length ? options.value.videoModels : FALLBACK_VIDEO_MODELS;
+  const filtered = source.filter((item) => item.generationMode !== "i2v");
+  return filtered.length ? filtered : source;
+});
 
 function filterByVideoModel<T extends { supportedModels?: string[] }>(items: T[], model: string): T[] {
   const canonicalModel = model.trim();
@@ -349,23 +380,8 @@ const availableVideoDurations = computed(() =>
   filterByVideoModel(options.value.videoDurations.length ? options.value.videoDurations : FALLBACK_VIDEO_DURATIONS, form.providerModel)
 );
 
-const versionOptions = computed(() =>
-  options.value.versions.map((version) => {
-    const detail = options.value.versionDetails?.find((item) => item.version === version);
-    if (!detail) {
-      return {
-        version,
-        label: `v${version}`,
-      };
-    }
-    return {
-      version,
-      label: `v${version} · ${detail.label}`,
-    };
-  })
-);
-
 const selectedStylePreset = computed(() => availableStylePresets.value.find((item) => item.key === form.stylePreset) ?? null);
+const selectedTextAnalysisModel = computed(() => availableTextAnalysisModels.value.find((item) => item.value === form.textAnalysisModel) ?? null);
 
 const isVideoResult = computed(() => {
   if (!result.value) {
@@ -378,31 +394,45 @@ const isVideoResult = computed(() => {
 });
 
 const selectedVideoModel = computed(() => availableVideoModels.value.find((item) => item.value === form.providerModel) ?? null);
-
-const versionRangeLabel = computed(() => {
-  const versions = options.value.versions;
-  if (!versions.length) {
-    return "v1-v10";
+const activeRunPending = computed(() => isAgentRunActive(activeRun.value));
+const activeRunStage = computed(() => {
+  if (!activeRun.value) {
+    return "正在提交生成请求";
   }
-  const min = versions[0];
-  const max = versions[versions.length - 1];
-  return min === max ? `v${min}` : `v${min}-v${max}`;
+  return activeRun.value.status === "queued" ? "任务排队中" : "任务执行中";
+});
+const activeRunMessage = computed(() => {
+  if (!activeRun.value) {
+    return "正在创建生成任务...";
+  }
+  return activeRun.value.summary || "正在请求模型并等待结果返回。";
 });
 
 const optionsSourceLabel = computed(() => (optionsFromApi.value ? "来自 API" : "API 不可用"));
 
 const canSubmit = computed(() => {
-  return Boolean(form.prompt.trim()) && !submitting.value && !optionsLoading.value && !optionsError.value && optionsFromApi.value;
+  return Boolean(form.prompt.trim()) && !submitting.value && !activeRunPending.value && !optionsLoading.value && !optionsError.value && optionsFromApi.value;
 });
 
-const submitButtonLabel = computed(() => (submitting.value ? "生成中..." : "开始生成"));
+const submitButtonLabel = computed(() => {
+  if (submitting.value) {
+    return "提交中...";
+  }
+  if (activeRunPending.value) {
+    return "生成进行中...";
+  }
+  return "开始生成";
+});
 
 const statusLabel = computed(() => {
   if (submitting.value) {
-    return "任务提交后正在等待结果返回。";
+    return "正在创建异步生成任务。";
+  }
+  if (activeRunPending.value) {
+    return activeRunMessage.value;
   }
   if (result.value) {
-    return `最近生成：${result.value.mediaKind === "image" ? "图片" : "视频"} · v${result.value.version}`;
+    return `最近生成：${result.value.mediaKind === "image" ? "图片" : "视频"}`;
   }
   return "填写参数后提交即可预览生成结果。";
 });
@@ -427,7 +457,6 @@ const metadataItems = computed(() => {
   }
   const entries: Array<{ label: string; value: string }> = [];
   entries.push({ label: "ID", value: result.value.id });
-  entries.push({ label: "策略版本", value: `v${result.value.version}` });
   entries.push({ label: "风格预设", value: result.value.stylePreset || "未指定" });
   entries.push({ label: "MIME", value: result.value.mimeType || "未知" });
   if (result.value.width && result.value.height) {
@@ -451,18 +480,13 @@ const modelInfoItems = computed(() => {
   if (info.provider) {
     entries.push({ label: "服务商", value: info.provider });
   }
+  if (info.textAnalysisModel) {
+    entries.push({ label: "文本分析模型", value: info.textAnalysisModel });
+  }
   if (info.providerModel || (result.value.mediaKind === "video" && info.modelName)) {
     entries.push({ label: "视频模型", value: info.providerModel || info.modelName || "未指定" });
   } else if (info.modelName) {
     entries.push({ label: "底层模型", value: info.modelName });
-  }
-  if (typeof info.strategyVersion === "number") {
-    entries.push({
-      label: "策略版本",
-      value: `v${info.strategyVersion}${info.strategyVersionLabel ? ` · ${info.strategyVersionLabel}` : ""}`,
-    });
-  } else if (info.strategyVersionLabel) {
-    entries.push({ label: "策略版本", value: info.strategyVersionLabel });
   }
   if (info.endpointHost) {
     entries.push({ label: "模型网关", value: info.endpointHost });
@@ -524,16 +548,76 @@ const metadataJson = computed(() => {
   return JSON.stringify(result.value.metadata, null, 2);
 });
 
-function syncVersion() {
-  const available = options.value.versions;
-  if (!available.length) {
-    form.version = 1;
+function persistActiveRunId(runId: string) {
+  try {
+    window.localStorage.setItem(ACTIVE_RUN_STORAGE_KEY, runId);
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function clearPersistedActiveRunId() {
+  try {
+    window.localStorage.removeItem(ACTIVE_RUN_STORAGE_KEY);
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function stopActiveRunPolling() {
+  if (activeRunPollTimer !== null) {
+    window.clearInterval(activeRunPollTimer);
+    activeRunPollTimer = null;
+  }
+}
+
+function syncActiveRun(run: AgentRunDetail) {
+  activeRun.value = run;
+  if (run.status === "failed") {
+    submitError.value = run.summary || "生成失败";
+    clearPersistedActiveRunId();
+    stopActiveRunPolling();
     return;
   }
-  if (!available.includes(form.version)) {
-    form.version = options.value.defaultVersion && available.includes(options.value.defaultVersion)
-      ? options.value.defaultVersion
-      : available[0];
+  if (run.status === "completed") {
+    const nextResult = mediaResultFromAgentRun(run);
+    result.value = nextResult;
+    if (!nextResult) {
+      submitError.value = "任务已完成，但未找到可预览的输出文件。";
+    }
+    clearPersistedActiveRunId();
+    stopActiveRunPolling();
+    return;
+  }
+  persistActiveRunId(run.id);
+}
+
+async function refreshActiveRun(runId: string) {
+  try {
+    const run = await fetchAgentRun(runId);
+    syncActiveRun(run);
+  } catch (error) {
+    submitError.value = error instanceof Error ? error.message : "同步任务状态失败";
+  }
+}
+
+function startActiveRunPolling(runId: string) {
+  stopActiveRunPolling();
+  void refreshActiveRun(runId);
+  activeRunPollTimer = window.setInterval(() => {
+    void refreshActiveRun(runId);
+  }, 2000);
+}
+
+function restoreActiveRun() {
+  try {
+    const runId = window.localStorage.getItem(ACTIVE_RUN_STORAGE_KEY)?.trim() || "";
+    if (!runId) {
+      return;
+    }
+    startActiveRunPolling(runId);
+  } catch {
+    // Ignore restore failures.
   }
 }
 
@@ -544,6 +628,18 @@ function syncStylePreset() {
   }
   if (!form.stylePreset && options.value.defaultStylePreset && keys.includes(options.value.defaultStylePreset)) {
     form.stylePreset = options.value.defaultStylePreset;
+  }
+}
+
+function syncTextAnalysisModel() {
+  const modelValues = availableTextAnalysisModels.value.map((item) => item.value);
+  if (!modelValues.includes(form.textAnalysisModel)) {
+    form.textAnalysisModel =
+      (options.value.defaultTextAnalysisModel && modelValues.includes(options.value.defaultTextAnalysisModel)
+        ? options.value.defaultTextAnalysisModel
+        : "") ||
+      modelValues[0] ||
+      "gpt-5.4";
   }
 }
 
@@ -589,8 +685,8 @@ function syncMediaOptions() {
 }
 
 function syncFormWithOptions() {
-  syncVersion();
   syncStylePreset();
+  syncTextAnalysisModel();
   syncMediaOptions();
 }
 
@@ -622,13 +718,23 @@ async function handleSubmit() {
     return;
   }
   submitError.value = "";
-  submitting.value = true;
+  result.value = null;
+  activeRun.value = null;
+  clearPersistedActiveRunId();
+  stopActiveRunPolling();
   try {
+    const modelReady = await textModelProbeRef.value?.ensureReady();
+    if (modelReady === false) {
+      submitError.value = "所选文本模型测试未通过，请先检查配置或切换模型。";
+      return;
+    }
+    submitting.value = true;
     const payload: GenerateMediaRequest = {
       prompt: form.prompt.trim(),
       mediaKind: form.mediaKind,
-      version: form.version,
+      version: 1,
       stylePreset: form.stylePreset || null,
+      textAnalysisModel: form.textAnalysisModel || null,
     };
     if (form.mediaKind === "image") {
       payload.imageSize = form.imageSize;
@@ -637,7 +743,20 @@ async function handleSubmit() {
       payload.videoSize = form.videoSize;
       payload.videoDurationSeconds = form.videoDurationSeconds;
     }
-    result.value = await generateMediaFromText(payload);
+    const run = await runVisualAgent("visual-lab", {
+      prompt: payload.prompt,
+      mediaKind: payload.mediaKind,
+      stylePreset: payload.stylePreset || "",
+      textAnalysisModel: payload.textAnalysisModel || undefined,
+      providerModel: payload.providerModel || "",
+      imageSize: payload.imageSize || "",
+      videoSize: payload.videoSize || "",
+      videoDurationSeconds: payload.videoDurationSeconds || 0,
+    });
+    syncActiveRun(run);
+    if (isAgentRunActive(run)) {
+      startActiveRunPolling(run.id);
+    }
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : "提交生成失败";
   } finally {
@@ -647,6 +766,11 @@ async function handleSubmit() {
 
 onMounted(async () => {
   await loadGenerationOptions();
+  restoreActiveRun();
+});
+
+onUnmounted(() => {
+  stopActiveRunPolling();
 });
 </script>
 

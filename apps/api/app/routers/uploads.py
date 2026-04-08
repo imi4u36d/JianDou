@@ -15,3 +15,12 @@ def upload_video(request: Request, file: UploadFile = File(...)) -> UploadRespon
     runtime = request.app.state.runtime
     payload = runtime.service.upload_video(file.file, file.filename, file.content_type)
     return payload
+
+
+@router.post("/uploads/texts", response_model=UploadResponse)
+def upload_text(request: Request, file: UploadFile = File(...)) -> UploadResponse:
+    if file.filename is None:
+        raise HTTPException(status_code=400, detail="file is required")
+    runtime = request.app.state.runtime
+    payload = runtime.service.upload_text(file.file, file.filename, file.content_type)
+    return payload

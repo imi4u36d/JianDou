@@ -1,9 +1,12 @@
 {
   "compilerOptions": {
+    // 允许主 tsconfig 通过 references 引用当前配置。
     "composite": true,
+    // 为 Vite 的 Node 侧工具保留 ES Module。
     "module": "ESNext",
+    // 配置文件按 Node 规则解析模块。
     "moduleResolution": "Node"
   },
+  // 仅作用于构建期的 Node 侧入口文件。
   "include": ["vite.config.ts"]
 }
-

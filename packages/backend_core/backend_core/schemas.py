@@ -147,8 +147,25 @@ class GenerateCreativePromptResponse(BaseModel):
 
 
 class GenerateTextScriptRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=50000)
+    text: str = Field(min_length=1, max_length=1_000_000)
     visualStyle: str | None = Field(default=None, max_length=120)
+    textAnalysisModel: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_aliases(cls, data):
+        if not isinstance(data, dict):
+            return data
+        payload = dict(data)
+        if "textAnalysisModel" not in payload:
+            payload["textAnalysisModel"] = (
+                payload.get("text_model")
+                or payload.get("textModel")
+                or payload.get("analysisModel")
+                or payload.get("model")
+                or payload.get("modelName")
+            )
+        return payload
 
     @field_validator("text", mode="after")
     @classmethod
@@ -161,6 +178,14 @@ class GenerateTextScriptRequest(BaseModel):
     @field_validator("visualStyle", mode="after")
     @classmethod
     def _normalize_visual_style(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("textAnalysisModel", mode="after")
+    @classmethod
+    def _normalize_text_analysis_model(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()
@@ -181,6 +206,49 @@ class GenerateTextScriptResponse(BaseModel):
     modelInfo: dict[str, object] = Field(default_factory=dict)
     callChain: list[dict[str, object]] = Field(default_factory=list)
     metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class ProbeTextAnalysisModelRequest(BaseModel):
+    textAnalysisModel: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_aliases(cls, data):
+        if isinstance(data, str):
+            return {"textAnalysisModel": data}
+        if not isinstance(data, dict):
+            return data
+        payload = dict(data)
+        if "textAnalysisModel" not in payload:
+            payload["textAnalysisModel"] = (
+                payload.get("text_model")
+                or payload.get("textModel")
+                or payload.get("analysisModel")
+                or payload.get("model")
+                or payload.get("modelName")
+            )
+        return payload
+
+    @field_validator("textAnalysisModel", mode="after")
+    @classmethod
+    def _normalize_text_analysis_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class ProbeTextAnalysisModelResponse(BaseModel):
+    ready: bool = True
+    requestedModel: str
+    resolvedModel: str
+    provider: str
+    family: str | None = None
+    mode: str
+    endpointHost: str
+    latencyMs: int = Field(ge=0)
+    messagePreview: str | None = None
+    checkedAt: str
 
 
 class AgentRunStatus(str, Enum):
@@ -311,10 +379,12 @@ class ShortDramaAgentRunRequest(CreateTaskRequest):
 class TextMediaAgentRunRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=5000)
     mediaKind: Literal["image", "video"] = "image"
-    version: int = Field(ge=1, le=10)
     providerModel: str | None = Field(default=None, max_length=120)
+    textAnalysisModel: str | None = Field(default=None, max_length=120)
     aspectRatio: str = "9:16"
     durationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
+    minDurationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
+    maxDurationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
     visualStyle: str | None = None
     stylePreset: str | None = None
     width: int | None = Field(default=None, ge=256, le=4096)
@@ -344,12 +414,32 @@ class TextMediaAgentRunRequest(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+    @field_validator("textAnalysisModel", mode="after")
+    @classmethod
+    def _normalize_text_analysis_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @model_validator(mode="after")
     def _normalize_constraints(self) -> "TextMediaAgentRunRequest":
-        if self.mediaKind == "image" and self.durationSeconds is not None:
-            raise ValueError("durationSeconds is only allowed for video generation")
-        if self.mediaKind == "video" and self.durationSeconds is None:
-            self.durationSeconds = 4.0
+        if self.mediaKind == "image" and any(
+            value is not None for value in (self.durationSeconds, self.minDurationSeconds, self.maxDurationSeconds)
+        ):
+            raise ValueError("duration constraints are only allowed for video generation")
+        if self.mediaKind == "video" and self.durationSeconds is not None:
+            if self.minDurationSeconds is None:
+                self.minDurationSeconds = self.durationSeconds
+            if self.maxDurationSeconds is None:
+                self.maxDurationSeconds = self.durationSeconds
+        if (
+            self.mediaKind == "video"
+            and self.minDurationSeconds is not None
+            and self.maxDurationSeconds is not None
+            and self.minDurationSeconds > self.maxDurationSeconds
+        ):
+            raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
         if self.width is None or self.height is None:
             self.width = 1080 if self.aspectRatio == "9:16" else 1920
             self.height = 1920 if self.aspectRatio == "9:16" else 1080
@@ -357,8 +447,9 @@ class TextMediaAgentRunRequest(BaseModel):
 
 
 class TextScriptAgentRunRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=50000)
+    text: str = Field(min_length=1, max_length=1_000_000)
     visualStyle: str | None = None
+    textAnalysisModel: str | None = Field(default=None, max_length=120)
 
     @field_validator("text", mode="after")
     @classmethod
@@ -376,12 +467,25 @@ class TextScriptAgentRunRequest(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+    @field_validator("textAnalysisModel", mode="after")
+    @classmethod
+    def _normalize_text_analysis_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
 
 class AIDramaAgentRunRequest(BaseModel):
     title: str = Field(default="一键 AI 剧", max_length=255)
-    text: str = Field(min_length=1, max_length=50000)
+    text: str | None = Field(default=None, max_length=50000)
+    textAssetId: str | None = Field(default=None, max_length=64)
+    textFileName: str | None = Field(default=None, max_length=512)
     visualStyle: str | None = None
+    textAnalysisModel: str | None = Field(default=None, max_length=120)
     aspectRatio: Literal["9:16", "16:9"] = "9:16"
+    providerModel: str | None = Field(default=None, max_length=120)
+    videoSize: str | None = Field(default=None, max_length=32)
     totalDurationSeconds: float | None = Field(default=None, ge=6.0, le=90.0)
     shotCount: int | None = Field(default=None, ge=1, le=12)
     shotDurationSeconds: float | None = Field(default=None, ge=1.0, le=8.0)
@@ -392,6 +496,7 @@ class AIDramaAgentRunRequest(BaseModel):
     includeKeyframes: bool = True
     includeDubPlan: bool = True
     includeLipsyncPlan: bool = True
+    stopBeforeVideoGeneration: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -401,6 +506,8 @@ class AIDramaAgentRunRequest(BaseModel):
         payload = dict(data)
         if "includeKeyframes" not in payload and "generateStoryboardImages" in payload:
             payload["includeKeyframes"] = payload.get("generateStoryboardImages")
+        if "stopBeforeVideoGeneration" not in payload and "stopBeforeVideoModel" in payload:
+            payload["stopBeforeVideoGeneration"] = payload.get("stopBeforeVideoModel")
         return payload
 
     @field_validator("title", mode="after")
@@ -411,11 +518,19 @@ class AIDramaAgentRunRequest(BaseModel):
 
     @field_validator("text", mode="after")
     @classmethod
-    def _validate_text(cls, value: str) -> str:
+    def _validate_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
-        if not normalized:
-            raise ValueError("text must be non-empty")
-        return normalized
+        return normalized or None
+
+    @field_validator("textAssetId", "textFileName", mode="after")
+    @classmethod
+    def _normalize_text_source_value(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
     @field_validator("visualStyle", mode="after")
     @classmethod
@@ -425,6 +540,36 @@ class AIDramaAgentRunRequest(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+    @field_validator("textAnalysisModel", mode="after")
+    @classmethod
+    def _normalize_text_analysis_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("providerModel", mode="after")
+    @classmethod
+    def _normalize_provider_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("videoSize", mode="after")
+    @classmethod
+    def _normalize_video_size(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower().replace("*", "x")
+        return normalized or None
+
+    @model_validator(mode="after")
+    def _validate_text_source(self) -> "AIDramaAgentRunRequest":
+        if not self.text and not self.textAssetId:
+            raise ValueError("text or textAssetId must be provided")
+        return self
+
 
 class TextMediaKind(str, Enum):
     IMAGE = "image"
@@ -433,14 +578,16 @@ class TextMediaKind(str, Enum):
 
 class GenerateTextMediaRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=5000)
-    version: int = Field(ge=1, le=10)
     kind: TextMediaKind
     providerModel: str | None = Field(default=None, max_length=120)
+    textAnalysisModel: str | None = Field(default=None, max_length=120)
     videoModel: str | None = Field(default=None, max_length=120)
     videoSize: str | None = Field(default=None, max_length=32)
     width: int = Field(default=1024, ge=256, le=4096)
     height: int = Field(default=1024, ge=256, le=4096)
     durationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
+    minDurationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
+    maxDurationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
     stylePreset: str | None = Field(default=None, max_length=120)
     extras: dict[str, Any] = Field(default_factory=dict)
 
@@ -460,7 +607,7 @@ class GenerateTextMediaRequest(BaseModel):
         normalized = value.strip()
         return normalized or None
 
-    @field_validator("providerModel", "videoModel", mode="after")
+    @field_validator("providerModel", "textAnalysisModel", "videoModel", mode="after")
     @classmethod
     def _normalize_model_name(cls, value: str | None) -> str | None:
         if value is None:
@@ -481,10 +628,22 @@ class GenerateTextMediaRequest(BaseModel):
         pixels = self.width * self.height
         if pixels > 8_294_400:
             raise ValueError("output dimensions are too large")
-        if self.kind == TextMediaKind.IMAGE and self.durationSeconds is not None:
-            raise ValueError("durationSeconds is only allowed for video generation")
-        if self.kind == TextMediaKind.VIDEO and self.durationSeconds is None:
-            raise ValueError("durationSeconds is required for video generation")
+        if self.kind == TextMediaKind.IMAGE and any(
+            value is not None for value in (self.durationSeconds, self.minDurationSeconds, self.maxDurationSeconds)
+        ):
+            raise ValueError("duration constraints are only allowed for video generation")
+        if self.kind == TextMediaKind.VIDEO and self.durationSeconds is not None:
+            if self.minDurationSeconds is None:
+                self.minDurationSeconds = self.durationSeconds
+            if self.maxDurationSeconds is None:
+                self.maxDurationSeconds = self.durationSeconds
+        if (
+            self.kind == TextMediaKind.VIDEO
+            and self.minDurationSeconds is not None
+            and self.maxDurationSeconds is not None
+            and self.minDurationSeconds > self.maxDurationSeconds
+        ):
+            raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
         return self
 
 
@@ -493,7 +652,6 @@ class GenerateTextMediaResponse(BaseModel):
 
     id: str | None = None
     kind: TextMediaKind | None = None
-    version: int | None = Field(default=None, ge=1, le=10)
     prompt: str | None = None
     outputUrl: str | None = None
     durationSeconds: float | None = None
@@ -535,6 +693,16 @@ class GenerationVideoModelOption(BaseModel):
     supportsShotType: bool = False
 
 
+class GenerationTextAnalysisModelInfo(BaseModel):
+    value: str
+    label: str
+    description: str | None = None
+    isDefault: bool = False
+    provider: str | None = None
+    family: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+
+
 class GenerationOptionsResponse(BaseModel):
     versions: list[int] = Field(default_factory=list)
     versionDetails: list[GenerationVersionInfo] = Field(default_factory=list)
@@ -542,6 +710,8 @@ class GenerationOptionsResponse(BaseModel):
     stylePresets: list[GenerationStylePresetOption] = Field(default_factory=list)
     imageSizes: list[GenerationImageSizeOption] = Field(default_factory=list)
     videoDurations: list[GenerationVideoDurationOption] = Field(default_factory=list)
+    textAnalysisModels: list[GenerationTextAnalysisModelInfo] = Field(default_factory=list)
+    defaultTextAnalysisModel: str | None = None
     defaultStylePreset: str | None = None
     defaultImageSize: str | None = None
     defaultVideoDurationSeconds: int | None = Field(default=None, ge=1, le=120)
@@ -595,17 +765,40 @@ class GenerationVideoDurationOption(BaseModel):
 class GenerationOptionsResponse(BaseModel):
     versions: list[int] = Field(default_factory=list)
     versionDetails: list[GenerationVersionInfo] = Field(default_factory=list)
+    defaultVersion: int | None = Field(default=None, ge=1, le=10)
     stylePresets: list[GenerationStylePresetOption] = Field(default_factory=list)
     imageSizes: list[GenerationImageSizeOption] = Field(default_factory=list)
+    textAnalysisModels: list[GenerationTextAnalysisModelInfo] = Field(default_factory=list)
+    defaultTextAnalysisModel: str | None = None
     videoModels: list[GenerationVideoModelInfo] = Field(default_factory=list)
     defaultVideoModel: str | None = None
     videoSizes: list[GenerationVideoSizeOption] = Field(default_factory=list)
     videoDurations: list[GenerationVideoDurationOption] = Field(default_factory=list)
-    defaultVersion: int | None = Field(default=None, ge=1, le=10)
     defaultStylePreset: str | None = None
     defaultImageSize: str | None = None
     defaultVideoSize: str | None = None
     defaultVideoDurationSeconds: int | None = Field(default=None, ge=1, le=120)
+
+
+class VideoModelUsageItem(BaseModel):
+    model: str
+    label: str
+    provider: str
+    used: float = 0.0
+    unit: str | None = None
+    remaining: float | None = None
+    remainingUnit: str | None = None
+    remainingLabel: str | None = None
+    quota: float | None = None
+    usedDurationSeconds: float = 0.0
+    source: str | None = None
+    note: str | None = None
+    updatedAt: str | None = None
+
+
+class VideoModelUsageResponse(BaseModel):
+    generatedAt: str
+    items: list[VideoModelUsageItem] = Field(default_factory=list)
 
 
 class SourceAssetSummary(BaseModel):
@@ -622,6 +815,21 @@ class SourceAssetSummary(BaseModel):
     hasAudio: bool
     createdAt: str
     updatedAt: str
+
+
+class TaskMaterial(BaseModel):
+    id: str
+    kind: Literal["source", "output"]
+    mediaType: Literal["video", "image", "text"] = "video"
+    title: str
+    fileUrl: str
+    previewUrl: str | None = None
+    mimeType: str | None = None
+    durationSeconds: float | None = None
+    width: int | None = None
+    height: int | None = None
+    sizeBytes: int | None = None
+    createdAt: str | None = None
 
 
 class TaskOutput(BaseModel):
@@ -644,6 +852,14 @@ class TaskTraceEvent(BaseModel):
     stage: str
     event: str
     message: str
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
+class SeeddanceTaskQueryResponse(BaseModel):
+    taskId: str
+    status: str
+    videoUrl: str | None = None
+    message: str | None = None
     payload: dict[str, object] = Field(default_factory=dict)
 
 
@@ -679,6 +895,7 @@ class AdminOverview(BaseModel):
     counts: AdminOverviewCounts
     modelReady: bool
     primaryModel: str
+    textModel: str | None = None
     visionModel: str | None = None
     recentTasks: list["TaskListItem"] = Field(default_factory=list)
     recentFailures: list["TaskListItem"] = Field(default_factory=list)
@@ -793,6 +1010,8 @@ class TaskDetail(TaskListItem):
     transcriptCueCount: int = 0
     source: SourceAssetSummary | None = None
     sourceAssets: list[SourceAssetSummary] = Field(default_factory=list)
+    storyboardScript: str | None = None
+    materials: list[TaskMaterial] = Field(default_factory=list)
     plan: list[ClipPlan] = Field(default_factory=list)
     outputs: list[TaskOutput] = Field(default_factory=list)
 

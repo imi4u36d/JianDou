@@ -7,6 +7,7 @@
     >
       <div class="flex flex-wrap items-center gap-2">
         <span class="surface-chip">固定系统提示词</span>
+        <span class="surface-chip">文本模型 {{ activeTextAnalysisModelLabel }}</span>
         <span class="surface-chip">{{ result?.visualStyle || defaultVisualStyle }}</span>
       </div>
     </PageHeader>
@@ -15,6 +16,9 @@
       <form class="surface-panel surface-panel-warm grid gap-5 p-6" @submit.prevent="handleSubmit">
         <div class="surface-tile p-4 text-sm text-slate-600">
           输出会强制包含角色档案和 Markdown 分镜表格；不指定风格时由 AI 自动判断最合适的视觉方向。
+        </div>
+        <div v-if="optionsError" class="surface-tile border border-amber-200 bg-amber-50/85 p-4 text-sm text-amber-800">
+          {{ optionsError }}
         </div>
 
         <label class="grid gap-2 text-sm text-slate-700">
@@ -25,6 +29,21 @@
             class="field-textarea"
             placeholder="例如：少女在暴雨夜闯进旧车站，发现失踪多年的哥哥留下的录音机，录音里正在播放她十分钟后的求救声。"
           ></textarea>
+        </label>
+
+        <label class="grid gap-2 text-sm text-slate-700">
+          文本分析模型
+          <select v-model="textAnalysisModel" class="field-select" :disabled="optionsLoading">
+            <option v-for="model in textAnalysisModels" :key="model.value" :value="model.value">
+              {{ model.label }}{{ model.description ? ` · ${model.description}` : "" }}
+            </option>
+          </select>
+          <TextModelProbeInline
+            ref="textModelProbeRef"
+            :model-value="textAnalysisModel"
+            :disabled="optionsLoading || submitting"
+          />
+          <p class="text-xs text-slate-500">用于解析人物、对话、语境和剧情结构。默认 {{ defaultTextAnalysisModelLabel }}。</p>
         </label>
 
         <label class="grid gap-2 text-sm text-slate-700">
@@ -63,8 +82,10 @@
             <span v-if="result" class="surface-chip text-xs">{{ result.visualStyle }}</span>
           </div>
 
-          <div v-if="submitting" class="surface-tile mt-4 p-8 text-center text-sm text-slate-600">
-            正在生成脚本，请稍候...
+          <div v-if="submitting || activeRunPending" class="surface-tile mt-4 grid gap-2 p-8 text-center text-sm text-slate-600">
+            <p class="text-base font-semibold text-slate-800">{{ activeRunStage }}</p>
+            <p>{{ activeRunMessage }}</p>
+            <p v-if="activeRun" class="text-xs text-slate-500">运行 ID：{{ activeRun.id }} · {{ activeRun.progress }}%</p>
           </div>
 
           <div v-else-if="result" class="mt-4 grid gap-4">
@@ -112,25 +133,174 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { generateScriptFromText } from "@/api/script";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { fetchAgentRun, runScriptAgent } from "@/api/agents";
+import { fetchGenerationOptions } from "@/api/generation";
 import PageHeader from "@/components/PageHeader.vue";
+import TextModelProbeInline from "@/components/TextModelProbeInline.vue";
 import { getRuntimeConfig } from "@/api/runtime-config";
-import type { GenerateScriptRequest, GenerateScriptResponse } from "@/types";
+import type { AgentRunDetail, GenerateScriptRequest, GenerateScriptResponse, GenerationTextAnalysisModelInfo } from "@/types";
+import { isAgentRunActive, scriptResultFromAgentRun } from "@/utils/agent-run";
 import { downloadTextFile, renderMarkdownToHtml } from "@/utils/markdown";
 import { resolveRuntimeUrl } from "@/utils/url";
 
 const defaultVisualStyle = "AI 自动决策";
+const ACTIVE_RUN_STORAGE_KEY = "ai-cut:text-script:active-run-id";
+const FALLBACK_TEXT_ANALYSIS_MODELS: GenerationTextAnalysisModelInfo[] = [
+  {
+    value: "gpt-5.4",
+    label: "GPT-5.4",
+    description: "OpenAI ChatGPT key 模式",
+    provider: "openai",
+    family: "gpt",
+    isDefault: true,
+  },
+  {
+    value: "qwen3.6-plus",
+    label: "Qwen 3.6 Plus",
+    description: "阿里云百炼兼容模式",
+    provider: "qwen",
+    family: "qwen",
+  },
+];
+const DEFAULT_TEXT_ANALYSIS_MODEL =
+  FALLBACK_TEXT_ANALYSIS_MODELS.find((item) => item.isDefault)?.value || FALLBACK_TEXT_ANALYSIS_MODELS[0]?.value || "gpt-5.4";
 
 const sourceText = ref("");
 const visualStyle = ref("");
+const textAnalysisModels = ref<GenerationTextAnalysisModelInfo[]>([...FALLBACK_TEXT_ANALYSIS_MODELS]);
+const textAnalysisModel = ref(DEFAULT_TEXT_ANALYSIS_MODEL);
+const optionsLoading = ref(false);
+const optionsError = ref("");
 const submitting = ref(false);
 const submitError = ref("");
 const copyState = ref<"idle" | "done" | "error">("idle");
 const result = ref<GenerateScriptResponse | null>(null);
+const activeRun = ref<AgentRunDetail | null>(null);
+const textModelProbeRef = ref<{ ensureReady: (force?: boolean) => Promise<boolean> } | null>(null);
 
-const canSubmit = computed(() => Boolean(sourceText.value.trim()) && !submitting.value);
-const submitButtonLabel = computed(() => (submitting.value ? "生成中..." : "开始生成脚本"));
+let activeRunPollTimer: number | null = null;
+
+function parseString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeTextModelValue(value: string | null | undefined): string {
+  return parseString(value).toLowerCase();
+}
+
+function resolveTextAnalysisModelLabel(value: string): string {
+  const normalizedValue = normalizeTextModelValue(value);
+  if (!normalizedValue) {
+    return "";
+  }
+  const found = textAnalysisModels.value.find((item) => normalizeTextModelValue(item.value) === normalizedValue);
+  return found?.label || value;
+}
+
+function extractRequestedModelName(response: GenerateScriptResponse | null): string {
+  if (!response?.modelInfo) {
+    return "";
+  }
+  const info = response.modelInfo as Record<string, unknown>;
+  return parseString(
+    info.requestedModel ??
+      info.selectedModel ??
+      info.textAnalysisModel ??
+      response.metadata?.textAnalysisModel ??
+      response.metadata?.requestedTextAnalysisModel
+  );
+}
+
+function extractResolvedModelName(response: GenerateScriptResponse | null): string {
+  if (!response?.modelInfo) {
+    const source = parseString(response?.source);
+    return source.startsWith("remote:") ? parseString(source.slice("remote:".length)) : "";
+  }
+  const info = response.modelInfo as Record<string, unknown>;
+  const source = parseString(response.source);
+  const sourceModel = source.startsWith("remote:") ? parseString(source.slice("remote:".length)) : "";
+  return parseString(info.resolvedModel ?? info.modelName ?? info.providerModel ?? sourceModel);
+}
+
+function pickDefaultTextAnalysisModel(models: GenerationTextAnalysisModelInfo[], preferredValue?: string | null): string {
+  const normalizedPreferred = normalizeTextModelValue(preferredValue);
+  if (normalizedPreferred) {
+    const preferred = models.find((item) => normalizeTextModelValue(item.value) === normalizedPreferred);
+    if (preferred) {
+      return preferred.value;
+    }
+  }
+  const defaultModel = models.find((item) => item.isDefault);
+  if (defaultModel) {
+    return defaultModel.value;
+  }
+  return models[0]?.value || DEFAULT_TEXT_ANALYSIS_MODEL;
+}
+
+async function loadTextAnalysisModels() {
+  optionsLoading.value = true;
+  optionsError.value = "";
+  try {
+    const options = await fetchGenerationOptions();
+    const apiModels = (options.textAnalysisModels || []).filter((item) => Boolean(parseString(item.value)));
+    const nextModels = apiModels.length ? apiModels : [...FALLBACK_TEXT_ANALYSIS_MODELS];
+    textAnalysisModels.value = nextModels;
+    textAnalysisModel.value = pickDefaultTextAnalysisModel(
+      nextModels,
+      options.defaultTextAnalysisModel || textAnalysisModel.value
+    );
+    if (!apiModels.length) {
+      optionsError.value = "生成配置未返回文本分析模型，已自动使用默认模型列表。";
+    }
+  } catch (error) {
+    optionsError.value = error instanceof Error ? `模型配置加载失败：${error.message}` : "模型配置加载失败，已使用默认模型列表。";
+    textAnalysisModels.value = [...FALLBACK_TEXT_ANALYSIS_MODELS];
+    textAnalysisModel.value = pickDefaultTextAnalysisModel(textAnalysisModels.value, textAnalysisModel.value);
+  } finally {
+    optionsLoading.value = false;
+  }
+}
+
+const selectedTextAnalysisModel = computed(() =>
+  textAnalysisModels.value.find((item) => normalizeTextModelValue(item.value) === normalizeTextModelValue(textAnalysisModel.value)) || null
+);
+const selectedTextAnalysisModelLabel = computed(
+  () => selectedTextAnalysisModel.value?.label || resolveTextAnalysisModelLabel(textAnalysisModel.value) || textAnalysisModel.value
+);
+const defaultTextAnalysisModelLabel = computed(() => {
+  const modelValue = pickDefaultTextAnalysisModel(textAnalysisModels.value);
+  return resolveTextAnalysisModelLabel(modelValue) || modelValue;
+});
+const activeTextAnalysisModelLabel = computed(() => {
+  const resolved = extractResolvedModelName(result.value);
+  return resolveTextAnalysisModelLabel(resolved || textAnalysisModel.value) || (resolved || textAnalysisModel.value || "未选择");
+});
+
+const activeRunPending = computed(() => isAgentRunActive(activeRun.value));
+const activeRunStage = computed(() => {
+  if (!activeRun.value) {
+    return "正在提交脚本任务";
+  }
+  return activeRun.value.status === "queued" ? "任务排队中" : "任务执行中";
+});
+const activeRunMessage = computed(() => {
+  if (!activeRun.value) {
+    return "正在创建异步脚本任务...";
+  }
+  return activeRun.value.summary || "正在生成角色档案和 Markdown 分镜表。";
+});
+
+const canSubmit = computed(() => Boolean(sourceText.value.trim()) && !submitting.value && !activeRunPending.value);
+const submitButtonLabel = computed(() => {
+  if (submitting.value) {
+    return "提交中...";
+  }
+  if (activeRunPending.value) {
+    return "生成进行中...";
+  }
+  return "开始生成脚本";
+});
 const copyButtonLabel = computed(() => {
   if (copyState.value === "done") {
     return "已复制";
@@ -142,20 +312,26 @@ const copyButtonLabel = computed(() => {
 });
 const statusLabel = computed(() => {
   if (submitting.value) {
-    return "系统提示词已固定，下游正在生成角色档案和分镜表。";
+    return "正在创建异步脚本任务。";
+  }
+  if (activeRunPending.value) {
+    return activeRunMessage.value;
   }
   if (result.value) {
-    return `最近一次生成风格：${result.value.visualStyle}`;
+    return `最近一次生成风格：${result.value.visualStyle} · 文本模型：${activeTextAnalysisModelLabel.value}`;
   }
-  return "支持把故事片段直接转成可继续投喂图像或视频生产链路的脚本。";
+  return `支持把故事片段直接转成可继续投喂图像或视频生产链路的脚本。当前文本模型：${selectedTextAnalysisModelLabel.value}`;
 });
 
 const summaryItems = computed(() => {
   if (!result.value) {
     return [];
   }
+  const resolvedModelName = extractResolvedModelName(result.value);
+  const requestedModelName = extractRequestedModelName(result.value) || textAnalysisModel.value;
   return [
     { label: "ID", value: result.value.id },
+    { label: "文本模型", value: resolveTextAnalysisModelLabel(resolvedModelName || requestedModelName) || requestedModelName || "未指定" },
     { label: "视觉风格", value: result.value.visualStyle },
     { label: "来源模型", value: result.value.source },
     { label: "生成时间", value: new Date(result.value.createdAt).toLocaleString() },
@@ -167,12 +343,27 @@ const modelInfoItems = computed(() => {
   if (!info) {
     return [];
   }
+  const infoRecord = info as Record<string, unknown>;
+  const requestedModel = parseString(
+    infoRecord.requestedModel ?? infoRecord.selectedModel ?? infoRecord.textAnalysisModel
+  );
+  const resolvedModel = parseString(
+    infoRecord.resolvedModel ?? infoRecord.modelName ?? infoRecord.providerModel
+  );
   const entries: Array<{ label: string; value: string }> = [];
   if (info.provider) {
     entries.push({ label: "服务商", value: info.provider });
   }
-  if (info.modelName) {
-    entries.push({ label: "底层模型", value: info.modelName });
+  if (requestedModel) {
+    entries.push({ label: "请求模型", value: resolveTextAnalysisModelLabel(requestedModel) || requestedModel });
+  }
+  if (resolvedModel) {
+    const requestedNormalized = normalizeTextModelValue(requestedModel);
+    const resolvedNormalized = normalizeTextModelValue(resolvedModel);
+    entries.push({
+      label: requestedNormalized && requestedNormalized !== resolvedNormalized ? "实际模型" : "底层模型",
+      value: resolveTextAnalysisModelLabel(resolvedModel) || resolvedModel,
+    });
   }
   if (info.endpointHost) {
     entries.push({ label: "模型网关", value: info.endpointHost });
@@ -191,19 +382,110 @@ const modelInfoItems = computed(() => {
 
 const renderedMarkdown = computed(() => renderMarkdownToHtml(result.value?.scriptMarkdown || ""));
 
+function persistActiveRunId(runId: string) {
+  try {
+    window.localStorage.setItem(ACTIVE_RUN_STORAGE_KEY, runId);
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function clearPersistedActiveRunId() {
+  try {
+    window.localStorage.removeItem(ACTIVE_RUN_STORAGE_KEY);
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function stopActiveRunPolling() {
+  if (activeRunPollTimer !== null) {
+    window.clearInterval(activeRunPollTimer);
+    activeRunPollTimer = null;
+  }
+}
+
+function syncActiveRun(run: AgentRunDetail) {
+  activeRun.value = run;
+  if (run.status === "failed") {
+    submitError.value = run.summary || "脚本生成失败";
+    clearPersistedActiveRunId();
+    stopActiveRunPolling();
+    return;
+  }
+  if (run.status === "completed") {
+    const nextResult = scriptResultFromAgentRun(run);
+    result.value = nextResult;
+    if (!nextResult) {
+      submitError.value = "任务已完成，但未返回 Markdown 脚本。";
+    }
+    clearPersistedActiveRunId();
+    stopActiveRunPolling();
+    return;
+  }
+  persistActiveRunId(run.id);
+}
+
+async function refreshActiveRun(runId: string) {
+  try {
+    const run = await fetchAgentRun(runId);
+    syncActiveRun(run);
+  } catch (error) {
+    submitError.value = error instanceof Error ? error.message : "同步脚本任务状态失败";
+  }
+}
+
+function startActiveRunPolling(runId: string) {
+  stopActiveRunPolling();
+  void refreshActiveRun(runId);
+  activeRunPollTimer = window.setInterval(() => {
+    void refreshActiveRun(runId);
+  }, 2000);
+}
+
+function restoreActiveRun() {
+  try {
+    const runId = window.localStorage.getItem(ACTIVE_RUN_STORAGE_KEY)?.trim() || "";
+    if (!runId) {
+      return;
+    }
+    startActiveRunPolling(runId);
+  } catch {
+    // Ignore restore failures.
+  }
+}
+
 async function handleSubmit() {
   if (!canSubmit.value) {
     return;
   }
   submitError.value = "";
   copyState.value = "idle";
-  submitting.value = true;
+  result.value = null;
+  activeRun.value = null;
+  clearPersistedActiveRunId();
+  stopActiveRunPolling();
   try {
+    const modelReady = await textModelProbeRef.value?.ensureReady();
+    if (modelReady === false) {
+      submitError.value = "所选文本模型测试未通过，请先检查配置或切换模型。";
+      return;
+    }
+    submitting.value = true;
     const payload: GenerateScriptRequest = {
       text: sourceText.value.trim(),
       visualStyle: visualStyle.value.trim() || null,
+      textAnalysisModel: textAnalysisModel.value || null,
     };
-    result.value = await generateScriptFromText(payload);
+    const run = await runScriptAgent("script-director", {
+      text: payload.text,
+      visualStyle: payload.visualStyle || "",
+      textAnalysisModel: payload.textAnalysisModel || undefined,
+    });
+    syncActiveRun(run);
+    if (isAgentRunActive(run)) {
+      startActiveRunPolling(run.id);
+    }
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : "脚本生成失败";
   } finally {
@@ -243,6 +525,15 @@ function handleDownload() {
   }
   downloadTextFile(`script-${result.value.id}.md`, result.value.scriptMarkdown, "text/markdown;charset=utf-8");
 }
+
+onMounted(() => {
+  void loadTextAnalysisModels();
+  restoreActiveRun();
+});
+
+onUnmounted(() => {
+  stopActiveRunPolling();
+});
 </script>
 
 <style scoped>

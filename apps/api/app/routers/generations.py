@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from typing import Any
+from backend_core.utils import truncate_text
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -11,7 +12,10 @@ from backend_core.schemas import (
     GenerateTextMediaResponse,
     GenerateTextScriptRequest,
     GenerateTextScriptResponse,
+    ProbeTextAnalysisModelRequest,
+    ProbeTextAnalysisModelResponse,
     TextMediaKind,
+    VideoModelUsageResponse,
 )
 
 
@@ -58,7 +62,8 @@ def _call_service(request: Request, method_candidates: Sequence[str], *args: obj
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="generation runtime error") from exc
+        detail = truncate_text(str(exc), 500) or exc.__class__.__name__
+        raise HTTPException(status_code=500, detail=f"generation runtime error: {detail}") from exc
 
 
 def _call_generation(
@@ -91,16 +96,22 @@ def _call_generation(
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="generation runtime error") from exc
+        detail = truncate_text(str(exc), 500) or exc.__class__.__name__
+        raise HTTPException(status_code=500, detail=f"generation runtime error: {detail}") from exc
 
 
-@router.get("/versions", response_model=GenerationOptionsResponse)
-def list_generation_versions(request: Request) -> GenerationOptionsResponse:
+@router.get("/options", response_model=GenerationOptionsResponse)
+def get_generation_options(request: Request) -> GenerationOptionsResponse:
     return _call_generation(
         request,
         service_candidates=("list_generation_options", "list_generation_versions", "get_generation_versions"),
         generator_method="get_generation_options",
     )
+
+
+@router.get("/versions", response_model=GenerationOptionsResponse)
+def list_generation_versions(request: Request) -> GenerationOptionsResponse:
+    return get_generation_options(request)
 
 
 @router.post("/image", response_model=GenerateTextMediaResponse)
@@ -134,4 +145,23 @@ def generate_text_script(request: Request, payload: GenerateTextScriptRequest) -
         service_candidates=("generate_text_script", "generate_script_from_text", "generate_script"),
         generator_method="generate_text_script",
         args=(payload,),
+    )
+
+
+@router.post("/text-analysis-model/probe", response_model=ProbeTextAnalysisModelResponse)
+def probe_text_analysis_model(request: Request, payload: ProbeTextAnalysisModelRequest) -> ProbeTextAnalysisModelResponse:
+    return _call_generation(
+        request,
+        service_candidates=("probe_text_analysis_model",),
+        generator_method="probe_text_analysis_model",
+        args=(payload,),
+    )
+
+
+@router.get("/video-model-usage", response_model=VideoModelUsageResponse)
+def get_video_model_usage(request: Request) -> VideoModelUsageResponse:
+    return _call_generation(
+        request,
+        service_candidates=("list_video_model_usage", "get_video_model_usage"),
+        generator_method="get_video_model_usage",
     )

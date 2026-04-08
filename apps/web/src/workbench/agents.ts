@@ -39,7 +39,7 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
     icon: "02",
     route: "/studio?agent=visual-lab",
     deliveryLabel: "Media",
-    capabilities: ["图像生成", "视频生成", "策略版本", "结果预览"],
+    capabilities: ["图像生成", "视频生成", "结果预览"],
     defaultPrompt: "创建一段具备稳定构图、清晰主体和强氛围感的视觉生成请求。",
   },
   {

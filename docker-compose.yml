@@ -1,13 +1,18 @@
+# 本地开发所需的数据库、缓存、API 和前端服务编排。
 services:
+  # MySQL 用于存储任务元数据和持久化业务数据。
   mysql:
     image: mysql:8.4
     container_name: ai-cut-mysql
     environment:
+      # 仅供本地开发容器使用的 root 密码。
       MYSQL_ROOT_PASSWORD: root
+      # 首次启动时自动创建的数据库名。
       MYSQL_DATABASE: ai_cut
     ports:
       - "3306:3306"
     volumes:
+      # 持久化数据库文件，避免容器重启后数据丢失。
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -proot --silent"]
@@ -16,12 +21,14 @@ services:
       retries: 20
       start_period: 10s
 
+  # Redis 为后端提供缓存和轻量协调能力。
   redis:
     image: redis:7.4
     container_name: ai-cut-redis
     ports:
       - "6379:6379"
     volumes:
+      # 持久化 Redis 数据，方便本地调试。
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -29,6 +36,7 @@ services:
       timeout: 3s
       retries: 20
 
+  # FastAPI 后端服务，挂载源码以支持热更新。
   api:
     build:
       context: .
@@ -36,18 +44,24 @@ services:
     container_name: ai-cut-api
     working_dir: /app/apps/api
     environment:
+      # 通过 compose 内部服务名连接 MySQL。
       AI_CUT_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/ai_cut?charset=utf8mb4
+      # 通过 compose 内部服务名连接 Redis。
       AI_CUT_REDIS_URL: redis://redis:6379/0
+      # 后端 CORS 和回调场景使用的前端来源地址。
       AI_CUT_WEB_ORIGIN: http://127.0.0.1:5173
+      # 生成资源经由 API 服务对外暴露时使用的公共前缀。
       AI_CUT_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
     command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     volumes:
+      # 挂载源码和配置文件，开发时改动无需重建镜像。
       - ./apps/api:/app/apps/api
       - ./apps/worker:/app/apps/worker
       - ./packages:/app/packages
       - ./config:/app/config
+      # 将上传文件、生成结果和临时文件持久化到宿主机。
       - ./storage/uploads:/app/storage/uploads
       - ./storage/outputs:/app/storage/outputs
       - ./storage/temp:/app/storage/temp
@@ -57,6 +71,7 @@ services:
       redis:
         condition: service_healthy
 
+  # Vue 前端的 Vite 开发服务器。
   web:
     build:
       context: .
@@ -64,18 +79,22 @@ services:
     container_name: ai-cut-web
     working_dir: /app/apps/web
     environment:
+      # 使用轮询方式监听文件，提升 Docker 挂载目录下的热更新稳定性。
       CHOKIDAR_USEPOLLING: "true"
+      # 开发期将接口代理到后端容器，而不是本机 localhost。
       VITE_API_PROXY_TARGET: http://api:8000
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
     ports:
       - "5173:5173"
     volumes:
+      # 挂载前端源码，同时把 node_modules 放在命名卷中。
       - ./apps/web:/app/apps/web
       - web_node_modules:/app/apps/web/node_modules
     depends_on:
       api:
         condition: service_started
 
+# 命名卷用于保留本地状态，同时避免污染仓库目录。
 volumes:
   mysql_data:
   redis_data:

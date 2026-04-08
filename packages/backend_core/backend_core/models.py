@@ -80,6 +80,18 @@ class TaskOutput(Base):
     task: Mapped["Task"] = relationship(back_populates="outputs")
 
 
+class VideoModelUsage(Base):
+    __tablename__ = "video_model_usage"
+
+    model_key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), default="unknown")
+    used_count: Mapped[int] = mapped_column(Integer, default=0)
+    used_duration_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    quota_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class AgentDefinition(Base):
     __tablename__ = "agent_definitions"
 

@@ -87,6 +87,15 @@
               <p>{{ stage.description }}</p>
               <small>{{ stage.elapsedLabel }}</small>
               <small v-if="stage.message" class="flow-stage-message">{{ stage.message }}</small>
+              <a
+                v-if="stage.actionUrl"
+                class="flow-stage-action"
+                :href="stage.actionUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {{ stage.actionLabel || "查看分镜脚本" }}
+              </a>
             </div>
           </div>
         </div>
@@ -117,6 +126,20 @@
                 <span>TXT 文本导入</span>
                 <input class="console-file" type="file" accept=".txt,text/plain" @change="handleAIDramaTextFile" />
                 <p class="console-hint">支持上传 `.txt`，内容会直接写入正文输入框。</p>
+              </label>
+              <label class="console-field">
+                <span>文本分析模型</span>
+                <select v-model="aiDramaDraft.textAnalysisModel" class="console-select">
+                  <option v-for="item in availableTextAnalysisModels" :key="item.value" :value="item.value">
+                    {{ item.label }}{{ item.description ? ` · ${item.description}` : "" }}
+                  </option>
+                </select>
+                <TextModelProbeInline
+                  ref="aiDramaTextModelProbeRef"
+                  :model-value="aiDramaDraft.textAnalysisModel"
+                  :disabled="runBusy"
+                />
+                <p class="console-hint">负责读取正文并分析人物、对白、语境和剧情结构。</p>
               </label>
               <div class="console-grid-2">
                 <label class="console-field">
@@ -275,14 +298,6 @@
                     </button>
                   </div>
                 </label>
-                <label class="console-field">
-                  <span>版本</span>
-                  <select v-model.number="visualDraft.version" class="console-select">
-                    <option v-for="item in versionOptions" :key="item.version" :value="item.version">
-                      {{ item.label }}
-                    </option>
-                  </select>
-                </label>
               </div>
               <div class="console-grid-2">
                 <label class="console-field">
@@ -336,6 +351,19 @@
               <label class="console-field">
                 <span>故事正文</span>
                 <textarea v-model="scriptDraft.text" class="console-textarea" rows="11"></textarea>
+              </label>
+              <label class="console-field">
+                <span>文本分析模型</span>
+                <select v-model="scriptDraft.textAnalysisModel" class="console-select">
+                  <option v-for="item in availableTextAnalysisModels" :key="item.value" :value="item.value">
+                    {{ item.label }}{{ item.description ? ` · ${item.description}` : "" }}
+                  </option>
+                </select>
+                <TextModelProbeInline
+                  ref="scriptTextModelProbeRef"
+                  :model-value="scriptDraft.textAnalysisModel"
+                  :disabled="runBusy"
+                />
               </label>
               <label class="console-field">
                 <span>视觉风格</span>
@@ -411,11 +439,21 @@
               </div>
             </div>
 
-            <div v-if="previewKind === 'markdown'" class="output-actions">
-              <button type="button" class="agent-secondary-button" @click="downloadMarkdown">
+            <div v-if="previewKind === 'markdown' || canRetryFromFailedNode" class="output-actions">
+              <button
+                v-if="canRetryFromFailedNode"
+                type="button"
+                class="agent-secondary-button"
+                :disabled="runBusy"
+                @click="handleRetryFromFailedNode"
+              >
+                从失败节点继续重试
+              </button>
+              <button v-if="previewKind === 'markdown'" type="button" class="agent-secondary-button" @click="downloadMarkdown">
                 下载 Markdown
               </button>
             </div>
+            <p v-if="canRetryFromFailedNode" class="console-hint">点击后将从失败节点继续执行。</p>
 
             <details class="data-drawer">
               <summary>查看输入 / 输出详情</summary>
@@ -477,11 +515,13 @@ import {
   fetchAgentRun,
   fetchAgentRuns,
   getPersistedRuns,
+  retryAgentRun,
   runAIDramaAgent,
   runDramaAgent,
   runScriptAgent,
   runVisualAgent,
 } from "@/api/agents";
+import TextModelProbeInline from "@/components/TextModelProbeInline.vue";
 import { DEFAULT_AGENT_ID, AGENT_DEFINITIONS, getAgentDefinition, isAgentId } from "@/workbench/agents";
 import { upsertAgentRun } from "@/workbench/storage";
 import { getRuntimeConfig } from "@/api/runtime-config";
@@ -491,6 +531,7 @@ import type {
   AgentRunDetail,
   AgentRunEvent,
   AgentRunSummary,
+  GenerationTextAnalysisModelInfo,
   GenerationOptionsResponse,
   GenerationVideoDurationOption,
   GenerationVideoModelInfo,
@@ -519,6 +560,8 @@ interface FlowStageView {
   startedMs: number | null;
   finishedMs: number | null;
   message: string;
+  actionUrl: string | null;
+  actionLabel: string | null;
 }
 
 interface PendingRunState {
@@ -539,6 +582,11 @@ const FALLBACK_GENERATION_OPTIONS: GenerationOptionsResponse = {
     { value: "1024x1024", label: "1024 × 1024" },
     { value: "1365x768", label: "1365 × 768" },
   ],
+  textAnalysisModels: [
+    { value: "gpt-5.4", label: "GPT-5.4", isDefault: true, provider: "chatgpt", family: "gpt" },
+    { value: "qwen3.6-plus", label: "Qwen 3.6 Plus", provider: "qwen", family: "qwen" },
+  ] as GenerationTextAnalysisModelInfo[],
+  defaultTextAnalysisModel: "gpt-5.4",
   videoModels: [
     { value: "wan2.6-i2v", label: "wan2.6-i2v", isDefault: true },
     { value: "wan2.6-t2v", label: "wan2.6-t2v" },
@@ -546,8 +594,9 @@ const FALLBACK_GENERATION_OPTIONS: GenerationOptionsResponse = {
     { value: "wan2.2-t2v-plus", label: "wan2.2-t2v-plus" },
     { value: "wanx2.1-t2v-turbo", label: "wanx2.1-t2v-turbo" },
     { value: "wanx2.1-t2v-plus", label: "wanx2.1-t2v-plus" },
+    { value: "seeddance-1.5-pro", label: "SeedDance 1.5 Pro", provider: "volcengine", family: "seeddance", generationMode: "i2v" },
   ] as GenerationVideoModelInfo[],
-  defaultVideoModel: "wan2.6-i2v",
+  defaultVideoModel: "wan2.6-t2v",
   videoSizes: [
     { value: "1080x1920", label: "1080 × 1920", width: 1080, height: 1920 },
     { value: "1920x1080", label: "1920 × 1080", width: 1920, height: 1080 },
@@ -585,7 +634,7 @@ const platformOptions = PLATFORM_OPTIONS;
 
 const generationOptions = ref<GenerationOptionsResponse>({
   ...FALLBACK_GENERATION_OPTIONS,
-  versions: [...FALLBACK_GENERATION_OPTIONS.versions],
+  versions: [...(FALLBACK_GENERATION_OPTIONS.versions ?? [])],
   stylePresets: [...FALLBACK_GENERATION_OPTIONS.stylePresets],
   imageSizes: [...FALLBACK_GENERATION_OPTIONS.imageSizes],
   videoModels: [...FALLBACK_GENERATION_OPTIONS.videoModels],
@@ -598,6 +647,8 @@ const loading = ref(true);
 const refreshing = ref(false);
 const runBusy = ref(false);
 const submitError = ref("");
+const aiDramaTextModelProbeRef = ref<{ ensureReady: (force?: boolean) => Promise<boolean> } | null>(null);
+const scriptTextModelProbeRef = ref<{ ensureReady: (force?: boolean) => Promise<boolean> } | null>(null);
 const railCollapsed = ref(false);
 const selectedAgentId = ref<AgentId>(DEFAULT_AGENT_ID);
 const selectedRunId = ref("");
@@ -610,6 +661,9 @@ let clockTimer: number | null = null;
 const aiDramaDraft = reactive({
   title: "暴雨车站",
   text: "暴雨夜，少女闯进废弃车站，在旧广播室里找到失踪哥哥留下的录音机。",
+  textFile: null as File | null,
+  uploadedTextSnapshot: "",
+  textAnalysisModel: FALLBACK_GENERATION_OPTIONS.defaultTextAnalysisModel || "gpt-5.4",
   aspectRatio: "9:16" as "9:16" | "16:9",
   totalDurationSeconds: 24 as number | null,
   continuitySeed: 2025,
@@ -638,7 +692,6 @@ const dramaDraft = reactive({
 const visualDraft = reactive({
   prompt: "近黑背景中，一束红光穿透烟雾，电影感，超高对比。",
   mediaKind: "image" as "image" | "video",
-  version: 1,
   stylePreset: "",
   providerModel: "",
   imageSize: "1024x1024",
@@ -649,6 +702,7 @@ const visualDraft = reactive({
 const scriptDraft = reactive({
   text: "一个故事片段：",
   visualStyle: "",
+  textAnalysisModel: FALLBACK_GENERATION_OPTIONS.defaultTextAnalysisModel || "gpt-5.4",
 });
 
 function currentAgentIdFromQuery(value: unknown): AgentId {
@@ -665,20 +719,23 @@ function normalizeGenerationOptions(raw: GenerationOptionsResponse | null | unde
   if (!raw) {
     return {
       ...FALLBACK_GENERATION_OPTIONS,
-      versions: [...FALLBACK_GENERATION_OPTIONS.versions],
+      versions: [...(FALLBACK_GENERATION_OPTIONS.versions ?? [])],
       stylePresets: [...FALLBACK_GENERATION_OPTIONS.stylePresets],
       imageSizes: [...FALLBACK_GENERATION_OPTIONS.imageSizes],
+      textAnalysisModels: [...(FALLBACK_GENERATION_OPTIONS.textAnalysisModels || [])],
       videoModels: [...FALLBACK_GENERATION_OPTIONS.videoModels],
       videoSizes: [...FALLBACK_GENERATION_OPTIONS.videoSizes],
       videoDurations: [...FALLBACK_GENERATION_OPTIONS.videoDurations],
     };
   }
   return {
-    versions: raw.versions?.length ? [...raw.versions] : [...FALLBACK_GENERATION_OPTIONS.versions],
+    versions: raw.versions?.length ? [...raw.versions] : [...(FALLBACK_GENERATION_OPTIONS.versions ?? [])],
     versionDetails: raw.versionDetails?.length ? [...raw.versionDetails] : undefined,
     defaultVersion: raw.defaultVersion ?? FALLBACK_GENERATION_OPTIONS.defaultVersion,
     stylePresets: raw.stylePresets?.length ? [...raw.stylePresets] : [],
     imageSizes: raw.imageSizes?.length ? [...raw.imageSizes] : [...FALLBACK_GENERATION_OPTIONS.imageSizes],
+    textAnalysisModels: raw.textAnalysisModels?.length ? [...raw.textAnalysisModels] : [...(FALLBACK_GENERATION_OPTIONS.textAnalysisModels || [])],
+    defaultTextAnalysisModel: raw.defaultTextAnalysisModel ?? FALLBACK_GENERATION_OPTIONS.defaultTextAnalysisModel,
     videoModels: raw.videoModels?.length ? [...raw.videoModels] : [...FALLBACK_GENERATION_OPTIONS.videoModels],
     defaultVideoModel: raw.defaultVideoModel ?? FALLBACK_GENERATION_OPTIONS.defaultVideoModel,
     videoSizes: raw.videoSizes?.length ? [...raw.videoSizes] : [...FALLBACK_GENERATION_OPTIONS.videoSizes],
@@ -704,6 +761,33 @@ function asBool(value: unknown, fallback = false) {
     return value;
   }
   return fallback;
+}
+
+function pickPayloadString(payload: Record<string, unknown> | undefined, key: string): string {
+  if (!payload) {
+    return "";
+  }
+  const value = payload[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function storyboardActionFromEvent(event: AgentRunEvent): { url: string; label: string } | null {
+  if (event.stage !== "script-writer" || event.event !== "script.generated") {
+    return null;
+  }
+  const payload = event.payload ?? {};
+  const rawUrl =
+    pickPayloadString(payload, "storyboardScriptUrl")
+    || pickPayloadString(payload, "markdownFileUrl")
+    || pickPayloadString(payload, "downloadUrl")
+    || pickPayloadString(payload, "scriptUrl");
+  if (!rawUrl) {
+    return null;
+  }
+  return {
+    url: resolveRuntimeUrl(rawUrl, getRuntimeConfig().storageBaseUrl),
+    label: pickPayloadString(payload, "storyboardScriptLabel") || "查看分镜脚本",
+  };
 }
 
 function stageStateLabel(state: FlowStageState) {
@@ -932,6 +1016,8 @@ function summarizeProgress(
     startedMs: null,
     finishedMs: null,
     message: "",
+    actionUrl: null,
+    actionLabel: null,
   }));
 
   for (const event of events) {
@@ -947,6 +1033,11 @@ function summarizeProgress(
     stage.finishedMs = eventMs;
     stage.message = event.message || stage.message;
     stage.state = event.level === "error" ? "error" : "completed";
+    const stageAction = storyboardActionFromEvent(event);
+    if (stageAction) {
+      stage.actionUrl = stageAction.url;
+      stage.actionLabel = stageAction.label;
+    }
   }
 
   let reachedIndex = findLastReachedStageIndex(stages);
@@ -1020,8 +1111,16 @@ function summarizeProgress(
 }
 
 const availableStylePresets = computed(() => generationOptions.value.stylePresets);
-const availableVideoModels = computed(() =>
-  generationOptions.value.videoModels.length ? generationOptions.value.videoModels : FALLBACK_GENERATION_OPTIONS.videoModels
+const availableVideoModels = computed(() => {
+  const source = generationOptions.value.videoModels.length ? generationOptions.value.videoModels : FALLBACK_GENERATION_OPTIONS.videoModels;
+  const filtered = source.filter((item) => item.generationMode !== "i2v");
+  return filtered.length ? filtered : source;
+});
+
+const availableTextAnalysisModels = computed<GenerationTextAnalysisModelInfo[]>(() =>
+  generationOptions.value.textAnalysisModels?.length
+    ? generationOptions.value.textAnalysisModels
+    : (FALLBACK_GENERATION_OPTIONS.textAnalysisModels || [])
 );
 const availableVideoSizes = computed(() =>
   filterByVideoModel(
@@ -1034,15 +1133,6 @@ const availableVideoDurations = computed(() =>
     generationOptions.value.videoDurations.length ? generationOptions.value.videoDurations : FALLBACK_GENERATION_OPTIONS.videoDurations,
     visualDraft.providerModel
   )
-);
-const versionOptions = computed(() =>
-  generationOptions.value.versions.map((version) => {
-    const detail = generationOptions.value.versionDetails?.find((item) => item.version === version);
-    return {
-      version,
-      label: detail ? `v${version} · ${detail.label}` : `v${version}`,
-    };
-  })
 );
 const selectedAgent = computed(() => getAgentDefinition(selectedAgentId.value));
 const selectedVideoModel = computed(
@@ -1065,6 +1155,9 @@ const runtimeStatusLabel = computed(() => {
   }
   return activeRun.value?.status || "idle";
 });
+const canRetryFromFailedNode = computed(
+  () => activeRun.value?.status === "failed" && !runBusy.value && pendingRun.value === null
+);
 
 function currentProgressInput() {
   if (selectedAgentId.value === "ai-drama") {
@@ -1476,12 +1569,21 @@ async function refreshWorkspace(showLoading = false) {
 }
 
 function syncAgentDefaults() {
-  const availableVersions = generationOptions.value.versions;
-  if (!availableVersions.includes(visualDraft.version)) {
-    visualDraft.version = generationOptions.value.defaultVersion ?? availableVersions[0] ?? 1;
-  }
   if (!generationOptions.value.stylePresets.some((preset) => preset.key === visualDraft.stylePreset)) {
     visualDraft.stylePreset = generationOptions.value.defaultStylePreset || "";
+  }
+  const textModels = availableTextAnalysisModels.value.map((item) => item.value);
+  const defaultTextModel =
+    generationOptions.value.defaultTextAnalysisModel ||
+    availableTextAnalysisModels.value.find((item) => item.isDefault)?.value ||
+    textModels[0] ||
+    FALLBACK_GENERATION_OPTIONS.defaultTextAnalysisModel ||
+    "gpt-5.4";
+  if (!textModels.includes(scriptDraft.textAnalysisModel)) {
+    scriptDraft.textAnalysisModel = defaultTextModel;
+  }
+  if (!textModels.includes(aiDramaDraft.textAnalysisModel)) {
+    aiDramaDraft.textAnalysisModel = defaultTextModel;
   }
   const imageSizes = generationOptions.value.imageSizes.map((item) => item.value);
   if (!imageSizes.includes(visualDraft.imageSize)) {
@@ -1548,6 +1650,9 @@ function resetDraft() {
   if (selectedAgentId.value === "ai-drama") {
     aiDramaDraft.title = "暴雨车站";
     aiDramaDraft.text = "";
+    aiDramaDraft.textFile = null;
+    aiDramaDraft.uploadedTextSnapshot = "";
+    aiDramaDraft.textAnalysisModel = generationOptions.value.defaultTextAnalysisModel || aiDramaDraft.textAnalysisModel;
     aiDramaDraft.totalDurationSeconds = 24;
   } else if (selectedAgentId.value === "drama-editor") {
     dramaDraft.creativePrompt = "";
@@ -1558,6 +1663,7 @@ function resetDraft() {
   } else {
     scriptDraft.text = "";
     scriptDraft.visualStyle = "";
+    scriptDraft.textAnalysisModel = generationOptions.value.defaultTextAnalysisModel || scriptDraft.textAnalysisModel;
   }
 }
 
@@ -1573,7 +1679,9 @@ async function handleAIDramaTextFile(event: Event) {
     return;
   }
   try {
+    aiDramaDraft.textFile = file;
     aiDramaDraft.text = await file.text();
+    aiDramaDraft.uploadedTextSnapshot = aiDramaDraft.text;
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : "TXT 文件读取失败";
   } finally {
@@ -1608,13 +1716,24 @@ async function handleRun() {
   try {
     let detail: AgentRunDetail;
     if (selectedAgentId.value === "ai-drama") {
+      const modelReady = await aiDramaTextModelProbeRef.value?.ensureReady();
+      if (modelReady === false) {
+        submitError.value = "所选文本模型测试未通过，请先检查配置或切换模型。";
+        return;
+      }
       const totalDurationSeconds =
         typeof aiDramaDraft.totalDurationSeconds === "number" && Number.isFinite(aiDramaDraft.totalDurationSeconds)
           ? aiDramaDraft.totalDurationSeconds
           : null;
+      const useUploadedFile =
+        aiDramaDraft.textFile instanceof File &&
+        aiDramaDraft.uploadedTextSnapshot.trim() &&
+        aiDramaDraft.text.trim() === aiDramaDraft.uploadedTextSnapshot.trim();
       detail = await runAIDramaAgent({
         title: aiDramaDraft.title.trim(),
-        text: aiDramaDraft.text.trim(),
+        text: useUploadedFile ? "" : aiDramaDraft.text.trim(),
+        textFile: useUploadedFile ? aiDramaDraft.textFile : null,
+        textAnalysisModel: aiDramaDraft.textAnalysisModel,
         aspectRatio: aiDramaDraft.aspectRatio,
         continuitySeed: aiDramaDraft.continuitySeed,
         totalDurationSeconds,
@@ -1643,15 +1762,22 @@ async function handleRun() {
       detail = await runVisualAgent(selectedAgentId.value, {
         prompt: visualDraft.prompt.trim(),
         mediaKind: visualDraft.mediaKind,
-        version: visualDraft.version,
         stylePreset: visualDraft.stylePreset,
+        providerModel: visualDraft.providerModel,
         imageSize: visualDraft.mediaKind === "image" ? visualDraft.imageSize : visualDraft.videoSize,
+        videoSize: visualDraft.videoSize,
         videoDurationSeconds: visualDraft.videoDurationSeconds,
       });
     } else {
+      const modelReady = await scriptTextModelProbeRef.value?.ensureReady();
+      if (modelReady === false) {
+        submitError.value = "所选文本模型测试未通过，请先检查配置或切换模型。";
+        return;
+      }
       detail = await runScriptAgent(selectedAgentId.value, {
         text: scriptDraft.text.trim(),
         visualStyle: scriptDraft.visualStyle.trim(),
+        textAnalysisModel: scriptDraft.textAnalysisModel,
       });
     }
     persistedRuns.value = getPersistedRuns();
@@ -1661,6 +1787,35 @@ async function handleRun() {
     await refreshWorkspace(false);
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : "Agent 运行失败";
+  } finally {
+    pendingRun.value = null;
+    runBusy.value = false;
+  }
+}
+
+async function handleRetryFromFailedNode() {
+  const currentRun = activeRun.value;
+  if (!currentRun || currentRun.status !== "failed") {
+    return;
+  }
+  runBusy.value = true;
+  submitError.value = "";
+  pendingRun.value = {
+    agentId: currentRun.agentId,
+    title: currentRun.title,
+    startedMs: Date.now(),
+  };
+  try {
+    const detail = await retryAgentRun(currentRun.id, true);
+    persistedRuns.value = getPersistedRuns();
+    selectedAgentId.value = detail.agentId;
+    selectedRunDetail.value = detail;
+    selectedRunId.value = detail.id;
+    await router.replace({ path: "/studio", query: { ...route.query, agent: detail.agentId, run: detail.id } });
+    await refreshWorkspace(false);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    submitError.value = message ? `从失败节点重试失败：${message}` : "从失败节点重试失败";
   } finally {
     pendingRun.value = null;
     runBusy.value = false;
@@ -2065,6 +2220,25 @@ onUnmounted(() => {
 .flow-stage-message {
   display: block;
   margin-top: 0.35rem;
+}
+
+.flow-stage-action {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 0.24rem 0.62rem;
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.flow-stage-action:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .flow-stage-completed .flow-stage-dot {

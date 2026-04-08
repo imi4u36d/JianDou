@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import calendar
 from datetime import datetime
 import json
 from pathlib import Path
+import re
 import socket
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
-from .config import Settings
+from .config import Settings, resolve_text_analysis_target
 from .media import (
     RenderSegmentSpec,
     compose_source_timeline,
@@ -20,7 +23,7 @@ from .media import (
     render_output,
     render_output_segments,
 )
-from .models import SourceAsset, Task, TaskOutput
+from .models import SourceAsset, Task, TaskOutput, VideoModelUsage
 from .planner import PlannerChain, PlannerContext, build_dialogue_blocks, parse_transcript_cues
 from .presets import get_task_presets
 from .schemas import (
@@ -36,16 +39,22 @@ from .schemas import (
     GenerateCreativePromptResponse,
     GenerationOptionsResponse,
     MediaProbe,
+    ProbeTextAnalysisModelRequest,
+    ProbeTextAnalysisModelResponse,
+    SeeddanceTaskQueryResponse,
     SourceAssetSummary,
     TaskDeleteResult,
     TaskDraft,
     TaskDetail,
     TaskListItem,
+    TaskMaterial,
     TaskOutput as TaskOutputSchema,
     TaskTraceEvent,
     TaskSpec,
     TaskPreset,
     UploadResponse,
+    VideoModelUsageItem,
+    VideoModelUsageResponse,
 )
 from .storage import MediaStorage
 from .task_trace import TaskTraceWriter, read_task_trace
@@ -57,7 +66,19 @@ from .text_generation import (
     GenerateTextScriptResponse,
     TextGenerationEngine,
 )
-from .utils import clamp, isoformat_utc, new_id, parse_json_object, truncate_text, utcnow
+from .utils import (
+    build_text_request_body,
+    clamp,
+    extract_llm_text_response,
+    isoformat_utc,
+    looks_like_qwen_model,
+    new_id,
+    parse_json_object,
+    resolve_llm_request_endpoint,
+    should_use_responses_api,
+    truncate_text,
+    utcnow,
+)
 
 
 def _iso(value: datetime | None) -> str:
@@ -76,6 +97,10 @@ def _task_status(value: str) -> str:
 
 def _timeline_segment_duration(segment: ClipSegment) -> float:
     return max(0.0, float(segment.endSeconds) - float(segment.startSeconds))
+
+
+def _format_seconds_label(value: float) -> str:
+    return f"{max(0.0, float(value)):.1f}s"
 
 
 INTRO_TEMPLATE_LABELS = {
@@ -186,7 +211,7 @@ class TaskService:
     def session(self) -> Session:
         return self.session_factory()
 
-    def upload_video(self, file_obj, original_name: str, mime_type: str | None = None) -> UploadResponse:
+    def _persist_upload(self, file_obj, original_name: str, mime_type: str | None = None) -> UploadResponse:
         stored = self.storage.save_upload(file_obj, original_name, mime_type)
         with self.session() as session:
             asset = SourceAsset(
@@ -207,6 +232,12 @@ class TaskService:
             sizeBytes=stored.size_bytes,
         )
 
+    def upload_video(self, file_obj, original_name: str, mime_type: str | None = None) -> UploadResponse:
+        return self._persist_upload(file_obj, original_name, mime_type)
+
+    def upload_text(self, file_obj, original_name: str, mime_type: str | None = None) -> UploadResponse:
+        return self._persist_upload(file_obj, original_name, mime_type or "text/plain")
+
     def list_task_presets(self) -> list[TaskPreset]:
         return get_task_presets()
 
@@ -226,13 +257,399 @@ class TaskService:
         self,
         payload: GenerateTextMediaRequest | dict[str, object],
     ) -> GenerateTextMediaResponse:
-        return self.text_generator.generate_text_video(payload)
+        result = self.text_generator.generate_text_video(payload)
+        self._record_video_model_usage(result)
+        return result
 
     def generate_text_script(
         self,
         payload: GenerateTextScriptRequest | dict[str, object],
     ) -> GenerateTextScriptResponse:
         return self.text_generator.generate_text_script(payload)
+
+    def probe_text_analysis_model(
+        self,
+        payload: ProbeTextAnalysisModelRequest | dict[str, object] | str | None = None,
+    ) -> ProbeTextAnalysisModelResponse:
+        return self.text_generator.probe_text_analysis_model(payload)
+
+    def list_video_model_usage(self) -> VideoModelUsageResponse:
+        options = self.text_generator.list_options()
+        items: list[VideoModelUsageItem] = []
+        quota_map = self._resolve_video_model_quota()
+        existing = self._load_local_video_model_usage()
+        official_usage = self._load_official_video_model_usage(options.videoModels)
+
+        for model in options.videoModels:
+            model_key = (getattr(model, "value", "") or "").strip()
+            if not model_key:
+                continue
+            row = existing.get(model_key)
+            official = official_usage.get(model_key, {})
+            used = float(official.get("used")) if official.get("used") is not None else float(int(row.used_count) if row is not None else 0)
+            used_duration = float(row.used_duration_seconds) if row is not None else 0.0
+            configured_quota = quota_map.get(model_key)
+            quota = (
+                float(official.get("quota"))
+                if official.get("quota") is not None
+                else float(configured_quota)
+                if configured_quota is not None
+                else float(int(row.quota_count))
+                if row and row.quota_count is not None
+                else None
+            )
+            remaining = official.get("remaining")
+            if remaining is None and quota is not None and not official:
+                remaining = max(0.0, quota - used)
+            updated_at = official.get("updatedAt") or _optional_iso(row.updated_at if row is not None else None)
+            items.append(
+                VideoModelUsageItem(
+                    model=model_key,
+                    label=(getattr(model, "label", "") or model_key).strip(),
+                    provider=str(official.get("provider") or self.text_generator.infer_video_provider(model_key)),
+                    used=used,
+                    unit=str(official.get("unit") or ("次" if not official else "")) or None,
+                    remaining=remaining,
+                    remainingUnit=str(official.get("remainingUnit") or "") or None,
+                    remainingLabel=str(official.get("remainingLabel") or "") or None,
+                    quota=quota,
+                    usedDurationSeconds=round(used_duration, 3),
+                    source=str(official.get("source") or "local-cache"),
+                    note=str(official.get("note") or self._build_local_usage_note(model_key)),
+                    updatedAt=updated_at,
+                )
+            )
+        return VideoModelUsageResponse(generatedAt=_iso(utcnow()), items=items)
+
+    def _load_local_video_model_usage(self) -> dict[str, VideoModelUsage]:
+        existing: dict[str, VideoModelUsage] = {}
+        with self.session() as session:
+            rows = session.scalars(select(VideoModelUsage)).all()
+            for row in rows:
+                model_key = self.text_generator.normalize_video_model_key(row.model_key)
+                if not model_key:
+                    continue
+                previous = existing.get(model_key)
+                if previous is None:
+                    existing[model_key] = row
+                    continue
+                previous.used_count = int(previous.used_count or 0) + int(row.used_count or 0)
+                previous.used_duration_seconds = float(previous.used_duration_seconds or 0.0) + float(row.used_duration_seconds or 0.0)
+                previous.quota_count = previous.quota_count if previous.quota_count is not None else row.quota_count
+                if row.updated_at and (previous.updated_at is None or row.updated_at > previous.updated_at):
+                    previous.updated_at = row.updated_at
+        return existing
+
+    def _load_official_video_model_usage(self, video_models: list[object]) -> dict[str, dict[str, object]]:
+        result: dict[str, dict[str, object]] = {}
+        aliyun_models: list[str] = []
+        volc_models: list[str] = []
+        for model in video_models:
+            model_key = str(getattr(model, "value", "") or "").strip()
+            provider = self.text_generator.infer_video_provider(model_key)
+            if provider == "volcengine":
+                volc_models.append(model_key)
+            elif provider == "aliyun-bailian":
+                aliyun_models.append(model_key)
+
+        if aliyun_models and self._has_aliyun_billing_credentials():
+            try:
+                result.update(self._fetch_aliyun_official_usage(aliyun_models))
+            except Exception:
+                pass
+        if volc_models and self._has_volcengine_billing_credentials():
+            try:
+                result.update(self._fetch_volcengine_official_usage(volc_models))
+            except Exception:
+                pass
+        return result
+
+    def _has_aliyun_billing_credentials(self) -> bool:
+        return bool(
+            self.settings.model.aliyun_billing_access_key_id.strip()
+            and self.settings.model.aliyun_billing_access_key_secret.strip()
+        )
+
+    def _has_volcengine_billing_credentials(self) -> bool:
+        return bool(
+            self.settings.model.volcengine_billing_access_key_id.strip()
+            and self.settings.model.volcengine_billing_access_key_secret.strip()
+        )
+
+    def _build_local_usage_note(self, model_key: str) -> str:
+        provider = self.text_generation_provider_for_usage(model_key)
+        if provider == "volcengine" and not self._has_volcengine_billing_credentials():
+            return "未配置火山费用中心 AK/SK，当前显示本地累计统计。"
+        if provider == "aliyun-bailian" and not self._has_aliyun_billing_credentials():
+            return "未配置阿里云账单 AK/SK，当前显示本地累计统计。"
+        return "官方账单暂未识别到该模型，当前回退本地累计统计。"
+
+    def text_generation_provider_for_usage(self, model_key: str) -> str:
+        return self.text_generator.infer_video_provider(model_key)
+
+    def _fetch_aliyun_official_usage(self, model_keys: list[str]) -> dict[str, dict[str, object]]:
+        from alibabacloud_bssopenapi20171214.client import Client as BssClient
+        from alibabacloud_bssopenapi20171214 import models as bss_models
+        from alibabacloud_tea_openapi import models as open_api_models
+
+        config = open_api_models.Config(
+            access_key_id=self.settings.model.aliyun_billing_access_key_id,
+            access_key_secret=self.settings.model.aliyun_billing_access_key_secret,
+            endpoint="business.aliyuncs.com",
+        )
+        client = BssClient(config)
+
+        balance_response = client.query_account_balance()
+        balance_payload = balance_response.body.to_map() if hasattr(balance_response.body, "to_map") else {}
+        balance_data = balance_payload.get("Data") or balance_payload.get("data") or {}
+        available_balance = self._parse_float(balance_data.get("AvailableAmount") or balance_data.get("available_amount"))
+        currency = str(balance_data.get("Currency") or balance_data.get("currency") or "CNY")
+
+        bill_period = datetime.now().strftime("%Y-%m")
+        page_num = 1
+        aggregated: dict[str, dict[str, object]] = {}
+        normalized_targets = {self.text_generator.normalize_video_model_key(item) for item in model_keys}
+        while True:
+            request = bss_models.QueryInstanceBillRequest(
+                billing_cycle=bill_period,
+                page_num=page_num,
+                page_size=100,
+                is_hide_zero_charge=True,
+            )
+            response = client.query_instance_bill(request)
+            payload = response.body.to_map() if hasattr(response.body, "to_map") else {}
+            data = payload.get("Data") or payload.get("data") or {}
+            items_block = data.get("Items") or data.get("items") or {}
+            rows = items_block.get("Item") or items_block.get("item") or []
+            if not isinstance(rows, list):
+                rows = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                model_key = self._match_aliyun_model_key(row, normalized_targets)
+                if not model_key:
+                    continue
+                usage_value = self._parse_float(row.get("Usage") or row.get("usage"))
+                if usage_value is None:
+                    continue
+                current = aggregated.setdefault(
+                    model_key,
+                    {
+                        "model": model_key,
+                        "provider": "aliyun-bailian",
+                        "used": 0.0,
+                        "unit": str(row.get("UsageUnit") or row.get("usage_unit") or "次"),
+                        "remaining": available_balance,
+                        "remainingUnit": currency,
+                        "remainingLabel": "余额",
+                        "source": "official-billing",
+                        "note": "已用量来自阿里云官方账单，剩余列显示阿里云账号可用余额。",
+                        "updatedAt": _iso(utcnow()),
+                    },
+                )
+                current["used"] = float(current["used"]) + usage_value
+
+            total_count = int(data.get("TotalCount") or data.get("total_count") or 0)
+            page_size = int(data.get("PageSize") or data.get("page_size") or 100)
+            if page_num * page_size >= total_count or not rows:
+                break
+            page_num += 1
+        return aggregated
+
+    def _match_aliyun_model_key(self, row: dict[str, object], model_keys: set[str]) -> str:
+        text = " ".join(
+            str(row.get(key) or "")
+            for key in (
+                "InstanceId",
+                "instance_id",
+                "InstanceSpec",
+                "instance_spec",
+                "ProductDetail",
+                "product_detail",
+                "BillingItem",
+                "billing_item",
+                "NickName",
+                "nick_name",
+                "Item",
+                "item",
+                "ProductName",
+                "product_name",
+            )
+        ).lower()
+        text = re.sub(r"\s+", " ", text)
+        for model_key in sorted(model_keys, key=len, reverse=True):
+            if model_key and model_key in text:
+                return model_key
+        aliases = {
+            "qwen-vl-plus-latest": "qwen-vl",
+            "qwen-vl-max-latest": "qwen-vl",
+            "wan2.6-t2v-plus": "wan2.6-t2v",
+            "wan2.6-t2v-turbo": "wan2.6-t2v",
+        }
+        for alias, model_key in aliases.items():
+            if model_key in model_keys and alias in text:
+                return model_key
+        return ""
+
+    def _fetch_volcengine_official_usage(self, model_keys: list[str]) -> dict[str, dict[str, object]]:
+        from volcengine.ApiInfo import ApiInfo
+        from volcengine.billing.BillingService import BillingService
+
+        service = BillingService()
+        service.set_ak(self.settings.model.volcengine_billing_access_key_id)
+        service.set_sk(self.settings.model.volcengine_billing_access_key_secret)
+        service.api_info["QueryBalanceAcct"] = ApiInfo("GET", "/", {"Action": "QueryBalanceAcct", "Version": "2022-01-01"}, {}, {})
+
+        balance_raw = service.get("QueryBalanceAcct", {})
+        balance_payload = json.loads(balance_raw)
+        balance_result = balance_payload.get("Result") or {}
+        available_balance = self._parse_float(balance_result.get("AvailableBalance"))
+
+        bill_period = datetime.now().strftime("%Y-%m")
+        offset = 0
+        limit = 100
+        aggregated: dict[str, dict[str, object]] = {}
+        while True:
+            payload = service.list_bill_detail(
+                {},
+                {
+                    "Offset": offset,
+                    "Limit": limit,
+                    "BillPeriod": bill_period,
+                    "GroupPeriod": 2,
+                    "GroupTerm": 1,
+                    "IgnoreZero": 1,
+                    "NeedRecordNum": 1,
+                },
+            )
+            result = payload.get("Result") or {}
+            rows = result.get("List") or []
+            if not isinstance(rows, list):
+                rows = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                model_key = self._match_volcengine_model_key(row, model_keys)
+                if not model_key:
+                    continue
+                usage_value = (
+                    self._parse_float(row.get("Count"))
+                    or self._parse_float(row.get("UseDuration"))
+                    or self._parse_float(row.get("DeductionCount"))
+                )
+                if usage_value is None:
+                    continue
+                unit = str(row.get("Unit") or row.get("UseDurationUnit") or "次")
+                current = aggregated.setdefault(
+                    model_key,
+                    {
+                        "model": model_key,
+                        "provider": "volcengine",
+                        "used": 0.0,
+                        "unit": unit,
+                        "remaining": available_balance,
+                        "remainingUnit": "CNY",
+                        "remainingLabel": "余额",
+                        "source": "official-billing",
+                        "note": "已用量来自火山费用中心官方账单，剩余列显示火山账号可用余额。",
+                        "updatedAt": _iso(utcnow()),
+                    },
+                )
+                current["used"] = float(current["used"]) + usage_value
+            total = int(result.get("Total") or 0)
+            offset += limit
+            if offset >= total or not rows:
+                break
+        return aggregated
+
+    def _match_volcengine_model_key(self, row: dict[str, object], model_keys: list[str]) -> str:
+        text = " ".join(
+            str(row.get(key) or "")
+            for key in (
+                "Product",
+                "ProductZh",
+                "InstanceName",
+                "InstanceNo",
+                "ConfigName",
+                "ExpandField",
+                "ProjectDisplayName",
+            )
+        ).lower()
+        if "seeddance-1.5-pro" in model_keys and any(keyword in text for keyword in ("seedance", "seeddance", "火山", "豆包")):
+            return "seeddance-1.5-pro"
+        return ""
+
+    def _parse_float(self, value: object) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            return float(text)
+        except Exception:
+            return None
+
+    def _record_video_model_usage(self, result: GenerateTextMediaResponse) -> None:
+        metadata = result.metadata if isinstance(result.metadata, dict) else {}
+        model_info = metadata.get("modelInfo") if isinstance(metadata.get("modelInfo"), dict) else {}
+        raw_model_key = str(
+            metadata.get("selectedProviderModel")
+            or model_info.get("providerModel")
+            or metadata.get("providerModel")
+            or ""
+        ).strip().lower()
+        model_key = self.text_generator.normalize_video_model_key(raw_model_key)
+        if not model_key:
+            return
+        provider = str(model_info.get("provider") or metadata.get("provider") or "").strip() or self.text_generator.infer_video_provider(model_key)
+        duration_seconds = float(result.durationSeconds or metadata.get("durationSeconds") or 0.0)
+        quota_map = self._resolve_video_model_quota()
+        with self.session() as session:
+            row = session.get(VideoModelUsage, model_key)
+            if row is None:
+                row = VideoModelUsage(
+                    model_key=model_key,
+                    provider=provider,
+                    used_count=0,
+                    used_duration_seconds=0.0,
+                    quota_count=quota_map.get(model_key),
+                )
+                session.add(row)
+            row.provider = provider
+            if model_key in quota_map:
+                row.quota_count = quota_map[model_key]
+            row.used_count = int(row.used_count or 0) + 1
+            row.used_duration_seconds = float(row.used_duration_seconds or 0.0) + max(0.0, duration_seconds)
+            row.updated_at = utcnow()
+            session.commit()
+
+    def _resolve_video_model_quota(self) -> dict[str, int]:
+        raw = (self.settings.model.video_model_usage_quota or "").strip()
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        result: dict[str, int] = {}
+        for key, value in payload.items():
+            raw_key = str(key).strip().lower()
+            model_key = self.text_generator.normalize_video_model_key(raw_key)
+            if not model_key:
+                continue
+            try:
+                quota = int(value)
+            except Exception:
+                continue
+            if quota < 0:
+                continue
+            result[model_key] = quota
+        return result
 
     def _normalize_editing_mode(
         self,
@@ -266,10 +683,11 @@ class TaskService:
             raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
 
         editing_mode = self._normalize_editing_mode(payload.editingMode, payload.mixcutEnabled)
-        if not self.settings.model.api_key or not self.settings.model.endpoint:
+        text_model = resolve_text_analysis_target(self.settings.model)
+        if not text_model.api_key or not text_model.endpoint:
             raise RuntimeError("creative prompt provider is not configured")
 
-        model_name = self.settings.model.model_name
+        model_name = text_model.model_name
         generated = self._call_creative_prompt_model(model_name, payload)
         if not generated:
             raise RuntimeError("creative prompt model returned empty prompt")
@@ -290,6 +708,7 @@ class TaskService:
         model_name: str,
         payload: GenerateCreativePromptRequest,
     ) -> str:
+        text_model = resolve_text_analysis_target(self.settings.model, model_name)
         transcript_excerpt = truncate_text((payload.transcriptText or "").strip(), 1400) or ""
         editing_mode = self._normalize_editing_mode(payload.editingMode, payload.mixcutEnabled)
         mode_label = self._editing_mode_label(editing_mode)
@@ -319,21 +738,30 @@ class TaskService:
             f"字幕/台词摘录：{json.dumps(transcript_excerpt, ensure_ascii=False)}\n"
             '输出格式：{"prompt":"..."}'
         )
-        body = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": "You are a precise JSON-only creative prompt generator."},
-                {"role": "user", "content": request_prompt},
-            ],
-            "temperature": min(0.55, max(0.18, self.settings.model.temperature + 0.08)),
-            "max_tokens": min(500, self.settings.model.max_tokens),
-        }
+        use_responses_api = should_use_responses_api(
+            provider=text_model.provider,
+            endpoint=text_model.endpoint,
+            model_name=model_name,
+        )
+        request_endpoint = resolve_llm_request_endpoint(
+            text_model.endpoint,
+            use_responses_api=use_responses_api,
+        )
+        body = build_text_request_body(
+            model_name=model_name,
+            system_prompt="You are a precise JSON-only creative prompt generator.",
+            user_prompt=request_prompt,
+            temperature=min(0.55, max(0.18, self.settings.model.temperature + 0.08)),
+            max_tokens=min(500, self.settings.model.max_tokens),
+            use_responses_api=use_responses_api,
+            enable_thinking=looks_like_qwen_model(model_name),
+        )
         request = urllib.request.Request(
-            self.settings.model.endpoint,
+            request_endpoint,
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.model.api_key}",
+                "Authorization": f"Bearer {text_model.api_key}",
             },
         )
         try:
@@ -345,16 +773,8 @@ class TaskService:
             raise RuntimeError(f"creative prompt failed: {exc.code}") from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"creative prompt network failed: {exc}") from exc
-
         parsed = json.loads(raw)
-        content = ""
-        if isinstance(parsed, dict):
-            if "choices" in parsed and parsed["choices"]:
-                content = parsed["choices"][0].get("message", {}).get("content", "")
-            elif "output" in parsed:
-                output = parsed["output"]
-                if isinstance(output, dict):
-                    content = output.get("text", "") or output.get("content", "")
+        content = extract_llm_text_response(parsed if isinstance(parsed, dict) else {}, raw)
         parsed_prompt, _ = parse_json_object(content or raw)
         prompt = str(parsed_prompt.get("prompt", "")).strip()
         return truncate_text(prompt, 180) or ""
@@ -519,6 +939,79 @@ class TaskService:
                 raise LookupError("task not found")
         return read_task_trace(self.storage.task_trace_path(task_id), limit=limit)
 
+    def query_seeddance_task_result(self, remote_task_id: str) -> SeeddanceTaskQueryResponse:
+        normalized_task_id = str(remote_task_id or "").strip()
+        if not normalized_task_id:
+            raise ValueError("remote task id is required")
+
+        task_endpoint = str(self.settings.model.seeddance_video_task_endpoint or "").strip()
+        api_key = str(self.settings.model.seeddance_api_key or self.settings.model.api_key or "").strip()
+        if not task_endpoint:
+            raise ValueError("seeddance video task endpoint is empty")
+        if not api_key:
+            raise ValueError("seeddance api key is empty")
+
+        query_url = f"{task_endpoint.rstrip('/')}/{urllib.parse.quote(normalized_task_id)}"
+        request = urllib.request.Request(
+            query_url,
+            method="GET",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "X-Api-Key": api_key,
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                raw_response = response.read()
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                detail = ""
+            detail_text = truncate_text(detail.strip(), 320)
+            if detail_text:
+                raise RuntimeError(f"seeddance task query http error: {exc.code} {detail_text}") from exc
+            raise RuntimeError(f"seeddance task query http error: {exc.code}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"seeddance task query network error: {exc}") from exc
+        except (TimeoutError, socket.timeout) as exc:
+            raise RuntimeError(f"seeddance task query timeout: {exc}") from exc
+
+        try:
+            payload = json.loads(raw_response.decode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError("seeddance task query returned non-json response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("seeddance task query returned non-object payload")
+
+        output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        status = str(
+            self.text_generator._first_str(payload, ("task_status", "taskStatus", "status", "state"))  # noqa: SLF001
+            or self.text_generator._first_str(output, ("task_status", "taskStatus", "status", "state"))  # noqa: SLF001
+            or self.text_generator._first_str(data, ("task_status", "taskStatus", "status", "state"))  # noqa: SLF001
+            or "UNKNOWN"
+        ).upper()
+        message = (
+            self.text_generator._first_str(payload, ("message", "error"))  # noqa: SLF001
+            or self.text_generator._first_str(output, ("message", "error"))  # noqa: SLF001
+            or self.text_generator._first_str(data, ("message", "error"))  # noqa: SLF001
+            or None
+        )
+        video_url = self.text_generator._extract_video_url(payload) or None  # noqa: SLF001
+        resolved_task_id = self.text_generator._extract_task_id(payload) or normalized_task_id  # noqa: SLF001
+
+        return SeeddanceTaskQueryResponse(
+            taskId=resolved_task_id,
+            status=status,
+            videoUrl=video_url,
+            message=message,
+            payload=payload,
+        )
+
     def create_task(self, payload: CreateTaskRequest) -> TaskDetail:
         if payload.minDurationSeconds > payload.maxDurationSeconds:
             raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
@@ -657,6 +1150,7 @@ class TaskService:
     def get_admin_overview(self) -> AdminOverview:
         tasks = self.list_tasks()
         total = len(tasks)
+        text_model = resolve_text_analysis_target(self.settings.model)
         return AdminOverview(
             generatedAt=_iso(utcnow()),
             counts=AdminOverviewCounts(
@@ -670,12 +1164,13 @@ class TaskService:
                 averageProgress=round(sum(task.progress for task in tasks) / total) if total else 0,
             ),
             modelReady=bool(
-                self.settings.model.provider
-                and self.settings.model.model_name
-                and self.settings.model.endpoint
-                and self.settings.model.api_key
+                text_model.provider
+                and text_model.model_name
+                and text_model.endpoint
+                and text_model.api_key
             ),
-            primaryModel=self.settings.model.model_name,
+            primaryModel=text_model.model_name,
+            textModel=text_model.model_name,
             visionModel=self.settings.model.vision_model_name,
             recentTasks=tasks[:8],
             recentFailures=[task for task in tasks if task.status == "FAILED"][:6],
@@ -956,60 +1451,62 @@ class TaskService:
                 mixcut_layout_style = mixcut_profile["layout_style"]
                 mixcut_effect_style = mixcut_profile["effect_style"]
                 mixcut_template = mixcut_profile["mixcut_template"]
-                if not source_file_names:
-                    source_file_names = [source_assets[0].original_file_name]
-                source_timeline = self._load_source_timeline(source_assets, source_file_names)
-                source_path = self.storage.root / source_assets[0].storage_path
-                mixcut_source_path = None
-                if len(source_assets) > 1:
-                    mixcut_source_path = self.storage.task_work_dir(task_id) / "mixcut_source.mp4"
-                    try:
-                        self._trace(
-                            task_id,
-                            "analysis",
-                            "multisource.source_build_started",
-                            "检测到多素材输入，开始构建组合源。",
-                            {
-                                "source_asset_ids": source_asset_ids,
-                                "source_file_names": source_file_names,
-                                "mixcut_enabled": mixcut_enabled,
-                                "mixcut_content_type": mixcut_content_type or "",
-                                "mixcut_style_preset": mixcut_style_preset or "",
-                            },
-                        )
-                        built_path = compose_source_timeline(
-                            [Path(str(entry["source_path"])) for entry in source_timeline],
-                            mixcut_source_path,
-                            task.aspect_ratio,
-                        )
-                        source_path = built_path
-                        self._trace(
-                            task_id,
-                            "analysis",
-                            "multisource.source_build_completed",
-                            "多素材组合源已生成。",
-                            {
-                                "source_count": len(source_assets),
-                                "output_path": built_path.as_posix(),
-                                "timeline_total_seconds": round(
-                                    sum(float(entry["duration_seconds"]) for entry in source_timeline),
-                                    3,
-                                ),
-                            },
-                        )
-                    except Exception as exc:
-                        self._trace(
-                            task_id,
-                            "analysis",
-                            "multisource.source_build_failed",
-                            "多素材组合源构建失败，回退到首个素材继续处理。",
-                            {
-                                "source_asset_ids": source_asset_ids,
-                                "error": str(exc),
-                            },
-                            "WARN",
-                        )
-                        source_path = self.storage.root / source_assets[0].storage_path
+                task_aspect_ratio = task.aspect_ratio
+
+            if not source_file_names:
+                source_file_names = [source_assets[0].original_file_name]
+            source_timeline = self._load_source_timeline(source_assets, source_file_names)
+            source_path = self.storage.root / source_assets[0].storage_path
+            mixcut_source_path = None
+            if len(source_assets) > 1:
+                mixcut_source_path = self.storage.task_work_dir(task_id) / "mixcut_source.mp4"
+                try:
+                    self._trace(
+                        task_id,
+                        "analysis",
+                        "multisource.source_build_started",
+                        "检测到多素材输入，开始构建组合源。",
+                        {
+                            "source_asset_ids": source_asset_ids,
+                            "source_file_names": source_file_names,
+                            "mixcut_enabled": mixcut_enabled,
+                            "mixcut_content_type": mixcut_content_type or "",
+                            "mixcut_style_preset": mixcut_style_preset or "",
+                        },
+                    )
+                    built_path = compose_source_timeline(
+                        [Path(str(entry["source_path"])) for entry in source_timeline],
+                        mixcut_source_path,
+                        task_aspect_ratio,
+                    )
+                    source_path = built_path
+                    self._trace(
+                        task_id,
+                        "analysis",
+                        "multisource.source_build_completed",
+                        "多素材组合源已生成。",
+                        {
+                            "source_count": len(source_assets),
+                            "output_path": built_path.as_posix(),
+                            "timeline_total_seconds": round(
+                                sum(float(entry["duration_seconds"]) for entry in source_timeline),
+                                3,
+                            ),
+                        },
+                    )
+                except Exception as exc:
+                    self._trace(
+                        task_id,
+                        "analysis",
+                        "multisource.source_build_failed",
+                        "多素材组合源构建失败，回退到首个素材继续处理。",
+                        {
+                            "source_asset_ids": source_asset_ids,
+                            "error": str(exc),
+                        },
+                        "WARN",
+                    )
+                    source_path = self.storage.root / source_assets[0].storage_path
         except Exception as exc:
             self._fail_task(task_id, exc, message="任务处理失败，未能完成素材预处理。")
             return
@@ -1135,114 +1632,136 @@ class TaskService:
                 task.status = "PLANNING"
                 task.progress = 25
                 session.commit()
-                context_payload = self._load_task_context(task_id)
-                transcript_text = self._context_transcript(context_payload)
-                transcript_cues = parse_transcript_cues(transcript_text)
-                self._trace(
-                    task_id,
-                    "planning",
-                    "planning.started",
-                    "开始生成剪辑规划方案。",
-                    {
-                        "has_transcript": bool(transcript_text),
-                        "transcript_cue_count": len(transcript_cues),
-                        "creative_prompt_present": bool(task.creative_prompt),
-                        "source_asset_count": len(source_asset_ids),
-                        "source_file_names": source_file_names,
-                        "mixcut_enabled": mixcut_enabled,
-                        "mixcut_content_type": mixcut_content_type or "",
-                        "mixcut_style_preset": mixcut_style_preset or "",
-                        "mixcut_transition_style": mixcut_transition_style,
-                        "mixcut_layout_style": mixcut_layout_style,
-                        "mixcut_effect_style": mixcut_effect_style,
-                        "mixcut_template": mixcut_template,
-                        "model_provider": self.settings.model.provider,
-                        "primary_model": self.settings.model.model_name,
-                        "fallback_model": self.settings.model.fallback_model_name,
-                        "vision_model": self.settings.model.vision_model_name,
-                        "vision_fallback_model": self.settings.model.vision_fallback_model_name,
-                    },
+                task_for_planning = task
+                planning_task_spec = TaskSpec(
+                    title=task.title,
+                    platform=task.platform,
+                    aspectRatio=task.aspect_ratio,
+                    minDurationSeconds=task.min_duration_seconds,
+                    maxDurationSeconds=task.max_duration_seconds,
+                    outputCount=task.output_count,
+                    introTemplate=task.intro_template,
+                    outroTemplate=task.outro_template,
+                    sourceAssetIds=source_asset_ids,
+                    sourceFileNames=source_file_names,
+                    editingMode=editing_mode,
+                    mixcutEnabled=mixcut_enabled,
+                    mixcutContentType=mixcut_content_type,
+                    mixcutStylePreset=mixcut_style_preset,
+                    mixcutTransitionStyle=mixcut_transition_style,
+                    mixcutLayoutStyle=mixcut_layout_style,
+                    mixcutEffectStyle=mixcut_effect_style,
+                    mixcutTemplate=mixcut_template,
+                    creativePrompt=task.creative_prompt,
+                    transcriptText=None,
                 )
+                creative_prompt_present = bool(task.creative_prompt)
 
-                context = PlannerContext(
-                    task=TaskSpec(
-                        title=task.title,
-                        platform=task.platform,
-                        aspectRatio=task.aspect_ratio,
-                        minDurationSeconds=task.min_duration_seconds,
-                        maxDurationSeconds=task.max_duration_seconds,
-                        outputCount=task.output_count,
-                        introTemplate=task.intro_template,
-                        outroTemplate=task.outro_template,
-                        sourceAssetIds=source_asset_ids,
-                        sourceFileNames=source_file_names,
-                        editingMode=editing_mode,
-                        mixcutEnabled=mixcut_enabled,
-                        mixcutContentType=mixcut_content_type,
-                        mixcutStylePreset=mixcut_style_preset,
-                        mixcutTransitionStyle=mixcut_transition_style,
-                        mixcutLayoutStyle=mixcut_layout_style,
-                        mixcutEffectStyle=mixcut_effect_style,
-                        mixcutTemplate=mixcut_template,
-                        creativePrompt=task.creative_prompt,
-                        transcriptText=transcript_text,
-                    ),
-                    source=probe,
-                    transcriptText=transcript_text,
-                    sourcePath=source_path.as_posix(),
-                    sourceTimeline=source_timeline,
-                    workDir=self.storage.task_work_dir(task_id).as_posix(),
-                    trace=lambda stage, event, message, payload=None, level="INFO": self._trace(
-                        task_id,
-                        stage,
-                        event,
-                        message,
-                        payload,
-                        level,
-                    ),
+            context_payload = self._load_task_context(task_id)
+            transcript_text = self._context_transcript(context_payload)
+            transcript_cues = parse_transcript_cues(transcript_text)
+            planning_model = resolve_text_analysis_target(self.settings.model)
+            planning_task_spec.transcriptText = transcript_text
+            self._trace(
+                task_id,
+                "planning",
+                "planning.started",
+                "开始生成剪辑规划方案。",
+                {
+                    "has_transcript": bool(transcript_text),
+                    "transcript_cue_count": len(transcript_cues),
+                    "creative_prompt_present": creative_prompt_present,
+                    "source_asset_count": len(source_asset_ids),
+                    "source_file_names": source_file_names,
+                    "mixcut_enabled": mixcut_enabled,
+                    "mixcut_content_type": mixcut_content_type or "",
+                    "mixcut_style_preset": mixcut_style_preset or "",
+                    "mixcut_transition_style": mixcut_transition_style,
+                    "mixcut_layout_style": mixcut_layout_style,
+                    "mixcut_effect_style": mixcut_effect_style,
+                    "mixcut_template": mixcut_template,
+                    "model_provider": planning_model.provider,
+                    "primary_model": planning_model.model_name,
+                    "fallback_model": planning_model.fallback_model_name,
+                    "vision_model": self.settings.model.vision_model_name,
+                    "vision_fallback_model": self.settings.model.vision_fallback_model_name,
+                },
+            )
+
+            context = PlannerContext(
+                task=planning_task_spec,
+                source=probe,
+                transcriptText=transcript_text,
+                sourcePath=source_path.as_posix(),
+                sourceTimeline=source_timeline,
+                workDir=self.storage.task_work_dir(task_id).as_posix(),
+                trace=lambda stage, event, message, payload=None, level="INFO": self._trace(
+                    task_id,
+                    stage,
+                    event,
+                    message,
+                    payload,
+                    level,
+                ),
+            )
+            clips = self.planner.plan(context)
+            if not clips:
+                raise RuntimeError("planner returned no clips")
+            else:
+                clips = self._sanitize_clips(
+                    task_for_planning,
+                    probe,
+                    clips,
+                    transcript_text=transcript_text,
+                    source_path=source_path.as_posix(),
+                    source_timeline=source_timeline,
+                    mixcut_enabled=mixcut_enabled,
+                    mixcut_content_type=mixcut_content_type,
+                    mixcut_style_preset=mixcut_style_preset,
                 )
-                clips = self.planner.plan(context)
                 if not clips:
-                    raise RuntimeError("planner returned no clips")
-                else:
-                    clips = self._sanitize_clips(
-                        task,
-                        probe,
-                        clips,
-                        transcript_text=transcript_text,
-                        source_path=source_path.as_posix(),
-                        source_timeline=source_timeline,
-                        mixcut_enabled=mixcut_enabled,
-                        mixcut_content_type=mixcut_content_type,
-                        mixcut_style_preset=mixcut_style_preset,
-                    )
-                    if not clips:
-                        raise RuntimeError("planner produced no valid clips after sanitization")
+                    raise RuntimeError("planner produced no valid clips after sanitization")
+
+            with self.session() as session:
+                task = session.get(Task, task_id)
+                if task is None:
+                    return
                 task.plan_json = json.dumps([clip.model_dump() for clip in clips], ensure_ascii=False)
                 task.progress = 35
                 session.commit()
-                self._trace(
-                    task_id,
-                    "planning",
-                    "planning.completed",
-                    "剪辑规划方案已生成。",
-                    {
-                        "clip_count": len(clips),
-                        "clip_titles": [clip.title for clip in clips[:5]],
-                        "dialogue_safe_boundaries": bool(transcript_text and parse_transcript_cues(transcript_text)),
-                        "lead_in_seconds": 0.35,
-                        "lead_out_seconds": 0.3,
-                        "scene_boundary_signal": True,
-                        "source_asset_count": len(source_asset_ids),
-                        "mixcut_enabled": mixcut_enabled,
-                        "mixcut_content_type": mixcut_content_type or "",
-                        "mixcut_style_preset": mixcut_style_preset or "",
-                        "mixcut_transition_style": mixcut_transition_style,
-                        "mixcut_layout_style": mixcut_layout_style,
-                        "mixcut_effect_style": mixcut_effect_style,
-                        "mixcut_template": mixcut_template,
-                    },
-                )
+
+            storyboard_script = self._build_storyboard_script(
+                task_for_planning,
+                clips,
+                source_file_names=source_file_names,
+                source_asset_count=len(source_asset_ids),
+                editing_mode=editing_mode,
+                mixcut_content_type=mixcut_content_type,
+                mixcut_style_preset=mixcut_style_preset,
+            )
+            self._save_task_context(task_id, storyboard_script=storyboard_script)
+            self._trace(
+                task_id,
+                "planning",
+                "planning.completed",
+                "剪辑规划方案已生成。",
+                {
+                    "clip_count": len(clips),
+                    "clip_titles": [clip.title for clip in clips[:5]],
+                    "dialogue_safe_boundaries": bool(transcript_text and parse_transcript_cues(transcript_text)),
+                    "lead_in_seconds": 0.35,
+                    "lead_out_seconds": 0.3,
+                    "scene_boundary_signal": True,
+                    "source_asset_count": len(source_asset_ids),
+                    "mixcut_enabled": mixcut_enabled,
+                    "mixcut_content_type": mixcut_content_type or "",
+                    "mixcut_style_preset": mixcut_style_preset or "",
+                    "mixcut_transition_style": mixcut_transition_style,
+                    "mixcut_layout_style": mixcut_layout_style,
+                    "mixcut_effect_style": mixcut_effect_style,
+                    "mixcut_template": mixcut_template,
+                },
+            )
 
             self._render_outputs(
                 task_id=task_id,
@@ -2241,6 +2760,12 @@ class TaskService:
     def _context_render_only_retry(self, payload: dict[str, object]) -> bool:
         return bool(payload.get("renderOnlyRetry"))
 
+    def _context_storyboard_script(self, payload: dict[str, object]) -> str | None:
+        raw = payload.get("storyboardScript")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+
     def _can_retry_render_only(self, task: Task) -> bool:
         if task.status != "FAILED":
             return False
@@ -2306,6 +2831,7 @@ class TaskService:
         mixcut_layout_style: str | None = None,
         mixcut_effect_style: str | None = None,
         mixcut_template: str | None = None,
+        storyboard_script: str | None = None,
         render_only_retry: bool | None = None,
     ) -> None:
         context = self._load_task_context(task_id)
@@ -2332,6 +2858,12 @@ class TaskService:
             context["mixcutEffectStyle"] = mixcut_effect_style.strip()
         if mixcut_template is not None:
             context["mixcutTemplate"] = mixcut_template.strip()
+        if storyboard_script is not None:
+            normalized_storyboard = storyboard_script.strip()
+            if normalized_storyboard:
+                context["storyboardScript"] = normalized_storyboard
+            else:
+                context.pop("storyboardScript", None)
         if render_only_retry is not None:
             if render_only_retry:
                 context["renderOnlyRetry"] = True
@@ -2344,6 +2876,110 @@ class TaskService:
         if isinstance(raw, str) and raw.strip():
             return raw.strip()
         return None
+
+    def _build_storyboard_script(
+        self,
+        task: Task,
+        clips: list[ClipPlan],
+        *,
+        source_file_names: list[str],
+        source_asset_count: int,
+        editing_mode: str,
+        mixcut_content_type: str | None,
+        mixcut_style_preset: str | None,
+    ) -> str:
+        mode_label = self._editing_mode_label(editing_mode)
+        material_label = self._source_name_summary(source_file_names)
+        lines = [
+            "# 分镜脚本",
+            "",
+            f"- 任务标题：{task.title}",
+            f"- 模式：{mode_label}",
+            f"- 平台 / 画幅：{task.platform} / {task.aspect_ratio}",
+            f"- 时长范围：{task.min_duration_seconds}-{task.max_duration_seconds} 秒",
+            f"- 输出条数：{task.output_count}",
+            f"- 素材数量：{source_asset_count}",
+            f"- 素材摘要：{material_label}",
+        ]
+        if task.creative_prompt:
+            lines.extend(["", "## 创意提示词", "", task.creative_prompt.strip()])
+        if editing_mode == "mixcut":
+            meta_line = " / ".join(
+                item
+                for item in (
+                    MIXCUT_CONTENT_TYPE_LABELS.get(mixcut_content_type or "", mixcut_content_type or "").strip(),
+                    MIXCUT_STYLE_PRESET_LABELS.get(mixcut_style_preset or "", mixcut_style_preset or "").strip(),
+                )
+                if item
+            )
+            if meta_line:
+                lines.extend(["", "## 混剪策略", "", f"- 风格设定：{meta_line}"])
+        lines.extend(["", "## 分镜列表", ""])
+        for clip in clips:
+            lines.extend(
+                [
+                    f"### 分镜 {clip.clipIndex} · {clip.title}",
+                    "",
+                    f"- 时间窗：{_format_seconds_label(clip.startSeconds)} - {_format_seconds_label(clip.endSeconds)}",
+                    f"- 时长：{_format_seconds_label(clip.durationSeconds)}",
+                    f"- 设计意图：{clip.reason}",
+                ]
+            )
+            if clip.segments:
+                lines.extend(["", "| 素材 | 时间窗 | 时长 | 角色 |", "| --- | --- | --- | --- |"])
+                for segment in clip.segments:
+                    lines.append(
+                        "| "
+                        + " | ".join(
+                            [
+                                segment.sourceFileName or "-",
+                                f"{_format_seconds_label(segment.startSeconds)} - {_format_seconds_label(segment.endSeconds)}",
+                                _format_seconds_label(segment.durationSeconds),
+                                segment.segmentRole or segment.segmentKind or "-",
+                            ]
+                        )
+                        + " |"
+                    )
+            lines.append("")
+        return "\n".join(lines).strip()
+
+    def _build_task_materials(
+        self,
+        source_assets: list[SourceAssetSummary],
+        outputs: list[TaskOutputSchema],
+    ) -> list[TaskMaterial]:
+        materials: list[TaskMaterial] = []
+        for asset in source_assets:
+            materials.append(
+                TaskMaterial(
+                    id=asset.assetId,
+                    kind="source",
+                    mediaType="video",
+                    title=asset.originalFileName,
+                    fileUrl=asset.fileUrl,
+                    previewUrl=asset.fileUrl,
+                    mimeType=asset.mimeType,
+                    durationSeconds=asset.durationSeconds,
+                    width=asset.width,
+                    height=asset.height,
+                    sizeBytes=asset.sizeBytes,
+                    createdAt=asset.createdAt,
+                )
+            )
+        for output in outputs:
+            materials.append(
+                TaskMaterial(
+                    id=output.id,
+                    kind="output",
+                    mediaType="video",
+                    title=f"成片 #{output.clipIndex} · {output.title}",
+                    fileUrl=output.downloadUrl,
+                    previewUrl=output.previewUrl,
+                    mimeType="video/mp4",
+                    durationSeconds=output.durationSeconds,
+                )
+            )
+        return materials
 
     def _transcript_preview(self, transcript_text: str | None, limit: int = 220) -> str | None:
         if not transcript_text:
@@ -2419,6 +3055,19 @@ class TaskService:
         source_asset_ids = self._context_source_asset_ids(context_payload) or [task.source_asset_id]
         source_file_names = self._context_source_file_names(context_payload) or [task.source_file_name]
         source_assets = self._load_source_asset_summaries(source_asset_ids)
+        editing_mode = self._context_editing_mode(context_payload)
+        storyboard_script = self._context_storyboard_script(context_payload)
+        if not storyboard_script and plan:
+            storyboard_script = self._build_storyboard_script(
+                task,
+                plan,
+                source_file_names=source_file_names,
+                source_asset_count=len(source_asset_ids),
+                editing_mode=editing_mode,
+                mixcut_content_type=self._context_mixcut_content_type(context_payload),
+                mixcut_style_preset=self._context_mixcut_style_preset(context_payload),
+            )
+        materials = self._build_task_materials(source_assets, outputs)
         return TaskDetail(
             id=task.id,
             title=task.title,
@@ -2446,10 +3095,12 @@ class TaskService:
             transcriptCueCount=len(transcript_cues),
             source=self._source_asset_summary(source_asset),
             sourceAssets=source_assets or ([self._source_asset_summary(source_asset)] if source_asset is not None else []),
+            storyboardScript=storyboard_script,
+            materials=materials,
             sourceAssetIds=source_asset_ids,
             sourceFileNames=source_file_names,
             sourceAssetCount=len(source_asset_ids),
-            editingMode=self._context_editing_mode(context_payload),
+            editingMode=editing_mode,
             mixcutEnabled=self._context_mixcut_enabled(context_payload),
             mixcutContentType=self._context_mixcut_content_type(context_payload),
             mixcutStylePreset=self._context_mixcut_style_preset(context_payload),

@@ -3,6 +3,7 @@ Name: ai-cut-api
 Version: 0.1.0
 Requires-Python: >=3.11
 Requires-Dist: fastapi>=0.110
+Requires-Dist: cryptography>=43.0
 Requires-Dist: pydantic>=2.7
 Requires-Dist: SQLAlchemy>=2.0
 Requires-Dist: python-multipart>=0.0.9

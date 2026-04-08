@@ -96,6 +96,22 @@ def get_agent_run(request: Request, run_id: str) -> AgentRunDetail:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.post("/runs/{run_id}/retry", response_model=AgentRunDetail)
+def retry_agent_run(
+    request: Request,
+    run_id: str,
+    fromFailedNode: bool = Query(default=True),
+) -> AgentRunDetail:
+    try:
+        return _service(request).retry_agent_run(run_id, from_failed_node=fromFailedNode)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=exc.errors()) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.get("/runs/{run_id}/events", response_model=list[AgentEvent])
 def get_agent_run_events(
     request: Request,

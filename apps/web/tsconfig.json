@@ -1,26 +1,40 @@
 {
   "compilerOptions": {
+    // 面向当前 Vite 流程支持的现代浏览器。
     "target": "ES2020",
+    // 与 Vue 对 class field 的编译行为保持一致。
     "useDefineForClassFields": true,
+    // 保留 ES Module，交给 Vite 打包。
     "module": "ESNext",
+    // 按 Node 风格工具链的规则解析模块。
     "moduleResolution": "Node",
+    // 对应用代码启用严格类型检查。
     "strict": true,
+    // 保留 JSX 语法，供 Vue 相关工具处理。
     "jsx": "preserve",
+    // 输出 Source Map，便于本地调试。
     "sourceMap": true,
+    // 允许在 TypeScript 中直接导入 JSON。
     "resolveJsonModule": true,
+    // 在需要时兼容 CommonJS 互操作。
     "esModuleInterop": true,
+    // 包含现代 JS 和浏览器 DOM 类型库。
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // 为 Vite 配置和构建辅助代码提供 Node 类型。
     "types": ["node"],
+    // 让路径别名相对于前端项目根目录生效。
     "baseUrl": ".",
     "paths": {
+      // 将 @/foo 映射到 src/foo。
       "@/*": ["src/*"]
     }
   },
+  // 由 vue-tsc / TypeScript 编译检查的应用源码范围。
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  // 单独给 vite.config.ts 这类 Node 侧文件使用的配置。
   "references": [
     {
       "path": "./tsconfig.node.json"
     }
   ]
 }
-

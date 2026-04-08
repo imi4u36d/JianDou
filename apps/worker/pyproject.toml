@@ -1,11 +1,14 @@
+# Worker 应用打包时使用的 setuptools 构建信息。
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+# Worker 进程的项目元信息和运行时依赖。
 [project]
 name = "ai-cut-worker"
 version = "0.1.0"
 requires-python = ">=3.11"
+# Worker 依赖主要覆盖数据库访问以及队列 / 缓存集成。
 dependencies = [
   "SQLAlchemy>=2.0",
   "redis>=5.0",

@@ -106,6 +106,7 @@ export interface GenerateCreativePromptResponse {
 export interface GenerateScriptRequest {
   text: string;
   visualStyle?: string | null;
+  textAnalysisModel?: string | null;
 }
 
 export interface GenerateScriptResponse {
@@ -124,6 +125,23 @@ export interface GenerateScriptResponse {
   metadata?: Record<string, unknown>;
 }
 
+export interface ProbeTextAnalysisModelRequest {
+  textAnalysisModel?: string | null;
+}
+
+export interface ProbeTextAnalysisModelResponse {
+  ready: boolean;
+  requestedModel: string;
+  resolvedModel: string;
+  provider: string;
+  family?: string | null;
+  mode: string;
+  endpointHost: string;
+  latencyMs: number;
+  messagePreview?: string | null;
+  checkedAt: string;
+}
+
 export type GenerationMediaKind = "image" | "video";
 
 export interface GenerationVersionInfo {
@@ -139,9 +157,44 @@ export interface GenerationVideoModelInfo {
   label: string;
   description?: string | null;
   isDefault?: boolean;
+  provider?: string | null;
+  family?: string | null;
+  generationMode?: "t2v" | "i2v" | "vl" | null;
   supportedSizes?: string[];
   supportedDurations?: number[];
   aliases?: string[];
+}
+
+export interface GenerationTextAnalysisModelInfo {
+  value: string;
+  label: string;
+  description?: string | null;
+  isDefault?: boolean;
+  provider?: string | null;
+  family?: string | null;
+  aliases?: string[];
+}
+
+export interface VideoModelUsageItem {
+  model: string;
+  label?: string | null;
+  used: number;
+  unit?: string | null;
+  remaining: number | null;
+  remainingUnit?: string | null;
+  remainingLabel?: string | null;
+  quota?: number | null;
+  usedDurationSeconds?: number | null;
+  provider?: string | null;
+  source?: string | null;
+  note?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface VideoModelUsageResponse {
+  items: VideoModelUsageItem[];
+  generatedAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface GenerationStylePresetOption {
@@ -180,6 +233,8 @@ export interface GenerationOptionsResponse {
   imageSizes: GenerationImageSizeOption[];
   videoModels: GenerationVideoModelInfo[];
   defaultVideoModel?: string | null;
+  textAnalysisModels?: GenerationTextAnalysisModelInfo[];
+  defaultTextAnalysisModel?: string | null;
   videoSizes: GenerationVideoSizeOption[];
   videoDurations: GenerationVideoDurationOption[];
   defaultStylePreset?: string | null;
@@ -193,16 +248,22 @@ export interface GenerateMediaRequest {
   mediaKind: GenerationMediaKind;
   version: number;
   stylePreset?: string | null;
+  textAnalysisModel?: string | null;
   providerModel?: string | null;
   imageSize?: string;
   videoSize?: string;
   videoDurationSeconds?: number;
+  minDurationSeconds?: number;
+  maxDurationSeconds?: number;
 }
 
 export interface GenerationModelInfo {
   provider?: string | null;
   modelName?: string | null;
   providerModel?: string | null;
+  requestedModel?: string | null;
+  resolvedModel?: string | null;
+  textAnalysisModel?: string | null;
   endpointHost?: string | null;
   temperature?: number | null;
   maxTokens?: number | null;
@@ -313,12 +374,35 @@ export interface TaskOutput {
   downloadUrl: string;
 }
 
+export interface TaskMaterial {
+  id: string;
+  kind: "source" | "output";
+  mediaType: "video" | "image" | "text";
+  title: string;
+  fileUrl: string;
+  previewUrl?: string | null;
+  mimeType?: string | null;
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  sizeBytes?: number | null;
+  createdAt?: string | null;
+}
+
 export interface TaskTraceEvent {
   timestamp: string;
   level: string;
   stage: string;
   event: string;
   message: string;
+  payload: Record<string, unknown>;
+}
+
+export interface SeeddanceTaskQueryResult {
+  taskId: string;
+  status: string;
+  videoUrl?: string | null;
+  message?: string | null;
   payload: Record<string, unknown>;
 }
 
@@ -374,6 +458,8 @@ export interface TaskDetail extends TaskListItem {
   transcriptCueCount?: number;
   source?: TaskSourceAssetSummary | null;
   sourceAssets?: TaskSourceAssetSummary[];
+  storyboardScript?: string | null;
+  materials?: TaskMaterial[];
   plan?: TaskPlanClip[];
   outputs: TaskOutput[];
 }
@@ -382,6 +468,8 @@ export interface HealthModelSummary {
   provider: string;
   primary_model: string;
   fallback_model?: string | null;
+  text_analysis_provider?: string | null;
+  text_analysis_model?: string | null;
   vision_model?: string | null;
   vision_fallback_model?: string | null;
   endpoint_host?: string;
@@ -436,6 +524,7 @@ export interface AdminOverview {
   counts: AdminOverviewCounts;
   modelReady: boolean;
   primaryModel: string;
+  textModel?: string | null;
   visionModel?: string | null;
   recentTasks: TaskListItem[];
   recentFailures: TaskListItem[];

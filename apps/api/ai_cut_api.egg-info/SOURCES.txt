@@ -7,6 +7,10 @@ ai_cut_api.egg-info/top_level.txt
 app/__init__.py
 app/main.py
 app/routers/__init__.py
+app/routers/admin.py
+app/routers/agents.py
+app/routers/generations.py
 app/routers/health.py
+app/routers/presets.py
 app/routers/tasks.py
 app/routers/uploads.py

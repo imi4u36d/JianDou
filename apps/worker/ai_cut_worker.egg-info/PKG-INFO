@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: ai-cut-worker
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: SQLAlchemy>=2.0
+Requires-Dist: redis>=5.0
+Requires-Dist: pymysql>=1.1

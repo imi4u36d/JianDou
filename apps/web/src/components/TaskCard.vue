@@ -1,16 +1,15 @@
 <template>
   <article
-    class="group relative min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] transition duration-200 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
-    :class="statusFrameClass"
+    class="group relative min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:border-slate-300 hover:shadow-md"
+    :class="[statusFrameClass, selectable ? 'cursor-pointer' : '', selected ? 'border-slate-400 ring-2 ring-slate-200/80' : '']"
+    @click="handleSelect"
   >
-    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
-    <div class="pointer-events-none absolute left-0 top-0 h-full w-1 rounded-r-full" :class="statusRailClass"></div>
-    <div class="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-cyan-100/70 blur-3xl transition duration-300 group-hover:bg-cyan-200/80"></div>
+    <div class="pointer-events-none absolute left-0 top-0 h-full w-1" :class="statusRailClass"></div>
     <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{{ task.platform }} / {{ task.aspectRatio ?? "9:16" }}</p>
-        <h3 class="mt-2 line-clamp-2 text-[18px] font-semibold leading-7 text-slate-900">{{ task.title }}</h3>
-        <p class="mt-2 truncate text-sm leading-6 text-slate-600" :title="task.sourceFileName || '源文件信息待同步'">
+      <div class="min-w-0 pl-1">
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">{{ task.platform }} / {{ task.aspectRatio ?? "9:16" }}</p>
+        <h3 class="mt-2 line-clamp-2 text-[17px] font-semibold leading-7 text-slate-900">{{ task.title }}</h3>
+        <p class="mt-1.5 truncate text-sm leading-6 text-slate-600" :title="task.sourceFileName || '源文件信息待同步'">
           {{ task.sourceFileName || "源文件信息待同步" }}
         </p>
       </div>
@@ -19,7 +18,7 @@
       </div>
     </div>
 
-    <div class="mt-4 flex flex-wrap gap-2">
+    <div class="mt-3 flex flex-wrap gap-1.5">
       <span v-if="task.mixcutEnabled" class="surface-chip">多素材混剪</span>
       <span v-if="task.hasTimedTranscript" class="surface-chip">时间轴字幕</span>
       <span v-else-if="task.hasTranscript" class="surface-chip">文本语义</span>
@@ -27,60 +26,65 @@
       <span v-if="task.status === 'COMPLETED'" class="surface-chip">可复盘</span>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-600">
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p class="text-xs uppercase tracking-[0.24em] text-slate-500">进度</p>
-        <p class="mt-2 text-base font-semibold text-slate-900">{{ task.progress }}%</p>
+    <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-600">
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">进度</p>
+        <p class="text-sm font-semibold text-slate-900">{{ task.progress }}%</p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p class="text-xs uppercase tracking-[0.24em] text-slate-500">输出</p>
-        <p class="mt-2 text-base font-semibold text-slate-900">{{ completedOutputCount }} / {{ task.outputCount }}</p>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">输出</p>
+        <p class="text-sm font-semibold text-slate-900">{{ completedOutputCount }} / {{ task.outputCount }}</p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p class="text-xs uppercase tracking-[0.24em] text-slate-500">时长</p>
-        <p class="mt-2 text-base font-semibold text-slate-900">{{ durationLabel }}</p>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">时长</p>
+        <p class="text-sm font-semibold text-slate-900">{{ durationLabel }}</p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p class="text-xs uppercase tracking-[0.24em] text-slate-500">重试</p>
-        <p class="mt-2 text-base font-semibold text-slate-900">{{ retryCount }}</p>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">重试</p>
+        <p class="text-sm font-semibold text-slate-900">{{ retryCount }}</p>
       </div>
     </div>
 
-    <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-      <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 transition-all duration-300" :style="{ width: `${task.progress}%` }"></div>
+    <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+      <div class="h-full rounded-full bg-slate-500 transition-all duration-300" :style="{ width: `${task.progress}%` }"></div>
     </div>
 
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
       <span>更新时间 {{ updatedAtLabel }}</span>
       <span>{{ lifecycleLabel }}</span>
     </div>
 
     <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      <RouterLink :to="`/tasks/${task.id}`" class="btn-secondary">
+      <button v-if="selectable" class="btn-secondary" type="button" @click.stop="handleSelect">
+        {{ selected ? "已展开" : "展开详情" }}
+      </button>
+      <RouterLink v-else :to="{ path: '/tasks', query: { selected: task.id } }" class="btn-secondary">
         查看详情
       </RouterLink>
       <button
+        v-if="showCloneAction"
         class="btn-primary"
         :disabled="busy"
         type="button"
-        @click="$emit('clone', task)"
+        @click.stop="$emit('clone', task)"
       >
         复制参数
       </button>
       <button
-        v-if="task.status === 'FAILED'"
+        v-if="showRetryAction && task.status === 'FAILED'"
         class="btn-warning"
         :disabled="busy"
         type="button"
-        @click="$emit('retry', task)"
+        @click.stop="$emit('retry', task)"
       >
         失败重试
       </button>
       <button
+        v-if="showDeleteAction"
         class="btn-danger"
         :disabled="busy || running"
         type="button"
-        @click="$emit('delete', task)"
+        @click.stop="$emit('delete', task)"
       >
         删除
       </button>
@@ -97,12 +101,18 @@ import { formatTaskRange, getTaskLifecycleGroup } from "@/utils/task";
 const props = defineProps<{
   task: TaskListItem;
   busy?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  showCloneAction?: boolean;
+  showRetryAction?: boolean;
+  showDeleteAction?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (event: "clone", task: TaskListItem): void;
   (event: "retry", task: TaskListItem): void;
   (event: "delete", task: TaskListItem): void;
+  (event: "select", task: TaskListItem): void;
 }>();
 
 const completedOutputCount = computed(() => props.task.completedOutputCount ?? 0);
@@ -131,25 +141,38 @@ const lifecycleLabel = computed(() => {
 const statusRailClass = computed(() => {
   switch (lifecycleGroup.value) {
     case "completed":
-      return "bg-gradient-to-b from-emerald-400 to-emerald-300";
+      return "bg-emerald-400";
     case "failed":
-      return "bg-gradient-to-b from-rose-400 to-orange-300";
+      return "bg-rose-400";
     case "running":
-      return "bg-gradient-to-b from-sky-400 to-indigo-300";
+      return "bg-sky-400";
     default:
-      return "bg-gradient-to-b from-slate-300 to-slate-200";
+      return "bg-slate-300";
   }
 });
 const statusFrameClass = computed(() => {
   switch (lifecycleGroup.value) {
     case "completed":
-      return "hover:shadow-[0_18px_40px_rgba(16,185,129,0.14)]";
+      return "hover:border-emerald-300";
     case "failed":
-      return "hover:shadow-[0_18px_40px_rgba(244,63,94,0.14)]";
+      return "hover:border-rose-300";
     case "running":
-      return "hover:shadow-[0_18px_40px_rgba(14,165,233,0.14)]";
+      return "hover:border-sky-300";
     default:
       return "";
   }
 });
+
+const selectable = computed(() => Boolean(props.selectable));
+const selected = computed(() => Boolean(props.selected));
+const showCloneAction = computed(() => props.showCloneAction !== false);
+const showRetryAction = computed(() => props.showRetryAction !== false);
+const showDeleteAction = computed(() => props.showDeleteAction !== false);
+
+function handleSelect() {
+  if (!selectable.value) {
+    return;
+  }
+  emit("select", props.task);
+}
 </script>

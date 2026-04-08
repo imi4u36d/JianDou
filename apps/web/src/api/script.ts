@@ -29,6 +29,7 @@ export async function generateScriptFromText(payload: GenerateScriptRequest) {
   const backendPayload = {
     text: payload.text,
     visualStyle: payload.visualStyle?.trim() || undefined,
+    textAnalysisModel: payload.textAnalysisModel?.trim() || undefined,
   };
   const raw = await postJson<GenerateScriptResponse>(SCRIPT_GENERATE_ENDPOINT, backendPayload);
   return normalizeResponse(raw, payload);

@@ -6,13 +6,15 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 import json
 import re
+import threading
 import time
+import urllib.parse
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from .media import RenderSegmentSpec, probe_media, render_output_segments
-from .models import AgentArtifact, AgentDefinition, AgentEvent, AgentRun, Task
+from .models import AgentArtifact, AgentDefinition, AgentEvent, AgentRun, SourceAsset, Task
 from .schemas import (
     AIDramaAgentRunRequest,
     AgentArtifact as AgentArtifactSchema,
@@ -197,6 +199,8 @@ AGENT_PROFILES: list[_AgentProfile] = [
         sort_order=30,
     ),
 ]
+
+MAX_INLINE_SCRIPT_TEXT_LENGTH = 1_000_000
 
 DISABLED_SHORT_DRAMA_CONTENT_TYPES = {"travel"}
 DISABLED_SHORT_DRAMA_STYLE_PRESETS = {
@@ -551,10 +555,15 @@ class AgentPlatformService(TaskService):
     def create_ai_drama_run(self, payload: AIDramaAgentRunRequest) -> AgentRunDetail:
         title = payload.title.strip() or self._profile("ai-drama").name
         input_json = payload.model_dump()
+        input_text = payload.text or (
+            f"[text-file] {payload.textFileName or payload.textAssetId}"
+            if payload.textAssetId
+            else title
+        )
         run_id = self._create_agent_run_record(
             agent_key="ai-drama",
             title=title,
-            input_text=payload.text,
+            input_text=input_text,
             input_json=input_json,
         )
         try:
@@ -569,6 +578,41 @@ class AgentPlatformService(TaskService):
             )
         return self._finalize_run(run_id, result)
 
+    def _resolve_text_asset_source(self, asset_id: str) -> tuple[SourceAsset, Path]:
+        normalized_asset_id = str(asset_id or "").strip()
+        if not normalized_asset_id:
+            raise ValueError("text asset id is required")
+        with self.session() as session:
+            asset = session.get(SourceAsset, normalized_asset_id)
+            if asset is None:
+                raise LookupError("text asset not found")
+            source_path = (self.storage.root / asset.storage_path).resolve()
+            if not source_path.exists() or not source_path.is_file():
+                raise LookupError("text asset file not found")
+            return asset, source_path
+
+    def _resolve_ai_drama_source_text(self, payload: AIDramaAgentRunRequest) -> tuple[str, Path | None, str | None]:
+        if payload.textAssetId:
+            asset, source_path = self._resolve_text_asset_source(payload.textAssetId)
+            last_exc: Exception | None = None
+            source_text = ""
+            for encoding in ("utf-8", "utf-8-sig", "gb18030"):
+                try:
+                    source_text = source_path.read_text(encoding=encoding)
+                    break
+                except UnicodeDecodeError as exc:
+                    last_exc = exc
+            if not source_text and last_exc is not None:
+                raise RuntimeError("text asset decode failed") from last_exc
+            normalized_text = source_text.strip()
+            if not normalized_text:
+                raise ValueError("text asset is empty")
+            return normalized_text, source_path, payload.textFileName or asset.original_file_name
+        source_text = str(payload.text or "").strip()
+        if not source_text:
+            raise ValueError("text or textAssetId must be provided")
+        return source_text, None, None
+
     def create_text_media_run(self, payload: TextMediaAgentRunRequest) -> AgentRunDetail:
         title = self._media_run_title(payload)
         input_text = payload.prompt
@@ -578,18 +622,16 @@ class AgentPlatformService(TaskService):
             title=title,
             input_text=input_text,
             input_json=input_json,
+            initial_status=AgentRunStatus.QUEUED,
+            initial_summary=f"{title} 已受理，等待 worker 执行。",
+            monitor_json={
+                "stage": "accepted",
+                "queued": True,
+                "mediaKind": payload.mediaKind,
+            },
         )
-        try:
-            result = self._execute_text_media_run(payload, title=title, input_text=input_text)
-        except Exception as exc:
-            return self._fail_run(
-                run_id,
-                title=title,
-                agent_key="text-media",
-                error=exc,
-                input_json=input_json,
-            )
-        return self._finalize_run(run_id, result)
+        self.dispatch_agent_run(run_id)
+        return self.get_agent_run(run_id)
 
     def create_text_script_run(self, payload: TextScriptAgentRunRequest) -> AgentRunDetail:
         title = self._script_run_title(payload)
@@ -600,18 +642,15 @@ class AgentPlatformService(TaskService):
             title=title,
             input_text=input_text,
             input_json=input_json,
+            initial_status=AgentRunStatus.QUEUED,
+            initial_summary=f"{title} 已受理，等待 worker 执行。",
+            monitor_json={
+                "stage": "accepted",
+                "queued": True,
+            },
         )
-        try:
-            result = self._execute_text_script_run(payload, title=title, input_text=input_text)
-        except Exception as exc:
-            return self._fail_run(
-                run_id,
-                title=title,
-                agent_key="text-script",
-                error=exc,
-                input_json=input_json,
-            )
-        return self._finalize_run(run_id, result)
+        self.dispatch_agent_run(run_id)
+        return self.get_agent_run(run_id)
 
     def create_agent_run(self, agent_key: str, payload: Any) -> AgentRunDetail:
         if agent_key == "ai-drama":
@@ -632,6 +671,155 @@ class AgentPlatformService(TaskService):
             return self.create_text_script_run(payload)
         raise LookupError("agent not found")
 
+    def retry_agent_run(self, run_id: str, from_failed_node: bool = True) -> AgentRunDetail:
+        with self.session() as session:
+            stmt = (
+                select(AgentRun)
+                .options(selectinload(AgentRun.events))
+                .where(AgentRun.id == run_id)
+            )
+            previous_run = session.scalars(stmt).one_or_none()
+            if previous_run is None:
+                raise LookupError("agent run not found")
+            normalized_status = _to_agent_status(previous_run.status) or AgentRunStatus.RUNNING
+            if normalized_status != AgentRunStatus.FAILED:
+                raise ValueError("only failed agent run can be retried")
+            agent_key = previous_run.agent_key
+            title = previous_run.title
+            input_text = previous_run.input_text
+            input_json = dict(previous_run.input_json or {})
+            previous_monitor = dict(previous_run.monitor_json or {})
+            previous_events = list(previous_run.events or [])
+
+        if agent_key == "ai-drama":
+            payload = AIDramaAgentRunRequest.model_validate(input_json)
+            retry_title = payload.title.strip() or title or self._profile("ai-drama").name
+            failed_stage, failed_event = self._resolve_retry_stage_from_events(previous_events)
+            resume_checkpoint = self._extract_ai_drama_resume_checkpoint(previous_monitor)
+            should_resume_from_checkpoint = (
+                bool(from_failed_node)
+                and failed_stage == "media-artist"
+                and resume_checkpoint is not None
+            )
+            retry_run_id = self._create_agent_run_record(
+                agent_key="ai-drama",
+                title=retry_title,
+                input_text=input_text,
+                input_json=input_json,
+                monitor_json={
+                    "stage": "accepted",
+                    "retryOfRunId": run_id,
+                    "retryFromFailedNode": bool(from_failed_node),
+                    "retryFailedStage": failed_stage,
+                    "retryFailedEvent": failed_event,
+                },
+            )
+            self._append_run_event(
+                retry_run_id,
+                stage="retry",
+                event="run.retry_requested",
+                level="INFO",
+                message=f"已基于失败运行 {run_id} 发起重试。",
+                payload={
+                    "retryOfRunId": run_id,
+                    "fromFailedNode": bool(from_failed_node),
+                    "failedStage": failed_stage,
+                    "failedEvent": failed_event,
+                },
+            )
+            if should_resume_from_checkpoint:
+                self._append_run_event(
+                    retry_run_id,
+                    stage="retry",
+                    event="run.retry_resume_selected",
+                    level="INFO",
+                    message="检测到可用 checkpoint，将从 media-artist 阶段继续。",
+                    payload={"resumeFromStage": "media-artist"},
+                )
+            elif from_failed_node:
+                reason = (
+                    "缺少可用 checkpoint"
+                    if resume_checkpoint is None
+                    else f"失败节点为 {failed_stage or 'unknown'}，当前仅支持 media-artist 续跑"
+                )
+                self._append_run_event(
+                    retry_run_id,
+                    stage="retry",
+                    event="run.retry_fallback_full",
+                    level="WARN",
+                    message=f"无法从失败节点恢复，已回退为全量重跑：{reason}",
+                    payload={
+                        "reason": reason,
+                        "resumeRequested": True,
+                        "fallbackToFullRerun": True,
+                    },
+                )
+            else:
+                self._append_run_event(
+                    retry_run_id,
+                    stage="retry",
+                    event="run.retry_full_requested",
+                    level="INFO",
+                    message="已按请求执行全量重跑。",
+                    payload={"fromFailedNode": False},
+                )
+            try:
+                result = self._execute_ai_drama_run(
+                    payload,
+                    run_id=retry_run_id,
+                    title=retry_title,
+                    resume_checkpoint=resume_checkpoint if should_resume_from_checkpoint else None,
+                )
+            except Exception as exc:
+                return self._fail_run(
+                    retry_run_id,
+                    title=retry_title,
+                    agent_key="ai-drama",
+                    error=exc,
+                    input_json=input_json,
+                )
+            return self._finalize_run(retry_run_id, result)
+
+        if agent_key == "short-drama":
+            payload = ShortDramaAgentRunRequest.model_validate(input_json)
+            return self.create_short_drama_run(payload)
+        if agent_key == "text-media":
+            payload = TextMediaAgentRunRequest.model_validate(input_json)
+            return self.create_text_media_run(payload)
+        if agent_key == "text-script":
+            payload = TextScriptAgentRunRequest.model_validate(input_json)
+            return self.create_text_script_run(payload)
+        raise LookupError("agent not found")
+
+    def _resolve_retry_stage_from_events(self, events: list[AgentEvent]) -> tuple[str | None, str | None]:
+        excluded_events = {"run.failed", "run.finalized"}
+        for event in reversed(events or []):
+            stage = str(getattr(event, "stage", "") or "").strip()
+            event_name = str(getattr(event, "event", "") or "").strip()
+            if not stage or not event_name:
+                continue
+            if event_name in excluded_events:
+                continue
+            return stage, event_name
+        return None, None
+
+    def _extract_ai_drama_resume_checkpoint(self, monitor_json: dict[str, Any]) -> dict[str, Any] | None:
+        checkpoint = monitor_json.get("resumeCheckpoint")
+        if not isinstance(checkpoint, dict):
+            return None
+        resume_stage = str(checkpoint.get("resumeFromStage") or "").strip()
+        if resume_stage != "media-artist":
+            return None
+        if not isinstance(checkpoint.get("shots"), list):
+            return None
+        if not isinstance(checkpoint.get("preparedVideoRequests"), list):
+            return None
+        if not isinstance(checkpoint.get("continuity"), dict):
+            return None
+        if not isinstance(checkpoint.get("direction"), dict):
+            return None
+        return checkpoint
+
     def _create_agent_run_record(
         self,
         *,
@@ -640,24 +828,30 @@ class AgentPlatformService(TaskService):
         input_text: str | None,
         input_json: dict[str, Any],
         source_task_id: str | None = None,
+        initial_status: AgentRunStatus | str = AgentRunStatus.RUNNING,
+        initial_summary: str | None = None,
+        monitor_json: dict[str, Any] | None = None,
     ) -> str:
         with self.session() as session:
             self._load_agent_definition(session, agent_key)
+            status_value = initial_status.value if isinstance(initial_status, AgentRunStatus) else str(initial_status)
+            normalized_status = _to_agent_status(status_value) or AgentRunStatus.RUNNING
+            summary = truncate_text(initial_summary or f"{title} 已受理", 800) or f"{title} 已受理"
             run = AgentRun(
                 id=new_id("run"),
                 agent_key=agent_key,
                 title=title,
-                status=AgentRunStatus.RUNNING.value,
+                status=normalized_status.value,
                 progress=0,
                 input_text=input_text,
                 input_json=input_json,
-                summary=f"{title} 已受理",
+                summary=summary,
                 output_text=None,
                 output_json={},
-                monitor_json={"stage": "accepted"},
+                monitor_json=dict(monitor_json or {"stage": "accepted"}),
                 source_task_id=source_task_id,
                 error_message=None,
-                started_at=utcnow(),
+                started_at=utcnow() if normalized_status == AgentRunStatus.RUNNING else None,
             )
             session.add(run)
             session.commit()
@@ -674,6 +868,115 @@ class AgentPlatformService(TaskService):
             session.commit()
             return run.id
 
+    def list_pending_agent_run_ids(self, limit: int = 10) -> list[str]:
+        supported_agent_keys = ("text-media", "text-script")
+        with self.session() as session:
+            rows = session.scalars(
+                select(AgentRun.id)
+                .where(AgentRun.agent_key.in_(supported_agent_keys))
+                .where(AgentRun.status == AgentRunStatus.QUEUED.value)
+                .order_by(AgentRun.created_at.asc())
+                .limit(limit)
+            ).all()
+            return list(rows)
+
+    def dispatch_agent_run(self, run_id: str) -> None:
+        if self.settings.using_inline_execution or self.worker is None or self.worker.job_queue is None:
+            self._append_run_event(
+                run_id,
+                stage="dispatch",
+                event="run.dispatched_inline",
+                level="INFO",
+                message="运行通过本地线程直接开始执行。",
+                payload={"execution_mode": self.settings.app.execution_mode},
+            )
+            thread = threading.Thread(target=self.process_agent_run, args=(run_id,), daemon=True)
+            thread.start()
+            return
+        try:
+            enqueue_agent_run = getattr(self.worker.job_queue, "enqueue_agent_run", None)
+            if callable(enqueue_agent_run):
+                enqueue_agent_run(run_id)
+            else:
+                self.worker.job_queue.enqueue(run_id)
+            self._append_run_event(
+                run_id,
+                stage="dispatch",
+                event="run.enqueued",
+                level="INFO",
+                message="运行已进入队列，等待 worker 处理。",
+                payload={"queue_mode": True},
+            )
+        except Exception:
+            self._append_run_event(
+                run_id,
+                stage="dispatch",
+                event="run.enqueue_failed",
+                level="WARN",
+                message="运行入队失败，已回退为本地线程执行。",
+                payload={"queue_mode": True},
+            )
+            thread = threading.Thread(target=self.process_agent_run, args=(run_id,), daemon=True)
+            thread.start()
+
+    def _claim_agent_run(self, run_id: str) -> bool:
+        with self.session() as session:
+            run = session.get(AgentRun, run_id)
+            if run is None:
+                return False
+            if (run.status or "").strip().lower() != AgentRunStatus.QUEUED.value:
+                return False
+            run.status = AgentRunStatus.RUNNING.value
+            run.progress = max(4, int(run.progress or 0))
+            run.summary = truncate_text(f"{run.title} 开始执行。", 800) or f"{run.title} 开始执行。"
+            if run.started_at is None:
+                run.started_at = utcnow()
+            next_monitor = dict(run.monitor_json or {})
+            next_monitor.update({"stage": "running", "queued": False})
+            run.monitor_json = next_monitor
+            self._insert_event(
+                session,
+                run_id=run_id,
+                stage="agent",
+                event="run.started",
+                level="INFO",
+                message="worker 已开始执行运行。",
+                payload={"agentKey": run.agent_key},
+            )
+            session.commit()
+            return True
+
+    def process_agent_run(self, run_id: str) -> None:
+        if not self._claim_agent_run(run_id):
+            return
+        with self.session() as session:
+            run = session.get(AgentRun, run_id)
+            if run is None:
+                return
+            agent_key = run.agent_key
+            title = run.title
+            input_text = run.input_text
+            input_json = dict(run.input_json or {})
+        try:
+            if agent_key == "text-media":
+                payload = TextMediaAgentRunRequest.model_validate(input_json)
+                result = self._execute_text_media_run(payload, title=title, input_text=input_text)
+            elif agent_key == "text-script":
+                payload = TextScriptAgentRunRequest.model_validate(input_json)
+                result = self._execute_text_script_run(payload, title=title, input_text=input_text)
+            else:
+                raise ValueError(f"agent run worker does not support {agent_key}")
+        except Exception as exc:
+            self._fail_run(
+                run_id,
+                title=title,
+                agent_key=agent_key,
+                error=exc,
+                input_json=input_json,
+            )
+            return
+        self._finalize_run(run_id, result)
+
     def _fail_run(
         self,
         run_id: str,
@@ -684,6 +987,7 @@ class AgentPlatformService(TaskService):
         input_json: dict[str, Any],
     ) -> AgentRunDetail:
         error_message = truncate_text(str(error), 800) or "agent run failed"
+        seeddance_task_id = _extract_seeddance_task_id(error_message)
         with self.session() as session:
             run = session.get(AgentRun, run_id)
             if run is None:
@@ -693,13 +997,19 @@ class AgentPlatformService(TaskService):
             run.summary = f"{title} 执行失败"
             run.output_text = None
             run.output_json = {"error": error_message}
-            run.monitor_json = {
+            merged_monitor = dict(run.monitor_json or {})
+            merged_monitor.update(
+                {
                 "source": "agent-platform",
                 "status": "failed",
                 "error": error_message,
                 "input": input_json,
                 "agentKey": agent_key,
-            }
+                }
+            )
+            if seeddance_task_id:
+                merged_monitor["lastSeeddanceTaskId"] = seeddance_task_id
+            run.monitor_json = merged_monitor
             run.error_message = error_message
             run.finished_at = utcnow()
             self._insert_event(
@@ -709,7 +1019,11 @@ class AgentPlatformService(TaskService):
                 event="run.failed",
                 level="ERROR",
                 message=error_message,
-                payload={"agentKey": agent_key, "error": error_message},
+                payload={
+                    "agentKey": agent_key,
+                    "error": error_message,
+                    **({"taskId": seeddance_task_id} if seeddance_task_id else {}),
+                },
             )
             session.commit()
         return self.get_agent_run(run_id)
@@ -1033,6 +1347,7 @@ class AgentPlatformService(TaskService):
         *,
         run_id: str,
         title: str,
+        resume_checkpoint: dict[str, Any] | None = None,
     ) -> _ExecutionResult:
         def report_progress(
             *,
@@ -1065,175 +1380,331 @@ class AgentPlatformService(TaskService):
                 },
             )
 
+        def build_base_artifacts(
+            *,
+            script_raw: dict[str, Any],
+            script_markdown: str,
+            continuity: dict[str, Any],
+            shots: list[_StoryboardShot],
+            prepared_shots: list[dict[str, Any]],
+            visual_style: str,
+        ) -> list[_ArtifactSpec]:
+            artifacts: list[_ArtifactSpec] = [
+                _ArtifactSpec(
+                    kind="markdown",
+                    title="剧本与分镜 Markdown",
+                    mime_type="text/markdown",
+                    text_content=script_markdown,
+                    file_path=str(script_raw.get("markdownFilePath") or "") or None,
+                    file_url=str(script_raw.get("markdownFileUrl") or script_raw.get("downloadUrl") or "") or None,
+                    json_content=script_raw,
+                    order_index=0,
+                ),
+                _ArtifactSpec(
+                    kind="consistency-plan",
+                    title="角色与风格一致性方案",
+                    mime_type="application/json",
+                    json_content=continuity,
+                    order_index=1,
+                ),
+                _ArtifactSpec(
+                    kind="storyboard",
+                    title="分镜 JSON",
+                    mime_type="application/json",
+                    json_content={"shots": [_shot_to_dict(item) for item in shots]},
+                    order_index=2,
+                ),
+                _ArtifactSpec(
+                    kind="video-prompt-plan",
+                    title="视频模型调用脚本",
+                    mime_type="application/json",
+                    json_content={"shots": prepared_shots},
+                    order_index=3,
+                ),
+                _ArtifactSpec(
+                    kind="video-prompt-markdown",
+                    title="视频模型提示词预览",
+                    mime_type="text/markdown",
+                    text_content=_build_video_prompt_markdown(
+                        title=title,
+                        visual_style=visual_style,
+                        prepared_shots=prepared_shots,
+                    ),
+                    order_index=4,
+                ),
+            ]
+            return artifacts
+
         started_at = time.monotonic()
-        direction = _decide_ai_drama_direction(
-            title=title,
-            text=payload.text,
-            aspect_ratio=payload.aspectRatio,
-            visual_style=payload.visualStyle,
-            total_duration_seconds=payload.totalDurationSeconds,
-            shot_count=payload.shotCount,
-            shot_duration_seconds=payload.shotDurationSeconds,
-            intro_template=payload.introTemplate,
-            outro_template=payload.outroTemplate,
-            transition_style=payload.transitionStyle,
-        )
-        visual_style = direction.visual_style
-        report_progress(
-            stage="showrunner",
-            event="pipeline.started",
-            progress=5,
-            summary="AI 剧总控正在完成导演决策并生成剧本。",
-            message="AI 剧总控已启动，正在拆解故事、判定风格和镜头节奏。",
-            payload_data={
-                "requestedShotCount": payload.shotCount,
-                "requestedShotDurationSeconds": payload.shotDurationSeconds,
-                "requestedTotalDurationSeconds": payload.totalDurationSeconds,
-                "aspectRatio": payload.aspectRatio,
-            },
-            monitor_patch={"visualStyle": visual_style},
-        )
-        report_progress(
-            stage="showrunner",
-            event="direction.decided",
-            progress=9,
-            summary="AI 剧总控已完成导演决策，正在生成剧本。",
-            message="导演 Agent 已决定视觉风格、镜头规模、片头片尾和转场策略",
-            payload_data={
-                "visualStyle": direction.visual_style,
-                "shotCount": direction.shot_count,
-                "shotDurationSeconds": direction.shot_duration_seconds,
-                "totalDurationSeconds": direction.total_duration_seconds,
-                "introTemplate": direction.intro_template,
-                "outroTemplate": direction.outro_template,
-                "transitionStyle": direction.transition_style,
-                "reasoning": direction.reasoning,
-            },
-            monitor_patch={
-                "visualStyle": direction.visual_style,
-                "shotCount": direction.shot_count,
-                "shotDurationSeconds": direction.shot_duration_seconds,
-                "totalDurationSeconds": direction.total_duration_seconds,
-                "introTemplate": direction.intro_template,
-                "outroTemplate": direction.outro_template,
-                "transitionStyle": direction.transition_style,
-                "directorReasoning": direction.reasoning,
-            },
-        )
-        script_payload = TextScriptAgentRunRequest(text=payload.text, visualStyle=visual_style)
-        script_response = self.text_generator.generate_text_script(script_payload)
-        script_raw = script_response.model_dump()
-        script_markdown = str(script_raw.get("scriptMarkdown") or "")
-        report_progress(
-            stage="script-writer",
-            event="script.generated",
-            progress=14,
-            summary="AI 剧总控正在锁定角色和分镜。",
-            message=f"文生脚本 Agent 输出 {len(script_markdown)} 字 Markdown 剧本",
-            payload_data={"requestedShotCount": direction.shot_count, "visualStyle": visual_style},
-            monitor_patch={"scriptLength": len(script_markdown)},
-        )
+        resumed_from_checkpoint = False
+        direction: _AIDramaDirection
+        visual_style: str
+        script_raw: dict[str, Any]
+        shots: list[_StoryboardShot]
+        continuity: dict[str, Any]
+        version: int
+        transition_style: str
+        selected_provider_model: str | None
+        frame_width: int
+        frame_height: int
+        normalized_video_size: str
+        artifacts: list[_ArtifactSpec]
+        prepared_shots: list[dict[str, Any]]
+        prepared_video_requests: list[dict[str, Any]]
 
-        shots = _extract_storyboard_shots(
-            script_markdown,
-            preferred_count=direction.shot_count,
-            fallback_duration=direction.shot_duration_seconds,
-            source_text=payload.text,
-        )
-        if not shots:
-            raise RuntimeError("storyboard parser did not produce any shots")
-
-        character_anchors = _extract_character_anchors(script_markdown)
-        continuity = _build_continuity_plan(
-            title=title,
-            visual_style=visual_style,
-            continuity_seed=payload.continuitySeed,
-            character_anchors=character_anchors,
-            shot_count=len(shots),
-        )
-        version = _pick_media_version(visual_style)
-        transition_style = direction.transition_style
-        report_progress(
-            stage="consistency-director",
-            event="continuity.locked",
-            progress=22,
-            summary="AI 剧总控正在生成镜头素材。",
-            message="角色锚点、统一风格和 continuity seed 已锁定",
-            payload_data=continuity,
-            monitor_patch={"continuitySeed": payload.continuitySeed, "shotCount": len(shots)},
-        )
-        artifacts: list[_ArtifactSpec] = [
-            _ArtifactSpec(
-                kind="markdown",
-                title="剧本与分镜 Markdown",
-                mime_type="text/markdown",
-                text_content=script_markdown,
-                file_path=str(script_raw.get("markdownFilePath") or "") or None,
-                file_url=str(script_raw.get("markdownFileUrl") or script_raw.get("downloadUrl") or "") or None,
-                json_content=script_raw,
-                order_index=0,
-            ),
-            _ArtifactSpec(
-                kind="consistency-plan",
-                title="角色与风格一致性方案",
-                mime_type="application/json",
-                json_content=continuity,
-                order_index=1,
-            ),
-            _ArtifactSpec(
-                kind="storyboard",
-                title="分镜 JSON",
-                mime_type="application/json",
-                json_content={"shots": [_shot_to_dict(item) for item in shots]},
-                order_index=2,
-            ),
-        ]
-
-        generated_shots: list[dict[str, Any]] = []
-        stitch_segments: list[RenderSegmentSpec] = []
-        artifact_index = len(artifacts)
-        for shot in shots:
-            shot_prompt = _compose_shot_prompt(
-                shot=shot,
-                visual_style=visual_style,
-                continuity=continuity,
-            )
-            keyframe_raw: dict[str, Any] | None = None
-            keyframe_url: str | None = None
-            if payload.includeKeyframes:
-                keyframe_response = self.text_generator.generate_text_image(
-                    {
-                        "prompt": shot_prompt,
-                        "version": version,
-                        "width": 1080 if payload.aspectRatio == "9:16" else 1920,
-                        "height": 1920 if payload.aspectRatio == "9:16" else 1080,
-                        "extras": {
-                            "styleHint": visual_style,
-                            "lightingHint": continuity["styleLock"],
-                        },
-                    }
-                )
-                keyframe_raw = keyframe_response.model_dump()
-                keyframe_url = str(keyframe_raw.get("fileUrl") or keyframe_raw.get("outputUrl") or "") or None
-                artifacts.append(
-                    _ArtifactSpec(
-                        kind="keyframe",
-                        title=f"关键帧 {shot.shot_no}",
-                        mime_type=str(keyframe_raw.get("mimeType") or "image/svg+xml"),
-                        file_path=str(keyframe_raw.get("filePath") or "") or None,
-                        file_url=keyframe_url,
-                        json_content=keyframe_raw,
-                        order_index=artifact_index,
+        if resume_checkpoint is not None:
+            direction_raw = resume_checkpoint.get("direction")
+            script_raw_value = resume_checkpoint.get("script")
+            continuity_raw = resume_checkpoint.get("continuity")
+            shots_raw = resume_checkpoint.get("shots")
+            prepared_shots_raw = resume_checkpoint.get("preparedShots")
+            prepared_video_requests_raw = resume_checkpoint.get("preparedVideoRequests")
+            if (
+                isinstance(direction_raw, dict)
+                and isinstance(script_raw_value, dict)
+                and isinstance(continuity_raw, dict)
+                and isinstance(shots_raw, list)
+                and isinstance(prepared_shots_raw, list)
+                and isinstance(prepared_video_requests_raw, list)
+            ):
+                parsed_shots = [_shot_from_dict(item, index + 1) for index, item in enumerate(shots_raw) if isinstance(item, dict)]
+                if parsed_shots and len(prepared_video_requests_raw) == len(parsed_shots):
+                    direction = _direction_from_dict(direction_raw)
+                    visual_style = str(resume_checkpoint.get("visualStyle") or direction.visual_style).strip() or direction.visual_style
+                    script_raw = dict(script_raw_value)
+                    continuity = dict(continuity_raw)
+                    shots = parsed_shots
+                    prepared_shots = [dict(item) for item in prepared_shots_raw if isinstance(item, dict)]
+                    prepared_video_requests = [dict(item) for item in prepared_video_requests_raw if isinstance(item, dict)]
+                    if len(prepared_shots) != len(shots) or len(prepared_video_requests) != len(shots):
+                        raise RuntimeError("ai-drama resume checkpoint shot count mismatch")
+                    selected_provider_model = str(
+                        resume_checkpoint.get("providerModel")
+                        or payload.providerModel
+                        or ""
+                    ).strip() or None
+                    checkpoint_video_size = str(resume_checkpoint.get("videoSize") or "").strip().lower()
+                    checkpoint_width = resume_checkpoint.get("width")
+                    checkpoint_height = resume_checkpoint.get("height")
+                    if (
+                        isinstance(checkpoint_width, (int, float))
+                        and isinstance(checkpoint_height, (int, float))
+                        and checkpoint_video_size
+                    ):
+                        frame_width = max(256, int(checkpoint_width))
+                        frame_height = max(256, int(checkpoint_height))
+                        normalized_video_size = checkpoint_video_size
+                    else:
+                        frame_width, frame_height, normalized_video_size = _resolve_ai_drama_video_size(
+                            payload.videoSize,
+                            payload.aspectRatio,
+                        )
+                    version = int(resume_checkpoint.get("version") or _pick_media_version(visual_style))
+                    transition_style = str(
+                        resume_checkpoint.get("transitionStyle")
+                        or direction.transition_style
+                        or payload.transitionStyle
+                        or "cut"
+                    ).strip() or "cut"
+                    script_markdown = str(script_raw.get("scriptMarkdown") or "")
+                    artifacts = build_base_artifacts(
+                        script_raw=script_raw,
+                        script_markdown=script_markdown,
+                        continuity=continuity,
+                        shots=shots,
+                        prepared_shots=prepared_shots,
+                        visual_style=visual_style,
                     )
+                    resumed_from_checkpoint = True
+                    report_progress(
+                        stage="media-artist",
+                        event="pipeline.resumed",
+                        progress=24,
+                        summary="AI 剧总控已从失败节点恢复，继续生成镜头素材。",
+                        message="检测到可用 checkpoint，已跳过脚本与分镜阶段。",
+                        payload_data={
+                            "resumeFromStage": "media-artist",
+                            "shotCount": len(shots),
+                            "retryProviderModel": selected_provider_model,
+                        },
+                        monitor_patch={
+                            "resumedFromCheckpoint": True,
+                            "resumeFromStage": "media-artist",
+                            "shotCount": len(shots),
+                            "visualStyle": visual_style,
+                        },
+                    )
+        if not resumed_from_checkpoint:
+            if resume_checkpoint is not None:
+                self._append_run_event(
+                    run_id,
+                    stage="retry",
+                    event="checkpoint.invalid",
+                    level="WARN",
+                    message="checkpoint 不可用，已回退到全量重跑。",
+                    payload={"resumeFromStage": resume_checkpoint.get("resumeFromStage")},
                 )
-                artifact_index += 1
+            source_text, source_text_file_path, source_text_file_name = self._resolve_ai_drama_source_text(payload)
+            direction = _decide_ai_drama_direction(
+                title=title,
+                text=source_text,
+                aspect_ratio=payload.aspectRatio,
+                visual_style=payload.visualStyle,
+                total_duration_seconds=payload.totalDurationSeconds,
+                shot_count=payload.shotCount,
+                shot_duration_seconds=payload.shotDurationSeconds,
+                intro_template=payload.introTemplate,
+                outro_template=payload.outroTemplate,
+                transition_style=payload.transitionStyle,
+            )
+            visual_style = direction.visual_style
+            report_progress(
+                stage="showrunner",
+                event="pipeline.started",
+                progress=5,
+                summary="AI 剧总控正在完成导演决策并生成剧本。",
+                message="AI 剧总控已启动，正在拆解故事、判定风格和镜头节奏。",
+                payload_data={
+                    "requestedShotCount": payload.shotCount,
+                    "requestedShotDurationSeconds": payload.shotDurationSeconds,
+                    "requestedTotalDurationSeconds": payload.totalDurationSeconds,
+                    "aspectRatio": payload.aspectRatio,
+                },
+                monitor_patch={"visualStyle": visual_style},
+            )
+            report_progress(
+                stage="showrunner",
+                event="direction.decided",
+                progress=9,
+                summary="AI 剧总控已完成导演决策，正在生成剧本。",
+                message="导演 Agent 已决定视觉风格、镜头规模、片头片尾和转场策略",
+                payload_data={
+                    "visualStyle": direction.visual_style,
+                    "shotCount": direction.shot_count,
+                    "shotDurationSeconds": direction.shot_duration_seconds,
+                    "totalDurationSeconds": direction.total_duration_seconds,
+                    "introTemplate": direction.intro_template,
+                    "outroTemplate": direction.outro_template,
+                    "transitionStyle": direction.transition_style,
+                    "reasoning": direction.reasoning,
+                },
+                monitor_patch={
+                    "visualStyle": direction.visual_style,
+                    "shotCount": direction.shot_count,
+                    "shotDurationSeconds": direction.shot_duration_seconds,
+                    "totalDurationSeconds": direction.total_duration_seconds,
+                    "introTemplate": direction.intro_template,
+                    "outroTemplate": direction.outro_template,
+                    "transitionStyle": direction.transition_style,
+                    "directorReasoning": direction.reasoning,
+                },
+            )
+            script_request_text = source_text
+            if len(script_request_text) > MAX_INLINE_SCRIPT_TEXT_LENGTH:
+                script_request_text = source_text[:MAX_INLINE_SCRIPT_TEXT_LENGTH]
+                self._append_run_event(
+                    run_id,
+                    stage="script-writer",
+                    event="source_text.truncated",
+                    level="WARN",
+                    message=(
+                        f"正文长度超过 {MAX_INLINE_SCRIPT_TEXT_LENGTH} 字，已裁剪 inline 请求体；"
+                        "若当前模型支持文件输入，仍会优先上传原始 TXT。"
+                    ),
+                    payload={
+                        "sourceTextLength": len(source_text),
+                        "inlineTextLength": len(script_request_text),
+                        "sourceFileAttached": source_text_file_path is not None,
+                    },
+                )
+                self._update_run_state(
+                    run_id,
+                    monitor_patch={
+                        "sourceTextLength": len(source_text),
+                        "inlineScriptTextLength": len(script_request_text),
+                        "inlineScriptTextTruncated": True,
+                    },
+                )
+            script_payload = TextScriptAgentRunRequest(
+                text=script_request_text,
+                visualStyle=visual_style,
+                textAnalysisModel=payload.textAnalysisModel,
+            )
+            if source_text_file_path is not None:
+                script_response = self.text_generator.generate_text_script_with_source_file(
+                    script_payload,
+                    source_text_file_path=source_text_file_path,
+                    source_text_file_name=source_text_file_name,
+                )
+            else:
+                script_response = self.text_generator.generate_text_script(script_payload)
+            script_raw = script_response.model_dump()
+            script_markdown = str(script_raw.get("scriptMarkdown") or "")
+            storyboard_script_url = str(script_raw.get("markdownFileUrl") or script_raw.get("downloadUrl") or "").strip()
+            if not storyboard_script_url:
+                markdown_path = str(script_raw.get("markdownFilePath") or "").strip()
+                if markdown_path:
+                    storyboard_script_url = self.storage.build_public_url(markdown_path)
+            report_progress(
+                stage="script-writer",
+                event="script.generated",
+                progress=14,
+                summary="AI 剧总控正在锁定角色和分镜。",
+                message=f"文生脚本 Agent 输出 {len(script_markdown)} 字 Markdown 剧本",
+                payload_data={
+                    "requestedShotCount": direction.shot_count,
+                    "visualStyle": visual_style,
+                    "storyboardScriptUrl": storyboard_script_url or None,
+                    "storyboardScriptPath": str(script_raw.get("markdownFilePath") or "").strip() or None,
+                },
+                monitor_patch={"scriptLength": len(script_markdown)},
+            )
 
-            video_response = self.text_generator.generate_text_video(
-                {
+            shots = _extract_storyboard_shots(
+                script_markdown,
+                preferred_count=direction.shot_count,
+                fallback_duration=direction.shot_duration_seconds,
+                source_text=source_text,
+            )
+            if not shots:
+                raise RuntimeError("storyboard parser did not produce any shots")
+
+            character_anchors = _extract_character_anchors(script_markdown)
+            continuity = _build_continuity_plan(
+                title=title,
+                visual_style=visual_style,
+                continuity_seed=payload.continuitySeed,
+                character_anchors=character_anchors,
+                shot_count=len(shots),
+            )
+            version = _pick_media_version(visual_style)
+            transition_style = direction.transition_style
+            selected_provider_model = str(payload.providerModel or "").strip() or None
+            frame_width, frame_height, normalized_video_size = _resolve_ai_drama_video_size(payload.videoSize, payload.aspectRatio)
+            report_progress(
+                stage="consistency-director",
+                event="continuity.locked",
+                progress=22,
+                summary="AI 剧总控正在生成镜头素材。",
+                message="角色锚点、统一风格和 continuity seed 已锁定",
+                payload_data=continuity,
+                monitor_patch={"continuitySeed": payload.continuitySeed, "shotCount": len(shots)},
+            )
+            prepared_shots = []
+            prepared_video_requests = []
+            for shot in shots:
+                shot_prompt = _compose_shot_prompt(
+                    shot=shot,
+                    visual_style=visual_style,
+                    continuity=continuity,
+                )
+                video_request = {
                     "prompt": shot_prompt,
                     "version": version,
-                    "width": 1080 if payload.aspectRatio == "9:16" else 1920,
-                    "height": 1920 if payload.aspectRatio == "9:16" else 1080,
+                    "providerModel": selected_provider_model,
+                    "videoSize": normalized_video_size,
+                    "width": frame_width,
+                    "height": frame_height,
                     "durationSeconds": shot.duration_seconds,
                     "extras": {
                         "styleHint": visual_style,
@@ -1241,8 +1712,274 @@ class AgentPlatformService(TaskService):
                         "lightingHint": continuity["styleLock"],
                     },
                 }
+                prepared_video_requests.append(video_request)
+                prepared_shots.append(
+                    {
+                        **_shot_to_dict(shot),
+                        "prompt": shot_prompt,
+                        "videoRequest": video_request,
+                    }
+                )
+            artifacts = build_base_artifacts(
+                script_raw=script_raw,
+                script_markdown=script_markdown,
+                continuity=continuity,
+                shots=shots,
+                prepared_shots=prepared_shots,
+                visual_style=visual_style,
             )
+            checkpoint_payload = {
+                "checkpointVersion": 1,
+                "resumeFromStage": "media-artist",
+                "title": title,
+                "visualStyle": visual_style,
+                "direction": _direction_to_dict(direction),
+                "script": script_raw,
+                "continuity": continuity,
+                "shots": [_shot_to_dict(item) for item in shots],
+                "preparedShots": prepared_shots,
+                "preparedVideoRequests": prepared_video_requests,
+                "version": version,
+                "providerModel": selected_provider_model,
+                "videoSize": normalized_video_size,
+                "width": frame_width,
+                "height": frame_height,
+                "transitionStyle": transition_style,
+                "savedAt": self._utc_iso(),
+            }
+            self._update_run_state(
+                run_id,
+                monitor_patch={"resumeCheckpoint": checkpoint_payload},
+            )
+            self._append_run_event(
+                run_id,
+                stage="consistency-director",
+                event="checkpoint.saved",
+                level="INFO",
+                message="已保存 media-artist 续跑 checkpoint。",
+                payload={"resumeFromStage": "media-artist", "shotCount": len(shots)},
+            )
+
+        if payload.stopBeforeVideoGeneration:
+            elapsed = round(time.monotonic() - started_at, 3)
+            summary = f"AI 剧已在视频模型调用前停止，共准备 {len(shots)} 个镜头脚本。"
+            report_progress(
+                stage="developer-gate",
+                event="video.generation.skipped",
+                progress=100,
+                summary=summary,
+                message="开发者模式已生效，可先检查视频模型提示词后再继续生成。",
+                payload_data={"preparedShotCount": len(prepared_shots), "stopReason": "before_video_generation"},
+                monitor_patch={"stoppedBeforeVideoGeneration": True, "preparedShotCount": len(prepared_shots)},
+            )
+            return _ExecutionResult(
+                status=AgentRunStatus.SUCCEEDED,
+                title=title,
+                summary=summary,
+                output_text=summary,
+                output_json={
+                    "title": title,
+                    "visualStyle": visual_style,
+                    "aspectRatio": payload.aspectRatio,
+                    "providerModel": selected_provider_model,
+                    "videoSize": normalized_video_size,
+                    "width": frame_width,
+                    "height": frame_height,
+                    "shotCount": len(shots),
+                    "continuitySeed": payload.continuitySeed,
+                    "shotDurationSeconds": direction.shot_duration_seconds,
+                    "totalDurationSeconds": direction.total_duration_seconds,
+                    "directorDecision": {
+                        "visualStyle": direction.visual_style,
+                        "shotCount": direction.shot_count,
+                        "shotDurationSeconds": direction.shot_duration_seconds,
+                        "totalDurationSeconds": direction.total_duration_seconds,
+                        "introTemplate": direction.intro_template,
+                        "outroTemplate": direction.outro_template,
+                        "transitionStyle": direction.transition_style,
+                        "reasoning": direction.reasoning,
+                    },
+                    "script": script_raw,
+                    "consistency": continuity,
+                    "storyboard": {"shots": [_shot_to_dict(item) for item in shots]},
+                    "preparedShots": prepared_shots,
+                    "generatedShots": [],
+                    "stoppedBeforeVideoGeneration": True,
+                    "stopReason": "before_video_generation",
+                },
+                monitor_json={
+                    "pipeline": (
+                        ["media-artist", "developer-gate"]
+                        if resumed_from_checkpoint
+                        else ["script-writer", "consistency-director", "developer-gate"]
+                    ),
+                    "shotCount": len(shots),
+                    "shotDurationSeconds": direction.shot_duration_seconds,
+                    "totalDurationSeconds": direction.total_duration_seconds,
+                    "continuitySeed": payload.continuitySeed,
+                    "elapsedSeconds": elapsed,
+                    "visualStyle": visual_style,
+                    "providerModel": selected_provider_model,
+                    "videoSize": normalized_video_size,
+                    "width": frame_width,
+                    "height": frame_height,
+                    "directorReasoning": direction.reasoning,
+                    "stoppedBeforeVideoGeneration": True,
+                    "resumedFromCheckpoint": resumed_from_checkpoint,
+                },
+                artifacts=artifacts,
+                events=[
+                    {
+                        "stage": "agent",
+                        "event": "run.completed",
+                        "level": "INFO",
+                        "message": summary,
+                        "payload": {"shotCount": len(shots), "stopReason": "before_video_generation"},
+                    }
+                ],
+                progress=100,
+            )
+
+        generated_shots: list[dict[str, Any]] = []
+        stitch_segments: list[RenderSegmentSpec] = []
+        artifact_index = len(artifacts)
+        keyframe_generation_enabled = bool(payload.includeKeyframes)
+        selected_model_key = self.text_generator.normalize_video_model_key(selected_provider_model or "")
+        requires_reference_image = selected_model_key == "seeddance-1.5-pro"
+        if requires_reference_image and not keyframe_generation_enabled:
+            raise RuntimeError("seeddance-1.5-pro requires includeKeyframes=true to produce referenceImageUrl")
+        for shot, video_request in zip(shots, prepared_video_requests):
+            shot_prompt = str(video_request.get("prompt") or "")
+            keyframe_raw: dict[str, Any] | None = None
+            shot_video_request = dict(video_request)
+            raw_extras = video_request.get("extras")
+            shot_extras = dict(raw_extras) if isinstance(raw_extras, dict) else {}
+            shot_video_request["extras"] = shot_extras
+            if keyframe_generation_enabled:
+                keyframe_prompt = "；".join(
+                    part.strip()
+                    for part in (
+                        shot_prompt,
+                        "输出一张用于图生视频的关键帧单图，保持角色一致和场景连续，不含文字与水印。",
+                    )
+                    if part and part.strip()
+                )
+                keyframe_provider_model = (
+                    "Doubao-Seedream-5.0-lite" if requires_reference_image else selected_provider_model
+                )
+                keyframe_request = {
+                    "prompt": keyframe_prompt,
+                    "version": version,
+                    "providerModel": keyframe_provider_model,
+                    "width": frame_width,
+                    "height": frame_height,
+                    "extras": {
+                        "styleHint": visual_style,
+                        "cameraHint": shot.shot_type,
+                        "lightingHint": continuity["styleLock"],
+                        "forceProviderModelForImage": True,
+                    },
+                }
+                try:
+                    keyframe_response = self.text_generator.generate_text_image(keyframe_request)
+                    keyframe_raw = keyframe_response.model_dump()
+                except Exception as exc:
+                    self._append_run_event(
+                        run_id,
+                        stage="media-artist",
+                        event="keyframe.failed",
+                        level="WARN",
+                        message=f"{shot.shot_no} 关键帧生成失败，继续尝试视频生成。",
+                        payload={"shotNo": shot.shot_no, "error": truncate_text(str(exc), 300) or str(exc)},
+                    )
+                    if requires_reference_image:
+                        raise RuntimeError(
+                            f"shot {shot.shot_no} keyframe generation failed for seeddance reference image: {exc}"
+                        ) from exc
+                if keyframe_raw:
+                    keyframe_metadata = keyframe_raw.get("metadata") if isinstance(keyframe_raw.get("metadata"), dict) else {}
+                    remote_source_url = str(
+                        keyframe_metadata.get("remoteSourceUrl")
+                        or keyframe_metadata.get("remote_source_url")
+                        or ""
+                    ).strip()
+                    local_result_url = str(keyframe_raw.get("fileUrl") or keyframe_raw.get("outputUrl") or "").strip()
+                    keyframe_url = remote_source_url or local_result_url
+                    if keyframe_url:
+                        parsed_keyframe_url = urllib.parse.urlparse(keyframe_url)
+                        keyframe_host = (parsed_keyframe_url.hostname or "").strip().lower()
+                        if requires_reference_image and keyframe_host in {"127.0.0.1", "localhost"}:
+                            raise RuntimeError(
+                                f"shot {shot.shot_no} referenceImageUrl is local and not reachable by seeddance: {keyframe_url}"
+                            )
+                        shot_extras["referenceImageUrl"] = keyframe_url
+                        shot_extras["reference_image_url"] = keyframe_url
+                        shot_extras["sourceImageUrl"] = keyframe_url
+                        shot_extras["imageUrl"] = keyframe_url
+                    elif requires_reference_image:
+                        raise RuntimeError(f"shot {shot.shot_no} keyframe did not provide referenceImageUrl for seeddance")
+                    artifacts.append(
+                        _ArtifactSpec(
+                            kind="shot-keyframe",
+                            title=f"关键帧 {shot.shot_no}",
+                            mime_type=str(keyframe_raw.get("mimeType") or "image/png"),
+                            file_path=str(keyframe_raw.get("filePath") or "") or None,
+                            file_url=keyframe_url or None,
+                            json_content=keyframe_raw,
+                            order_index=artifact_index,
+                        )
+                    )
+                    artifact_index += 1
+                    self._append_run_event(
+                        run_id,
+                        stage="media-artist",
+                        event="keyframe.generated",
+                        level="INFO",
+                        message=f"{shot.shot_no} 关键帧已生成并写入 referenceImageUrl。",
+                        payload={
+                            "shotNo": shot.shot_no,
+                            "providerModel": keyframe_provider_model,
+                            "hasReferenceImageUrl": bool(keyframe_url),
+                            "referenceImageUrl": truncate_text(keyframe_url, 240) if keyframe_url else None,
+                            "referenceImageSource": "remoteSourceUrl" if remote_source_url else "localOutputUrl",
+                        },
+                    )
+            if requires_reference_image and not str(shot_extras.get("referenceImageUrl") or "").strip():
+                raise RuntimeError(f"shot {shot.shot_no} missing referenceImageUrl for seeddance-1.5-pro")
+            try:
+                video_response = self.text_generator.generate_text_video(shot_video_request)
+            except Exception as exc:
+                seeddance_task_id = _extract_seeddance_task_id(str(exc))
+                if seeddance_task_id:
+                    self._append_run_event(
+                        run_id,
+                        stage="media-artist",
+                        event="seeddance.task_id.captured",
+                        level="WARN",
+                        message=f"{shot.shot_no} 失败前已捕获 seeddance task id。",
+                        payload={
+                            "shotNo": shot.shot_no,
+                            "taskId": seeddance_task_id,
+                            "error": truncate_text(str(exc), 360) or str(exc),
+                        },
+                    )
+                    self._update_run_state(
+                        run_id,
+                        monitor_patch={
+                            "lastSeeddanceTaskId": seeddance_task_id,
+                            "lastSeeddanceShotNo": shot.shot_no,
+                        },
+                    )
+                raise
+            self._record_video_model_usage(video_response)
             video_raw = video_response.model_dump()
+            video_metadata = video_raw.get("metadata") if isinstance(video_raw.get("metadata"), dict) else {}
+            video_model_info = video_metadata.get("modelInfo") if isinstance(video_metadata.get("modelInfo"), dict) else {}
+            seeddance_task_id = str(
+                video_metadata.get("taskId")
+                or video_model_info.get("taskId")
+                or ""
+            ).strip()
             relative_video_path = str(video_raw.get("filePath") or "").strip()
             if not relative_video_path:
                 raise RuntimeError(f"shot {shot.shot_no} did not return a local video path")
@@ -1284,13 +2021,17 @@ class AgentPlatformService(TaskService):
                 event="shot.rendered",
                 progress=22 + int(50 * (len(generated_shots) / max(len(shots), 1))),
                 summary=f"AI 剧总控正在生成镜头素材（{len(generated_shots)}/{len(shots)}）。",
-                message=f"{shot.shot_no} 已完成{'关键帧与' if payload.includeKeyframes else ''}视频镜头生成",
+                message=f"{shot.shot_no} 已完成视频镜头生成",
                 payload_data={
                     "shotNo": shot.shot_no,
                     "durationSeconds": shot.duration_seconds,
-                    "hasKeyframe": payload.includeKeyframes,
+                    "hasKeyframe": bool(keyframe_raw),
+                    "taskId": seeddance_task_id or None,
                 },
-                monitor_patch={"renderedShots": len(generated_shots)},
+                monitor_patch={
+                    "renderedShots": len(generated_shots),
+                    **({"lastSeeddanceTaskId": seeddance_task_id} if seeddance_task_id else {}),
+                },
             )
 
         stitched_relative_path, stitched_public_url, stitched_duration = self._stitch_ai_drama_segments(
@@ -1390,8 +2131,8 @@ class AgentPlatformService(TaskService):
         pipeline_stages = [
             stage
             for stage in [
-                "script-writer",
-                "consistency-director",
+                "script-writer" if not resumed_from_checkpoint else None,
+                "consistency-director" if not resumed_from_checkpoint else None,
                 "media-artist",
                 "stitch-algorithm",
                 "voice-director" if payload.includeDubPlan else None,
@@ -1403,6 +2144,10 @@ class AgentPlatformService(TaskService):
             "title": title,
             "visualStyle": visual_style,
             "aspectRatio": payload.aspectRatio,
+            "providerModel": selected_provider_model,
+            "videoSize": normalized_video_size,
+            "width": frame_width,
+            "height": frame_height,
             "shotCount": len(shots),
             "continuitySeed": payload.continuitySeed,
             "shotDurationSeconds": direction.shot_duration_seconds,
@@ -1449,7 +2194,12 @@ class AgentPlatformService(TaskService):
                 "elapsedSeconds": elapsed,
                 "finalVideoUrl": stitched_public_url,
                 "visualStyle": visual_style,
+                "providerModel": selected_provider_model,
+                "videoSize": normalized_video_size,
+                "width": frame_width,
+                "height": frame_height,
                 "directorReasoning": direction.reasoning,
+                "resumedFromCheckpoint": resumed_from_checkpoint,
             },
             artifacts=artifacts,
             events=[
@@ -1518,11 +2268,13 @@ class AgentPlatformService(TaskService):
     ) -> _ExecutionResult:
         engine_payload = {
             "prompt": payload.prompt,
-            "version": payload.version,
             "providerModel": payload.providerModel if payload.mediaKind == "video" else None,
+            "textAnalysisModel": payload.textAnalysisModel or None,
             "width": payload.width or (1080 if payload.aspectRatio == "9:16" else 1920),
             "height": payload.height or (1920 if payload.aspectRatio == "9:16" else 1080),
             "durationSeconds": payload.durationSeconds if payload.mediaKind == "video" else None,
+            "minDurationSeconds": payload.minDurationSeconds if payload.mediaKind == "video" else None,
+            "maxDurationSeconds": payload.maxDurationSeconds if payload.mediaKind == "video" else None,
             "extras": {
                 "styleHint": payload.visualStyle or payload.stylePreset or "",
                 "cameraHint": payload.stylePreset or "",
@@ -1533,6 +2285,8 @@ class AgentPlatformService(TaskService):
             if payload.mediaKind == TextMediaKind.IMAGE.value
             else self.text_generator.generate_text_video(engine_payload)
         )
+        if payload.mediaKind == TextMediaKind.VIDEO.value:
+            self._record_video_model_usage(response)
         raw = response.model_dump()
         metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
         call_chain = raw.get("callChain") if isinstance(raw.get("callChain"), list) else []
@@ -1776,6 +2530,22 @@ def _call_chain_to_event(entry: dict[str, Any]) -> dict[str, Any]:
         "message": entry.get("message", ""),
         "payload": entry.get("details") or {},
     }
+
+
+def _extract_seeddance_task_id(text: str) -> str:
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    marker_match = re.search(r"\[seeddance_task_id=([^\]]+)\]", value, flags=re.IGNORECASE)
+    if marker_match:
+        return marker_match.group(1).strip()
+    generic_match = re.search(r"\btask[_\s-]*id[:=\s]+([A-Za-z0-9._:-]+)", value, flags=re.IGNORECASE)
+    if generic_match:
+        return generic_match.group(1).strip()
+    seeddance_match = re.search(r"\bseeddance\s+task\s+([A-Za-z0-9._:-]+)", value, flags=re.IGNORECASE)
+    if seeddance_match:
+        return seeddance_match.group(1).strip()
+    return ""
 
 
 def _task_trace_to_event(entry) -> dict[str, Any]:
@@ -2079,6 +2849,18 @@ def _compose_shot_prompt(
     return "；".join(part.strip() for part in prompt_parts if part and part.strip())
 
 
+def _resolve_ai_drama_video_size(video_size: str | None, aspect_ratio: str) -> tuple[int, int, str]:
+    normalized = str(video_size or "").strip().lower().replace("*", "x")
+    match = re.fullmatch(r"(\d+)\s*x\s*(\d+)", normalized)
+    if match:
+        width = max(256, int(match.group(1)))
+        height = max(256, int(match.group(2)))
+        return width, height, f"{width}x{height}"
+    if aspect_ratio == "16:9":
+        return 1920, 1080, "1920x1080"
+    return 1080, 1920, "1080x1920"
+
+
 def _pick_media_version(visual_style: str) -> int:
     normalized = visual_style.lower()
     if any(keyword in normalized for keyword in ["日系", "anime", "手绘", "插画"]):
@@ -2114,6 +2896,31 @@ def _build_dub_plan(*, title: str, shots: list[_StoryboardShot]) -> dict[str, An
     }
 
 
+def _build_video_prompt_markdown(*, title: str, visual_style: str, prepared_shots: list[dict[str, Any]]) -> str:
+    lines = [
+        f"# {title} 视频模型提示词",
+        "",
+        f"- 视觉风格：{visual_style}",
+        f"- 镜头数量：{len(prepared_shots)}",
+        "",
+    ]
+    for item in prepared_shots:
+        shot_no = str(item.get("shotNo") or item.get("shot_no") or "").strip() or "镜头"
+        shot_type = str(item.get("shotType") or item.get("shot_type") or "").strip()
+        duration = item.get("durationSeconds") or item.get("duration_seconds")
+        prompt = str(item.get("prompt") or "").strip()
+        lines.append(f"## {shot_no}")
+        lines.append("")
+        if shot_type:
+            lines.append(f"- 镜头类型：{shot_type}")
+        if duration is not None:
+            lines.append(f"- 时长：{duration}s")
+        lines.append("")
+        lines.append(prompt)
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
 def _build_lipsync_plan(*, shots: list[_StoryboardShot], continuity_seed: int) -> dict[str, Any]:
     return {
         "engineSuggestion": "HeyGen / LivePortrait / Wav2Lip",
@@ -2139,3 +2946,81 @@ def _shot_to_dict(shot: _StoryboardShot) -> dict[str, Any]:
         "dialogue": shot.dialogue,
         "durationSeconds": shot.duration_seconds,
     }
+
+
+def _shot_from_dict(payload: dict[str, Any], fallback_index: int) -> _StoryboardShot:
+    raw_index = payload.get("index")
+    try:
+        parsed_index = int(raw_index) if raw_index is not None else int(fallback_index)
+    except Exception:
+        parsed_index = int(fallback_index)
+    shot_index = max(1, parsed_index)
+    shot_no = str(payload.get("shotNo") or payload.get("shot_no") or f"{shot_index:03d}").strip() or f"{shot_index:03d}"
+    shot_type = str(payload.get("shotType") or payload.get("shot_type") or "中景 / 轻推镜头").strip() or "中景 / 轻推镜头"
+    visual_prompt = str(payload.get("visualPrompt") or payload.get("visual_prompt") or "").strip()
+    dialogue = str(payload.get("dialogue") or "").strip()
+    raw_duration = payload.get("durationSeconds", payload.get("duration_seconds"))
+    try:
+        duration_seconds = float(raw_duration)
+    except Exception:
+        duration_seconds = 3.0
+    return _StoryboardShot(
+        index=shot_index,
+        shot_no=shot_no,
+        shot_type=shot_type,
+        visual_prompt=visual_prompt,
+        dialogue=dialogue,
+        duration_seconds=max(1.0, duration_seconds),
+    )
+
+
+def _direction_to_dict(direction: _AIDramaDirection) -> dict[str, Any]:
+    return {
+        "visualStyle": direction.visual_style,
+        "shotCount": direction.shot_count,
+        "shotDurationSeconds": direction.shot_duration_seconds,
+        "totalDurationSeconds": direction.total_duration_seconds,
+        "introTemplate": direction.intro_template,
+        "outroTemplate": direction.outro_template,
+        "transitionStyle": direction.transition_style,
+        "reasoning": list(direction.reasoning),
+    }
+
+
+def _direction_from_dict(payload: dict[str, Any]) -> _AIDramaDirection:
+    visual_style = str(payload.get("visualStyle") or payload.get("visual_style") or DEFAULT_SCRIPT_VISUAL_STYLE).strip()
+    if not visual_style:
+        visual_style = DEFAULT_SCRIPT_VISUAL_STYLE
+    try:
+        shot_count = max(1, int(payload.get("shotCount") or payload.get("shot_count") or 6))
+    except Exception:
+        shot_count = 6
+    try:
+        shot_duration_seconds = max(1.0, float(payload.get("shotDurationSeconds") or payload.get("shot_duration_seconds") or 4.0))
+    except Exception:
+        shot_duration_seconds = 4.0
+    try:
+        total_duration_seconds = max(
+            shot_duration_seconds,
+            float(payload.get("totalDurationSeconds") or payload.get("total_duration_seconds") or (shot_count * shot_duration_seconds)),
+        )
+    except Exception:
+        total_duration_seconds = float(shot_count) * shot_duration_seconds
+    intro_template = str(payload.get("introTemplate") or payload.get("intro_template") or "hook").strip() or "hook"
+    outro_template = str(payload.get("outroTemplate") or payload.get("outro_template") or "brand").strip() or "brand"
+    transition_style = str(payload.get("transitionStyle") or payload.get("transition_style") or "cut").strip() or "cut"
+    raw_reasoning = payload.get("reasoning")
+    if isinstance(raw_reasoning, list):
+        reasoning = [str(item).strip() for item in raw_reasoning if str(item).strip()]
+    else:
+        reasoning = []
+    return _AIDramaDirection(
+        visual_style=visual_style,
+        shot_count=shot_count,
+        shot_duration_seconds=shot_duration_seconds,
+        total_duration_seconds=total_duration_seconds,
+        intro_template=intro_template,
+        outro_template=outro_template,
+        transition_style=transition_style,
+        reasoning=reasoning,
+    )

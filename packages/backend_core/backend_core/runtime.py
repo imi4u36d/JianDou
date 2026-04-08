@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .config import Settings, load_settings
+from .config import Settings, load_settings, resolve_text_analysis_target
 from .db import build_sqlite_url, create_sqlalchemy_engine, init_database, build_session_factory
 from .agent_platform import AgentPlatformService
 from .planner import build_planner
@@ -23,7 +23,8 @@ class BackendRuntime:
     worker: TaskWorker
 
     def describe(self) -> dict[str, object]:
-        endpoint = self.settings.model.endpoint.strip()
+        text_model = resolve_text_analysis_target(self.settings.model)
+        endpoint = text_model.endpoint.strip()
         endpoint_host = ""
         if endpoint:
             try:
@@ -32,20 +33,20 @@ class BackendRuntime:
                 endpoint_host = endpoint
 
         model_ready = bool(
-            self.settings.model.provider
-            and self.settings.model.model_name
+            text_model.provider
+            and text_model.model_name
             and endpoint
-            and self.settings.model.api_key
+            and text_model.api_key
         )
 
         config_errors: list[str] = []
-        if not self.settings.model.provider:
+        if not text_model.provider:
             config_errors.append("missing provider")
-        if not self.settings.model.model_name:
+        if not text_model.model_name:
             config_errors.append("missing model_name")
         if not endpoint:
             config_errors.append("missing endpoint")
-        if not self.settings.model.api_key:
+        if not text_model.api_key:
             config_errors.append("missing api_key")
 
         return {
@@ -53,16 +54,18 @@ class BackendRuntime:
             "env": self.settings.app.env,
             "execution_mode": self.settings.app.execution_mode,
             "database_url": self.database_url,
-            "model_provider": self.settings.model.provider,
+            "model_provider": text_model.provider,
             "storage_root": str(self.settings.storage_root),
             "model": {
-                "provider": self.settings.model.provider,
-                "primary_model": self.settings.model.model_name,
-                "fallback_model": self.settings.model.fallback_model_name,
+                "provider": text_model.provider,
+                "primary_model": text_model.model_name,
+                "fallback_model": text_model.fallback_model_name,
+                "text_analysis_provider": text_model.provider,
+                "text_analysis_model": text_model.model_name,
                 "vision_model": self.settings.model.vision_model_name,
                 "vision_fallback_model": self.settings.model.vision_fallback_model_name,
                 "endpoint_host": endpoint_host,
-                "api_key_present": bool(self.settings.model.api_key),
+                "api_key_present": bool(text_model.api_key),
                 "ready": model_ready,
                 "temperature": self.settings.model.temperature,
                 "max_tokens": self.settings.model.max_tokens,
@@ -79,7 +82,7 @@ class BackendRuntime:
                 "subtitle_visual_fusion": True,
                 "audio_peak_signal": True,
                 "scene_boundary_signal": True,
-                "fusion_timeline_planning": bool(self.settings.model.model_name),
+                "fusion_timeline_planning": bool(text_model.model_name),
                 "fallback_heuristic_enabled": False,
             },
             "agents": self.service.get_agent_dashboard().model_dump(),

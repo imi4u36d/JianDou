@@ -11,10 +11,20 @@ import re
 import urllib.error
 import urllib.request
 
-from .config import Settings
+from .config import Settings, resolve_text_analysis_target
 from .media import detect_scene_changes, sample_audio_peaks, sample_video_frames
 from .schemas import ClipPlan, MediaProbe, TaskSpec
-from .utils import clamp, describe_json_error_context, parse_json_object, truncate_text
+from .utils import (
+    build_text_request_body,
+    clamp,
+    describe_json_error_context,
+    extract_llm_text_response,
+    looks_like_qwen_model,
+    parse_json_object,
+    resolve_llm_request_endpoint,
+    should_use_responses_api,
+    truncate_text,
+)
 
 
 @dataclass(frozen=True)
@@ -1224,6 +1234,7 @@ class FusionPlanner:
         signals: SignalBundle,
         vision_analysis: VisionAnalysisResult | None,
     ) -> list[ClipPlan]:
+        text_model = resolve_text_analysis_target(self.settings.model, model_name)
         prompt = self._build_prompt(context, signals, vision_analysis)
         if context.trace is not None:
             context.trace(
@@ -1255,22 +1266,31 @@ class FusionPlanner:
                 },
                 "INFO",
             )
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": "You are a precise JSON-only planning engine."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": self.settings.model.temperature,
-            "max_tokens": self.settings.model.max_tokens,
-        }
+        use_responses_api = should_use_responses_api(
+            provider=text_model.provider,
+            endpoint=text_model.endpoint,
+            model_name=model_name,
+        )
+        request_endpoint = resolve_llm_request_endpoint(
+            text_model.endpoint,
+            use_responses_api=use_responses_api,
+        )
+        payload = build_text_request_body(
+            model_name=model_name,
+            system_prompt="You are a precise JSON-only planning engine.",
+            user_prompt=prompt,
+            temperature=self.settings.model.temperature,
+            max_tokens=self.settings.model.max_tokens,
+            use_responses_api=use_responses_api,
+            enable_thinking=looks_like_qwen_model(model_name),
+        )
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
-            self.settings.model.endpoint,
+            request_endpoint,
             data=data,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.model.api_key}",
+                "Authorization": f"Bearer {text_model.api_key}",
             },
         )
         try:
@@ -1320,15 +1340,7 @@ class FusionPlanner:
             raise RuntimeError(f"Fusion request failed ({model_name}): {exc}") from exc
 
         body = json.loads(raw)
-        content = ""
-        if isinstance(body, dict):
-            if "choices" in body and body["choices"]:
-                message = body["choices"][0].get("message", {})
-                content = message.get("content", "")
-            elif "output" in body:
-                output = body["output"]
-                if isinstance(output, dict):
-                    content = output.get("text", "") or output.get("content", "")
+        content = extract_llm_text_response(body if isinstance(body, dict) else {}, raw)
         try:
             parsed, json_repairs = parse_json_object(content or raw)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -1397,7 +1409,8 @@ class FusionPlanner:
         return result
 
     def plan(self, context: PlannerContext) -> list[ClipPlan]:
-        if not self.settings.model.api_key or not self.settings.model.endpoint:
+        text_model = resolve_text_analysis_target(self.settings.model)
+        if not text_model.api_key or not text_model.endpoint:
             raise RuntimeError("Fusion planner provider is not configured")
 
         signals = collect_signal_bundle(context, self.settings.model.vision_frame_count)
@@ -1407,7 +1420,7 @@ class FusionPlanner:
         if self.vision_analyzer is not None and context.sourcePath:
             vision_analysis = self.vision_analyzer.analyze(context, signals)
 
-        model_name = self.settings.model.model_name
+        model_name = text_model.model_name
         if context.trace is not None:
             context.trace(
                 "fusion",
@@ -1415,6 +1428,8 @@ class FusionPlanner:
                 f"开始调用融合规划模型 {model_name} 生成最终剪辑方案。",
                 {
                     "model": model_name,
+                    "provider": text_model.provider,
+                    "mode": text_model.mode,
                     "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
                     "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
                     "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,

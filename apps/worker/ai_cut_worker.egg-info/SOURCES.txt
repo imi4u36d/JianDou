@@ -1,0 +1,8 @@
+pyproject.toml
+ai_cut_worker.egg-info/PKG-INFO
+ai_cut_worker.egg-info/SOURCES.txt
+ai_cut_worker.egg-info/dependency_links.txt
+ai_cut_worker.egg-info/requires.txt
+ai_cut_worker.egg-info/top_level.txt
+app/__init__.py
+app/main.py

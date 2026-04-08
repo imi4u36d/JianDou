@@ -5,9 +5,10 @@ from datetime import datetime
 from html import escape as html_escape
 from math import gcd
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Iterable, Literal
 import base64
 import json
+import mimetypes
 import socket
 import subprocess
 import time
@@ -17,16 +18,29 @@ import urllib.request
 
 from pydantic import BaseModel, Field, model_validator
 
-from .config import Settings
+from .config import Settings, resolve_text_analysis_target
 from .storage import MediaStorage
-from .utils import new_id, parse_json_object, truncate_text
+from .utils import (
+    build_text_request_body,
+    extract_llm_text_response,
+    looks_like_qwen_model,
+    new_id,
+    parse_json_bytes,
+    parse_json_object,
+    resolve_llm_request_endpoint,
+    should_use_responses_api,
+    truncate_text,
+)
 
 _SchemaGenerationVersionInfo = None
 _SchemaGenerationOptionsResponse = None
+_SchemaGenerationTextAnalysisModelInfo = None
 _SchemaGenerationVideoModelOption = None
 _SchemaGenerationVideoSizeOption = None
 _SchemaGenerateTextMediaRequest = None
 _SchemaGenerateTextMediaResponse = None
+_SchemaProbeTextAnalysisModelRequest = None
+_SchemaProbeTextAnalysisModelResponse = None
 _SchemaGenerateTextScriptRequest = None
 _SchemaGenerateTextScriptResponse = None
 
@@ -39,6 +53,11 @@ try:
     from .schemas import GenerationOptionsResponse as _SchemaGenerationOptionsResponse  # type: ignore[attr-defined]
 except Exception:
     _SchemaGenerationOptionsResponse = None
+
+try:
+    from .schemas import GenerationTextAnalysisModelInfo as _SchemaGenerationTextAnalysisModelInfo  # type: ignore[attr-defined]
+except Exception:
+    _SchemaGenerationTextAnalysisModelInfo = None
 
 try:
     from .schemas import GenerationVideoModelOption as _SchemaGenerationVideoModelOption  # type: ignore[attr-defined]
@@ -59,6 +78,16 @@ try:
     from .schemas import GenerateTextMediaResponse as _SchemaGenerateTextMediaResponse  # type: ignore[attr-defined]
 except Exception:
     _SchemaGenerateTextMediaResponse = None
+
+try:
+    from .schemas import ProbeTextAnalysisModelRequest as _SchemaProbeTextAnalysisModelRequest  # type: ignore[attr-defined]
+except Exception:
+    _SchemaProbeTextAnalysisModelRequest = None
+
+try:
+    from .schemas import ProbeTextAnalysisModelResponse as _SchemaProbeTextAnalysisModelResponse  # type: ignore[attr-defined]
+except Exception:
+    _SchemaProbeTextAnalysisModelResponse = None
 
 try:
     from .schemas import GenerateTextScriptRequest as _SchemaGenerateTextScriptRequest  # type: ignore[attr-defined]
@@ -84,6 +113,22 @@ if _SchemaGenerationVersionInfo is None:
 
 else:
     GenerationVersionInfo = _SchemaGenerationVersionInfo
+
+
+if _SchemaGenerationTextAnalysisModelInfo is None:
+
+    class GenerationTextAnalysisModelInfo(BaseModel):
+        value: str
+        label: str
+        description: str | None = None
+        isDefault: bool = False
+        provider: str | None = None
+        family: str | None = None
+        aliases: list[str] = Field(default_factory=list)
+
+
+else:
+    GenerationTextAnalysisModelInfo = _SchemaGenerationTextAnalysisModelInfo
 
 
 if _SchemaGenerationVideoSizeOption is None:
@@ -127,13 +172,15 @@ if _SchemaGenerationOptionsResponse is None:
     class GenerationOptionsResponse(BaseModel):
         versions: list[int] = Field(default_factory=list)
         versionDetails: list[dict[str, Any]] = Field(default_factory=list)
+        defaultVersion: int | None = None
         stylePresets: list[dict[str, Any]] = Field(default_factory=list)
         imageSizes: list[dict[str, Any]] = Field(default_factory=list)
+        textAnalysisModels: list[dict[str, Any]] = Field(default_factory=list)
+        defaultTextAnalysisModel: str | None = None
         videoModels: list[dict[str, Any]] = Field(default_factory=list)
         defaultVideoModel: str | None = None
         videoSizes: list[dict[str, Any]] = Field(default_factory=list)
         videoDurations: list[dict[str, Any]] = Field(default_factory=list)
-        defaultVersion: int | None = None
         defaultStylePreset: str | None = None
         defaultImageSize: str | None = None
         defaultVideoSize: str | None = None
@@ -149,10 +196,13 @@ if _SchemaGenerateTextMediaRequest is None:
     class GenerateTextMediaRequest(BaseModel):
         prompt: str = Field(min_length=1, max_length=3000)
         version: str = "v1"
+        textAnalysisModel: str | None = None
         providerModel: str | None = None
         videoModel: str | None = None
         aspectRatio: str = "9:16"
         durationSeconds: float = Field(default=4.0, ge=1.0, le=30.0)
+        minDurationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
+        maxDurationSeconds: float | None = Field(default=None, ge=1.0, le=120.0)
         seed: int | None = None
         extras: dict[str, Any] = Field(default_factory=dict)
 
@@ -168,6 +218,8 @@ if _SchemaGenerateTextMediaRequest is None:
             payload.setdefault("aspectRatio", payload.get("aspect_ratio") or payload.get("ratio") or "9:16")
             if "durationSeconds" not in payload:
                 payload["durationSeconds"] = payload.get("duration") or payload.get("videoDuration") or 4.0
+            payload.setdefault("minDurationSeconds", payload.get("minDuration") or payload.get("minVideoDurationSeconds"))
+            payload.setdefault("maxDurationSeconds", payload.get("maxDuration") or payload.get("maxVideoDurationSeconds"))
             payload.setdefault("extras", payload.get("metadata") or {})
             if "videoModel" not in payload and payload.get("providerModel"):
                 payload["videoModel"] = payload.get("providerModel")
@@ -181,9 +233,14 @@ if _SchemaGenerateTextMediaRequest is None:
             self.version = normalized_version
             ratio = (self.aspectRatio or "9:16").strip()
             self.aspectRatio = ratio if ratio in {"9:16", "16:9"} else "9:16"
+            self.textAnalysisModel = (self.textAnalysisModel or "").strip() or None
             self.providerModel = (self.providerModel or "").strip() or None
             self.videoModel = (self.videoModel or "").strip() or None
             self.durationSeconds = float(min(30.0, max(1.0, self.durationSeconds)))
+            if self.minDurationSeconds is None:
+                self.minDurationSeconds = self.durationSeconds
+            if self.maxDurationSeconds is None:
+                self.maxDurationSeconds = self.durationSeconds
             return self
 
 
@@ -196,7 +253,6 @@ if _SchemaGenerateTextMediaResponse is None:
     class GenerateTextMediaResponse(BaseModel):
         generationId: str
         mediaType: Literal["image", "video"]
-        version: str
         prompt: str
         shapedPrompt: str
         source: str
@@ -210,11 +266,41 @@ else:
     GenerateTextMediaResponse = _SchemaGenerateTextMediaResponse
 
 
+if _SchemaProbeTextAnalysisModelRequest is None:
+
+    class ProbeTextAnalysisModelRequest(BaseModel):
+        textAnalysisModel: str | None = None
+
+
+else:
+    ProbeTextAnalysisModelRequest = _SchemaProbeTextAnalysisModelRequest
+
+
+if _SchemaProbeTextAnalysisModelResponse is None:
+
+    class ProbeTextAnalysisModelResponse(BaseModel):
+        ready: bool = True
+        requestedModel: str
+        resolvedModel: str
+        provider: str
+        family: str | None = None
+        mode: str
+        endpointHost: str
+        latencyMs: int
+        messagePreview: str | None = None
+        checkedAt: str
+
+
+else:
+    ProbeTextAnalysisModelResponse = _SchemaProbeTextAnalysisModelResponse
+
+
 if _SchemaGenerateTextScriptRequest is None:
 
     class GenerateTextScriptRequest(BaseModel):
-        text: str = Field(min_length=1, max_length=50000)
+        text: str = Field(min_length=1, max_length=1_000_000)
         visualStyle: str | None = Field(default=None, max_length=120)
+        textAnalysisModel: str | None = Field(default=None, max_length=120)
 
         @model_validator(mode="after")
         def _normalize(self) -> "GenerateTextScriptRequest":
@@ -222,6 +308,7 @@ if _SchemaGenerateTextScriptRequest is None:
             if not self.text:
                 raise ValueError("text must be non-empty")
             self.visualStyle = (self.visualStyle or "").strip() or None
+            self.textAnalysisModel = (self.textAnalysisModel or "").strip() or None
             return self
 
 
@@ -291,6 +378,17 @@ class _VideoModelProfile:
 
 
 @dataclass(frozen=True)
+class _TextAnalysisModelProfile:
+    key: str
+    label: str
+    provider: str
+    summary: str
+    family: str
+    endpoint: str | None = None
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class _VideoModelSpec:
     name: str
     label: str
@@ -300,6 +398,8 @@ class _VideoModelSpec:
     default_duration_seconds: int
     prompt_limit: int
     allowed_durations: tuple[int, ...] = ()
+    provider_kind: Literal["dashscope", "qwen_vl_workflow", "seeddance"] = "dashscope"
+    backend_model_name: str | None = None
 
     @property
     def is_fixed_duration(self) -> bool:
@@ -576,6 +676,64 @@ _VIDEO_MODEL_PROFILES: tuple[_VideoModelProfile, ...] = (
         duration_mode="fixed",
         prompt_max_chars=800,
     ),
+    _VideoModelProfile(
+        key="qwen-vl",
+        label="Qwen-VL 视频工作流",
+        summary="阿里 Qwen-VL 提示词理解 + 百炼视频生成链路，适合复杂描述理解。",
+        sizes=(
+            _VIDEO_SIZE_720P_16_9,
+            _VIDEO_SIZE_720P_9_16,
+            _VIDEO_SIZE_1080P_16_9,
+            _VIDEO_SIZE_1080P_9_16,
+        ),
+        default_size=_VIDEO_SIZE_1080P_16_9.value,
+        durations=(2, 3, 4, 5, 6, 8, 10, 12, 15),
+        default_duration_seconds=5,
+        duration_mode="range",
+        duration_min_seconds=2,
+        duration_max_seconds=15,
+        prompt_max_chars=1500,
+        supports_audio=True,
+        supports_shot_type=True,
+    ),
+    _VideoModelProfile(
+        key="seeddance-1.5-pro",
+        label="SeedDance 1.5 Pro",
+        summary="SeedDance 1.5 Pro 图生视频模型（异步任务接口）。",
+        sizes=(
+            _VIDEO_SIZE_720P_16_9,
+            _VIDEO_SIZE_720P_9_16,
+            _VIDEO_SIZE_1080P_16_9,
+            _VIDEO_SIZE_1080P_9_16,
+        ),
+        default_size=_VIDEO_SIZE_1080P_16_9.value,
+        durations=(5,),
+        default_duration_seconds=5,
+        duration_mode="fixed",
+        prompt_max_chars=1500,
+        supports_audio=True,
+        supports_shot_type=True,
+    ),
+)
+
+_TEXT_ANALYSIS_MODEL_PROFILES: tuple[_TextAnalysisModelProfile, ...] = (
+    _TextAnalysisModelProfile(
+        key="gpt-5.4",
+        label="GPT-5.4",
+        provider="openai",
+        family="gpt",
+        summary="OpenAI ChatGPT key 模式，适合人物、对白、语境和剧情理解。",
+        endpoint="https://api.openai.com/v1/chat/completions",
+        aliases=("gpt5.4", "gpt-5", "chatgpt", "chatgpt-key"),
+    ),
+    _TextAnalysisModelProfile(
+        key="qwen3.6-plus",
+        label="Qwen 3.6 Plus",
+        provider="aliyun-bailian",
+        family="qwen",
+        summary="阿里 Qwen 文本分析模型，兼容现有百炼 key 配置。",
+        aliases=("qwen", "qwen3.6-plus", "qwen-max-latest", "qwen-max", "qwen-plus"),
+    ),
 )
 
 _VIDEO_MODELS: dict[str, _VideoModelSpec] = {
@@ -682,6 +840,39 @@ _VIDEO_MODELS: dict[str, _VideoModelSpec] = {
         default_duration_seconds=5,
         prompt_limit=800,
     ),
+    "qwen-vl": _VideoModelSpec(
+        name="qwen-vl",
+        label="Qwen-VL 视频工作流",
+        supported_sizes=(
+            "1280*720",
+            "720*1280",
+            "1920*1080",
+            "1080*1920",
+        ),
+        min_duration_seconds=2,
+        max_duration_seconds=15,
+        default_duration_seconds=5,
+        prompt_limit=1500,
+        provider_kind="qwen_vl_workflow",
+        backend_model_name="wan2.6-t2v",
+    ),
+    "seeddance-1.5-pro": _VideoModelSpec(
+        name="seeddance-1.5-pro",
+        label="SeedDance 1.5 Pro",
+        supported_sizes=(
+            "1280*720",
+            "720*1280",
+            "1920*1080",
+            "1080*1920",
+        ),
+        min_duration_seconds=5,
+        max_duration_seconds=5,
+        default_duration_seconds=5,
+        prompt_limit=1500,
+        allowed_durations=(5,),
+        provider_kind="seeddance",
+        backend_model_name="doubao-seedance-1-5-pro-251215",
+    ),
 }
 
 _VIDEO_MODEL_ALIASES = {
@@ -691,6 +882,26 @@ _VIDEO_MODEL_ALIASES = {
     "wan2.5-t2v-turbo": "wan2.5-t2v-preview",
     "wan2.1-t2v-plus": "wanx2.1-t2v-plus",
     "wan2.1-t2v-turbo": "wanx2.1-t2v-turbo",
+    "qwen-vl-workflow": "qwen-vl",
+    "qwen-vl-plus": "qwen-vl",
+    "qwen-vl-plus-latest": "qwen-vl",
+    "qwen-vl-max-latest": "qwen-vl",
+    "seeddance1.5pro": "seeddance-1.5-pro",
+    "seeddance-1.5-pro": "seeddance-1.5-pro",
+    "seed-dance-1.5-pro": "seeddance-1.5-pro",
+    "seeddance-1-5-pro": "seeddance-1.5-pro",
+    "doubao-seedance-1-5-pro-251215": "seeddance-1.5-pro",
+}
+_DEFAULT_SEEDREAM_IMAGE_MODEL = "doubao-seedream-5-0-260128"
+_SEEDREAM_IMAGE_MODEL_ALIASES = {
+    "doubao-seedream-5.0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "doubao-seedream-5-0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "doubao-seedream-5.0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "doubao-seedream-5-0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "seedream-5.0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "seedream-5-0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "seedream-5.0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "seedream-5-0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
 }
 _DEFAULT_IMAGE_SIZES = [
     {"value": "768x768", "label": "768 × 768", "width": 768, "height": 768},
@@ -706,6 +917,31 @@ def _normalize_video_model_name(value: str | None) -> str:
     return _VIDEO_MODEL_ALIASES.get(normalized, normalized)
 
 
+def _normalize_seedream_image_model_name(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return _DEFAULT_SEEDREAM_IMAGE_MODEL
+    mapped = _SEEDREAM_IMAGE_MODEL_ALIASES.get(normalized)
+    if mapped:
+        return mapped
+    if normalized.startswith("doubao-seedream-"):
+        return normalized
+    if normalized.startswith("seedream-"):
+        return f"doubao-{normalized}"
+    if "seedream" in normalized:
+        return _DEFAULT_SEEDREAM_IMAGE_MODEL
+    return normalized
+
+
+def _looks_like_seedream_image_model(value: str | None) -> bool:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return False
+    if "seedream" in normalized:
+        return True
+    return normalized in _SEEDREAM_IMAGE_MODEL_ALIASES
+
+
 def _video_model_spec(model_name: str | None) -> _VideoModelSpec:
     normalized = _normalize_video_model_name(model_name)
     if normalized in _VIDEO_MODELS:
@@ -714,15 +950,24 @@ def _video_model_spec(model_name: str | None) -> _VideoModelSpec:
 
 
 def _video_size_profiles(spec: _VideoModelSpec) -> list[_VideoSizeProfile]:
-    return [
-        _VideoSizeProfile(
-            label=f"{size} ({size.split('*', 1)[0]}×{size.split('*', 1)[1]})",
-            width=int(size.split("*", 1)[0]),
-            height=int(size.split("*", 1)[1]),
-            tier="1080P" if max(int(size.split("*", 1)[0]), int(size.split("*", 1)[1])) >= 1920 else "720P" if max(int(size.split("*", 1)[0]), int(size.split("*", 1)[1])) >= 1280 else "480P",
+    profiles: list[_VideoSizeProfile] = []
+    for size in spec.supported_sizes:
+        width = int(size.split("*", 1)[0])
+        height = int(size.split("*", 1)[1])
+        longest_edge = max(width, height)
+        tier = "1080p" if longest_edge >= 1920 else "720p" if longest_edge >= 1280 else "480p"
+        aspect_ratio = "16:9" if width >= height else "9:16"
+        profiles.append(
+            _VideoSizeProfile(
+                value=size,
+                width=width,
+                height=height,
+                label=f"{width} × {height}",
+                aspect_ratio=aspect_ratio,
+                tier=tier,
+            )
         )
-        for size in spec.supported_sizes
-    ]
+    return profiles
 
 
 def _video_size_options(spec: _VideoModelSpec) -> list[dict[str, Any]]:
@@ -748,16 +993,38 @@ def _video_duration_options(spec: _VideoModelSpec) -> list[dict[str, Any]]:
     return [{"value": duration, "label": f"{duration} 秒"} for duration in durations]
 
 
-def _video_model_options(default_model_name: str | None = None) -> list[dict[str, Any]]:
+def _video_model_options(
+    default_model_name: str | None = None,
+    specs: Iterable[_VideoModelSpec] | None = None,
+) -> list[dict[str, Any]]:
     default_model_name = _normalize_video_model_name(default_model_name) or "wan2.6-i2v"
     options: list[dict[str, Any]] = []
-    for spec in _VIDEO_MODELS.values():
+    for spec in specs or _VIDEO_MODELS.values():
+        provider_label = "阿里云百炼"
+        if spec.provider_kind == "qwen_vl_workflow":
+            provider_label = "阿里 Qwen-VL 工作流"
+        elif spec.provider_kind == "seeddance":
+            provider_label = "火山引擎 SeedDance 1.5 Pro"
+        generation_mode: Literal["t2v", "i2v", "vl"] = "t2v"
+        if spec.provider_kind == "qwen_vl_workflow":
+            generation_mode = "vl"
+        elif spec.name in {"wan2.6-i2v", "seeddance-1.5-pro"}:
+            generation_mode = "i2v"
         options.append(
             {
                 "value": spec.name,
                 "label": spec.label,
-                "description": f"阿里云百炼官方文生视频模型 {spec.name}",
+                "description": f"{provider_label} 视频模型 {spec.name}",
                 "isDefault": spec.name == default_model_name,
+                "provider": (
+                    "volcengine"
+                    if spec.provider_kind == "seeddance"
+                    else "aliyun-bailian"
+                    if spec.provider_kind == "qwen_vl_workflow"
+                    else "aliyun-bailian"
+                ),
+                "family": "seeddance" if spec.provider_kind == "seeddance" else "qwen" if spec.provider_kind == "qwen_vl_workflow" else "wan",
+                "generationMode": generation_mode,
                 "supportedSizes": [size.replace("*", "x") for size in spec.supported_sizes],
                 "supportedDurations": [item["value"] for item in _video_duration_options(spec)],
                 "aliases": [alias for alias, normalized in _VIDEO_MODEL_ALIASES.items() if normalized == spec.name],
@@ -766,9 +1033,29 @@ def _video_model_options(default_model_name: str | None = None) -> list[dict[str
     return options
 
 
-def _video_size_catalog() -> list[dict[str, Any]]:
+def _normalize_text_analysis_model_name(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return ""
+    for profile in _TEXT_ANALYSIS_MODEL_PROFILES:
+        if normalized == profile.key.lower():
+            return profile.key
+        if normalized in {alias.lower() for alias in profile.aliases}:
+            return profile.key
+    return normalized
+
+
+def _text_analysis_model_profile(model_name: str | None) -> _TextAnalysisModelProfile:
+    normalized = _normalize_text_analysis_model_name(model_name)
+    for profile in _TEXT_ANALYSIS_MODEL_PROFILES:
+        if profile.key == normalized:
+            return profile
+    return _TEXT_ANALYSIS_MODEL_PROFILES[0]
+
+
+def _video_size_catalog(specs: Iterable[_VideoModelSpec] | None = None) -> list[dict[str, Any]]:
     size_map: dict[str, dict[str, Any]] = {}
-    for model_name, spec in _VIDEO_MODELS.items():
+    for spec in specs or _VIDEO_MODELS.values():
         for size in _video_size_options(spec):
             key = size["value"]
             entry = size_map.setdefault(
@@ -778,13 +1065,13 @@ def _video_size_catalog() -> list[dict[str, Any]]:
                     "supportedModels": [],
                 },
             )
-            entry["supportedModels"].append(model_name)
+            entry["supportedModels"].append(spec.name)
     return sorted(size_map.values(), key=lambda item: (item["tier"], item["width"], item["height"]))
 
 
-def _video_duration_catalog() -> list[dict[str, Any]]:
+def _video_duration_catalog(specs: Iterable[_VideoModelSpec] | None = None) -> list[dict[str, Any]]:
     duration_map: dict[int, dict[str, Any]] = {}
-    for model_name, spec in _VIDEO_MODELS.items():
+    for spec in specs or _VIDEO_MODELS.values():
         for duration in _video_duration_options(spec):
             value = int(duration["value"])
             entry = duration_map.setdefault(
@@ -795,7 +1082,7 @@ def _video_duration_catalog() -> list[dict[str, Any]]:
                     "supportedModels": [],
                 },
             )
-            entry["supportedModels"].append(model_name)
+            entry["supportedModels"].append(spec.name)
     return [duration_map[key] for key in sorted(duration_map)]
 
 
@@ -876,9 +1163,107 @@ class TextGenerationEngine:
         self.ffmpeg_bin = ffmpeg_bin
         self._profiles = {profile.version: profile for profile in _PROFILES}
         self._video_models = {profile.key: profile for profile in _VIDEO_MODEL_PROFILES}
+        self._text_analysis_models = {profile.key: profile for profile in _TEXT_ANALYSIS_MODEL_PROFILES}
 
     def list_versions(self) -> GenerationOptionsResponse:
         return self.get_generation_options()
+
+    def _configured_text_analysis_models(self) -> list[_TextAnalysisModelProfile]:
+        raw = str(getattr(self.settings.model, "text_analysis_models", "") or "").strip()
+        if not raw:
+            return list(_TEXT_ANALYSIS_MODEL_PROFILES)
+        ordered: list[_TextAnalysisModelProfile] = []
+        seen: set[str] = set()
+        items: list[str] = []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    for entry in parsed:
+                        if isinstance(entry, str):
+                            items.append(entry)
+                        elif isinstance(entry, dict):
+                            items.append(str(entry.get("value") or entry.get("model") or "").strip())
+            except Exception:
+                items = []
+        if not items:
+            items = [item.strip() for item in raw.split(",")]
+        for item in items:
+            key = _normalize_text_analysis_model_name(item)
+            profile = self._text_analysis_models.get(key)
+            if profile is None or profile.key in seen:
+                continue
+            ordered.append(profile)
+            seen.add(profile.key)
+        if not ordered:
+            return list(_TEXT_ANALYSIS_MODEL_PROFILES)
+        for profile in _TEXT_ANALYSIS_MODEL_PROFILES:
+            if profile.key not in seen:
+                ordered.append(profile)
+        return ordered
+
+    def _default_text_analysis_model(self) -> _TextAnalysisModelProfile:
+        configured = self._configured_text_analysis_models()
+        preferred_key = _normalize_text_analysis_model_name(self.settings.model.text_analysis_model_name)
+        preferred = next((item for item in configured if item.key == preferred_key), None)
+        return preferred or configured[0]
+
+    def _configured_video_model_specs(self) -> list[_VideoModelSpec]:
+        raw = str(getattr(self.settings.model, "video_models", "") or "").strip()
+        items: list[str] = []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    for entry in parsed:
+                        if isinstance(entry, str):
+                            items.append(entry)
+                        elif isinstance(entry, dict):
+                            items.append(str(entry.get("value") or entry.get("model") or "").strip())
+            except Exception:
+                items = []
+        if not items and raw:
+            items = [item.strip() for item in raw.split(",")]
+
+        ordered: list[_VideoModelSpec] = []
+        seen: set[str] = set()
+        for item in items:
+            key = _normalize_video_model_name(item)
+            spec = _VIDEO_MODELS.get(key)
+            if spec is None or spec.name in seen:
+                continue
+            ordered.append(spec)
+            seen.add(spec.name)
+        if ordered:
+            return ordered
+        return [self._resolve_video_model_spec()]
+
+    def _default_video_model_spec(self) -> _VideoModelSpec:
+        configured = self._configured_video_model_specs()
+        preferred_key = _normalize_video_model_name(self.settings.model.video_model_name)
+        preferred = next((item for item in configured if item.name == preferred_key), None)
+        return preferred or configured[0]
+
+    def _text_analysis_model_options(self) -> list[dict[str, Any]]:
+        default_model = self._default_text_analysis_model()
+        return [
+            {
+                "value": profile.key,
+                "label": profile.label,
+                "description": profile.summary,
+                "isDefault": profile.key == default_model.key,
+                "provider": profile.provider,
+                "family": profile.family,
+                "aliases": list(profile.aliases),
+            }
+            for profile in self._configured_text_analysis_models()
+        ]
+
+    def _resolve_text_analysis_model(self, explicit_model: str | None = None) -> _TextAnalysisModelProfile:
+        key = _normalize_text_analysis_model_name(explicit_model) or _normalize_text_analysis_model_name(
+            self.settings.model.text_analysis_model_name
+        )
+        return self._text_analysis_models.get(key) or self._default_text_analysis_model()
 
     def get_generation_options(self) -> GenerationOptionsResponse:
         version_details: list[GenerationVersionInfo] = []
@@ -905,7 +1290,8 @@ class TextGenerationEngine:
                     "recommendedAspectRatios": ["9:16", "16:9"],
                 }
             version_details.append(self._build_model(GenerationVersionInfo, payload))
-        default_video_spec = self._resolve_video_model_spec()
+        configured_video_specs = self._configured_video_model_specs()
+        default_video_spec = self._default_video_model_spec()
         default_video_size = (
             default_video_spec.supported_sizes[0].replace("*", "x")
             if default_video_spec.supported_sizes
@@ -918,9 +1304,11 @@ class TextGenerationEngine:
                 "versionDetails": [item.model_dump() if hasattr(item, "model_dump") else item for item in version_details],
                 "stylePresets": [],
                 "imageSizes": list(_DEFAULT_IMAGE_SIZES),
-                "videoModels": _video_model_options(default_video_spec.name),
-                "videoSizes": _video_size_catalog(),
-                "videoDurations": _video_duration_catalog(),
+                "textAnalysisModels": self._text_analysis_model_options(),
+                "defaultTextAnalysisModel": self._default_text_analysis_model().key,
+                "videoModels": _video_model_options(default_video_spec.name, configured_video_specs),
+                "videoSizes": _video_size_catalog(configured_video_specs),
+                "videoDurations": _video_duration_catalog(configured_video_specs),
                 "defaultVersion": 1,
                 "defaultStylePreset": None,
                 "defaultImageSize": "1024x1024",
@@ -933,6 +1321,44 @@ class TextGenerationEngine:
     def list_options(self) -> GenerationOptionsResponse:
         return self.get_generation_options()
 
+    def infer_video_provider(self, model_name: str) -> str:
+        normalized_name = _normalize_video_model_name(model_name)
+        spec = _VIDEO_MODELS.get(normalized_name)
+        if spec is None:
+            return "unknown"
+        if spec.provider_kind == "seeddance":
+            return "volcengine"
+        if spec.provider_kind == "qwen_vl_workflow":
+            return "aliyun-bailian"
+        return "aliyun-bailian"
+
+    def normalize_video_model_key(self, model_name: str) -> str:
+        return _normalize_video_model_name(model_name)
+
+    def get_video_model_usage(self) -> dict[str, Any]:
+        items: list[dict[str, Any]] = []
+        default_video_spec = self._default_video_model_spec()
+        for option in _video_model_options(default_video_spec.name, self._configured_video_model_specs()):
+            model_key = str(option.get("value") or "").strip()
+            if not model_key:
+                continue
+            items.append(
+                {
+                    "model": model_key,
+                    "label": str(option.get("label") or model_key),
+                    "provider": self.infer_video_provider(model_key),
+                    "used": 0,
+                    "remaining": None,
+                    "quota": None,
+                    "usedDurationSeconds": 0.0,
+                    "updatedAt": None,
+                }
+            )
+        return {
+            "generatedAt": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
+            "items": items,
+        }
+
     def generate_text_image(self, payload: Any) -> GenerateTextMediaResponse:
         request_obj = self._normalize_request(payload, default_kind="image")
         return self._generate_media("image", request_obj)
@@ -941,9 +1367,101 @@ class TextGenerationEngine:
         request_obj = self._normalize_request(payload, default_kind="video")
         return self._generate_media("video", request_obj)
 
+    def probe_text_analysis_model(self, payload: Any = None) -> ProbeTextAnalysisModelResponse:
+        request_obj = self._normalize_text_analysis_probe_request(payload)
+        requested_model = str(request_obj.textAnalysisModel or "").strip() or None
+        target = resolve_text_analysis_target(self.settings.model, requested_model)
+        endpoint = str(target.endpoint or "").strip()
+        api_key = str(target.api_key or "").strip()
+        if not endpoint or not api_key:
+            raise RuntimeError(f"text analysis provider is not configured for {target.model_name}")
+        use_responses_api = should_use_responses_api(
+            provider=target.provider,
+            endpoint=endpoint,
+            model_name=target.model_name,
+        )
+        request_endpoint = resolve_llm_request_endpoint(endpoint, use_responses_api=use_responses_api)
+        body = build_text_request_body(
+            model_name=target.model_name,
+            system_prompt="You are a connectivity probe. Reply with OK only.",
+            user_prompt="Reply with OK only.",
+            temperature=0,
+            max_tokens=12,
+            use_responses_api=use_responses_api,
+            enable_thinking=False,
+        )
+        request = urllib.request.Request(
+            request_endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+        )
+        started_at = time.perf_counter()
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                raw_response = response.read()
+        except (TimeoutError, socket.timeout) as exc:
+            raise RuntimeError(f"text analysis probe timed out ({target.model_name}): {exc}") from exc
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                detail = ""
+            detail_text = truncate_text(detail.strip(), 240) or str(exc.reason or exc.code)
+            raise RuntimeError(f"text analysis probe failed ({target.model_name}): HTTP {exc.code} {detail_text}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"text analysis probe failed ({target.model_name}): {exc.reason or exc}") from exc
+        except Exception as exc:
+            raise RuntimeError(f"text analysis probe failed ({target.model_name}): {exc}") from exc
+
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        payload_dict = self._parse_json_bytes(raw_response)
+        content = self._extract_text_response(payload_dict, raw_response.decode("utf-8", errors="ignore")).strip()
+        if not content:
+            raise RuntimeError(f"text analysis probe response is empty ({target.model_name})")
+
+        endpoint_host = ""
+        try:
+            endpoint_host = urllib.parse.urlparse(request_endpoint).netloc or request_endpoint
+        except Exception:
+            endpoint_host = request_endpoint
+
+        return self._build_model(
+            ProbeTextAnalysisModelResponse,
+            {
+                "ready": True,
+                "requestedModel": requested_model or target.model_name,
+                "resolvedModel": target.model_name,
+                "provider": target.provider,
+                "family": target.family,
+                "mode": target.mode,
+                "endpointHost": endpoint_host,
+                "latencyMs": elapsed_ms,
+                "messagePreview": truncate_text(content, 80) or content,
+                "checkedAt": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
+            },
+        )
+
     def generate_text_script(self, payload: Any) -> GenerateTextScriptResponse:
         request_obj = self._normalize_script_request(payload)
         return self._generate_script(request_obj)
+
+    def generate_text_script_with_source_file(
+        self,
+        payload: Any,
+        *,
+        source_text_file_path: Path,
+        source_text_file_name: str | None = None,
+    ) -> GenerateTextScriptResponse:
+        request_obj = self._normalize_script_request(payload)
+        return self._generate_script(
+            request_obj,
+            source_text_file_path=source_text_file_path,
+            source_text_file_name=source_text_file_name,
+        )
 
     def _trace_call(
         self,
@@ -966,6 +1484,143 @@ class TextGenerationEngine:
             entry["details"] = details
         call_chain.append(entry)
 
+    def _is_openai_text_analysis_target(self, *, provider: str | None, endpoint: str | None) -> bool:
+        provider_name = str(provider or "").strip().lower()
+        if provider_name in {"openai", "chatgpt"}:
+            return True
+        parsed = urllib.parse.urlparse(str(endpoint or "").strip())
+        host = (parsed.netloc or "").lower()
+        return host.endswith("openai.com")
+
+    def _openai_api_base(self, endpoint: str) -> str:
+        normalized = str(endpoint or "").strip()
+        if not normalized:
+            return "https://api.openai.com/v1"
+        marker = "/v1/"
+        if marker in normalized:
+            return normalized.split(marker, 1)[0] + "/v1"
+        parsed = urllib.parse.urlparse(normalized)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}/v1"
+        return "https://api.openai.com/v1"
+
+    def _build_multipart_form_data(
+        self,
+        *,
+        fields: dict[str, str],
+        file_field_name: str,
+        file_name: str,
+        file_bytes: bytes,
+        file_content_type: str,
+    ) -> tuple[bytes, str]:
+        boundary = f"----ai-cut-{new_id('multipart')}"
+        body = bytearray()
+        for key, value in fields.items():
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            body.extend(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"))
+            body.extend(str(value).encode("utf-8"))
+            body.extend(b"\r\n")
+        body.extend(f"--{boundary}\r\n".encode("utf-8"))
+        body.extend(
+            (
+                f'Content-Disposition: form-data; name="{file_field_name}"; filename="{file_name}"\r\n'
+                f"Content-Type: {file_content_type}\r\n\r\n"
+            ).encode("utf-8")
+        )
+        body.extend(file_bytes)
+        body.extend(b"\r\n")
+        body.extend(f"--{boundary}--\r\n".encode("utf-8"))
+        return bytes(body), f"multipart/form-data; boundary={boundary}"
+
+    def _upload_openai_input_file(
+        self,
+        *,
+        api_base: str,
+        api_key: str,
+        source_text_file_path: Path,
+        source_text_file_name: str | None,
+        call_chain: list[dict[str, Any]],
+    ) -> str:
+        file_name = source_text_file_name or source_text_file_path.name
+        file_bytes = source_text_file_path.read_bytes()
+        content_type = mimetypes.guess_type(file_name)[0] or "text/plain"
+        body, multipart_content_type = self._build_multipart_form_data(
+            fields={"purpose": "user_data"},
+            file_field_name="file",
+            file_name=file_name,
+            file_bytes=file_bytes,
+            file_content_type=content_type,
+        )
+        self._trace_call(
+            call_chain,
+            stage="file_upload",
+            event="sent",
+            status="ok",
+            message="openai source file upload request sent",
+            details={"fileName": file_name, "byteSize": len(file_bytes), "purpose": "user_data"},
+        )
+        request = urllib.request.Request(
+            f"{api_base}/files",
+            data=body,
+            headers={
+                "Content-Type": multipart_content_type,
+                "Authorization": f"Bearer {api_key}",
+            },
+        )
+        started_at = time.perf_counter()
+        with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+            raw_response = response.read()
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        payload = self._parse_json_bytes(raw_response)
+        file_id = str(payload.get("id") or "").strip()
+        if not file_id:
+            raise RuntimeError("openai file upload did not return file id")
+        self._trace_call(
+            call_chain,
+            stage="file_upload",
+            event="received",
+            status="ok",
+            message="openai source file uploaded",
+            details={"fileId": file_id, "elapsedMs": elapsed_ms},
+        )
+        return file_id
+
+    def _delete_openai_input_file(
+        self,
+        *,
+        api_base: str,
+        api_key: str,
+        file_id: str,
+        call_chain: list[dict[str, Any]],
+    ) -> None:
+        if not file_id:
+            return
+        request = urllib.request.Request(
+            f"{api_base}/files/{urllib.parse.quote(file_id)}",
+            headers={"Authorization": f"Bearer {api_key}"},
+            method="DELETE",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds):
+                pass
+            self._trace_call(
+                call_chain,
+                stage="file_cleanup",
+                event="deleted",
+                status="ok",
+                message="openai source file deleted",
+                details={"fileId": file_id},
+            )
+        except Exception as exc:
+            self._trace_call(
+                call_chain,
+                stage="file_cleanup",
+                event="delete_failed",
+                status="retry",
+                message="openai source file delete failed",
+                details={"fileId": file_id, "error": truncate_text(str(exc), 240) or str(exc)},
+            )
+
     def _normalize_request(
         self,
         payload: Any,
@@ -979,10 +1634,26 @@ class TextGenerationEngine:
 
         normalized = dict(payload)
         normalized["kind"] = default_kind
+        if "textAnalysisModel" not in normalized:
+            normalized["textAnalysisModel"] = (
+                normalized.get("analysisModel")
+                or normalized.get("text_model")
+                or normalized.get("promptAnalysisModel")
+            )
         if normalized.get("videoModel") and not normalized.get("providerModel"):
             normalized["providerModel"] = normalized["videoModel"]
         if normalized.get("providerModel") and not normalized.get("videoModel"):
             normalized["videoModel"] = normalized["providerModel"]
+        if "minDurationSeconds" not in normalized:
+            normalized["minDurationSeconds"] = (
+                normalized.get("minVideoDurationSeconds")
+                or normalized.get("minDuration")
+            )
+        if "maxDurationSeconds" not in normalized:
+            normalized["maxDurationSeconds"] = (
+                normalized.get("maxVideoDurationSeconds")
+                or normalized.get("maxDuration")
+            )
         if "providerModel" not in normalized:
             normalized["providerModel"] = (
                 normalized.get("videoModel")
@@ -1022,9 +1693,10 @@ class TextGenerationEngine:
 
         if default_kind == "image":
             normalized.pop("durationSeconds", None)
-        else:
-            if normalized.get("durationSeconds") in {None, ""}:
-                normalized["durationSeconds"] = 4.0
+            normalized.pop("minDurationSeconds", None)
+            normalized.pop("maxDurationSeconds", None)
+        elif normalized.get("durationSeconds") in {None, ""}:
+            normalized["durationSeconds"] = 4.0
 
         extras = normalized.get("extras")
         if not isinstance(extras, dict):
@@ -1043,9 +1715,159 @@ class TextGenerationEngine:
             payload = payload.model_dump()
         if not isinstance(payload, dict):
             raise ValueError("payload must be a JSON object")
+        normalized = dict(payload)
+        if "textAnalysisModel" not in normalized:
+            normalized["textAnalysisModel"] = (
+                normalized.get("analysisModel")
+                or normalized.get("text_model")
+                or normalized.get("textModel")
+                or normalized.get("model")
+                or normalized.get("modelName")
+            )
         if hasattr(GenerateTextScriptRequest, "model_validate"):
-            return GenerateTextScriptRequest.model_validate(payload)  # type: ignore[attr-defined]
-        return GenerateTextScriptRequest(**payload)
+            return GenerateTextScriptRequest.model_validate(normalized)  # type: ignore[attr-defined]
+        return GenerateTextScriptRequest(**normalized)
+
+    def _normalize_text_analysis_probe_request(self, payload: Any) -> ProbeTextAnalysisModelRequest:
+        if isinstance(payload, ProbeTextAnalysisModelRequest):
+            return payload
+        if hasattr(payload, "model_dump"):
+            payload = payload.model_dump()
+        if isinstance(payload, str):
+            normalized: dict[str, Any] = {"textAnalysisModel": payload}
+        elif isinstance(payload, dict):
+            normalized = dict(payload)
+        elif payload is None:
+            normalized = {}
+        else:
+            raise ValueError("payload must be a JSON object")
+        if "textAnalysisModel" not in normalized:
+            normalized["textAnalysisModel"] = (
+                normalized.get("analysisModel")
+                or normalized.get("text_model")
+                or normalized.get("textModel")
+                or normalized.get("model")
+                or normalized.get("modelName")
+            )
+        if hasattr(ProbeTextAnalysisModelRequest, "model_validate"):
+            return ProbeTextAnalysisModelRequest.model_validate(normalized)  # type: ignore[attr-defined]
+        return ProbeTextAnalysisModelRequest(**normalized)
+
+    def _call_text_analysis_model(
+        self,
+        *,
+        text: str,
+        purpose: str,
+        selected_model: str | None,
+        call_chain: list[dict[str, Any]],
+        max_tokens: int,
+    ) -> tuple[str, _TextAnalysisModelProfile, str]:
+        requested_model = str(selected_model or "").strip() or None
+        profile = self._resolve_text_analysis_model(requested_model)
+        target = resolve_text_analysis_target(self.settings.model, requested_model or profile.key)
+        profile = _text_analysis_model_profile(target.model_name)
+        endpoint = str(target.endpoint or "").strip()
+        api_key = str(target.api_key or "").strip()
+        if not endpoint or not api_key:
+            raise RuntimeError(f"text analysis provider is not configured for {target.model_name}")
+        use_responses_api = should_use_responses_api(
+            provider=target.provider,
+            endpoint=endpoint,
+            model_name=target.model_name,
+        )
+        request_endpoint = resolve_llm_request_endpoint(endpoint, use_responses_api=use_responses_api)
+        body = build_text_request_body(
+            model_name=target.model_name,
+            system_prompt=(
+                "你负责文本分析与提示词整理。请准确理解人物、对白、情绪、语境、剧情冲突和视觉重点，"
+                "在不背离原意的前提下输出更适合下游生成的中文结果。只输出最终结果，不要解释。"
+            ),
+            user_prompt=text,
+            temperature=min(0.45, max(0.08, self.settings.model.temperature)),
+            max_tokens=min(max_tokens, self.settings.model.max_tokens),
+            use_responses_api=use_responses_api,
+            enable_thinking=looks_like_qwen_model(target.model_name),
+        )
+        request = urllib.request.Request(
+            request_endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+        )
+        self._trace_call(
+            call_chain,
+            stage="text_analysis",
+            event="sent",
+            status="ok",
+            message=f"{purpose} text analysis request sent",
+            details={
+                "modelName": target.model_name,
+                "provider": target.provider,
+                "mode": "responses_key" if use_responses_api else target.mode,
+                "maxTokens": body.get("max_output_tokens", body.get("max_tokens")),
+            },
+        )
+        started_at = time.perf_counter()
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                raw_response = response.read()
+        except Exception as exc:
+            raise RuntimeError(f"text analysis request failed ({target.model_name}): {exc}") from exc
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        payload = self._parse_json_bytes(raw_response)
+        content = self._extract_text_response(payload, raw_response.decode("utf-8", errors="ignore")).strip()
+        if not content:
+            raise RuntimeError(f"text analysis response is empty ({target.model_name})")
+        endpoint_host = ""
+        try:
+            endpoint_host = urllib.parse.urlparse(request_endpoint).netloc or request_endpoint
+        except Exception:
+            endpoint_host = request_endpoint
+        self._trace_call(
+            call_chain,
+            stage="text_analysis",
+            event="received",
+            status="ok",
+            message=f"{purpose} text analysis response received",
+            details={"modelName": target.model_name, "elapsedMs": elapsed_ms, "outputLength": len(content)},
+        )
+        return content, profile, endpoint_host
+
+    def _analyze_generation_prompt(
+        self,
+        *,
+        media_type: Literal["image", "video"],
+        request_obj: GenerateTextMediaRequest,
+        prompt: str,
+        call_chain: list[dict[str, Any]],
+    ) -> tuple[str, _TextAnalysisModelProfile | None, str]:
+        selected_model = getattr(request_obj, "textAnalysisModel", None)
+        try:
+            analyzed_prompt, profile, endpoint_host = self._call_text_analysis_model(
+                text=(
+                    f"任务：为{media_type}生成整理提示词。\n"
+                    "请提炼人物、对白、语境、剧情冲突、镜头动作、光线和环境信息，"
+                    "将原始文本改写成更适合生成模型理解的中文提示词。\n"
+                    f"原始文本：{prompt}"
+                ),
+                purpose=f"{media_type} prompt",
+                selected_model=selected_model,
+                call_chain=call_chain,
+                max_tokens=1600,
+            )
+            return analyzed_prompt, profile, endpoint_host
+        except Exception as exc:
+            self._trace_call(
+                call_chain,
+                stage="text_analysis",
+                event="fallback",
+                status="retry",
+                message="text analysis skipped, fallback to shaped prompt",
+                details={"error": truncate_text(str(exc), 300) or str(exc)},
+            )
+            return prompt, None, ""
 
     def _generate_media(
         self,
@@ -1060,7 +1882,13 @@ class TextGenerationEngine:
         extras = getattr(request_obj, "extras", {}) or {}
         if not isinstance(extras, dict):
             extras = {}
-        shaped_prompt = self._shape_prompt(media_type, prompt, profile, extras)
+        refined_prompt, text_analysis_profile, text_analysis_endpoint_host = self._analyze_generation_prompt(
+            media_type=media_type,
+            request_obj=request_obj,
+            prompt=prompt,
+            call_chain=call_chain,
+        )
+        shaped_prompt = self._shape_prompt(media_type, refined_prompt, profile, extras)
         self._trace_call(
             call_chain,
             stage="request",
@@ -1074,6 +1902,9 @@ class TextGenerationEngine:
                 "width": int(getattr(request_obj, "width", 0) or 0),
                 "height": int(getattr(request_obj, "height", 0) or 0),
                 "durationSeconds": float(getattr(request_obj, "durationSeconds", 0.0) or 0.0),
+                "minDurationSeconds": getattr(request_obj, "minDurationSeconds", None),
+                "maxDurationSeconds": getattr(request_obj, "maxDurationSeconds", None),
+                "textAnalysisModel": str(getattr(request_obj, "textAnalysisModel", "") or "").strip() or None,
             },
         )
         self._trace_call(
@@ -1086,12 +1917,23 @@ class TextGenerationEngine:
                 "strategyVersion": version,
                 "strategyLabel": profile.name,
                 "promptLength": len(prompt),
+                "refinedPromptLength": len(refined_prompt),
                 "shapedPromptLength": len(shaped_prompt),
             },
         )
 
-        provider_endpoint = self._resolve_video_endpoint() if media_type == "video" else str(self.settings.model.endpoint).strip()
-        if not provider_endpoint or not self.settings.model.api_key:
+        video_spec = self._resolve_video_model_spec(request_obj) if media_type == "video" else None
+        if media_type == "video":
+            if video_spec and video_spec.provider_kind == "seeddance":
+                provider_endpoint = self._resolve_seeddance_endpoint()
+                provider_api_key = self._resolve_seeddance_api_key()
+            else:
+                provider_endpoint = self._resolve_video_endpoint()
+                provider_api_key = str(self.settings.model.api_key or "").strip()
+        else:
+            provider_endpoint = str(self.settings.model.endpoint).strip()
+            provider_api_key = str(self.settings.model.api_key or "").strip()
+        if not provider_endpoint or not provider_api_key:
             self._trace_call(
                 call_chain,
                 stage="provider",
@@ -1103,7 +1945,7 @@ class TextGenerationEngine:
 
         try:
             if media_type == "video":
-                remote_result = self._generate_dashscope_video(
+                remote_result = self._generate_video_with_selected_model(
                     request_obj=request_obj,
                     profile=profile,
                     shaped_prompt=shaped_prompt,
@@ -1146,12 +1988,26 @@ class TextGenerationEngine:
             details={"mimeType": remote_result["mimeType"]},
         )
         strategy_version = int(version.lstrip("v") or "1")
-        model_name = self._resolve_video_model_spec(request_obj).name if media_type == "video" else self.settings.model.model_name
-        provider_name = "aliyun-bailian" if media_type == "video" else self.settings.model.provider
-        task_endpoint_host = ""
-        if media_type == "video":
+        resolved_video_spec = self._resolve_video_model_spec(request_obj) if media_type == "video" else None
+        remote_metadata = remote_result.get("metadata", {}) if isinstance(remote_result.get("metadata"), dict) else {}
+        remote_model_info = remote_metadata.get("modelInfo", {}) if isinstance(remote_metadata.get("modelInfo"), dict) else {}
+        model_name = str(
+            remote_model_info.get("providerModel")
+            or remote_metadata.get("providerModel")
+            or (resolved_video_spec.name if resolved_video_spec is not None else self.settings.model.model_name)
+        ).strip()
+        provider_name = str(
+            remote_model_info.get("provider")
+            or remote_metadata.get("provider")
+            or (self.infer_video_provider(model_name) if media_type == "video" else self.settings.model.provider)
+        ).strip()
+        task_endpoint_host = str(remote_model_info.get("taskEndpointHost") or "").strip()
+        if media_type == "video" and not task_endpoint_host:
             try:
-                task_endpoint_host = urllib.parse.urlparse(self._resolve_video_task_endpoint()).netloc or ""
+                if resolved_video_spec and resolved_video_spec.provider_kind == "seeddance":
+                    task_endpoint_host = urllib.parse.urlparse(self._resolve_seeddance_task_endpoint()).netloc or ""
+                else:
+                    task_endpoint_host = urllib.parse.urlparse(self._resolve_video_task_endpoint()).netloc or ""
             except Exception:
                 task_endpoint_host = ""
         return self._build_response(
@@ -1169,10 +2025,14 @@ class TextGenerationEngine:
                 "remote": True,
                 "profileName": profile.name,
                 "stylePreset": getattr(request_obj, "stylePreset", None),
+                "textAnalysisModel": text_analysis_profile.key if text_analysis_profile is not None else getattr(request_obj, "textAnalysisModel", None),
                 "modelInfo": {
                     "provider": provider_name,
                     "modelName": model_name,
                     "providerModel": model_name if media_type == "video" else None,
+                    "textAnalysisModel": text_analysis_profile.key if text_analysis_profile is not None else getattr(request_obj, "textAnalysisModel", None),
+                    "textAnalysisProvider": text_analysis_profile.provider if text_analysis_profile is not None else None,
+                    "textAnalysisEndpointHost": text_analysis_endpoint_host or None,
                     "endpointHost": endpoint_host,
                     "taskEndpointHost": task_endpoint_host or None,
                     "temperature": self.settings.model.temperature if media_type != "video" else None,
@@ -1193,11 +2053,18 @@ class TextGenerationEngine:
             },
         )
 
-    def _generate_script(self, request_obj: GenerateTextScriptRequest) -> GenerateTextScriptResponse:
+    def _generate_script(
+        self,
+        request_obj: GenerateTextScriptRequest,
+        *,
+        source_text_file_path: Path | None = None,
+        source_text_file_name: str | None = None,
+    ) -> GenerateTextScriptResponse:
         call_chain: list[dict[str, Any]] = []
         generation_id = new_id("script")
         source_text = str(getattr(request_obj, "text", "")).strip()
         requested_visual_style = str(getattr(request_obj, "visualStyle", "") or "").strip()
+        requested_text_analysis_model = str(getattr(request_obj, "textAnalysisModel", "") or "").strip()
         visual_style = requested_visual_style or _infer_script_visual_style(source_text)
         created_at = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
 
@@ -1211,21 +2078,71 @@ class TextGenerationEngine:
                 "generationId": generation_id,
                 "textLength": len(source_text),
                 "visualStyle": visual_style,
+                "textAnalysisModel": requested_text_analysis_model or self._default_text_analysis_model().key,
             },
         )
 
-        endpoint = str(self.settings.model.endpoint).strip()
-        if not endpoint or not self.settings.model.api_key:
+        text_analysis_profile = self._resolve_text_analysis_model(requested_text_analysis_model or None)
+        text_analysis_target = resolve_text_analysis_target(
+            self.settings.model,
+            requested_text_analysis_model or text_analysis_profile.key,
+        )
+        endpoint = str(text_analysis_target.endpoint or "").strip()
+        api_key = str(text_analysis_target.api_key or "").strip()
+        fallback_used = False
+        configured_fallback_name = str(
+            self.settings.model.text_analysis_fallback_model_name
+            or self.settings.model.model_name
+            or ""
+        ).strip()
+        configured_fallback_profile = self._resolve_text_analysis_model(configured_fallback_name or None)
+        configured_fallback_target = resolve_text_analysis_target(
+            self.settings.model,
+            configured_fallback_profile.key,
+        )
+        if not endpoint or not api_key:
+            fallback_name = configured_fallback_name
+            fallback_profile = configured_fallback_profile
+            fallback_target = configured_fallback_target
+            fallback_endpoint = str(fallback_target.endpoint or "").strip()
+            fallback_api_key = str(fallback_target.api_key or "").strip()
+            if (
+                fallback_name
+                and fallback_profile.key != text_analysis_profile.key
+                and fallback_endpoint
+                and fallback_api_key
+            ):
+                fallback_used = True
+                self._trace_call(
+                    call_chain,
+                    stage="provider",
+                    event="fallback",
+                    status="retry",
+                    message="text analysis model config missing, fallback to configured compatible model",
+                    details={
+                        "requestedModel": requested_text_analysis_model or text_analysis_profile.key,
+                        "resolvedModel": fallback_target.model_name,
+                        "provider": fallback_target.provider,
+                    },
+                )
+                text_analysis_profile = fallback_profile
+                text_analysis_target = fallback_target
+                endpoint = fallback_endpoint
+                api_key = fallback_api_key
+        if not endpoint or not api_key:
             self._trace_call(
                 call_chain,
                 stage="provider",
                 event="config",
                 status="error",
                 message="provider config missing",
+                details={"requestedModel": requested_text_analysis_model or text_analysis_profile.key},
             )
-            raise RuntimeError("text script provider is not configured")
+            raise RuntimeError(
+                f"text script provider is not configured for model '{requested_text_analysis_model or text_analysis_profile.key}'"
+            )
 
-        user_prompt = (
+        inline_user_prompt = (
             "请基于下面的正文生成一份可直接用于短剧生产的 Markdown 脚本。\n"
             f"{'用户指定视觉风格：' + visual_style if requested_visual_style else '视觉风格：请你根据题材与情绪自动决策，并在全片保持统一。'}\n"
             "如果原文信息不完整，请在不偏离原意的前提下补足角色外观锚点、环境视觉基调和分镜动作。\n"
@@ -1234,41 +2151,74 @@ class TextGenerationEngine:
             f"{source_text}\n"
             "【用户正文结束】"
         )
-        body = {
-            "model": self.settings.model.model_name,
-            "messages": [
-                {"role": "system", "content": SHORT_DRAMA_SCRIPT_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": min(0.45, max(0.12, self.settings.model.temperature + 0.05)),
-            "max_tokens": min(3200, self.settings.model.max_tokens),
-        }
-        request = urllib.request.Request(
-            endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.model.api_key}",
-            },
+        attached_file_prompt = (
+            "请基于我附带的 TXT 正文文件生成一份可直接用于短剧生产的 Markdown 脚本。\n"
+            f"{'用户指定视觉风格：' + visual_style if requested_visual_style else '视觉风格：请你根据题材与情绪自动决策，并在全片保持统一。'}\n"
+            "如果原文信息不完整，请在不偏离原意的前提下补足角色外观锚点、环境视觉基调和分镜动作。\n"
+            "请完整阅读附件文件内容，并直接输出最终剧本，不要写解释、前言或额外说明。"
         )
-        self._trace_call(
-            call_chain,
-            stage="remote_request",
-            event="sent",
-            status="ok",
-            message="remote script generation request sent",
-            details={
-                "modelName": self.settings.model.model_name,
-                "provider": self.settings.model.provider,
-                "temperature": body["temperature"],
-                "maxTokens": body["max_tokens"],
-            },
+        temperature = min(0.45, max(0.12, self.settings.model.temperature + 0.05))
+        max_output_tokens = min(3200, self.settings.model.max_tokens)
+        use_openai_file_input = (
+            source_text_file_path is not None
+            and self._is_openai_text_analysis_target(provider=text_analysis_target.provider, endpoint=endpoint)
         )
+        input_mode = "inline"
+        raw_response = b""
+        script_request_timeout_seconds = max(float(self.settings.model.timeout_seconds), 300.0)
 
-        request_started = time.perf_counter()
-        try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw_response = response.read()
+        def send_inline_script_request(
+            *,
+            target_endpoint: str,
+            target_api_key: str,
+            target_model_name: str,
+            target_provider: str,
+            target_mode: str,
+            fallback_flag: bool,
+        ) -> bytes:
+            use_responses_api = should_use_responses_api(
+                provider=target_provider,
+                endpoint=target_endpoint,
+                model_name=target_model_name,
+            )
+            request_endpoint = resolve_llm_request_endpoint(target_endpoint, use_responses_api=use_responses_api)
+            body = build_text_request_body(
+                model_name=target_model_name,
+                system_prompt=SHORT_DRAMA_SCRIPT_SYSTEM_PROMPT,
+                user_prompt=inline_user_prompt,
+                temperature=temperature,
+                max_tokens=max_output_tokens,
+                use_responses_api=use_responses_api,
+                enable_thinking=looks_like_qwen_model(target_model_name),
+            )
+            request = urllib.request.Request(
+                request_endpoint,
+                data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {target_api_key}",
+                },
+            )
+            self._trace_call(
+                call_chain,
+                stage="remote_request",
+                event="sent",
+                status="ok",
+                message="remote script generation request sent",
+                details={
+                    "requestedModel": requested_text_analysis_model or text_analysis_profile.key,
+                    "modelName": target_model_name,
+                    "provider": target_provider,
+                    "mode": "responses_key" if use_responses_api else target_mode,
+                    "fallbackUsed": fallback_flag,
+                    "temperature": body["temperature"],
+                    "maxTokens": body.get("max_output_tokens", body.get("max_tokens")),
+                },
+            )
+
+            request_started = time.perf_counter()
+            with urllib.request.urlopen(request, timeout=script_request_timeout_seconds) as response:
+                response_bytes = response.read()
             elapsed_ms = int((time.perf_counter() - request_started) * 1000)
             self._trace_call(
                 call_chain,
@@ -1277,40 +2227,209 @@ class TextGenerationEngine:
                 status="ok",
                 message="remote script generation response received",
                 details={
-                    "byteSize": len(raw_response),
+                    "byteSize": len(response_bytes),
                     "elapsedMs": elapsed_ms,
                 },
             )
-        except (TimeoutError, socket.timeout) as exc:
-            self._trace_call(
-                call_chain,
-                stage="remote_response",
-                event="received",
-                status="error",
-                message="remote script generation timeout",
-                details={"error": str(exc)},
-            )
-            raise RuntimeError(f"remote script generation timeout: {exc}") from exc
-        except urllib.error.HTTPError as exc:
-            self._trace_call(
-                call_chain,
-                stage="remote_response",
-                event="received",
-                status="error",
-                message="remote script generation http error",
-                details={"statusCode": int(exc.code)},
-            )
-            raise RuntimeError(f"remote script generation http error: {exc.code}") from exc
-        except urllib.error.URLError as exc:
-            self._trace_call(
-                call_chain,
-                stage="remote_response",
-                event="received",
-                status="error",
-                message="remote script generation network error",
-                details={"error": str(exc)},
-            )
-            raise RuntimeError(f"remote script generation network error: {exc}") from exc
+            return response_bytes
+
+        if use_openai_file_input:
+            api_base = self._openai_api_base(endpoint)
+            uploaded_file_id = ""
+            try:
+                uploaded_file_id = self._upload_openai_input_file(
+                    api_base=api_base,
+                    api_key=api_key,
+                    source_text_file_path=source_text_file_path,
+                    source_text_file_name=source_text_file_name,
+                    call_chain=call_chain,
+                )
+                file_body = {
+                    "model": text_analysis_target.model_name,
+                    "input": [
+                        {
+                            "role": "system",
+                            "content": [{"type": "input_text", "text": SHORT_DRAMA_SCRIPT_SYSTEM_PROMPT}],
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": attached_file_prompt},
+                                {"type": "input_file", "file_id": uploaded_file_id},
+                            ],
+                        },
+                    ],
+                    "temperature": temperature,
+                    "max_output_tokens": max_output_tokens,
+                }
+                request = urllib.request.Request(
+                    f"{api_base}/responses",
+                    data=json.dumps(file_body, ensure_ascii=False).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}",
+                    },
+                )
+                self._trace_call(
+                    call_chain,
+                    stage="remote_request",
+                    event="sent",
+                    status="ok",
+                    message="remote script generation request sent with file input",
+                    details={
+                        "requestedModel": requested_text_analysis_model or text_analysis_profile.key,
+                        "modelName": text_analysis_target.model_name,
+                        "provider": text_analysis_target.provider,
+                        "mode": "responses_file_input",
+                        "fallbackUsed": fallback_used,
+                        "temperature": temperature,
+                        "maxOutputTokens": max_output_tokens,
+                        "fileName": source_text_file_name or source_text_file_path.name,
+                    },
+                )
+                request_started = time.perf_counter()
+                with urllib.request.urlopen(request, timeout=script_request_timeout_seconds) as response:
+                    raw_response = response.read()
+                elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+                self._trace_call(
+                    call_chain,
+                    stage="remote_response",
+                    event="received",
+                    status="ok",
+                    message="remote script generation response received",
+                    details={
+                        "byteSize": len(raw_response),
+                        "elapsedMs": elapsed_ms,
+                    },
+                )
+                input_mode = "file"
+            except Exception as exc:
+                self._trace_call(
+                    call_chain,
+                    stage="remote_request",
+                    event="fallback",
+                    status="retry",
+                    message="file input request failed, fallback to inline text request",
+                    details={"error": truncate_text(str(exc), 320) or str(exc)},
+                )
+            finally:
+                self._delete_openai_input_file(
+                    api_base=api_base,
+                    api_key=api_key,
+                    file_id=uploaded_file_id,
+                    call_chain=call_chain,
+                )
+
+        if not raw_response:
+            try:
+                raw_response = send_inline_script_request(
+                    target_endpoint=endpoint,
+                    target_api_key=api_key,
+                    target_model_name=text_analysis_target.model_name,
+                    target_provider=text_analysis_target.provider,
+                    target_mode=text_analysis_target.mode,
+                    fallback_flag=fallback_used,
+                )
+            except (TimeoutError, socket.timeout) as exc:
+                self._trace_call(
+                    call_chain,
+                    stage="remote_response",
+                    event="received",
+                    status="error",
+                    message="remote script generation timeout",
+                    details={"error": str(exc)},
+                )
+                raise RuntimeError(f"remote script generation timeout: {exc}") from exc
+            except urllib.error.HTTPError as exc:
+                status_code = int(exc.code)
+                fallback_endpoint = str(configured_fallback_target.endpoint or "").strip()
+                fallback_api_key = str(configured_fallback_target.api_key or "").strip()
+                can_retry_with_fallback = (
+                    status_code in {401, 403, 404}
+                    and configured_fallback_name
+                    and configured_fallback_profile.key != text_analysis_profile.key
+                    and configured_fallback_target.model_name != text_analysis_target.model_name
+                    and fallback_endpoint
+                    and fallback_api_key
+                )
+                if can_retry_with_fallback:
+                    self._trace_call(
+                        call_chain,
+                        stage="provider",
+                        event="fallback",
+                        status="retry",
+                        message="primary text analysis model rejected, fallback to configured compatible model",
+                        details={
+                            "statusCode": status_code,
+                            "requestedModel": requested_text_analysis_model or text_analysis_profile.key,
+                            "resolvedModel": configured_fallback_target.model_name,
+                            "provider": configured_fallback_target.provider,
+                        },
+                    )
+                    text_analysis_profile = configured_fallback_profile
+                    text_analysis_target = configured_fallback_target
+                    endpoint = fallback_endpoint
+                    api_key = fallback_api_key
+                    fallback_used = True
+                    try:
+                        raw_response = send_inline_script_request(
+                            target_endpoint=endpoint,
+                            target_api_key=api_key,
+                            target_model_name=text_analysis_target.model_name,
+                            target_provider=text_analysis_target.provider,
+                            target_mode=text_analysis_target.mode,
+                            fallback_flag=True,
+                        )
+                    except (TimeoutError, socket.timeout) as retry_exc:
+                        self._trace_call(
+                            call_chain,
+                            stage="remote_response",
+                            event="received",
+                            status="error",
+                            message="remote script generation timeout",
+                            details={"error": str(retry_exc)},
+                        )
+                        raise RuntimeError(f"remote script generation timeout: {retry_exc}") from retry_exc
+                    except urllib.error.HTTPError as retry_exc:
+                        self._trace_call(
+                            call_chain,
+                            stage="remote_response",
+                            event="received",
+                            status="error",
+                            message="remote script generation http error",
+                            details={"statusCode": int(retry_exc.code)},
+                        )
+                        raise RuntimeError(f"remote script generation http error: {retry_exc.code}") from retry_exc
+                    except urllib.error.URLError as retry_exc:
+                        self._trace_call(
+                            call_chain,
+                            stage="remote_response",
+                            event="received",
+                            status="error",
+                            message="remote script generation network error",
+                            details={"error": str(retry_exc)},
+                        )
+                        raise RuntimeError(f"remote script generation network error: {retry_exc}") from retry_exc
+                else:
+                    self._trace_call(
+                        call_chain,
+                        stage="remote_response",
+                        event="received",
+                        status="error",
+                        message="remote script generation http error",
+                        details={"statusCode": status_code},
+                    )
+                    raise RuntimeError(f"remote script generation http error: {status_code}") from exc
+            except urllib.error.URLError as exc:
+                self._trace_call(
+                    call_chain,
+                    stage="remote_response",
+                    event="received",
+                    status="error",
+                    message="remote script generation network error",
+                    details={"error": str(exc)},
+                )
+                raise RuntimeError(f"remote script generation network error: {exc}") from exc
 
         payload = self._parse_json_bytes(raw_response)
         script_markdown = self._extract_text_response(payload, raw_response.decode("utf-8", errors="ignore"))
@@ -1358,27 +2477,99 @@ class TextGenerationEngine:
                 "markdownFilePath": relative_markdown_path,
                 "markdownFileUrl": markdown_url,
                 "downloadUrl": markdown_url,
-                "source": f"remote:{self.settings.model.model_name}",
+                "source": f"remote:{text_analysis_target.model_name}",
                 "createdAt": created_at,
                 "modelInfo": {
-                    "provider": self.settings.model.provider,
-                    "modelName": self.settings.model.model_name,
+                    "provider": text_analysis_target.provider,
+                    "modelName": text_analysis_target.model_name,
+                    "requestedModel": requested_text_analysis_model or text_analysis_profile.key,
+                    "resolvedModel": text_analysis_target.model_name,
+                    "textAnalysisModel": requested_text_analysis_model or text_analysis_profile.key,
+                    "selectedTextAnalysisModel": text_analysis_profile.key,
                     "endpointHost": endpoint_host,
-                    "temperature": body["temperature"],
-                    "maxTokens": body["max_tokens"],
+                    "temperature": temperature,
+                    "maxTokens": max_output_tokens,
                     "timeoutSeconds": self.settings.model.timeout_seconds,
+                    "fallbackUsed": fallback_used,
+                    "inputMode": input_mode,
                 },
                 "callChain": call_chain,
                 "metadata": {
                     "systemPromptName": "ai-short-drama-script-expert",
                     "visualStyle": visual_style,
+                    "textAnalysisModel": requested_text_analysis_model or text_analysis_profile.key,
+                    "requestedTextAnalysisModel": requested_text_analysis_model or text_analysis_profile.key,
+                    "resolvedTextAnalysisModel": text_analysis_target.model_name,
+                    "fallbackUsed": fallback_used,
                     "sourceTextLength": len(source_text),
                     "outputFormat": "markdown",
                     "markdownFilePath": relative_markdown_path,
                     "markdownFileUrl": markdown_url,
+                    "inputMode": input_mode,
                     "rawTopLevelKeys": list(payload.keys())[:12],
                 },
             },
+        )
+
+    def _generate_video_with_selected_model(
+        self,
+        *,
+        request_obj: GenerateTextMediaRequest,
+        profile: _VersionProfile,
+        shaped_prompt: str,
+        generation_id: str,
+        call_chain: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        spec = self._resolve_video_model_spec(request_obj)
+        if spec.provider_kind == "seeddance":
+            return self._generate_seeddance_video(
+                request_obj=request_obj,
+                profile=profile,
+                shaped_prompt=shaped_prompt,
+                generation_id=generation_id,
+                call_chain=call_chain,
+            )
+        if spec.provider_kind == "qwen_vl_workflow":
+            if hasattr(request_obj, "model_copy"):
+                backend_request = request_obj.model_copy(deep=True)  # type: ignore[attr-defined]
+            else:
+                payload = request_obj.model_dump() if hasattr(request_obj, "model_dump") else dict(request_obj.__dict__)
+                backend_request = GenerateTextMediaRequest(**payload)
+            backend_model_name = (spec.backend_model_name or self.settings.model.video_model_name or "wan2.6-t2v").strip()
+            backend_request.providerModel = backend_model_name
+            backend_request.videoModel = backend_model_name
+            rewritten_prompt = self._rewrite_prompt_with_qwen_vl(
+                shaped_prompt=shaped_prompt,
+                call_chain=call_chain,
+            )
+            result = self._generate_dashscope_video(
+                request_obj=backend_request,
+                profile=profile,
+                shaped_prompt=rewritten_prompt,
+                generation_id=generation_id,
+                call_chain=call_chain,
+            )
+            metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+            metadata["provider"] = "aliyun-bailian"
+            metadata["selectedProviderModel"] = spec.name
+            metadata["providerModel"] = spec.name
+            metadata["actualProviderModel"] = backend_model_name
+            metadata["resolvedBackendModel"] = backend_model_name
+            model_info = metadata.get("modelInfo") if isinstance(metadata.get("modelInfo"), dict) else {}
+            model_info["provider"] = "aliyun-bailian"
+            model_info["modelName"] = backend_model_name
+            model_info["providerModel"] = spec.name
+            model_info["actualModelName"] = backend_model_name
+            model_info["resolvedBackendModel"] = backend_model_name
+            metadata["modelInfo"] = model_info
+            result["metadata"] = metadata
+            return result
+        return self._generate_dashscope_video(
+            request_obj=request_obj,
+            profile=profile,
+            shaped_prompt=shaped_prompt,
+            generation_id=generation_id,
+            call_chain=call_chain,
         )
 
     def _generate_remote_media(
@@ -1400,38 +2591,61 @@ class TextGenerationEngine:
                 call_chain=call_chain,
             )
 
+        width, height = self._resolve_dimensions(request_obj)
+        duration_seconds = float(getattr(request_obj, "durationSeconds", 0.0) or 0.0)
+        aspect_ratio = self._aspect_ratio_label(width, height)
+        request_model_name = str(self.settings.model.image_model_name or self.settings.model.model_name or "").strip()
+        extras = getattr(request_obj, "extras", None)
+        force_provider_model_for_image = bool(isinstance(extras, dict) and extras.get("forceProviderModelForImage"))
+        if media_type == "image" and force_provider_model_for_image:
+            requested_provider_model = str(getattr(request_obj, "providerModel", "") or "").strip()
+            if requested_provider_model:
+                normalized_provider_model = _normalize_video_model_name(requested_provider_model)
+                spec = _VIDEO_MODELS.get(normalized_provider_model) if normalized_provider_model else None
+                if spec is not None:
+                    request_model_name = (spec.backend_model_name or spec.name).strip() or request_model_name
+                else:
+                    request_model_name = requested_provider_model
+        if _looks_like_seedream_image_model(request_model_name):
+            return self._generate_seedream_image(
+                request_obj=request_obj,
+                shaped_prompt=shaped_prompt,
+                generation_id=generation_id,
+                call_chain=call_chain,
+                request_model_name=request_model_name,
+            )
+
         endpoint = str(self.settings.model.endpoint).strip()
         if not endpoint:
             raise RuntimeError("model endpoint is empty")
         if not self.settings.model.api_key:
             raise RuntimeError("model api_key is empty")
 
-        width, height = self._resolve_dimensions(request_obj)
-        duration_seconds = float(getattr(request_obj, "durationSeconds", 0.0) or 0.0)
-        aspect_ratio = self._aspect_ratio_label(width, height)
-        body = {
-            "model": self.settings.model.model_name,
-            "messages": [
-                {"role": "system", "content": "Return JSON only."},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Task: generate {media_type} from text.\n"
-                        f"Version profile: {profile.version} ({profile.name})\n"
-                        f"Aspect ratio: {aspect_ratio}\n"
-                        f"Resolution: {width}x{height}\n"
-                        f"Duration seconds: {duration_seconds:.2f}\n"
-                        f"Prompt: {shaped_prompt}\n"
-                        'Output JSON: {"file_url":"https://...", "base64_data":"...", "mime_type":"image/png or video/mp4"}'
-                    ),
-                },
-            ],
-            "temperature": min(0.35, max(0.05, self.settings.model.temperature)),
-            "max_tokens": min(900, self.settings.model.max_tokens),
-        }
+        use_responses_api = should_use_responses_api(
+            provider=self.settings.model.provider,
+            endpoint=endpoint,
+            model_name=request_model_name,
+        )
+        request_endpoint = resolve_llm_request_endpoint(endpoint, use_responses_api=use_responses_api)
+        body = build_text_request_body(
+            model_name=request_model_name,
+            system_prompt="Return JSON only.",
+            user_prompt=(
+                f"Task: generate {media_type} from text.\n"
+                f"Aspect ratio: {aspect_ratio}\n"
+                f"Resolution: {width}x{height}\n"
+                f"Duration seconds: {duration_seconds:.2f}\n"
+                f"Prompt: {shaped_prompt}\n"
+                'Output JSON: {"file_url":"https://...", "base64_data":"...", "mime_type":"image/png or video/mp4"}'
+            ),
+            temperature=min(0.35, max(0.05, self.settings.model.temperature)),
+            max_tokens=min(900, self.settings.model.max_tokens),
+            use_responses_api=use_responses_api,
+            enable_thinking=looks_like_qwen_model(request_model_name),
+        )
 
         request = urllib.request.Request(
-            endpoint,
+            request_endpoint,
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
@@ -1445,11 +2659,11 @@ class TextGenerationEngine:
             status="ok",
             message="remote generation request sent",
             details={
-                "modelName": self.settings.model.model_name,
+                "modelName": request_model_name,
                 "provider": self.settings.model.provider,
                 "kind": media_type,
                 "temperature": body["temperature"],
-                "maxTokens": body["max_tokens"],
+                "maxTokens": body.get("max_output_tokens", body.get("max_tokens")),
             },
         )
         request_started = time.perf_counter()
@@ -1544,6 +2758,434 @@ class TextGenerationEngine:
             },
         }
 
+    def _generate_seedream_image(
+        self,
+        *,
+        request_obj: GenerateTextMediaRequest,
+        shaped_prompt: str,
+        generation_id: str,
+        call_chain: list[dict[str, Any]],
+        request_model_name: str,
+    ) -> dict[str, Any]:
+        endpoint = self._resolve_seedream_image_endpoint()
+        api_key = self._resolve_seedream_api_key()
+        if not endpoint:
+            raise RuntimeError("seedream image endpoint is empty")
+        if not api_key:
+            raise RuntimeError("seedream api key is empty")
+
+        width, height = self._resolve_dimensions(request_obj)
+        aspect_ratio = self._aspect_ratio_label(width, height)
+        extras = getattr(request_obj, "extras", None)
+        if not isinstance(extras, dict):
+            extras = {}
+
+        requested_provider_model = str(getattr(request_obj, "providerModel", "") or "").strip()
+        model_name = _normalize_seedream_image_model_name(requested_provider_model or request_model_name)
+        response_format = str(extras.get("response_format") or extras.get("responseFormat") or "url").strip().lower()
+        if response_format not in {"url", "b64_json"}:
+            response_format = "url"
+        sequential_mode = str(
+            extras.get("sequential_image_generation")
+            or extras.get("sequentialImageGeneration")
+            or "disabled"
+        ).strip().lower()
+        if sequential_mode not in {"enabled", "disabled", "auto"}:
+            sequential_mode = "disabled"
+        stream = self._coerce_extra_bool(extras.get("stream"), default=False)
+        watermark = self._coerce_extra_bool(extras.get("watermark"), default=True)
+        size = self._resolve_seedream_image_size(width=width, height=height, extras=extras)
+
+        body: dict[str, Any] = {
+            "model": model_name,
+            "prompt": shaped_prompt,
+            "sequential_image_generation": sequential_mode,
+            "response_format": response_format,
+            "size": size,
+            "stream": stream,
+            "watermark": watermark,
+        }
+
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "X-Api-Key": api_key,
+            },
+        )
+        self._trace_call(
+            call_chain,
+            stage="remote_request",
+            event="sent",
+            status="ok",
+            message="seedream image request sent",
+            details={
+                "modelName": model_name,
+                "provider": "volcengine",
+                "size": size,
+                "responseFormat": response_format,
+                "watermark": watermark,
+                "stream": stream,
+            },
+        )
+        request_started = time.perf_counter()
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                raw_response = response.read()
+            elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+            self._trace_call(
+                call_chain,
+                stage="remote_response",
+                event="received",
+                status="ok",
+                message="seedream image response received",
+                details={
+                    "byteSize": len(raw_response),
+                    "elapsedMs": elapsed_ms,
+                },
+            )
+        except (TimeoutError, socket.timeout) as exc:
+            raise RuntimeError(f"seedream image generation timeout: {exc}") from exc
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                detail = ""
+            detail_text = truncate_text(detail.strip(), 240)
+            if detail_text:
+                raise RuntimeError(f"seedream image generation http error: {exc.code} {detail_text}") from exc
+            raise RuntimeError(f"seedream image generation http error: {exc.code}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"seedream image generation network error: {exc}") from exc
+
+        payload = self._parse_json_bytes(raw_response)
+        self._trace_call(
+            call_chain,
+            stage="remote_payload",
+            event="parsed",
+            status="ok",
+            message="seedream image payload parsed",
+            details={"topLevelKeys": list(payload.keys())[:12]},
+        )
+        media_blob = self._extract_media_blob(
+            media_type="image",
+            payload=payload,
+            raw_text=raw_response.decode("utf-8", errors="ignore"),
+            call_chain=call_chain,
+        )
+        if media_blob is None:
+            raise RuntimeError("seedream response did not include usable image data")
+
+        mime_type = media_blob["mimeType"] or "image/png"
+        extension = self._extension_from_mime_or_url(mime_type, media_blob.get("sourceUrl"), "image")
+        output_path = self._prepare_output_path(generation_id, "image", extension)
+        output_path.write_bytes(media_blob["data"])
+        self._trace_call(
+            call_chain,
+            stage="output",
+            event="saved",
+            status="ok",
+            message="seedream image file saved",
+            details={
+                "filePath": output_path.as_posix(),
+                "mimeType": mime_type,
+                "byteSize": output_path.stat().st_size,
+            },
+        )
+        return {
+            "path": output_path,
+            "mimeType": mime_type,
+            "metadata": {
+                "remoteSourceUrl": media_blob.get("sourceUrl", ""),
+                "byteSize": output_path.stat().st_size,
+                "aspectRatio": aspect_ratio,
+                "resolution": f"{width}x{height}",
+                "provider": "volcengine",
+                "providerModel": model_name,
+                "requestedSize": size,
+                "modelInfo": {
+                    "provider": "volcengine",
+                    "modelName": model_name,
+                    "providerModel": model_name,
+                    "endpointHost": urllib.parse.urlparse(endpoint).netloc or endpoint,
+                    "mediaKind": "image",
+                },
+            },
+        }
+
+    def _resolve_seedream_image_size(self, *, width: int, height: int, extras: dict[str, Any]) -> str:
+        raw = str(
+            extras.get("size")
+            or extras.get("imageSizeTier")
+            or extras.get("seedreamSize")
+            or ""
+        ).strip().upper()
+        if raw in {"1K", "2K", "4K"}:
+            return raw
+        longest_edge = max(width, height)
+        if longest_edge > 1024:
+            return "2K"
+        return "1K"
+
+    def _rewrite_prompt_with_qwen_vl(self, *, shaped_prompt: str, call_chain: list[dict[str, Any]]) -> str:
+        endpoint = str(self.settings.model.endpoint or "").strip()
+        if not endpoint or not self.settings.model.api_key:
+            return shaped_prompt
+        model_name = str(self.settings.model.vision_model_name or "qwen-vl-plus-latest").strip()
+        if not model_name:
+            model_name = "qwen-vl-plus-latest"
+        body = {
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "你是视频生成提示词重写器。请在不改变语义的前提下，输出一段更适合文生视频模型的中文提示词。"
+                        "只输出最终提示词，不要解释。"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": shaped_prompt,
+                },
+            ],
+            "temperature": min(0.4, max(0.05, self.settings.model.temperature)),
+            "max_tokens": min(1200, self.settings.model.max_tokens),
+        }
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.settings.model.api_key}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                raw_response = response.read()
+        except Exception as exc:
+            self._trace_call(
+                call_chain,
+                stage="prompt",
+                event="qwen_vl_rewrite",
+                status="retry",
+                message="qwen-vl rewrite failed, fallback to original prompt",
+                details={"error": truncate_text(str(exc), 300) or str(exc)},
+            )
+            return shaped_prompt
+        payload = self._parse_json_bytes(raw_response)
+        rewritten = self._extract_text_response(payload, raw_response.decode("utf-8", errors="ignore")).strip()
+        if not rewritten:
+            return shaped_prompt
+        rewritten = self._enforce_video_hard_requirements(rewritten)
+        self._trace_call(
+            call_chain,
+            stage="prompt",
+            event="qwen_vl_rewrite",
+            status="ok",
+            message="prompt rewritten by qwen-vl workflow",
+            details={"rawLength": len(shaped_prompt), "rewrittenLength": len(rewritten)},
+        )
+        return rewritten
+
+    def _generate_seeddance_video(
+        self,
+        *,
+        request_obj: GenerateTextMediaRequest,
+        profile: _VersionProfile,
+        shaped_prompt: str,
+        generation_id: str,
+        call_chain: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        endpoint = self._resolve_seeddance_endpoint()
+        task_endpoint = self._resolve_seeddance_task_endpoint()
+        api_key = self._resolve_seeddance_api_key()
+        if not endpoint:
+            raise RuntimeError("seeddance video endpoint is empty")
+        if not task_endpoint:
+            raise RuntimeError("seeddance video task endpoint is empty")
+        if not api_key:
+            raise RuntimeError("seeddance api key is empty")
+
+        spec = self._resolve_video_model_spec(request_obj)
+        width, height = self._resolve_dimensions(request_obj)
+        normalized_width, normalized_height, normalized_size = self._normalize_video_size(
+            spec=spec,
+            width=width,
+            height=height,
+        )
+        requested_duration, min_requested_duration, max_requested_duration = self._resolve_requested_video_duration_bounds(request_obj)
+        normalized_duration = self._normalize_video_duration(
+            spec=spec,
+            requested=requested_duration,
+            min_requested=min_requested_duration,
+            max_requested=max_requested_duration,
+        )
+        reference_image_url = self._resolve_seeddance_reference_image_url(request_obj)
+        if not reference_image_url:
+            raise RuntimeError("seeddance-1.5-pro requires a reference image url")
+        prompt = self._enforce_video_hard_requirements(shaped_prompt)
+        if len(prompt) > spec.prompt_limit:
+            prompt = prompt[: spec.prompt_limit].rstrip()
+        backend_model_name = (spec.backend_model_name or spec.name).strip()
+        prompt_with_flags = f"{prompt} --duration {int(normalized_duration)} --camerafixed false --watermark true"
+        body: dict[str, Any] = {
+            "model": backend_model_name,
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt_with_flags,
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": reference_image_url,
+                    },
+                },
+            ],
+        }
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "X-Api-Key": api_key,
+            },
+        )
+        self._trace_call(
+            call_chain,
+            stage="remote_request",
+            event="sent",
+            status="ok",
+            message="seeddance video task submitted",
+            details={
+                "modelName": spec.name,
+                "backendModelName": backend_model_name,
+                "provider": self.infer_video_provider(spec.name),
+                "size": normalized_size,
+                "durationSeconds": int(normalized_duration),
+                "minDurationSeconds": min_requested_duration,
+                "maxDurationSeconds": max_requested_duration,
+                "referenceImageUrl": reference_image_url,
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                raw_response = response.read()
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                detail = ""
+            detail_text = truncate_text(detail.strip(), 320)
+            if detail_text:
+                raise RuntimeError(f"seeddance video task submit http error: {exc.code} {detail_text}") from exc
+            raise RuntimeError(f"seeddance video task submit http error: {exc.code}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"seeddance video task submit network error: {exc}") from exc
+        except (TimeoutError, socket.timeout) as exc:
+            raise RuntimeError(f"seeddance video task submit timeout: {exc}") from exc
+
+        payload = self._parse_json_bytes(raw_response)
+        task_id = self._extract_task_id(payload)
+        if not task_id:
+            raise RuntimeError("seeddance video task response missing task id")
+
+        self._trace_call(
+            call_chain,
+            stage="task",
+            event="created",
+            status="ok",
+            message="seeddance task created",
+            details={"taskId": task_id},
+        )
+        task_marker = f"[seeddance_task_id={task_id}]"
+        try:
+            poll_result = self._poll_seeddance_video_task(
+                task_id=task_id,
+                task_endpoint=task_endpoint,
+                api_key=api_key,
+                call_chain=call_chain,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                truncate_text(f"{task_marker} seeddance task poll failed: {exc}", 700)
+                or f"{task_marker} seeddance task poll failed"
+            ) from exc
+        video_url = self._extract_video_url(poll_result)
+        if not video_url:
+            output_block = poll_result.get("output") if isinstance(poll_result.get("output"), dict) else {}
+            data_block = poll_result.get("data") if isinstance(poll_result.get("data"), dict) else {}
+            raise RuntimeError(
+                truncate_text(
+                    (
+                        f"{task_marker} seeddance task completed without video_url; "
+                        f"payload_keys={list(poll_result.keys())[:10]}, "
+                        f"output_keys={list(output_block.keys())[:10]}, "
+                        f"data_keys={list(data_block.keys())[:10]}"
+                    ),
+                    500,
+                )
+                or f"{task_marker} seeddance task completed without video_url"
+            )
+        try:
+            data, mime_type = self._download_binary(
+                video_url,
+                call_chain=call_chain,
+                timeout_seconds=max(float(self.settings.model.timeout_seconds), 300.0),
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                truncate_text(f"{task_marker} seeddance video download failed: {exc}", 700)
+                or f"{task_marker} seeddance video download failed"
+            ) from exc
+        mime_type = mime_type or "video/mp4"
+        output_path = self._prepare_output_path(generation_id, "video", self._extension_from_mime_or_url(mime_type, video_url, "video"))
+        output_path.write_bytes(data)
+        return {
+            "path": output_path,
+            "mimeType": mime_type,
+            "metadata": {
+                "remoteSourceUrl": video_url,
+                "byteSize": output_path.stat().st_size,
+                "aspectRatio": self._aspect_ratio_label(normalized_width, normalized_height),
+                "resolution": f"{normalized_width}x{normalized_height}",
+                "durationSeconds": int(normalized_duration),
+                "requestedMinDurationSeconds": min_requested_duration,
+                "requestedMaxDurationSeconds": max_requested_duration,
+                "taskId": task_id,
+                "providerModel": spec.name,
+                "taskStatus": "SUCCEEDED",
+                "actualPrompt": prompt_with_flags,
+                "referenceImageUrl": reference_image_url,
+                "modelInfo": {
+                    "provider": self.infer_video_provider(spec.name),
+                    "modelName": backend_model_name,
+                    "providerModel": spec.name,
+                    "endpointHost": urllib.parse.urlparse(endpoint).netloc or endpoint,
+                    "taskEndpointHost": urllib.parse.urlparse(task_endpoint).netloc or task_endpoint,
+                    "taskId": task_id,
+                    "mediaKind": "video",
+                },
+            },
+        }
+
+    def _resolve_seeddance_reference_image_url(self, request_obj: GenerateTextMediaRequest) -> str:
+        extras = getattr(request_obj, "extras", None)
+        if not isinstance(extras, dict):
+            return ""
+        for key in ("imageUrl", "image_url", "referenceImageUrl", "reference_image_url", "sourceImageUrl"):
+            value = extras.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
     def _generate_dashscope_video(
         self,
         *,
@@ -1563,15 +3205,19 @@ class TextGenerationEngine:
             raise RuntimeError("model api_key is empty")
 
         spec = self._resolve_video_model_spec(request_obj)
+        backend_model_name = (spec.backend_model_name or spec.name).strip() or spec.name
         width, height = self._resolve_dimensions(request_obj)
         normalized_width, normalized_height, normalized_size = self._normalize_video_size(
             spec=spec,
             width=width,
             height=height,
         )
+        requested_duration, min_requested_duration, max_requested_duration = self._resolve_requested_video_duration_bounds(request_obj)
         normalized_duration = self._normalize_video_duration(
             spec=spec,
-            requested=float(getattr(request_obj, "durationSeconds", spec.default_duration_seconds) or spec.default_duration_seconds),
+            requested=requested_duration,
+            min_requested=min_requested_duration,
+            max_requested=max_requested_duration,
         )
 
         if normalized_width != width or normalized_height != height:
@@ -1588,8 +3234,12 @@ class TextGenerationEngine:
                 },
             )
 
-        requested_duration = float(getattr(request_obj, "durationSeconds", 0.0) or 0.0)
-        if requested_duration and abs(requested_duration - normalized_duration) > 0.01:
+        duration_adjusted = (
+            (requested_duration is not None and abs(requested_duration - normalized_duration) > 0.01)
+            or (min_requested_duration is not None and normalized_duration < min_requested_duration)
+            or (max_requested_duration is not None and normalized_duration > max_requested_duration)
+        )
+        if duration_adjusted:
             self._trace_call(
                 call_chain,
                 stage="request",
@@ -1598,12 +3248,14 @@ class TextGenerationEngine:
                 message="video duration adjusted to provider-supported range",
                 details={
                     "requested": requested_duration,
+                    "requestedMinDurationSeconds": min_requested_duration,
+                    "requestedMaxDurationSeconds": max_requested_duration,
                     "normalized": normalized_duration,
                     "modelName": spec.name,
                 },
             )
 
-        prompt = shaped_prompt.strip()
+        prompt = self._enforce_video_hard_requirements(shaped_prompt)
         if len(prompt) > spec.prompt_limit:
             prompt = prompt[: spec.prompt_limit].rstrip()
             self._trace_call(
@@ -1616,7 +3268,7 @@ class TextGenerationEngine:
             )
 
         body: dict[str, Any] = {
-            "model": spec.name,
+            "model": backend_model_name,
             "input": {
                 "prompt": prompt,
             },
@@ -1645,9 +3297,12 @@ class TextGenerationEngine:
             message="dashscope video task submitted",
             details={
                 "modelName": spec.name,
-                "provider": "aliyun-bailian",
+                "backendModelName": backend_model_name,
+                "provider": self.infer_video_provider(spec.name),
                 "size": normalized_size,
                 "durationSeconds": int(normalized_duration),
+                "minDurationSeconds": min_requested_duration,
+                "maxDurationSeconds": max_requested_duration,
                 "promptExtend": bool(self.settings.model.video_prompt_extend),
             },
         )
@@ -1729,9 +3384,12 @@ class TextGenerationEngine:
                 "aspectRatio": self._aspect_ratio_label(normalized_width, normalized_height),
                 "resolution": f"{normalized_width}x{normalized_height}",
                 "durationSeconds": int(normalized_duration),
+                "requestedMinDurationSeconds": min_requested_duration,
+                "requestedMaxDurationSeconds": max_requested_duration,
                 "taskId": task_id,
                 "requestId": request_id,
                 "providerModel": spec.name,
+                "backendModelName": backend_model_name,
                 "taskStatus": str(output_block.get("task_status") or output_block.get("taskStatus") or "SUCCEEDED"),
                 "submitTime": output_block.get("submit_time"),
                 "scheduledTime": output_block.get("scheduled_time"),
@@ -1739,8 +3397,8 @@ class TextGenerationEngine:
                 "stylePreset": getattr(request_obj, "stylePreset", None),
                 "actualPrompt": remote_prompt,
                 "modelInfo": {
-                    "provider": "aliyun-bailian",
-                    "modelName": spec.name,
+                    "provider": self.infer_video_provider(spec.name),
+                    "modelName": backend_model_name,
                     "providerModel": spec.name,
                     "endpointHost": urllib.parse.urlparse(endpoint).netloc or endpoint,
                     "taskEndpointHost": urllib.parse.urlparse(task_endpoint).netloc or task_endpoint,
@@ -1839,17 +3497,83 @@ class TextGenerationEngine:
             or f"dashscope task poll timeout for task {task_id}"
         )
 
+    def _poll_seeddance_video_task(
+        self,
+        *,
+        task_id: str,
+        task_endpoint: str,
+        api_key: str,
+        call_chain: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + max(30.0, float(self.settings.model.seeddance_poll_timeout_seconds))
+        interval = max(1.0, float(self.settings.model.seeddance_poll_interval_seconds))
+        poll_url = f"{task_endpoint.rstrip('/')}/{urllib.parse.quote(task_id)}"
+        attempt = 0
+        last_payload: dict[str, Any] = {}
+
+        while time.monotonic() < deadline:
+            attempt += 1
+            request = urllib.request.Request(
+                poll_url,
+                method="GET",
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "X-Api-Key": api_key,
+                },
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                    raw_response = response.read()
+            except (TimeoutError, socket.timeout):
+                time.sleep(interval)
+                continue
+            except urllib.error.HTTPError as exc:
+                if int(exc.code) >= 500:
+                    time.sleep(interval)
+                    continue
+                raise RuntimeError(f"seeddance task poll http error: {exc.code}") from exc
+            except urllib.error.URLError as exc:
+                time.sleep(interval)
+                if attempt < 3:
+                    continue
+                raise RuntimeError(f"seeddance task poll network error: {exc}") from exc
+
+            payload = self._parse_json_bytes(raw_response)
+            last_payload = payload
+            task_status = str(
+                self._first_str(
+                    payload,
+                    ("task_status", "taskStatus", "status", "state"),
+                )
+                or self._first_str(payload.get("output") if isinstance(payload.get("output"), dict) else {}, ("task_status", "taskStatus", "status", "state"))
+                or self._first_str(payload.get("data") if isinstance(payload.get("data"), dict) else {}, ("task_status", "taskStatus", "status", "state"))
+            ).upper()
+            if task_status in {"SUCCEEDED", "SUCCESS", "DONE", "COMPLETED", "FINISHED"}:
+                return payload
+            if task_status in {"FAILED", "FAIL", "CANCELED", "CANCELLED"}:
+                message = self._first_str(payload, ("message", "error")) or "seeddance task failed"
+                raise RuntimeError(message)
+            self._trace_call(
+                call_chain,
+                stage="task_poll",
+                event="attempt",
+                status="ok",
+                message="seeddance task polled",
+                details={"attempt": attempt, "taskStatus": task_status or "UNKNOWN"},
+            )
+            time.sleep(interval)
+        raise RuntimeError(
+            truncate_text(
+                f"seeddance task poll timeout for task {task_id}; last payload keys={list(last_payload.keys())[:8]}",
+                400,
+            )
+            or f"seeddance task poll timeout for task {task_id}"
+        )
+
     def _parse_json_bytes(self, raw: bytes) -> dict[str, Any]:
-        text = raw.decode("utf-8", errors="ignore").strip()
-        if not text:
-            return {}
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, dict):
-                return parsed
-            return {"value": parsed}
-        except Exception:
-            return {}
+        return parse_json_bytes(raw)
 
     def _extract_media_blob(
         self,
@@ -1860,8 +3584,77 @@ class TextGenerationEngine:
         call_chain: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
         download_errors: list[str] = []
+        url_keys = (
+            "url",
+            "file_url",
+            "fileUrl",
+            "media_url",
+            "mediaUrl",
+            "download_url",
+            "downloadUrl",
+            "image_url",
+            "imageUrl",
+            "video_url",
+            "videoUrl",
+            "output_url",
+            "outputUrl",
+            "result_url",
+            "resultUrl",
+        )
+        base64_keys = (
+            "b64_json",
+            "base64",
+            "base64_data",
+            "base64Data",
+            "image_base64",
+            "imageBase64",
+            "data",
+        )
+        mime_keys = ("mime_type", "mimeType", "content_type", "contentType")
+
+        def _decode_data_url(value: str) -> dict[str, Any] | None:
+            normalized = value.strip()
+            if not normalized.lower().startswith("data:"):
+                return None
+            header, sep, encoded = normalized.partition(",")
+            if not sep:
+                return None
+            mime_section = header[5:]
+            mime_type = mime_section.split(";", 1)[0].strip()
+            if ";base64" in header.lower():
+                data = self._decode_base64_blob(encoded)
+            else:
+                data = urllib.parse.unquote_to_bytes(encoded)
+            return {"data": data, "mimeType": mime_type, "sourceUrl": ""}
+
+        def _extract_candidate_url(candidate: dict[str, Any]) -> str:
+            direct = self._first_str(candidate, url_keys)
+            if direct:
+                return direct
+            for key in url_keys:
+                value = candidate.get(key)
+                if isinstance(value, dict):
+                    nested = self._first_str(value, ("url", "href", "uri"))
+                    if nested:
+                        return nested
+            return ""
+
+        def _extract_candidate_base64(candidate: dict[str, Any]) -> str:
+            direct = self._first_str(candidate, base64_keys)
+            if direct:
+                return direct
+            for key in base64_keys:
+                value = candidate.get(key)
+                if isinstance(value, dict):
+                    nested = self._first_str(value, base64_keys)
+                    if nested:
+                        return nested
+            return ""
 
         def _try_download(url: str) -> dict[str, Any] | None:
+            data_url_blob = _decode_data_url(url)
+            if data_url_blob is not None:
+                return data_url_blob
             try:
                 data, mime_type = self._download_binary(url, call_chain=call_chain)
                 return {"data": data, "mimeType": mime_type, "sourceUrl": url}
@@ -1869,65 +3662,73 @@ class TextGenerationEngine:
                 download_errors.append(str(exc))
                 return None
 
-        if isinstance(payload.get("data"), list) and payload["data"]:
-            first = payload["data"][0]
-            if isinstance(first, dict):
-                url = self._first_str(first, ("url", "file_url", "fileUrl", "media_url", "mediaUrl"))
-                if url:
-                    self._trace_call(
-                        call_chain,
-                        stage="media_extract",
-                        event="candidate_url",
-                        status="ok",
-                        message="found media url in data[0]",
-                        details={"url": url[:240]},
-                    )
-                    downloaded = _try_download(url)
-                    if downloaded is not None:
-                        return downloaded
-                b64 = self._first_str(first, ("b64_json", "base64", "base64_data", "base64Data", "data"))
-                if b64:
-                    self._trace_call(
-                        call_chain,
-                        stage="media_extract",
-                        event="base64",
-                        status="ok",
-                        message="using base64 payload from data[0]",
-                    )
-                    data = self._decode_base64_blob(b64)
-                    mime_type = self._first_str(first, ("mime_type", "mimeType")) or ""
-                    return {"data": data, "mimeType": mime_type, "sourceUrl": ""}
+        def _try_mapping(candidate: dict[str, Any], source: str) -> dict[str, Any] | None:
+            url = _extract_candidate_url(candidate)
+            if url:
+                self._trace_call(
+                    call_chain,
+                    stage="media_extract",
+                    event="candidate_url",
+                    status="ok",
+                    message=f"found media url in {source}",
+                    details={"url": url[:240]},
+                )
+                downloaded = _try_download(url)
+                if downloaded is not None:
+                    return downloaded
+            b64 = _extract_candidate_base64(candidate)
+            if b64:
+                self._trace_call(
+                    call_chain,
+                    stage="media_extract",
+                    event="base64",
+                    status="ok",
+                    message=f"using base64 payload from {source}",
+                )
+                mime_type = self._first_str(candidate, mime_keys) or ""
+                data = self._decode_base64_blob(b64)
+                return {"data": data, "mimeType": mime_type, "sourceUrl": ""}
+            return None
+
+        top_output = payload.get("output") if isinstance(payload.get("output"), dict) else None
+        top_data = payload.get("data") if isinstance(payload.get("data"), dict) else None
+
+        for source, candidate in (
+            ("payload", payload),
+            ("payload.output", top_output),
+            ("payload.data", top_data),
+        ):
+            if isinstance(candidate, dict):
+                resolved = _try_mapping(candidate, source)
+                if resolved is not None:
+                    return resolved
+
+        if isinstance(payload.get("data"), list):
+            for index, item in enumerate(payload["data"]):
+                if not isinstance(item, dict):
+                    continue
+                resolved = _try_mapping(item, f"payload.data[{index}]")
+                if resolved is not None:
+                    return resolved
+
+        for container, source_prefix in ((top_output, "payload.output"), (top_data, "payload.data"), (payload, "payload")):
+            if not isinstance(container, dict):
+                continue
+            for list_key in ("results", "images", "outputs", "items"):
+                values = container.get(list_key)
+                if not isinstance(values, list):
+                    continue
+                for index, item in enumerate(values):
+                    if not isinstance(item, dict):
+                        continue
+                    resolved = _try_mapping(item, f"{source_prefix}.{list_key}[{index}]")
+                    if resolved is not None:
+                        return resolved
 
         model_json = self._extract_json_from_model_payload(payload, raw_text)
-        url = self._first_str(
-            model_json,
-            ("url", "file_url", "fileUrl", "media_url", "mediaUrl", "download_url", "downloadUrl"),
-        )
-        if url:
-            self._trace_call(
-                call_chain,
-                stage="media_extract",
-                event="candidate_url",
-                status="ok",
-                message="found media url in model json",
-                details={"url": url[:240]},
-            )
-            downloaded = _try_download(url)
-            if downloaded is not None:
-                return downloaded
-
-        b64 = self._first_str(model_json, ("b64_json", "base64", "base64_data", "base64Data", "data"))
-        if b64:
-            self._trace_call(
-                call_chain,
-                stage="media_extract",
-                event="base64",
-                status="ok",
-                message="using base64 payload from model json",
-            )
-            mime_type = self._first_str(model_json, ("mime_type", "mimeType")) or ""
-            data = self._decode_base64_blob(b64)
-            return {"data": data, "mimeType": mime_type, "sourceUrl": ""}
+        resolved_model_json = _try_mapping(model_json, "model_json")
+        if resolved_model_json is not None:
+            return resolved_model_json
 
         if download_errors:
             joined = " | ".join(download_errors)
@@ -1975,31 +3776,7 @@ class TextGenerationEngine:
         return parsed_raw
 
     def _extract_text_response(self, payload: dict[str, Any], raw_text: str) -> str:
-        candidates: list[str] = []
-
-        if isinstance(payload.get("choices"), list):
-            for choice in payload["choices"]:
-                if not isinstance(choice, dict):
-                    continue
-                message = choice.get("message")
-                if isinstance(message, dict):
-                    candidates.extend(self._collect_text_chunks(message.get("content")))
-                candidates.extend(self._collect_text_chunks(choice.get("text")))
-
-        candidates.extend(self._collect_text_chunks(payload.get("output_text")))
-
-        output = payload.get("output")
-        if isinstance(output, (dict, list, str)):
-            candidates.extend(self._collect_text_chunks(output))
-
-        if isinstance(payload.get("message"), dict):
-            candidates.extend(self._collect_text_chunks(payload["message"].get("content")))
-
-        for candidate in candidates:
-            normalized = candidate.strip()
-            if normalized:
-                return normalized
-        return raw_text.strip()
+        return extract_llm_text_response(payload, raw_text)
 
     def _collect_text_chunks(self, value: Any) -> list[str]:
         if isinstance(value, str):
@@ -2146,7 +3923,7 @@ class TextGenerationEngine:
                 "mimeType": "image/svg+xml",
                 "metadata": {"byteSize": path.stat().st_size, "engine": "local-svg"},
             }
-        path, drawtext_applied = self._generate_local_video(request_obj, profile, shaped_prompt, generation_id)
+        path, drawtext_applied, duration_seconds = self._generate_local_video(request_obj, profile, shaped_prompt, generation_id)
         return {
             "path": path,
             "mimeType": "video/mp4",
@@ -2154,6 +3931,7 @@ class TextGenerationEngine:
                 "byteSize": path.stat().st_size,
                 "engine": "local-ffmpeg",
                 "drawtextApplied": drawtext_applied,
+                "durationSeconds": duration_seconds,
             },
         }
 
@@ -2187,7 +3965,6 @@ class TextGenerationEngine:
             f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#bg)"/>',
             f'<circle cx="{int(width * 0.82)}" cy="{int(height * 0.17)}" r="{int(min(width, height) * 0.11)}" fill="white" fill-opacity="0.08"/>',
             f'<rect x="{int(width * 0.08)}" y="{int(height * 0.16)}" width="{int(width * 0.84)}" height="{int(height * 0.68)}" rx="28" fill="black" fill-opacity="0.22"/>',
-            f'<text x="{int(width * 0.1)}" y="{int(height * 0.1)}" font-family="Arial, sans-serif" font-size="{int(height * 0.028)}" fill="white" fill-opacity="0.75">{html_escape(profile.version.upper())} | {html_escape(profile.name)}</text>',
         ]
 
         title_line_step = int(height * 0.056)
@@ -2214,10 +3991,17 @@ class TextGenerationEngine:
         profile: _VersionProfile,
         shaped_prompt: str,
         generation_id: str,
-    ) -> tuple[Path, bool]:
+    ) -> tuple[Path, bool, int]:
         width, height = self._resolve_dimensions(request_obj)
-        duration = float(getattr(request_obj, "durationSeconds", 4.0))
-        safe_duration = max(1.0, min(30.0, duration))
+        spec = self._resolve_video_model_spec(request_obj)
+        requested_duration, min_duration, max_duration = self._resolve_requested_video_duration_bounds(request_obj)
+        normalized_duration = self._normalize_video_duration(
+            spec=spec,
+            requested=requested_duration,
+            min_requested=min_duration,
+            max_requested=max_duration,
+        )
+        safe_duration = max(1.0, min(30.0, float(normalized_duration)))
         output_path = self._prepare_output_path(generation_id, "video", "mp4")
 
         overlay_text = truncate_text(shaped_prompt, 110) or profile.video_prompt_style
@@ -2260,7 +4044,7 @@ class TextGenerationEngine:
         ]
         try:
             self._run_command(drawtext_command)
-            return output_path, True
+            return output_path, True, int(normalized_duration)
         except Exception:
             color_only_command = [
                 self.ffmpeg_bin,
@@ -2291,7 +4075,7 @@ class TextGenerationEngine:
                 str(output_path),
             ]
             self._run_command(color_only_command)
-            return output_path, False
+            return output_path, False, int(normalized_duration)
 
     def _run_command(self, command: list[str]) -> None:
         try:
@@ -2301,6 +4085,17 @@ class TextGenerationEngine:
         if completed.returncode != 0:
             stderr = completed.stderr.strip() or completed.stdout.strip() or "command failed"
             raise RuntimeError(stderr)
+
+    def _enforce_video_hard_requirements(self, prompt: str) -> str:
+        base_prompt = prompt.strip()
+        hard_requirement = (
+            "硬性要求（必须满足）：镜头转换连贯衔接，不打断对白，不在一句对白中途切断。"
+        )
+        if hard_requirement in base_prompt:
+            return base_prompt
+        if not base_prompt:
+            return hard_requirement
+        return f"{hard_requirement} {base_prompt}"
 
     def _shape_prompt(
         self,
@@ -2315,7 +4110,7 @@ class TextGenerationEngine:
         subject = prompt.strip() or "untitled concept"
         if media_type == "image":
             parts = [
-                f"[{profile.version}] {profile.image_prompt_style}",
+                profile.image_prompt_style,
                 f"Subject: {subject}.",
             ]
             if style_hint:
@@ -2326,7 +4121,7 @@ class TextGenerationEngine:
             return " ".join(parts)
 
         parts = [
-            f"[{profile.version}] {profile.video_prompt_style}",
+            profile.video_prompt_style,
             f"Core concept: {subject}.",
         ]
         if style_hint:
@@ -2336,7 +4131,7 @@ class TextGenerationEngine:
         if lighting_hint:
             parts.append(f"Lighting direction: {lighting_hint}.")
         parts.append("Deliver one short shot concept with beginning, motion beat, and end beat.")
-        return " ".join(parts)
+        return self._enforce_video_hard_requirements(" ".join(parts))
 
     def _build_response(
         self,
@@ -2354,9 +4149,17 @@ class TextGenerationEngine:
     ) -> GenerateTextMediaResponse:
         relative = output_path.resolve().relative_to(self.storage.root.resolve()).as_posix()
         width, height = self._resolve_dimensions(request_obj)
-        duration_seconds = float(getattr(request_obj, "durationSeconds", 0.0) or 0.0) if media_type == "video" else None
+        duration_seconds = None
+        if media_type == "video":
+            metadata_duration = metadata.get("durationSeconds")
+            if isinstance(metadata_duration, (int, float)):
+                duration_seconds = float(metadata_duration)
+            else:
+                requested_duration = getattr(request_obj, "durationSeconds", None)
+                duration_seconds = float(requested_duration) if requested_duration not in {None, ""} else None
         version_int = int(version.lstrip("v") or "1")
         enriched_metadata = dict(metadata)
+        enriched_metadata.setdefault("version", version_int)
         enriched_metadata.setdefault("shapedPrompt", shaped_prompt)
         enriched_metadata.setdefault("filePath", relative)
         enriched_metadata.setdefault("mimeType", mime_type)
@@ -2438,6 +4241,58 @@ class TextGenerationEngine:
             return f"{parsed.scheme}://{parsed.netloc}/api/v1/tasks"
         return base.rstrip("/") + "/api/v1/tasks"
 
+    def _resolve_seeddance_endpoint(self) -> str:
+        endpoint = str(self.settings.model.seeddance_video_endpoint or "").strip()
+        if endpoint:
+            return endpoint
+        return ""
+
+    def _resolve_seedream_image_endpoint(self) -> str:
+        candidates = (
+            str(self.settings.model.seeddance_video_endpoint or "").strip(),
+            str(self.settings.model.seeddance_video_task_endpoint or "").strip(),
+            str(self.settings.model.endpoint or "").strip(),
+        )
+        for candidate in candidates:
+            if not candidate:
+                continue
+            parsed = urllib.parse.urlparse(candidate)
+            if parsed.scheme and parsed.netloc and "volces.com" in parsed.netloc.lower():
+                return f"{parsed.scheme}://{parsed.netloc}/api/v3/images/generations"
+        return "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+
+    def _resolve_seeddance_task_endpoint(self) -> str:
+        endpoint = str(self.settings.model.seeddance_video_task_endpoint or "").strip()
+        if endpoint:
+            return endpoint
+        return self._resolve_seeddance_endpoint()
+
+    def _resolve_seeddance_api_key(self) -> str:
+        explicit = str(self.settings.model.seeddance_api_key or "").strip()
+        if explicit:
+            return explicit
+        return str(self.settings.model.api_key or "").strip()
+
+    def _resolve_seedream_api_key(self) -> str:
+        return self._resolve_seeddance_api_key()
+
+    def _extract_task_id(self, payload: dict[str, Any]) -> str:
+        candidates: list[Any] = [
+            payload.get("task_id"),
+            payload.get("taskId"),
+            payload.get("id"),
+        ]
+        output = payload.get("output")
+        if isinstance(output, dict):
+            candidates.extend([output.get("task_id"), output.get("taskId"), output.get("id")])
+        data = payload.get("data")
+        if isinstance(data, dict):
+            candidates.extend([data.get("task_id"), data.get("taskId"), data.get("id")])
+        for item in candidates:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+        return ""
+
     def _normalize_video_size(self, *, spec: _VideoModelSpec, width: int, height: int) -> tuple[int, int, str]:
         requested = f"{width}*{height}"
         if requested in spec.supported_sizes:
@@ -2455,13 +4310,56 @@ class TextGenerationEngine:
         selected_width, selected_height = max(candidates, key=lambda item: item[0] * item[1])
         return selected_width, selected_height, f"{selected_width}*{selected_height}"
 
-    def _normalize_video_duration(self, *, spec: _VideoModelSpec, requested: float) -> int:
+    def _resolve_requested_video_duration_bounds(
+        self,
+        request_obj: GenerateTextMediaRequest,
+    ) -> tuple[float | None, float | None, float | None]:
+        requested_raw = getattr(request_obj, "durationSeconds", None)
+        min_raw = getattr(request_obj, "minDurationSeconds", None)
+        max_raw = getattr(request_obj, "maxDurationSeconds", None)
+        requested = float(requested_raw) if requested_raw not in {None, ""} else None
+        min_requested = float(min_raw) if min_raw not in {None, ""} else None
+        max_requested = float(max_raw) if max_raw not in {None, ""} else None
+        if requested is not None:
+            if min_requested is None:
+                min_requested = requested
+            if max_requested is None:
+                max_requested = requested
+        return requested, min_requested, max_requested
+
+    def _normalize_video_duration(
+        self,
+        *,
+        spec: _VideoModelSpec,
+        requested: float | None,
+        min_requested: float | None,
+        max_requested: float | None,
+    ) -> int:
         if spec.is_fixed_duration:
             return spec.default_duration_seconds
-        rounded = int(round(requested or spec.default_duration_seconds))
-        if spec.allowed_durations:
-            return min(spec.allowed_durations, key=lambda value: abs(value - rounded))
-        return min(spec.max_duration_seconds, max(spec.min_duration_seconds, rounded))
+        candidates = (
+            list(spec.allowed_durations)
+            if spec.allowed_durations
+            else list(range(spec.min_duration_seconds, spec.max_duration_seconds + 1))
+        )
+        preferred = requested if requested is not None else float(spec.default_duration_seconds)
+        in_range = [
+            value for value in candidates
+            if (min_requested is None or value >= min_requested)
+            and (max_requested is None or value <= max_requested)
+        ]
+        pool = in_range or candidates
+        if in_range:
+            target = preferred
+        elif min_requested is not None and max_requested is not None:
+            target = (min_requested + max_requested) / 2
+        elif min_requested is not None:
+            target = min_requested
+        elif max_requested is not None:
+            target = max_requested
+        else:
+            target = preferred
+        return min(pool, key=lambda value: (abs(value - target), abs(value - spec.default_duration_seconds), value))
 
     def _parse_video_size(self, value: str) -> tuple[int, int]:
         normalized = value.replace("x", "*").replace("X", "*")
@@ -2469,18 +4367,77 @@ class TextGenerationEngine:
         return max(1, int(width_raw)), max(1, int(height_raw))
 
     def _extract_video_url(self, payload: dict[str, Any]) -> str:
-        output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
-        direct_url = self._first_str(output, ("video_url", "videoUrl", "url", "file_url", "fileUrl"))
-        if direct_url:
-            return direct_url
-        results = output.get("results")
-        if isinstance(results, list):
-            for item in results:
+        def _extract_from_mapping(mapping: dict[str, Any]) -> str:
+            direct = self._first_str(
+                mapping,
+                ("video_url", "videoUrl", "url", "file_url", "fileUrl", "media_url", "mediaUrl"),
+            )
+            if direct:
+                return direct
+            for key in ("video_url", "videoUrl", "file_url", "fileUrl", "media_url", "mediaUrl", "url"):
+                nested = mapping.get(key)
+                if isinstance(nested, dict):
+                    resolved = self._first_str(nested, ("url", "href", "uri"))
+                    if resolved:
+                        return resolved
+            for nested_key in ("content", "result", "output", "data", "video", "media", "asset", "response"):
+                nested_value = mapping.get(nested_key)
+                if isinstance(nested_value, dict):
+                    resolved = _extract_from_mapping(nested_value)
+                    if resolved:
+                        return resolved
+                if isinstance(nested_value, list):
+                    resolved = _extract_from_list(nested_value)
+                    if resolved:
+                        return resolved
+            return ""
+
+        def _extract_from_list(values: list[Any]) -> str:
+            for item in values:
                 if not isinstance(item, dict):
                     continue
-                url = self._first_str(item, ("video_url", "videoUrl", "url", "file_url", "fileUrl"))
-                if url:
-                    return url
+                resolved = _extract_from_mapping(item)
+                if resolved:
+                    return resolved
+                # 火山 contents/generations 常见格式：{"type":"video_url","video_url":{"url":"https://..."}}
+                item_type = str(item.get("type") or "").strip().lower()
+                if item_type in {"video_url", "video", "output_video"}:
+                    nested = item.get("video_url") or item.get("videoUrl") or item.get("url")
+                    if isinstance(nested, dict):
+                        nested_url = self._first_str(nested, ("url", "href", "uri"))
+                        if nested_url:
+                            return nested_url
+                for key in ("results", "videos", "items", "outputs", "content", "data", "choices"):
+                    nested_values = item.get(key)
+                    if isinstance(nested_values, list):
+                        nested_url = _extract_from_list(nested_values)
+                        if nested_url:
+                            return nested_url
+                    if isinstance(nested_values, dict):
+                        nested_url = _extract_from_mapping(nested_values)
+                        if nested_url:
+                            return nested_url
+            return ""
+
+        output = payload.get("output") if isinstance(payload.get("output"), dict) else {}
+        data_block = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+
+        for mapping in (output, payload, data_block):
+            if not isinstance(mapping, dict):
+                continue
+            resolved = _extract_from_mapping(mapping)
+            if resolved:
+                return resolved
+
+        for container in (payload, output, data_block):
+            if not isinstance(container, dict):
+                continue
+            for list_key in ("results", "videos", "items", "outputs", "content", "data", "choices"):
+                values = container.get(list_key)
+                if isinstance(values, list):
+                    resolved = _extract_from_list(values)
+                    if resolved:
+                        return resolved
         return ""
 
     def _resolve_profile(self, version: int | str | None) -> _VersionProfile:
@@ -2570,6 +4527,21 @@ class TextGenerationEngine:
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return ""
+
+    def _coerce_extra_bool(self, value: Any, *, default: bool) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off"}:
+                return False
+        return default
 
     def _extension_from_mime_or_url(
         self,

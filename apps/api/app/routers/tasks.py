@@ -6,6 +6,7 @@ from backend_core.schemas import (
     CreateTaskRequest,
     GenerateCreativePromptRequest,
     GenerateCreativePromptResponse,
+    SeeddanceTaskQueryResponse,
     TaskDeleteResult,
     TaskDetail,
     TaskDraft,
@@ -72,6 +73,16 @@ def get_task_trace(
         return request.app.state.runtime.service.get_task_trace(task_id, limit=limit)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tasks/seeddance/{remote_task_id}", response_model=SeeddanceTaskQueryResponse)
+def query_seeddance_task_result(request: Request, remote_task_id: str) -> SeeddanceTaskQueryResponse:
+    try:
+        return request.app.state.runtime.service.query_seeddance_task_result(remote_task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/tasks/{task_id}/clone", response_model=TaskDraft)

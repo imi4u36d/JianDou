@@ -37,6 +37,10 @@
                   <td class="text-slate-900">{{ health.runtime.model.primary_model }}</td>
                 </tr>
                 <tr class="border-b border-slate-200">
+                  <td class="bg-slate-50 text-xs font-medium text-slate-500">文本分析模型</td>
+                  <td class="text-slate-900">{{ health.runtime.model.text_analysis_model || health.runtime.model.primary_model }}</td>
+                </tr>
+                <tr class="border-b border-slate-200">
                   <td class="bg-slate-50 text-xs font-medium text-slate-500">回退模型</td>
                   <td class="text-slate-900">{{ health.runtime.model.fallback_model || "未配置" }}</td>
                 </tr>

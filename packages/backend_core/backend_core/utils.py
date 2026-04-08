@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 import re
 from typing import Any
+import urllib.parse
 import uuid
 
 
@@ -43,6 +44,169 @@ def truncate_text(value: str | None, limit: int = 1000) -> str | None:
     if len(value) <= limit:
         return value
     return value[: limit - 3] + "..."
+
+
+def looks_like_qwen_model(value: str | None) -> bool:
+    normalized = str(value or "").strip().lower()
+    if not normalized:
+        return False
+    return normalized.startswith(("qwen", "qwq"))
+
+
+def parse_json_bytes(raw: bytes) -> dict[str, Any]:
+    text = raw.decode("utf-8", errors="ignore").strip()
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return {}
+    if isinstance(parsed, dict):
+        return parsed
+    return {"value": parsed}
+
+
+def llm_api_base(endpoint: str) -> str:
+    normalized = str(endpoint or "").strip().rstrip("/")
+    if not normalized:
+        return ""
+    for suffix in ("/chat/completions", "/responses"):
+        if normalized.endswith(suffix):
+            return normalized[: -len(suffix)]
+    return normalized
+
+
+def should_use_responses_api(
+    *,
+    provider: str | None,
+    endpoint: str | None,
+    model_name: str | None = None,
+) -> bool:
+    if looks_like_qwen_model(model_name):
+        return True
+
+    provider_name = str(provider or "").strip().lower()
+    if provider_name in {"qwen", "aliyun-bailian"}:
+        return True
+
+    normalized = str(endpoint or "").strip().rstrip("/")
+    if not normalized:
+        return False
+    if normalized.endswith("/responses"):
+        return True
+    if normalized.endswith("/chat/completions"):
+        return False
+
+    parsed = urllib.parse.urlparse(normalized)
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower().rstrip("/")
+    if host.endswith("dashscope.aliyuncs.com"):
+        return True
+    return path.endswith("/v1")
+
+
+def resolve_llm_request_endpoint(
+    endpoint: str,
+    *,
+    use_responses_api: bool,
+) -> str:
+    base = llm_api_base(endpoint)
+    if not base:
+        return ""
+    suffix = "/responses" if use_responses_api else "/chat/completions"
+    return f"{base}{suffix}"
+
+
+def build_text_request_body(
+    *,
+    model_name: str,
+    system_prompt: str,
+    user_prompt: str,
+    temperature: float,
+    max_tokens: int,
+    use_responses_api: bool,
+    enable_thinking: bool = False,
+) -> dict[str, Any]:
+    if use_responses_api:
+        body: dict[str, Any] = {
+            "model": model_name,
+            "input": [
+                {
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": system_prompt}],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": user_prompt}],
+                },
+            ],
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+        }
+        if enable_thinking:
+            body["enable_thinking"] = True
+        return body
+
+    return {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+
+
+def _collect_llm_text_chunks(value: Any) -> list[str]:
+    if isinstance(value, str):
+        normalized = value.strip()
+        return [normalized] if normalized else []
+    if isinstance(value, list):
+        chunks: list[str] = []
+        for item in value:
+            chunks.extend(_collect_llm_text_chunks(item))
+        return chunks
+    if isinstance(value, dict):
+        chunks: list[str] = []
+        for key in ("text", "output_text"):
+            item = value.get(key)
+            if isinstance(item, str) and item.strip():
+                chunks.append(item.strip())
+        for key in ("content", "parts"):
+            item = value.get(key)
+            if isinstance(item, (str, list, dict)):
+                chunks.extend(_collect_llm_text_chunks(item))
+        return chunks
+    return []
+
+
+def extract_llm_text_response(payload: dict[str, Any], raw_text: str) -> str:
+    candidates: list[str] = []
+
+    if isinstance(payload.get("choices"), list):
+        for choice in payload["choices"]:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message")
+            if isinstance(message, dict):
+                candidates.extend(_collect_llm_text_chunks(message.get("content")))
+            candidates.extend(_collect_llm_text_chunks(choice.get("text")))
+
+    candidates.extend(_collect_llm_text_chunks(payload.get("output_text")))
+
+    output = payload.get("output")
+    if isinstance(output, (dict, list, str)):
+        candidates.extend(_collect_llm_text_chunks(output))
+
+    if isinstance(payload.get("message"), dict):
+        candidates.extend(_collect_llm_text_chunks(payload["message"].get("content")))
+
+    for candidate in candidates:
+        normalized = candidate.strip()
+        if normalized:
+            return normalized
+    return raw_text.strip()
 
 
 def extract_json_object(text: str) -> str:

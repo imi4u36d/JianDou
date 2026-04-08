@@ -6,12 +6,17 @@ import { loadAgentRuns, upsertAgentRun } from "@/workbench/storage";
 export interface AIDramaAgentDraft {
   title: string;
   text: string;
+  textFile?: File | null;
+  textAnalysisModel?: string;
   aspectRatio: "9:16" | "16:9";
+  providerModel?: string;
+  videoSize?: string;
   continuitySeed: number;
   totalDurationSeconds: number | null;
   includeKeyframes: boolean;
   includeDubPlan: boolean;
   includeLipsyncPlan: boolean;
+  stopBeforeVideoGeneration?: boolean;
 }
 
 export interface DramaAgentDraft {
@@ -34,17 +39,20 @@ export interface DramaAgentDraft {
 export interface VisualAgentDraft {
   prompt: string;
   mediaKind: "image" | "video";
-  version: number;
   stylePreset: string;
+  textAnalysisModel?: string;
   providerModel: string;
   imageSize: string;
   videoSize: string;
   videoDurationSeconds: number;
+  minDurationSeconds?: number;
+  maxDurationSeconds?: number;
 }
 
 export interface ScriptAgentDraft {
   text: string;
   visualStyle: string;
+  textAnalysisModel?: string;
 }
 
 export interface AgentDashboardSnapshot {
@@ -66,6 +74,7 @@ type UnknownRecord = Record<string, unknown>;
 
 const AGENT_ENDPOINT = "/agents";
 const UPLOAD_VIDEO_ENDPOINT = "/uploads/videos";
+const UPLOAD_TEXT_ENDPOINT = "/uploads/texts";
 
 const UI_TO_BACKEND_AGENT_KEY: Record<AgentId, string> = {
   "ai-drama": "ai-drama",
@@ -244,6 +253,12 @@ async function uploadVideo(file: File) {
   return postForm<UploadResponse>(UPLOAD_VIDEO_ENDPOINT, form);
 }
 
+async function uploadText(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return postForm<UploadResponse>(UPLOAD_TEXT_ENDPOINT, form);
+}
+
 function parseImageSize(size: string) {
   const match = size.trim().match(/^(\d+)\s*[xX]\s*(\d+)$/);
   if (!match) {
@@ -297,6 +312,14 @@ export async function fetchAgentRun(runId: string) {
   return detail;
 }
 
+export async function retryAgentRun(runId: string, fromFailedNode = true) {
+  const query = `fromFailedNode=${fromFailedNode ? "true" : "false"}`;
+  const raw = await postJson<unknown>(`${AGENT_ENDPOINT}/runs/${encodeURIComponent(runId)}/retry?${query}`, {});
+  const detail = normalizeDetail(raw);
+  upsertAgentRun(detail);
+  return detail;
+}
+
 export async function runDramaAgent(draft: DramaAgentDraft) {
   if (!draft.sourceFiles.length) {
     throw new Error("短剧剪辑 Agent 需要至少一个源素材。");
@@ -333,15 +356,23 @@ export async function runDramaAgent(draft: DramaAgentDraft) {
 }
 
 export async function runAIDramaAgent(draft: AIDramaAgentDraft) {
+  const uploadedText = draft.textFile ? await uploadText(draft.textFile) : null;
+  const normalizedText = draft.text.trim();
   const payload = {
     title: draft.title.trim(),
-    text: draft.text.trim(),
+    text: normalizedText || undefined,
+    textAssetId: uploadedText?.assetId || undefined,
+    textFileName: uploadedText?.fileName || draft.textFile?.name || undefined,
+    textAnalysisModel: draft.textAnalysisModel || undefined,
     aspectRatio: draft.aspectRatio,
+    providerModel: draft.providerModel || undefined,
+    videoSize: draft.videoSize || undefined,
     continuitySeed: draft.continuitySeed,
     totalDurationSeconds: draft.totalDurationSeconds ?? undefined,
     includeKeyframes: draft.includeKeyframes,
     includeDubPlan: draft.includeDubPlan,
     includeLipsyncPlan: draft.includeLipsyncPlan,
+    stopBeforeVideoGeneration: Boolean(draft.stopBeforeVideoGeneration),
   };
   const raw = await postJson<unknown>(`${AGENT_ENDPOINT}/${backendAgentKey("ai-drama")}/runs`, payload);
   const detail = normalizeDetail(raw);
@@ -359,9 +390,11 @@ export async function runVisualAgent(agentId: AgentId, draft: VisualAgentDraft) 
   const payload = {
     prompt: draft.prompt.trim(),
     mediaKind: draft.mediaKind,
-    version: draft.version,
+    textAnalysisModel: draft.textAnalysisModel || undefined,
     aspectRatio,
     durationSeconds: draft.mediaKind === "video" ? draft.videoDurationSeconds : undefined,
+    minDurationSeconds: draft.mediaKind === "video" ? draft.minDurationSeconds : undefined,
+    maxDurationSeconds: draft.mediaKind === "video" ? draft.maxDurationSeconds : undefined,
     stylePreset: draft.stylePreset || undefined,
     providerModel: draft.mediaKind === "video" ? draft.providerModel || undefined : undefined,
     videoSize: draft.mediaKind === "video" ? draft.videoSize || undefined : undefined,
@@ -378,6 +411,7 @@ export async function runScriptAgent(agentId: AgentId, draft: ScriptAgentDraft) 
   const payload = {
     text: draft.text,
     visualStyle: draft.visualStyle || undefined,
+    textAnalysisModel: draft.textAnalysisModel || undefined,
   };
   const raw = await postJson<unknown>(`${AGENT_ENDPOINT}/${backendAgentKey(agentId)}/runs`, payload);
   const detail = normalizeDetail(raw);
