@@ -1912,30 +1912,6 @@ class TaskService:
                     "analysis_call_chain_count": len(analysis_call_chain),
                 },
             )
-            try:
-                self._generate_planning_keyframe(
-                    task_id=task_id,
-                    task_title=task_title,
-                    aspect_ratio=task_aspect_ratio,
-                    prompt=prompt,
-                    analysis_script_text=analysis_script_text,
-                    text_model=text_model,
-                    context_payload=context_payload,
-                )
-            except Exception as exc:
-                image_model = str(self.settings.model.image_model_name or "").strip()
-                self._trace(
-                    task_id,
-                    "planning",
-                    "planning.keyframe_failed",
-                    "关键帧文生图异常，已降级继续后续流程。",
-                    {
-                        "model": image_model,
-                        "provider": self._infer_image_provider(image_model),
-                        "error": str(exc),
-                    },
-                    "WARN",
-                )
             if duration_mode == "auto":
                 resolved_duration, matched_duration_count = self._resolve_auto_duration_seconds(
                     analysis_script_text,
@@ -1965,16 +1941,34 @@ class TaskService:
                     },
                 )
             if stop_before_video_generation:
+                context_payload["keyframeStatus"] = "skipped"
+                context_payload.pop("keyframeRunId", None)
+                context_payload.pop("keyframeOutputUrl", None)
+                context_payload.pop("keyframeModel", None)
+                context_payload.pop("keyframeProvider", None)
+                context_payload.pop("keyframeError", None)
+                self.storage.save_task_context(task_id, context_payload)
+                self._trace(
+                    task_id,
+                    "planning",
+                    "planning.keyframe_skipped_by_developer_setting",
+                    "已按开发者模式跳过关键帧文生图。",
+                    {
+                        "stop_before_video_generation": True,
+                        "keyframe_generation_skipped": True,
+                    },
+                )
                 self._trace(
                     task_id,
                     "planning",
                     "planning.completed",
-                    "编排阶段完成，开发者模式要求在视频生成前停止。",
+                    "编排阶段完成，开发者模式要求在关键帧与视频生成前停止。",
                     {
                         "output_count": output_count,
                         "video_size": video_size or "",
                         "duration_seconds": duration_seconds,
                         "stop_before_video_generation": True,
+                        "keyframe_generation_skipped": True,
                     },
                 )
                 self._trace(
@@ -1984,6 +1978,7 @@ class TaskService:
                     "已按开发者模式跳过视频生成。",
                     {
                         "stop_before_video_generation": True,
+                        "keyframe_generation_skipped": True,
                         "video_generation_skipped": True,
                     },
                 )
@@ -2004,10 +1999,35 @@ class TaskService:
                         "outputs": 0,
                         "task_type": TaskType.GENERATION.value,
                         "stop_before_video_generation": True,
+                        "keyframe_generation_skipped": True,
                         "video_generation_skipped": True,
                     },
                 )
                 return
+            try:
+                self._generate_planning_keyframe(
+                    task_id=task_id,
+                    task_title=task_title,
+                    aspect_ratio=task_aspect_ratio,
+                    prompt=prompt,
+                    analysis_script_text=analysis_script_text,
+                    text_model=text_model,
+                    context_payload=context_payload,
+                )
+            except Exception as exc:
+                image_model = str(self.settings.model.image_model_name or "").strip()
+                self._trace(
+                    task_id,
+                    "planning",
+                    "planning.keyframe_failed",
+                    "关键帧文生图异常，已降级继续后续流程。",
+                    {
+                        "model": image_model,
+                        "provider": self._infer_image_provider(image_model),
+                        "error": str(exc),
+                    },
+                    "WARN",
+                )
 
             self._trace(
                 task_id,

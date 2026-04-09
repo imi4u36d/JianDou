@@ -44,8 +44,8 @@
         <label v-if="developerSettings.enabled" class="developer-option">
           <input v-model="developerSettings.stopBeforeVideoGeneration" type="checkbox" />
           <div>
-            <strong>在视频模型前停止</strong>
-            <small>AI 剧会完成剧本、分镜和逐镜头提示词准备，但不会开始视频生成。</small>
+            <strong>在关键帧前停止</strong>
+            <small>AI 剧会完成文本分析与编排准备，但不会开始关键帧与视频生成。</small>
           </div>
         </label>
         <p class="sidebar-note">
@@ -97,7 +97,7 @@ const developerNote = computed(() => {
     return "关闭时页面保持默认的一键生成体验。";
   }
   if (developerSettings.stopBeforeVideoGeneration) {
-    return "当前会在 AI 剧准备好视频模型脚本后停止，方便先检查 prompt。";
+    return "当前会在关键帧文生图之前停止，方便先检查分析和编排结果。";
   }
   return "开发者模式已开启，但不会提前停止任务。";
 });
