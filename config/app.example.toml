@@ -38,6 +38,11 @@ temp_dir = "storage/temp"
 # 对外可访问的存储根 URL。
 public_base_url = "http://127.0.0.1:8000/storage"
 
+# 系统提示词配置文件路径。
+[prompt]
+# 用于集中管理 system prompt 的 TOML 文件。
+file = "config/prompts"
+
 # 模型服务提供方和推理默认配置。
 [model]
 # 主生成模型使用的服务提供方。
@@ -56,8 +61,8 @@ text_analysis_model_name = "gpt-5.4"
 text_analysis_fallback_model_name = "qwen3.6-plus"
 # 文本分析模型请求地址。
 text_analysis_endpoint = "https://api.openai.com/v1/chat/completions"
-# 文本分析模型专用 API Key。留空时走回退逻辑。
-text_analysis_api_key = ""
+# 文本分析模型专用 API Key（严格模式必填）。
+text_analysis_api_key = "replace-with-openai-key"
 # 提供给前端展示分析模型选项的 JSON 字符串目录。
 text_analysis_models = "[{\"value\":\"gpt-5.4\",\"label\":\"GPT-5.4\",\"provider\":\"chatgpt\",\"family\":\"gpt\",\"endpoint\":\"https://api.openai.com/v1/chat/completions\",\"description\":\"ChatGPT / OpenAI key 模式，适合人物、对白、语境和剧情理解。\"},{\"value\":\"qwen3.6-plus\",\"label\":\"Qwen 3.6 Plus\",\"provider\":\"qwen\",\"family\":\"qwen\",\"description\":\"兼容当前阿里百炼 Key 模式的文本分析模型。\"}]"
 # 用于抽帧理解的视觉模型。
@@ -72,7 +77,7 @@ video_endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-gene
 video_task_endpoint = "https://dashscope.aliyuncs.com/api/v1/tasks"
 # 阿里云链路默认使用的视频生成模型。
 video_model_name = "wan2.6-i2v"
-# 显式暴露给前端的视频模型列表；留空时只展示 video_model_name。
+# 显式暴露给前端的视频模型列表（严格模式必填）。
 video_models = "[\"wan2.6-i2v\"]"
 # 按模型维度的额度映射，JSON 字符串格式，可供前端或计费提示使用。
 video_model_usage_quota = "{\"wan2.6-i2v\":300,\"wan2.6-t2v\":300,\"qwen-vl\":200,\"seeddance-1.5-pro\":200}"
@@ -100,6 +105,14 @@ video_prompt_extend = false
 video_poll_interval_seconds = 8
 # 阿里云视频任务最长等待时间，单位秒。
 video_poll_timeout_seconds = 600
+# 视频生成统一提交端点（严格模式必填）。
+video_generation_endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
+# 视频生成统一默认模型（严格模式必填）。
+video_generation_default_model = "wan2.6-i2v"
+# 视频生成统一轮询间隔（严格模式必填）。
+video_generation_poll_interval_seconds = 8
+# 视频生成统一最大等待时长（严格模式必填）。
+video_generation_max_wait_seconds = 600
 # 主兼容提供方共用的 API Key。
 api_key = "replace-with-your-key"
 # 模型请求超时时间，单位秒。

@@ -1,0 +1,4 @@
+[system_prompts]
+planner_shot_analysis_json_only = """You are a precise JSON-only shot analysis engine."""
+planner_fusion_json_only = """You are a precise JSON-only planning engine."""
+creative_prompt_generator_json_only = """You are a precise JSON-only creative prompt generator."""

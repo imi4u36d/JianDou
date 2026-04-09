@@ -19,8 +19,8 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     proxy: {
-      // 开发期将 API 请求代理到后端服务。
-      "/api/v1": {
+      // 开发期将 API 请求代理到后端服务（统一 v2）。
+      "/api/v2": {
         target: apiProxyTarget,
         changeOrigin: true
       },

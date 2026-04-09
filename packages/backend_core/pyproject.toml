@@ -10,6 +10,12 @@ version = "0.1.0"
 requires-python = ">=3.11"
 # 持久化能力和各模型厂商计费集成所需的共享依赖。
 dependencies = [
+  "ai-cut-shared==0.1.0",
+  "ai-cut-db==0.1.0",
+  "ai-cut-storage==0.1.0",
+  "ai-cut-media==0.1.0",
+  "ai-cut-ai==0.1.0",
+  "ai-cut-pipeline==0.1.0",
   "SQLAlchemy>=2.0",
   "alibabacloud_bssopenapi20171214>=5.1.1",
   "alibabacloud_credentials>=1.0.8",

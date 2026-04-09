@@ -1,6 +1,6 @@
 import { onUnmounted, ref } from "vue";
 import { fetchTask, fetchTaskTrace } from "@/api/tasks";
-import type { TaskTraceEvent, TaskStatus } from "@/types";
+import type { TaskDetail, TaskTraceEvent, TaskStatus } from "@/types";
 import type { TaskProgressState } from "./types";
 
 function nowLabel() {
@@ -48,6 +48,7 @@ export function useTaskProgress() {
   const state = ref<TaskProgressState>(buildInitialState());
   const traceEvents = ref<TaskTraceEvent[]>([]);
   const taskId = ref("");
+  const taskDetail = ref<TaskDetail | null>(null);
 
   let optimisticTimer: number | null = null;
   let pollTimer: number | null = null;
@@ -78,6 +79,7 @@ export function useTaskProgress() {
     clearOptimisticTimer();
     clearPollTimer();
     taskId.value = "";
+    taskDetail.value = null;
     traceEvents.value = [];
     state.value = buildInitialState();
   }
@@ -107,6 +109,7 @@ export function useTaskProgress() {
       ]);
       const mapped = mapTaskStatus(task.status, task.progress);
       const latestTrace = trace.length ? trace[trace.length - 1] : null;
+      taskDetail.value = task;
       traceEvents.value = trace;
       patchState({
         status: mapped.status,
@@ -182,6 +185,7 @@ export function useTaskProgress() {
   return {
     state,
     taskId,
+    taskDetail,
     traceEvents,
     reset,
     start,

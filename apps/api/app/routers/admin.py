@@ -28,15 +28,12 @@ def list_admin_tasks(
     request: Request,
     q: str | None = Query(default=None),
     status: TaskStatus | None = Query(default=None),
-    platform: str | None = Query(default=None),
 ) -> list[TaskListItem]:
     normalized_q = q.strip() if q else None
-    normalized_platform = platform.strip() if platform else None
     normalized_status = status.value if status is not None else None
     return request.app.state.runtime.service.list_tasks(
         q=normalized_q,
         status=normalized_status,
-        platform=normalized_platform,
     )
 
 

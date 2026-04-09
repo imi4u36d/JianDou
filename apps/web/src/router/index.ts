@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from "vue-router";
 import WorkspaceShell from "@/components/layout/WorkspaceShell.vue";
-import GenerateView from "@/views/GenerateView.vue";
 import HomeView from "@/views/HomeView.vue";
-import TasksDashboardView from "@/views/TasksDashboardView.vue";
+import NewTaskView from "@/views/NewTaskView.vue";
+import TasksView from "@/views/TasksView.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,12 +19,17 @@ const router = createRouter({
         {
           path: "generate",
           name: "generate",
-          component: GenerateView,
+          component: NewTaskView,
+        },
+        {
+          path: "tasks/new",
+          name: "tasks-new",
+          component: NewTaskView,
         },
         {
           path: "tasks",
           name: "tasks",
-          component: TasksDashboardView,
+          component: TasksView,
         },
       ],
     },

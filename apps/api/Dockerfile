@@ -12,6 +12,12 @@ WORKDIR /app
 
 # 复制本地可编辑安装的 Python 包，供 pip 安装。
 COPY packages/backend_core /app/packages/backend_core
+COPY packages/shared /app/packages/shared
+COPY packages/db /app/packages/db
+COPY packages/storage /app/packages/storage
+COPY packages/media /app/packages/media
+COPY packages/ai /app/packages/ai
+COPY packages/pipeline /app/packages/pipeline
 COPY apps/api /app/apps/api
 COPY apps/worker /app/apps/worker
 
@@ -28,7 +34,15 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
 
 # 以 editable 模式安装后端包，便于开发容器内实时生效。
 RUN pip install --upgrade pip \
-    && pip install -e /app/packages/backend_core -e /app/apps/api -e /app/apps/worker
+    && pip install -e /app/packages/shared \
+    -e /app/packages/db \
+    -e /app/packages/storage \
+    -e /app/packages/media \
+    -e /app/packages/ai \
+    -e /app/packages/pipeline \
+    -e /app/packages/backend_core \
+    -e /app/apps/api \
+    -e /app/apps/worker
 
 WORKDIR /app/apps/api
 

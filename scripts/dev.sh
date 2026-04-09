@@ -85,7 +85,7 @@ require_command npm
 
 if [[ ! -x "$VENV_PYTHON" ]]; then
   echo "未找到 Python 虚拟环境: $VENV_PYTHON"
-  echo "请先创建并安装依赖，例如: python3 -m venv .venv && .venv/bin/pip install -e packages/backend_core -e apps/api -e apps/worker"
+  echo "请先创建并安装依赖，例如: python3 -m venv .venv && .venv/bin/pip install -e packages/shared -e packages/db -e packages/storage -e packages/media -e packages/ai -e packages/pipeline -e packages/backend_core -e apps/api -e apps/worker"
   exit 1
 fi
 

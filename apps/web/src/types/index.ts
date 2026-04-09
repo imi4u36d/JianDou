@@ -6,7 +6,7 @@ export type TaskStatus =
   | "COMPLETED"
   | "FAILED";
 
-export type EditingMode = "drama" | "mixcut";
+export type EditingMode = "drama";
 
 export interface TaskPlanClip {
   clipIndex: number;
@@ -21,7 +21,6 @@ export interface TaskPlanClip {
   transitionStyle?: string | null;
   layoutStyle?: string | null;
   effectStyle?: string | null;
-  mixcutTemplate?: string | null;
 }
 
 export interface TaskPlanSegment {
@@ -60,42 +59,30 @@ export interface UploadResponse {
   sizeBytes: number;
 }
 
-export interface CreateTaskRequest {
+export interface CreateGenerationTaskRequest {
   title: string;
-  sourceAssetId?: string;
-  sourceFileName?: string;
-  sourceAssetIds: string[];
-  sourceFileNames: string[];
-  editingMode?: EditingMode;
-  mixcutContentType?: string;
-  mixcutStylePreset?: string;
-  platform: string;
+  creativePrompt?: string | null;
   aspectRatio: "9:16" | "16:9";
-  minDurationSeconds: number;
-  maxDurationSeconds: number;
-  outputCount: number;
-  introTemplate: string;
-  outroTemplate: string;
-  creativePrompt?: string;
-  transcriptText?: string;
-  mixcutEnabled?: boolean;
+  textAnalysisModel?: string | null;
+  videoModel?: string | null;
+  videoSize?: string | null;
+  videoDurationSeconds?: number | "auto" | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
+  transcriptText?: string | null;
+  stopBeforeVideoGeneration?: boolean | null;
 }
 
 export interface GenerateCreativePromptRequest {
   title: string;
-  platform: string;
   aspectRatio: "9:16" | "16:9";
   minDurationSeconds: number;
   maxDurationSeconds: number;
-  outputCount: number;
   introTemplate: string;
   outroTemplate: string;
   transcriptText?: string;
   sourceFileNames?: string[];
   editingMode?: EditingMode;
-  mixcutEnabled?: boolean;
-  mixcutContentType?: string;
-  mixcutStylePreset?: string;
 }
 
 export interface GenerateCreativePromptResponse {
@@ -228,7 +215,7 @@ export interface GenerationVideoDurationOption {
 export interface GenerationOptionsResponse {
   versions: number[];
   versionDetails?: GenerationVersionInfo[];
-  defaultVersion?: number;
+  defaultVersion?: number | null;
   stylePresets: GenerationStylePresetOption[];
   imageSizes: GenerationImageSizeOption[];
   videoModels: GenerationVideoModelInfo[];
@@ -240,7 +227,7 @@ export interface GenerationOptionsResponse {
   defaultStylePreset?: string | null;
   defaultImageSize?: string;
   defaultVideoSize?: string;
-  defaultVideoDurationSeconds?: number;
+  defaultVideoDurationSeconds?: number | null;
 }
 
 export interface GenerateMediaRequest {
@@ -302,55 +289,6 @@ export interface GenerateMediaResponse {
   metadata?: Record<string, unknown>;
 }
 
-export interface TaskPreset {
-  key: string;
-  name: string;
-  description: string;
-  defaultTitle: string;
-  editingMode?: EditingMode;
-  platform: string;
-  aspectRatio: "9:16" | "16:9";
-  minDurationSeconds: number;
-  maxDurationSeconds: number;
-  outputCount: number;
-  introTemplate: string;
-  outroTemplate: string;
-  creativePrompt?: string;
-  mixcutContentType?: string;
-  mixcutStylePreset?: string;
-}
-
-export interface TaskCloneDraft {
-  sourceTaskId: string;
-  sourceAssetId: string;
-  sourceAssetIds?: string[];
-  source?: TaskSourceAssetSummary | null;
-  sourceFileName: string;
-  sourceFileNames?: string[];
-  sourceAssetCount?: number;
-  editingMode?: EditingMode;
-  mixcutEnabled?: boolean;
-  mixcutContentType?: string;
-  mixcutStylePreset?: string;
-  mixcutTransitionStyle?: string;
-  mixcutLayoutStyle?: string;
-  mixcutEffectStyle?: string;
-  mixcutTemplate?: string;
-  sourceAssets?: TaskSourceAssetSummary[];
-  title: string;
-  platform: string;
-  aspectRatio: "9:16" | "16:9";
-  minDurationSeconds: number;
-  maxDurationSeconds: number;
-  outputCount: number;
-  introTemplate: string;
-  outroTemplate: string;
-  creativePrompt?: string;
-  transcriptText?: string;
-  hasTimedTranscript?: boolean;
-  transcriptCueCount?: number;
-}
-
 export interface TaskDeleteResult {
   taskId: string;
   deleted: boolean;
@@ -359,7 +297,6 @@ export interface TaskDeleteResult {
 export interface TaskFilters {
   q?: string;
   status?: TaskStatus | "all";
-  platform?: string | "all";
 }
 
 export interface TaskOutput {
@@ -412,7 +349,6 @@ export interface TaskListItem {
   status: TaskStatus;
   platform: string;
   progress: number;
-  outputCount: number;
   createdAt: string;
   updatedAt: string;
   sourceFileName?: string;
@@ -427,7 +363,6 @@ export interface TaskListItem {
   hasTimedTranscript?: boolean;
   sourceAssetCount?: number;
   editingMode?: EditingMode;
-  mixcutEnabled?: boolean;
 }
 
 export interface TaskDetail extends TaskListItem {
@@ -435,12 +370,6 @@ export interface TaskDetail extends TaskListItem {
   sourceFileNames?: string[];
   sourceAssetIds?: string[];
   editingMode?: EditingMode;
-  mixcutContentType?: string;
-  mixcutStylePreset?: string;
-  mixcutTransitionStyle?: string;
-  mixcutLayoutStyle?: string;
-  mixcutEffectStyle?: string;
-  mixcutTemplate?: string;
   aspectRatio: string;
   minDurationSeconds: number;
   maxDurationSeconds: number;
@@ -552,69 +481,4 @@ export interface AdminTaskBatchResult {
   requestedCount: number;
   succeededTaskIds: string[];
   failed: AdminTaskBatchFailure[];
-}
-
-export type AgentId = "ai-drama" | "drama-editor" | "visual-lab" | "script-director";
-
-export type AgentRunStatus = "idle" | "queued" | "running" | "completed" | "failed";
-
-export type AgentArtifactKind = string;
-
-export interface AgentDefinition {
-  id: AgentId;
-  name: string;
-  subtitle: string;
-  description: string;
-  accent: string;
-  accentSoft: string;
-  icon: string;
-  route: string;
-  deliveryLabel: string;
-  capabilities: string[];
-  defaultPrompt: string;
-}
-
-export interface AgentRunEvent {
-  timestamp: string;
-  level: "info" | "success" | "warn" | "error";
-  stage: string;
-  event: string;
-  message: string;
-  payload?: Record<string, unknown>;
-}
-
-export interface AgentRunArtifact {
-  kind: AgentArtifactKind;
-  label: string;
-  url?: string | null;
-  mimeType?: string | null;
-  text?: string | null;
-  json?: Record<string, unknown> | null;
-}
-
-export interface AgentRunSummary {
-  id: string;
-  agentId: AgentId;
-  title: string;
-  summary: string;
-  status: AgentRunStatus;
-  progress: number;
-  createdAt: string;
-  updatedAt: string;
-  sourceLabel: string;
-  resultLabel: string;
-  artifactCount: number;
-  sourceTaskId?: string | null;
-  startedAt?: string | null;
-  finishedAt?: string | null;
-  durationSeconds?: number | null;
-  latencyMs?: number | null;
-}
-
-export interface AgentRunDetail extends AgentRunSummary {
-  input: Record<string, unknown>;
-  output: Record<string, unknown>;
-  events: AgentRunEvent[];
-  artifacts: AgentRunArtifact[];
-  monitor: Record<string, unknown>;
 }

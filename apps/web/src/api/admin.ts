@@ -1,5 +1,4 @@
 import { deleteJson, getJson, postJson } from "./client";
-import { cloneTask } from "./tasks";
 import type {
   AdminOverview,
   AdminTaskBatchResult,
@@ -22,9 +21,6 @@ export function fetchAdminTasks(filters?: AdminTaskFilters) {
   }
   if (filters?.status && filters.status !== "all") {
     params.set("status", filters.status);
-  }
-  if (filters?.platform && filters.platform !== "all") {
-    params.set("platform", filters.platform);
   }
   const query = params.toString();
   return getJson<TaskListItem[]>(query ? `/admin/tasks?${query}` : "/admin/tasks");
@@ -79,8 +75,4 @@ export function bulkDeleteAdminTasks(taskIds: string[]) {
 
 export function bulkRetryAdminTasks(taskIds: string[]) {
   return postJson<AdminTaskBatchResult>("/admin/tasks/bulk-retry", { taskIds });
-}
-
-export function cloneAdminTask(taskId: string) {
-  return cloneTask(taskId);
 }

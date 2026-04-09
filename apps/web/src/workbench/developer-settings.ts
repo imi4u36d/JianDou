@@ -59,3 +59,8 @@ export function subscribeDeveloperSettings(listener: (settings: DeveloperSetting
   window.addEventListener(UPDATE_EVENT, handler);
   return () => window.removeEventListener(UPDATE_EVENT, handler);
 }
+
+export function shouldStopBeforeVideoGeneration(settings?: DeveloperSettings | null): boolean {
+  const resolved = settings ? normalizeSettings(settings) : loadDeveloperSettings();
+  return resolved.enabled && resolved.stopBeforeVideoGeneration;
+}

@@ -7,7 +7,7 @@ export interface RuntimeConfig {
 
 // 在 runtime-config.json 未加载或不可用时使用的安全默认值。
 const defaultRuntimeConfig: RuntimeConfig = {
-  apiBaseUrl: "/api/v1",
+  apiBaseUrl: "/api/v2",
   storageBaseUrl: "/storage"
 };
 

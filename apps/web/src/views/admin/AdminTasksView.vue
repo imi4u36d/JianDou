@@ -27,13 +27,13 @@
     </div>
 
     <section class="admin-panel p-5">
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.72fr))]">
+      <div class="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.72fr))]">
         <label class="grid gap-1 text-xs text-slate-600">
           搜索
           <input
             v-model="searchText"
             class="admin-field"
-            placeholder="搜索标题、文件名、平台、比例"
+            placeholder="搜索标题、文件名、比例"
             type="search"
           />
         </label>
@@ -43,17 +43,10 @@
             <option value="all">全部状态</option>
             <option value="PENDING">排队中</option>
             <option value="ANALYZING">分析中</option>
-            <option value="PLANNING">规划中</option>
+            <option value="PLANNING">编排中</option>
             <option value="RENDERING">渲染中</option>
             <option value="COMPLETED">已完成</option>
             <option value="FAILED">失败</option>
-          </select>
-        </label>
-        <label class="grid gap-1 text-xs text-slate-600">
-          平台
-          <select v-model="platformFilter" class="admin-field">
-            <option value="all">全部平台</option>
-            <option v-for="platform in platformOptions" :key="platform" :value="platform">{{ platform }}</option>
           </select>
         </label>
         <label class="grid gap-1 text-xs text-slate-600">
@@ -113,7 +106,7 @@
               <th><input :checked="allVisibleSelected" type="checkbox" @change="toggleSelectVisible" /></th>
               <th>任务</th>
               <th>状态</th>
-              <th>语义输入</th>
+              <th>文本输入</th>
               <th>进度</th>
               <th>更新时间</th>
               <th class="text-right">操作</th>
@@ -132,13 +125,9 @@
                 <p class="font-medium text-slate-900">{{ task.title }}</p>
                 <p class="mt-0.5 text-xs text-slate-500">{{ task.sourceFileName }}</p>
                 <div class="mt-1 flex flex-wrap gap-1 text-xs text-slate-600">
-                  <span>{{ task.platform }}</span>
-                  <span>·</span>
                   <span>{{ task.aspectRatio }}</span>
                   <span>·</span>
                   <span>{{ task.minDurationSeconds }}-{{ task.maxDurationSeconds }} 秒</span>
-                  <span>·</span>
-                  <span>输出 {{ task.completedOutputCount ?? 0 }}/{{ task.outputCount }}</span>
                 </div>
               </td>
               <td>
@@ -164,7 +153,6 @@
               <td class="text-right">
                 <div class="flex flex-wrap justify-end gap-1.5">
                   <RouterLink :to="`/admin/tasks/${task.id}`" class="admin-btn-secondary admin-btn-sm">详情</RouterLink>
-                  <button :class="ghostButtonClassSm" :disabled="actionLoading" type="button" @click="cloneTask(task.id)">复制</button>
                   <button
                     v-if="task.status === 'FAILED'"
                     :class="warningButtonClassSm"
@@ -194,12 +182,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
-import { bulkDeleteAdminTasks, bulkRetryAdminTasks, cloneAdminTask, deleteAdminTask, fetchAdminTasks, retryAdminTask } from "@/api/admin";
+import { bulkDeleteAdminTasks, bulkRetryAdminTasks, deleteAdminTask, fetchAdminTasks, retryAdminTask } from "@/api/admin";
 import { usePolling } from "@/composables/usePolling";
 import type { TaskListItem, TaskStatus } from "@/types";
 
-const router = useRouter();
 const tasks = ref<TaskListItem[]>([]);
 const loading = ref(true);
 const actionLoading = ref(false);
@@ -208,7 +194,6 @@ const actionMessage = ref("");
 const actionMessageTone = ref<"success" | "warn">("success");
 const searchText = ref("");
 const statusFilter = ref<TaskStatus | "all">("all");
-const platformFilter = ref<string | "all">("all");
 const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "status_desc">("updated_desc");
 const selectedIds = ref<string[]>([]);
 let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -218,11 +203,8 @@ const secondaryButtonClass = "admin-btn-secondary";
 const ghostButtonClass = "admin-btn-ghost";
 const warningButtonClass = "admin-btn-warning";
 const dangerButtonClass = "admin-btn-danger";
-const ghostButtonClassSm = "admin-btn-ghost admin-btn-sm";
 const warningButtonClassSm = "admin-btn-warning admin-btn-sm";
 const dangerButtonClassSm = "admin-btn-danger admin-btn-sm";
-
-const platformOptions = computed(() => Array.from(new Set(tasks.value.map((task) => task.platform).filter(Boolean))).sort());
 
 const filteredTasks = computed(() => {
   const keyword = searchText.value.trim().toLowerCase();
@@ -230,13 +212,10 @@ const filteredTasks = computed(() => {
     if (statusFilter.value !== "all" && task.status !== statusFilter.value) {
       return false;
     }
-    if (platformFilter.value !== "all" && task.platform !== platformFilter.value) {
-      return false;
-    }
     if (!keyword) {
       return true;
     }
-    return [task.title, task.sourceFileName, task.platform, task.aspectRatio].join(" ").toLowerCase().includes(keyword);
+    return [task.title, task.sourceFileName, task.aspectRatio].join(" ").toLowerCase().includes(keyword);
   });
 });
 
@@ -266,9 +245,9 @@ const summaryCards = computed(() => {
 
   return [
     { key: "total", label: "任务总量", value: total, hint: "全部任务" },
-    { key: "running", label: "运行中", value: running, hint: "分析/规划/渲染阶段" },
+    { key: "running", label: "运行中", value: running, hint: "分析/编排/渲染阶段" },
     { key: "failed", label: "失败任务", value: failed, hint: "需要人工处理" },
-    { key: "semantic", label: "语义任务", value: semantic, hint: "带字幕或文本输入" },
+    { key: "semantic", label: "文本输入任务", value: semantic, hint: "带字幕或文本输入" },
     { key: "timed", label: "时间轴字幕", value: timedSemantic, hint: "切点准确度更高" },
     { key: "average", label: "平均进度", value: `${average}%`, hint: "任务池整体推进" },
   ];
@@ -288,7 +267,7 @@ function statusLabel(status: TaskStatus) {
     case "ANALYZING":
       return "分析中";
     case "PLANNING":
-      return "规划中";
+      return "编排中";
     case "RENDERING":
       return "渲染中";
     case "COMPLETED":
@@ -347,9 +326,9 @@ function semanticHint(task: TaskListItem) {
     return "时间轴字幕";
   }
   if (task.hasTranscript) {
-    return "文本语义";
+    return "文本输入";
   }
-  return "无语义输入";
+  return "无文本输入";
 }
 
 function progressLabel(task: TaskListItem) {
@@ -363,7 +342,7 @@ function progressLabel(task: TaskListItem) {
     return "渲染中";
   }
   if (task.status === "PLANNING") {
-    return "规划中";
+    return "编排中";
   }
   if (task.status === "ANALYZING") {
     return "分析中";
@@ -407,7 +386,6 @@ async function loadTasks() {
   tasks.value = await fetchAdminTasks({
     q: searchText.value.trim() || undefined,
     status: statusFilter.value,
-    platform: platformFilter.value,
   });
 }
 
@@ -524,16 +502,11 @@ async function handleBulkDelete() {
   }
 }
 
-async function cloneTask(taskId: string) {
-  const draft = await cloneAdminTask(taskId);
-  router.push({ path: "/tasks/new", query: { cloneFrom: draft.sourceTaskId } });
-}
-
-watch([searchText, statusFilter, platformFilter, sortMode], () => {
+watch([searchText, statusFilter, sortMode], () => {
   selectedIds.value = selectedIds.value.filter((id) => sortedTasks.value.some((task) => task.id === id));
 }, { deep: false });
 
-watch([searchText, statusFilter, platformFilter], () => {
+watch([searchText, statusFilter], () => {
   if (refreshDebounceTimer) {
     clearTimeout(refreshDebounceTimer);
   }

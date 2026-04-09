@@ -88,7 +88,7 @@ const modelDescription = computed(() => {
   }
   return health.value.runtime.model.config_errors.length
     ? `缺失项：${health.value.runtime.model.config_errors.join(" / ")}`
-    : "本地启发式可用。";
+    : "大模型未就绪，规划链路不可用。";
 });
 
 const healthBadgeLabel = computed(() => {

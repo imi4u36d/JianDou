@@ -3,7 +3,7 @@
     <header class="section-head">
       <p class="section-kicker">OUTPUT SHOWCASE</p>
       <h2 class="section-title">案例陈列</h2>
-      <p class="section-description">同一工作台支持竖版、横版与产品叙事类视频产出，便于快速匹配不同渠道投放。</p>
+      <p class="section-description">同一工作台支持竖版、横版与产品叙事类视频产出，便于快速匹配不同发布渠道。</p>
     </header>
     <div class="showcase-grid">
       <article class="lead-card">

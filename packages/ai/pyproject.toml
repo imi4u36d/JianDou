@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-cut-ai"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "ai-cut-shared==0.1.0",
+  "ai-cut-media==0.1.0",
+  "ai-cut-storage==0.1.0",
+  "pydantic>=2.7",
+]

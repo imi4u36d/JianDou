@@ -44,6 +44,7 @@ export interface TaskProgressCardProps {
   state: TaskProgressState;
   taskId: string;
   traceCount: number;
+  elapsedLabel?: string;
   resultTitle: string;
   resultMeta: string[];
   outputUrl: string;

@@ -3,16 +3,16 @@
     <PageHeader
       eyebrow="Workspace"
       title="任务"
-      description="筛选、排序并进入任务详情，快速定位进行中与失败任务。"
+      description="筛选并监控任务执行，实时查看进度与阶段。"
     >
       <div class="flex items-center gap-2">
         <HintBell
           title="任务页说明"
-          text="这是筛选、排序和进入任务的侧边入口。配置与输出细节都在详情页。"
+          text="这是统一任务看板，支持列表筛选、实时轮询和单任务详情展开。"
           :items="[
-            '先戳进行中/失败任务，及时复检',
-            '卡片视图便于浏览，列表视图便于巡检',
-            '排序优先最近更新，尽量清空筛选再新建'
+            '卡片视图便于快速浏览，列表视图便于巡检',
+            '点击任务即可展开详情并查看阶段日志',
+            '新建任务后会自动高亮最新任务'
           ]"
         />
         <RouterLink to="/tasks/new" class="btn-primary">
@@ -23,13 +23,13 @@
 
     <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div class="surface-panel p-5">
-        <div class="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_200px_200px]">
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_200px]">
           <label class="grid gap-2 text-sm text-slate-700">
             搜索任务
             <input
               v-model="searchText"
               class="field-input"
-              placeholder="按标题、文件名或平台检索"
+              placeholder="按标题、文件名检索"
               type="search"
             />
           </label>
@@ -39,17 +39,10 @@
               <option value="all">全部状态</option>
               <option value="PENDING">排队中</option>
               <option value="ANALYZING">分析中</option>
-              <option value="PLANNING">规划中</option>
+              <option value="PLANNING">编排中</option>
               <option value="RENDERING">渲染中</option>
               <option value="COMPLETED">已完成</option>
               <option value="FAILED">失败</option>
-            </select>
-          </label>
-          <label class="grid gap-2 text-sm text-slate-700">
-            平台
-            <select v-model="platformFilter" class="field-select">
-              <option value="all">全部平台</option>
-              <option v-for="platform in platformOptions" :key="platform" :value="platform">{{ platformLabel(platform) }}</option>
             </select>
           </label>
         </div>
@@ -68,7 +61,7 @@
               <option value="updated_desc">最近更新</option>
               <option value="created_desc">最新创建</option>
               <option value="progress_desc">进度优先</option>
-              <option value="semantic_desc">语义任务优先</option>
+              <option value="semantic_desc">文本输入优先</option>
             </select>
           </label>
           <button :class="isFilterActive ? 'btn-warning' : 'btn-ghost'" type="button" @click="clearFilters">
@@ -82,17 +75,17 @@
         <div class="surface-tile p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">进行中</p>
           <p class="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-900">{{ metrics.running }}</p>
-          <p class="mt-2 text-sm text-slate-600">分析、规划和渲染阶段的任务。</p>
+          <p class="mt-2 text-sm text-slate-600">分析、编排和渲染阶段的任务。</p>
         </div>
         <div class="surface-tile p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">已完成</p>
           <p class="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-900">{{ metrics.completed }}</p>
-          <p class="mt-2 text-sm text-slate-600">可直接预览、下载和复盘。</p>
+          <p class="mt-2 text-sm text-slate-600">可直接预览、下载和查看结果。</p>
         </div>
         <div class="surface-tile p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">需要处理</p>
           <p class="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-900">{{ metrics.failed }}</p>
-          <p class="mt-2 text-sm text-slate-600">失败任务可重试或复制参数重建。</p>
+          <p class="mt-2 text-sm text-slate-600">失败任务可重试或直接删除。</p>
         </div>
       </div>
     </div>
@@ -141,7 +134,9 @@
                 :key="task.id"
                 :busy="managingTaskId === task.id"
                 :task="task"
-                @clone="handleClone"
+                :selectable="true"
+                :selected="task.id === selectedTaskId"
+                @select="handleSelectTask"
                 @retry="handleRetry"
                 @delete="handleDelete"
               />
@@ -152,7 +147,9 @@
                 :key="task.id"
                 :busy="managingTaskId === task.id"
                 :task="task"
-                @clone="handleClone"
+                :selectable="true"
+                :selected="task.id === selectedTaskId"
+                @select="handleSelectTask"
                 @retry="handleRetry"
                 @delete="handleDelete"
               />
@@ -165,6 +162,86 @@
       </div>
     </template>
 
+    <section v-if="selectedTaskId" class="surface-panel p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">任务详情</p>
+          <h3 class="mt-2 text-lg font-semibold text-slate-900">
+            {{ selectedTaskDetail?.title || selectedTaskSummary?.title || "加载中..." }}
+          </h3>
+          <p class="mt-1 text-sm text-slate-600">
+            {{ selectedTaskDetail?.id || selectedTaskId }} · 当前阶段 {{ selectedTaskStageLabel }}
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="surface-chip">进度 {{ selectedTaskDetail?.progress ?? selectedTaskSummary?.progress ?? 0 }}%</span>
+          <button class="btn-secondary btn-sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+            刷新详情
+          </button>
+        </div>
+      </div>
+
+      <div v-if="selectedTaskError" class="surface-tile mt-4 border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700">
+        {{ selectedTaskError }}
+      </div>
+
+      <div v-else class="mt-4 grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <div class="surface-tile p-4">
+          <p class="text-sm font-semibold text-slate-900">阶段时间线</p>
+          <div class="mt-3 grid gap-2">
+            <div
+              v-for="stage in selectedTaskStages"
+              :key="stage.key"
+              class="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"
+              :class="stageStateClass(stage.state)"
+            >
+              <span>{{ stage.label }}</span>
+              <span class="font-semibold">{{ stage.stateLabel }}</span>
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">
+            开始 {{ formatDateTime(selectedTaskDetail?.startedAt) }} · 完成 {{ formatDateTime(selectedTaskDetail?.finishedAt) }}
+          </p>
+        </div>
+
+        <div class="surface-tile p-4">
+          <p class="text-sm font-semibold text-slate-900">结果概览</p>
+          <div class="mt-3 grid gap-2 text-sm text-slate-600">
+            <div class="flex items-center justify-between">
+              <span>已生成结果</span>
+              <span class="font-semibold text-slate-900">
+                {{ selectedTaskDetail?.completedOutputCount ?? selectedTaskDetail?.outputs?.length ?? 0 }} 条
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>比例</span>
+              <span class="font-semibold text-slate-900">{{ selectedTaskDetail?.aspectRatio ?? selectedTaskSummary?.aspectRatio ?? "-" }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface-tile mt-4 p-4">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-sm font-semibold text-slate-900">最近阶段日志</p>
+          <span class="surface-chip">{{ selectedTaskTrace.length }} 条</span>
+        </div>
+        <ul class="mt-3 grid gap-2 text-sm text-slate-600">
+          <li v-if="selectedTaskTrace.length === 0" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-500">
+            暂无日志，任务刚启动时可能需要等待几秒。
+          </li>
+          <li
+            v-for="event in selectedTaskTrace.slice(0, 8)"
+            :key="`${event.timestamp}-${event.event}-${event.stage}`"
+            class="rounded-xl border border-slate-200 bg-white px-3 py-2"
+          >
+            <p class="text-xs text-slate-500">{{ formatDateTime(event.timestamp) }} · {{ event.stage }} · {{ event.level }}</p>
+            <p class="mt-1 text-slate-800">{{ event.message }}</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
     <p class="text-xs text-slate-500">最近刷新：{{ lastLoadedAt }}</p>
   </section>
 </template>
@@ -172,14 +249,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { deleteTask, fetchTasks, retryTask } from "@/api/tasks";
-import type { TaskListItem, TaskStatus } from "@/types";
+import { deleteTask, fetchTask, fetchTaskTrace, fetchTasks, retryTask } from "@/api/tasks";
+import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import HintBell from "@/components/HintBell.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import TaskCard from "@/components/TaskCard.vue";
 import TaskRow from "@/components/TaskRow.vue";
 import { usePolling } from "@/composables/usePolling";
-import { getTaskLifecycleGroup, TASK_LIFECYCLE_GROUP_LABELS } from "@/utils/task";
+import { formatTaskStatus, getTaskLifecycleGroup, TASK_LIFECYCLE_GROUP_LABELS } from "@/utils/task";
 
 const route = useRoute();
 const router = useRouter();
@@ -190,19 +267,19 @@ const errorMessage = ref("");
 const lastLoadedAt = ref("尚未刷新");
 const searchText = ref("");
 const statusFilter = ref<TaskStatus | "all">("all");
-const platformFilter = ref<string | "all">("all");
 const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "semantic_desc">("updated_desc");
 const viewMode = ref<"rows" | "cards">("rows");
 const managingTaskId = ref("");
 const collapsedGroups = ref<Record<string, boolean>>({});
+const selectedTaskId = ref("");
+const selectedTaskDetail = ref<TaskDetail | null>(null);
+const selectedTaskTrace = ref<TaskTraceEvent[]>([]);
+const selectedTaskLoading = ref(false);
+const selectedTaskError = ref("");
 let querySyncTimer: number | null = null;
 
-const platformOptions = computed(() => {
-  return Array.from(new Set(tasks.value.map((task) => task.platform).filter(Boolean))).sort();
-});
-
 const isFilterActive = computed(() => {
-  return Boolean(searchText.value.trim() || statusFilter.value !== "all" || platformFilter.value !== "all");
+  return Boolean(searchText.value.trim() || statusFilter.value !== "all");
 });
 
 function normalizeQueryValue(value: unknown) {
@@ -220,9 +297,6 @@ function applyRouteFilters() {
     ? (nextStatus as TaskStatus)
     : "all";
 
-  const nextPlatform = normalizeQueryValue(route.query.platform);
-  platformFilter.value = nextPlatform || "all";
-
   const nextSort = normalizeQueryValue(route.query.sort);
   sortMode.value = ["updated_desc", "created_desc", "progress_desc", "semantic_desc"].includes(nextSort)
     ? (nextSort as typeof sortMode.value)
@@ -230,7 +304,52 @@ function applyRouteFilters() {
 
   const nextView = normalizeQueryValue(route.query.view);
   viewMode.value = nextView === "cards" ? "cards" : "rows";
+
+  const selected = normalizeQueryValue(route.query.selected) || normalizeQueryValue(route.query.taskId);
+  selectedTaskId.value = selected.trim();
 }
+
+const selectedTaskSummary = computed(() => {
+  if (!selectedTaskId.value) {
+    return null;
+  }
+  return tasks.value.find((task) => task.id === selectedTaskId.value) ?? null;
+});
+
+const selectedTaskStageLabel = computed(() => {
+  if (selectedTaskDetail.value) {
+    return formatTaskStatus(selectedTaskDetail.value.status);
+  }
+  if (selectedTaskSummary.value) {
+    return formatTaskStatus(selectedTaskSummary.value.status);
+  }
+  return "等待更新";
+});
+
+const selectedTaskStages = computed(() => {
+  const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status ?? "PENDING";
+  const stageOrder: TaskStatus[] = ["ANALYZING", "PLANNING", "RENDERING", "COMPLETED"];
+  const currentIndex = stageOrder.indexOf(status);
+  const toLabel = (state: "pending" | "active" | "done" | "failed") => {
+    switch (state) {
+      case "done":
+        return "已完成";
+      case "active":
+        return "进行中";
+      case "failed":
+        return "失败";
+      default:
+        return "等待";
+    }
+  };
+  const items = [
+    { key: "ANALYZING", label: "素材分析", state: currentIndex > 0 ? "done" : currentIndex === 0 ? "active" : "pending" },
+    { key: "PLANNING", label: "任务编排", state: currentIndex > 1 ? "done" : currentIndex === 1 ? "active" : "pending" },
+    { key: "RENDERING", label: "视频生成", state: currentIndex > 2 ? "done" : currentIndex === 2 ? "active" : "pending" },
+    { key: "COMPLETED", label: "任务完成", state: status === "COMPLETED" ? "done" : status === "FAILED" ? "failed" : "pending" },
+  ] as Array<{ key: string; label: string; state: "pending" | "active" | "done" | "failed" }>;
+  return items.map((item) => ({ ...item, stateLabel: toLabel(item.state) }));
+});
 
 const filteredTasks = computed(() => {
   const keyword = searchText.value.trim().toLowerCase();
@@ -238,13 +357,10 @@ const filteredTasks = computed(() => {
     if (statusFilter.value !== "all" && task.status !== statusFilter.value) {
       return false;
     }
-    if (platformFilter.value !== "all" && task.platform !== platformFilter.value) {
-      return false;
-    }
     if (!keyword) {
       return true;
     }
-    return [task.title, task.platform, task.sourceFileName ?? "", task.aspectRatio ?? ""]
+    return [task.title, task.sourceFileName ?? "", task.aspectRatio ?? ""]
       .join(" ")
       .toLowerCase()
       .includes(keyword);
@@ -280,7 +396,7 @@ const groupedTasks = computed(() => {
     {
       key: "running",
       title: TASK_LIFECYCLE_GROUP_LABELS.running,
-      description: "分析、规划和渲染中的任务会优先显示在这里。",
+      description: "分析、编排和渲染中的任务会优先显示在这里。",
       items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "running")
     },
     {
@@ -298,7 +414,7 @@ const groupedTasks = computed(() => {
     {
       key: "failed",
       title: TASK_LIFECYCLE_GROUP_LABELS.failed,
-      description: "失败任务可直接重试，也可以复制参数继续实验。",
+      description: "失败任务可直接重试或删除后重新创建。",
       items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "failed")
     }
   ];
@@ -319,6 +435,33 @@ async function loadTasks() {
   }
 }
 
+async function loadSelectedTaskDetails() {
+  if (!selectedTaskId.value) {
+    selectedTaskDetail.value = null;
+    selectedTaskTrace.value = [];
+    selectedTaskError.value = "";
+    return;
+  }
+  selectedTaskLoading.value = true;
+  selectedTaskError.value = "";
+  try {
+    const [detail, trace] = await Promise.all([
+      fetchTask(selectedTaskId.value),
+      fetchTaskTrace(selectedTaskId.value, 120),
+    ]);
+    selectedTaskDetail.value = detail;
+    selectedTaskTrace.value = [...trace].reverse();
+  } catch (error) {
+    selectedTaskError.value = error instanceof Error ? error.message : "任务详情加载失败";
+  } finally {
+    selectedTaskLoading.value = false;
+  }
+}
+
+async function refreshSelectedTask() {
+  await loadSelectedTaskDetails();
+}
+
 function writeQuery() {
   const query: Record<string, string> = {};
   if (searchText.value.trim()) {
@@ -327,14 +470,14 @@ function writeQuery() {
   if (statusFilter.value !== "all") {
     query.status = statusFilter.value;
   }
-  if (platformFilter.value !== "all") {
-    query.platform = platformFilter.value;
-  }
   if (sortMode.value !== "updated_desc") {
     query.sort = sortMode.value;
   }
   if (viewMode.value !== "rows") {
     query.view = viewMode.value;
+  }
+  if (selectedTaskId.value) {
+    query.selected = selectedTaskId.value;
   }
 
   const currentQuery = route.query;
@@ -342,9 +485,9 @@ function writeQuery() {
   const sameQuery =
     (normalizeQueryValue(currentQuery.q) || "") === (nextQuery.q || "") &&
     (normalizeQueryValue(currentQuery.status) || "") === (nextQuery.status || "") &&
-    (normalizeQueryValue(currentQuery.platform) || "") === (nextQuery.platform || "") &&
     (normalizeQueryValue(currentQuery.sort) || "") === (nextQuery.sort || "") &&
-    (normalizeQueryValue(currentQuery.view) || "") === (nextQuery.view || "");
+    (normalizeQueryValue(currentQuery.view) || "") === (nextQuery.view || "") &&
+    ((normalizeQueryValue(currentQuery.selected) || normalizeQueryValue(currentQuery.taskId) || "") === (nextQuery.selected || ""));
 
   if (!sameQuery) {
     router.replace({ query: nextQuery });
@@ -364,12 +507,13 @@ function scheduleWriteQuery() {
 function clearFilters() {
   searchText.value = "";
   statusFilter.value = "all";
-  platformFilter.value = "all";
   sortMode.value = "updated_desc";
 }
 
-function handleClone(task: TaskListItem) {
-  router.push({ path: "/tasks/new", query: { cloneFrom: task.id } });
+function handleSelectTask(task: TaskListItem) {
+  selectedTaskId.value = task.id;
+  writeQuery();
+  void loadSelectedTaskDetails();
 }
 
 function isGroupCollapsed(groupKey: string) {
@@ -411,6 +555,13 @@ async function handleDelete(task: TaskListItem) {
   errorMessage.value = "";
   try {
     await deleteTask(task.id);
+    if (selectedTaskId.value === task.id) {
+      selectedTaskId.value = "";
+      selectedTaskDetail.value = null;
+      selectedTaskTrace.value = [];
+      selectedTaskError.value = "";
+      writeQuery();
+    }
     await loadTasks();
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "删除任务失败";
@@ -419,32 +570,45 @@ async function handleDelete(task: TaskListItem) {
   }
 }
 
-function platformLabel(platform: string) {
-  switch (platform) {
-    case "douyin":
-      return "抖音";
-    case "kuaishou":
-      return "快手";
-    case "xiaohongshu":
-      return "小红书";
-    case "wechat":
-      return "视频号";
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+  return new Date(timestamp).toLocaleString();
+}
+
+function stageStateClass(state: "pending" | "active" | "done" | "failed") {
+  switch (state) {
+    case "done":
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    case "active":
+      return "border-sky-200 bg-sky-50 text-sky-800";
+    case "failed":
+      return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return platform;
+      return "border-slate-200 bg-white text-slate-600";
   }
 }
 
-const { start } = usePolling(loadTasks, 5000);
+const { start } = usePolling(async () => {
+  await loadTasks();
+  await loadSelectedTaskDetails();
+}, 5000);
 
 watch(
   () => route.query,
   () => {
     applyRouteFilters();
+    void loadSelectedTaskDetails();
   },
   { immediate: true, deep: true }
 );
 
-watch([searchText, statusFilter, platformFilter, sortMode, viewMode], () => {
+watch([searchText, statusFilter, sortMode, viewMode], () => {
   scheduleWriteQuery();
 });
 

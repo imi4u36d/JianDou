@@ -3,14 +3,17 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend_core.schemas import (
-    CreateTaskRequest,
+    CreateGenerationTaskRequest,
     GenerateCreativePromptRequest,
     GenerateCreativePromptResponse,
     SeeddanceTaskQueryResponse,
     TaskDeleteResult,
     TaskDetail,
-    TaskDraft,
     TaskListItem,
+    TaskMaterial,
+    TaskModelCallRecord,
+    TaskOutput,
+    TaskStatusHistoryRecord,
     TaskStatus,
     TaskTraceEvent,
 )
@@ -18,16 +21,17 @@ from backend_core.schemas import (
 
 router = APIRouter(tags=["tasks"])
 
-
-@router.post("/tasks", response_model=TaskDetail)
-def create_task(request: Request, payload: CreateTaskRequest) -> TaskDetail:
+@router.post("/tasks/generation", response_model=TaskDetail)
+def create_generation_task(request: Request, payload: CreateGenerationTaskRequest) -> TaskDetail:
     runtime = request.app.state.runtime
     try:
-        return runtime.service.create_task(payload)
+        return runtime.service.create_generation_task(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/tasks/generate-prompt", response_model=GenerateCreativePromptResponse)
@@ -46,8 +50,8 @@ def list_tasks(
     platform: str | None = Query(default=None),
 ) -> list[TaskListItem]:
     normalized_q = q.strip() if q else None
-    normalized_platform = platform.strip() if platform else None
     normalized_status = status.value if status is not None else None
+    normalized_platform = platform.strip() if platform else None
     return request.app.state.runtime.service.list_tasks(
         q=normalized_q,
         status=normalized_status,
@@ -75,6 +79,64 @@ def get_task_trace(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/tasks/{task_id}/status-history", response_model=list[TaskStatusHistoryRecord])
+def get_task_status_history(
+    request: Request,
+    task_id: str,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> list[TaskStatusHistoryRecord]:
+    try:
+        return request.app.state.runtime.service.list_task_status_history(task_id, limit=limit)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tasks/{task_id}/model-calls", response_model=list[TaskModelCallRecord])
+def get_task_model_calls(
+    request: Request,
+    task_id: str,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> list[TaskModelCallRecord]:
+    try:
+        return request.app.state.runtime.service.list_task_model_calls(task_id, limit=limit)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tasks/{task_id}/results", response_model=list[TaskOutput])
+def get_task_results(
+    request: Request,
+    task_id: str,
+) -> list[TaskOutput]:
+    try:
+        return request.app.state.runtime.service.list_task_results(task_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tasks/{task_id}/materials", response_model=list[TaskMaterial])
+def get_task_materials(
+    request: Request,
+    task_id: str,
+) -> list[TaskMaterial]:
+    try:
+        return request.app.state.runtime.service.list_task_materials(task_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tasks/{task_id}/logs", response_model=list[TaskTraceEvent])
+def get_task_logs(
+    request: Request,
+    task_id: str,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> list[TaskTraceEvent]:
+    try:
+        return request.app.state.runtime.service.list_task_logs(task_id, limit=limit)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/tasks/seeddance/{remote_task_id}", response_model=SeeddanceTaskQueryResponse)
 def query_seeddance_task_result(request: Request, remote_task_id: str) -> SeeddanceTaskQueryResponse:
     try:
@@ -83,14 +145,6 @@ def query_seeddance_task_result(request: Request, remote_task_id: str) -> Seedda
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-
-@router.post("/tasks/{task_id}/clone", response_model=TaskDraft)
-def clone_task(request: Request, task_id: str) -> TaskDraft:
-    try:
-        return request.app.state.runtime.service.clone_task(task_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/tasks/{task_id}/retry", response_model=TaskDetail)

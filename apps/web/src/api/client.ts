@@ -1,7 +1,26 @@
 import { getRuntimeConfig } from "./runtime-config";
 
+const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
+
+function resolveOrigin(baseUrl: string) {
+  try {
+    const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    return new URL(baseUrl, fallbackOrigin).origin;
+  } catch {
+    return "";
+  }
+}
+
 function joinUrl(baseUrl: string, path: string) {
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+  const normalizedPath = path.trim();
+  if (ABSOLUTE_URL_RE.test(normalizedPath)) {
+    return normalizedPath;
+  }
+  if (normalizedPath.startsWith("/api/")) {
+    const origin = resolveOrigin(baseUrl);
+    return origin ? `${origin}${normalizedPath}` : normalizedPath;
+  }
+  return `${baseUrl.replace(/\/+$/, "")}/${normalizedPath.replace(/^\/+/, "")}`;
 }
 
 async function readResponse<T>(response: Response): Promise<T> {

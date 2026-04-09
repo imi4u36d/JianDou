@@ -55,7 +55,6 @@
                 <thead>
                   <tr>
                     <th>任务</th>
-                    <th>平台</th>
                     <th>进度</th>
                     <th class="text-right">操作</th>
                   </tr>
@@ -66,7 +65,6 @@
                       <p class="font-medium text-slate-900">{{ task.title }}</p>
                       <p class="mt-0.5 text-xs text-slate-500">{{ task.sourceFileName }}</p>
                     </td>
-                    <td>{{ task.platform }}</td>
                     <td>{{ task.progress }}%</td>
                     <td class="text-right">
                       <RouterLink :to="`/admin/tasks/${task.id}`" class="admin-btn-secondary admin-btn-sm">查看</RouterLink>

@@ -80,12 +80,12 @@ export function formatTaskOutputs(task: TaskListItem | TaskDetail | null | undef
   if (!task) {
     return "暂无结果";
   }
-  const completed = Math.max(0, task.completedOutputCount ?? 0);
-  const expected = Math.max(completed, task.outputCount ?? 0);
-  if (expected <= 0) {
+  const detailOutputCount = "outputs" in task && Array.isArray(task.outputs) ? task.outputs.length : 0;
+  const completed = Math.max(0, task.completedOutputCount ?? detailOutputCount);
+  if (completed <= 0) {
     return "暂无结果";
   }
-  return `${completed}/${expected} 条结果`;
+  return `${completed} 条结果`;
 }
 
 export function summarizeTask(task: TaskListItem) {

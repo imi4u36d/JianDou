@@ -7,10 +7,10 @@
     <div class="pointer-events-none absolute left-0 top-0 h-full w-1" :class="statusRailClass"></div>
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0 pl-1">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">{{ task.platform }} / {{ task.aspectRatio ?? "9:16" }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">{{ task.aspectRatio ?? "9:16" }}</p>
         <h3 class="mt-2 line-clamp-2 text-[17px] font-semibold leading-7 text-slate-900">{{ task.title }}</h3>
-        <p class="mt-1.5 truncate text-sm leading-6 text-slate-600" :title="task.sourceFileName || '源文件信息待同步'">
-          {{ task.sourceFileName || "源文件信息待同步" }}
+        <p class="mt-1.5 truncate text-sm leading-6 text-slate-600" :title="task.sourceFileName || '文本生成任务'">
+          {{ task.sourceFileName || "文本生成任务" }}
         </p>
       </div>
       <div class="shrink-0">
@@ -19,21 +19,16 @@
     </div>
 
     <div class="mt-3 flex flex-wrap gap-1.5">
-      <span v-if="task.mixcutEnabled" class="surface-chip">多素材混剪</span>
       <span v-if="task.hasTimedTranscript" class="surface-chip">时间轴字幕</span>
-      <span v-else-if="task.hasTranscript" class="surface-chip">文本语义</span>
+      <span v-else-if="task.hasTranscript" class="surface-chip">文本输入</span>
       <span v-if="task.status === 'FAILED'" class="surface-chip">需要处理</span>
-      <span v-if="task.status === 'COMPLETED'" class="surface-chip">可复盘</span>
+      <span v-if="task.status === 'COMPLETED'" class="surface-chip">可查看结果</span>
     </div>
 
     <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-600">
       <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-slate-500">进度</p>
         <p class="text-sm font-semibold text-slate-900">{{ task.progress }}%</p>
-      </div>
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-xs text-slate-500">输出</p>
-        <p class="text-sm font-semibold text-slate-900">{{ completedOutputCount }} / {{ task.outputCount }}</p>
       </div>
       <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-slate-500">时长</p>
@@ -61,15 +56,6 @@
       <RouterLink v-else :to="{ path: '/tasks', query: { selected: task.id } }" class="btn-secondary">
         查看详情
       </RouterLink>
-      <button
-        v-if="showCloneAction"
-        class="btn-primary"
-        :disabled="busy"
-        type="button"
-        @click.stop="$emit('clone', task)"
-      >
-        复制参数
-      </button>
       <button
         v-if="showRetryAction && task.status === 'FAILED'"
         class="btn-warning"
@@ -103,19 +89,16 @@ const props = defineProps<{
   busy?: boolean;
   selectable?: boolean;
   selected?: boolean;
-  showCloneAction?: boolean;
   showRetryAction?: boolean;
   showDeleteAction?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (event: "clone", task: TaskListItem): void;
   (event: "retry", task: TaskListItem): void;
   (event: "delete", task: TaskListItem): void;
   (event: "select", task: TaskListItem): void;
 }>();
 
-const completedOutputCount = computed(() => props.task.completedOutputCount ?? 0);
 const retryCount = computed(() => props.task.retryCount ?? 0);
 const lifecycleGroup = computed(() => getTaskLifecycleGroup(props.task.status));
 const durationLabel = computed(() => {
@@ -165,7 +148,6 @@ const statusFrameClass = computed(() => {
 
 const selectable = computed(() => Boolean(props.selectable));
 const selected = computed(() => Boolean(props.selected));
-const showCloneAction = computed(() => props.showCloneAction !== false);
 const showRetryAction = computed(() => props.showRetryAction !== false);
 const showDeleteAction = computed(() => props.showDeleteAction !== false);
 

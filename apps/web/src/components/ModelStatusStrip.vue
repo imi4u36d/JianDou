@@ -123,7 +123,6 @@ const capabilityRows = computed(() => {
     { key: "audio_peak", label: "音频峰值信号", enabled: c.audio_peak_signal },
     { key: "scene_boundary", label: "镜头切换边界", enabled: c.scene_boundary_signal },
     { key: "timeline", label: "融合时间轴规划", enabled: c.fusion_timeline_planning },
-    { key: "fallback", label: "启发式回退", enabled: c.fallback_heuristic_enabled },
   ];
 });
 

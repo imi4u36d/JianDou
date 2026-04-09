@@ -30,11 +30,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend_core.runtime import build_runtime
-from .routers.agents import router as agents_router
 from .routers.admin import router as admin_router
-from .routers.generations import router as generations_router
+from .routers.generation_v2 import router as generation_v2_router
 from .routers.health import router as health_router
-from .routers.presets import router as presets_router
 from .routers.tasks import router as tasks_router
 from .routers.uploads import router as uploads_router
 
@@ -79,10 +77,8 @@ def _startup() -> None:
     app.state.runtime = runtime
 
 
-app.include_router(health_router, prefix="/api/v1")
-app.include_router(admin_router, prefix="/api/v1")
-app.include_router(agents_router, prefix="/api/v1")
-app.include_router(generations_router, prefix="/api/v1")
-app.include_router(presets_router, prefix="/api/v1")
-app.include_router(uploads_router, prefix="/api/v1")
-app.include_router(tasks_router, prefix="/api/v1")
+app.include_router(health_router, prefix="/api/v2")
+app.include_router(admin_router, prefix="/api/v2")
+app.include_router(generation_v2_router)
+app.include_router(uploads_router, prefix="/api/v2")
+app.include_router(tasks_router, prefix="/api/v2")

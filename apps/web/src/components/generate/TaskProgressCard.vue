@@ -25,6 +25,7 @@
       <p class="progress-meta">
         <span v-if="props.taskId">任务ID：{{ props.taskId }}</span>
         <span v-if="props.traceCount">追踪事件：{{ props.traceCount }}</span>
+        <span v-if="props.elapsedLabel">{{ props.elapsedLabel }}</span>
         <span>更新时间：{{ props.state.updatedAt }}</span>
       </p>
     </div>

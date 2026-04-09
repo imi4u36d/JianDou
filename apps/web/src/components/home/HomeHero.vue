@@ -4,7 +4,7 @@
       <p class="hero-kicker">AI CREATIVE WORKBENCH</p>
       <h1 class="hero-title">一句话到成片，内容团队的文生视频工作台</h1>
       <p class="hero-description">
-        以最少输入启动生成流程，自动跟踪任务阶段，并将结果沉淀到可复用的素材库。设计、运营、投放可共享同一套交付链路。
+        以最少输入启动生成流程，自动跟踪任务阶段，并将结果沉淀到可复用的素材库。设计、运营、发布可共享同一套交付链路。
       </p>
       <div class="hero-actions">
         <RouterLink class="primary-cta" to="/generate">开始生成</RouterLink>

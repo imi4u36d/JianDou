@@ -1,4 +1,4 @@
 {
-  "apiBaseUrl": "/api/v1",
+  "apiBaseUrl": "/api/v2",
   "storageBaseUrl": "/storage"
 }

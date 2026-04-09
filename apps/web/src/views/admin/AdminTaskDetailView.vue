@@ -5,10 +5,9 @@
         <div class="admin-heading-block">
           <p class="admin-eyebrow">Task Detail</p>
           <h2 class="admin-title">任务详情</h2>
-          <p class="admin-subtitle">面向运维的任务诊断视图：状态、参数、方案、日志。</p>
+          <p class="admin-subtitle">面向运维的任务生成诊断视图：状态、参数、进度、日志。</p>
         </div>
         <div class="admin-action-row">
-          <button :class="secondaryButtonClass" :disabled="actionLoading" type="button" @click="cloneTaskToWorkbench">复制到前台</button>
           <button v-if="task?.status === 'FAILED'" :class="warningButtonClass" :disabled="actionLoading" type="button" @click="retryTaskAction">失败重试</button>
           <button :class="dangerButtonClass" :disabled="actionLoading || runningTask" type="button" @click="deleteTaskAction">删除</button>
         </div>
@@ -39,12 +38,12 @@
               <p class="mt-1 text-sm font-medium text-slate-900">{{ task.status }} · {{ task.progress }}%</p>
             </article>
             <article class="admin-panel-soft p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-500">平台 / 比例</p>
-              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.platform }} · {{ task.aspectRatio }}</p>
+              <p class="text-xs uppercase tracking-wide text-slate-500">比例</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.aspectRatio }}</p>
             </article>
             <article class="admin-panel-soft p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-500">输出</p>
-              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.completedOutputCount ?? 0 }} / {{ task.outputCount }}</p>
+              <p class="text-xs uppercase tracking-wide text-slate-500">已生成结果</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ task.completedOutputCount ?? task.outputs?.length ?? 0 }} 条</p>
             </article>
             <article class="admin-panel-soft p-4">
               <p class="text-xs uppercase tracking-wide text-slate-500">时长区间</p>
@@ -57,7 +56,7 @@
           </div>
 
           <div class="border-t border-slate-200/80 px-5 py-4">
-            <h4 class="text-sm font-semibold text-slate-900">规划摘要</h4>
+            <h4 class="text-sm font-semibold text-slate-900">任务摘要</h4>
             <p class="mt-1 text-sm text-slate-700">{{ planningSummary.title }}</p>
             <p class="mt-1 text-xs text-slate-500">{{ planningSummary.detail }}</p>
           </div>
@@ -70,7 +69,7 @@
 
           <div v-if="task.plan?.length" class="border-t border-slate-200/80 p-5">
             <div class="mb-2 flex items-center justify-between">
-              <h4 class="text-sm font-semibold text-slate-900">规划方案</h4>
+              <h4 class="text-sm font-semibold text-slate-900">任务计划</h4>
               <span class="admin-chip">{{ task.plan.length }} 条</span>
             </div>
             <div class="admin-table-wrap">
@@ -159,7 +158,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { cloneAdminTask, deleteAdminTask, fetchAdminTask, fetchAdminTaskTrace, retryAdminTask } from "@/api/admin";
+import { deleteAdminTask, fetchAdminTask, fetchAdminTaskTrace, retryAdminTask } from "@/api/admin";
 import type { TaskDetail, TaskTraceEvent } from "@/types";
 
 const route = useRoute();
@@ -171,8 +170,8 @@ const actionLoading = ref(false);
 const errorMessage = ref("");
 const traceExpanded = ref(false);
 
-const secondaryButtonClass = "admin-btn-secondary";
 const ghostButtonClass = "admin-btn-ghost";
+const secondaryButtonClass = "admin-btn-secondary";
 const warningButtonClass = "admin-btn-warning";
 const dangerButtonClass = "admin-btn-danger";
 
@@ -182,22 +181,22 @@ const runningTask = computed(() => Boolean(task.value && (task.value.status === 
 const planningSummary = computed(() => {
   if (!task.value?.plan?.length) {
     return {
-      label: "未生成方案",
-      title: "当前还没有规划方案",
-      detail: "任务如果已经失败或仍在处理中，方案可能尚未落地。"
+      label: "未生成计划",
+      title: "当前还没有任务计划",
+      detail: "任务如果失败或仍在处理中，计划可能尚未生成。"
     };
   }
   if (task.value.hasTimedTranscript) {
     return {
-      label: "语义 + 四信号",
-      title: "当前方案优先参考时间轴字幕与多信号融合",
-      detail: "这批切点会优先靠近对白边界、音频卡点、镜头切换和视觉事件。"
+      label: "时间轴输入",
+      title: "当前任务包含时间轴文本输入",
+      detail: "系统会优先依据时间轴文本与阶段信号推进生成。"
     };
   }
   return {
-    label: "多信号规划",
-    title: "当前方案来自融合规划链路",
-    detail: "如果没有时间轴字幕，系统会更多依赖视觉事件、音频峰值和镜头切换。"
+    label: "任务生成",
+    title: "当前任务使用标准生成链路",
+    detail: "系统按分析、编排、渲染阶段持续推进。"
   };
 });
 
@@ -264,11 +263,6 @@ async function deleteTaskAction() {
   } finally {
     actionLoading.value = false;
   }
-}
-
-async function cloneTaskToWorkbench() {
-  const draft = await cloneAdminTask(taskId.value);
-  router.push({ path: "/tasks/new", query: { cloneFrom: draft.sourceTaskId } });
 }
 
 watch(taskId, () => {
