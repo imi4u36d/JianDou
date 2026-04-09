@@ -1,5 +1,6 @@
 export type TaskStatus =
   | "PENDING"
+  | "PAUSED"
   | "ANALYZING"
   | "PLANNING"
   | "RENDERING"

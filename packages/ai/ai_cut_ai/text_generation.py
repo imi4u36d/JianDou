@@ -895,16 +895,22 @@ _VIDEO_MODEL_ALIASES = {
     "seeddance-1-5-pro": "seeddance-1.5-pro",
     "doubao-seedance-1-5-pro-251215": "seeddance-1.5-pro",
 }
-_DEFAULT_SEEDREAM_IMAGE_MODEL = "doubao-seedream-5-0-260128"
+_SEEDREAM_IMAGE_MODEL_4_5 = "doubao-seedream-4-5-251128"
+_SEEDREAM_IMAGE_MODEL_5_0 = "doubao-seedream-5-0-260128"
+_DEFAULT_SEEDREAM_IMAGE_MODEL = _SEEDREAM_IMAGE_MODEL_4_5
 _SEEDREAM_IMAGE_MODEL_ALIASES = {
-    "doubao-seedream-5.0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "doubao-seedream-5-0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "doubao-seedream-5.0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "doubao-seedream-5-0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "seedream-5.0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "seedream-5-0-lite": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "seedream-5.0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
-    "seedream-5-0": _DEFAULT_SEEDREAM_IMAGE_MODEL,
+    "doubao-seedream-4.5": _SEEDREAM_IMAGE_MODEL_4_5,
+    "doubao-seedream-4-5": _SEEDREAM_IMAGE_MODEL_4_5,
+    "seedream-4.5": _SEEDREAM_IMAGE_MODEL_4_5,
+    "seedream-4-5": _SEEDREAM_IMAGE_MODEL_4_5,
+    "doubao-seedream-5.0-lite": _SEEDREAM_IMAGE_MODEL_5_0,
+    "doubao-seedream-5-0-lite": _SEEDREAM_IMAGE_MODEL_5_0,
+    "doubao-seedream-5.0": _SEEDREAM_IMAGE_MODEL_5_0,
+    "doubao-seedream-5-0": _SEEDREAM_IMAGE_MODEL_5_0,
+    "seedream-5.0-lite": _SEEDREAM_IMAGE_MODEL_5_0,
+    "seedream-5-0-lite": _SEEDREAM_IMAGE_MODEL_5_0,
+    "seedream-5.0": _SEEDREAM_IMAGE_MODEL_5_0,
+    "seedream-5-0": _SEEDREAM_IMAGE_MODEL_5_0,
 }
 _DEFAULT_IMAGE_SIZES = [
     {"value": "768x768", "label": "768 × 768", "width": 768, "height": 768},
@@ -1114,20 +1120,27 @@ def _infer_script_visual_style(source_text: str) -> str:
 
 
 def _estimate_script_shot_targets(source_text: str) -> tuple[int, int]:
-    text_length = len(source_text.strip())
+    normalized = source_text.strip()
+    text_length = len(normalized)
     if text_length <= 2_000:
-        recommended = 12
+        recommended = 14
     elif text_length <= 5_000:
-        recommended = 18
+        recommended = 22
     elif text_length <= 12_000:
-        recommended = 26
+        recommended = 32
     elif text_length <= 25_000:
-        recommended = 36
+        recommended = 46
     elif text_length <= 50_000:
-        recommended = 48
-    else:
         recommended = 64
-    minimum = max(10, int(round(recommended * 0.7)))
+    elif text_length <= 80_000:
+        recommended = 82
+    else:
+        recommended = 98
+    dialogue_marker_count = sum(normalized.count(marker) for marker in ("“", "”", "\"", "「", "」"))
+    dialogue_pair_estimate = dialogue_marker_count // 2
+    dialogue_bonus = min(36, dialogue_pair_estimate // 5)
+    recommended = min(140, recommended + dialogue_bonus)
+    minimum = max(12, int(round(recommended * 0.75)))
     return minimum, recommended
 
 
@@ -1135,7 +1148,7 @@ def _script_output_token_candidates(configured_max_tokens: int) -> list[int]:
     configured = max(512, int(configured_max_tokens or 0))
     if configured >= 3_200:
         return [configured]
-    candidates = [6_400, 4_800, 3_200, configured]
+    candidates = [9_600, 8_000, 6_400, 4_800, 3_200, configured]
     ordered: list[int] = []
     seen: set[int] = set()
     for item in candidates:
@@ -2182,7 +2195,14 @@ class TextGenerationEngine:
             "请基于下面的正文生成一份可直接用于短剧生产的 Markdown 脚本。\n"
             f"{'用户指定视觉风格：' + visual_style if requested_visual_style else '视觉风格：请你根据题材与情绪自动决策，并在全片保持统一。'}\n"
             f"分镜覆盖要求：必须覆盖原文主线与关键转折，至少输出 {minimum_shot_count} 个分镜，建议输出 {recommended_shot_count} 个分镜。\n"
+            "对话还原要求：尽量还原小说中的全部人物对话，优先保留原文原句，不要改写成摘要。\n"
+            "分镜细节要求：每个分镜都要写清剧情节点、人物动作、情绪变化、镜头运动与环境细节。\n"
+            "剧情顺序要求：必须按原文叙事顺序逐段覆盖，不得跳段合并或忽略关键情节。\n"
+            "连续性要求：前后分镜内容必须连贯，中间连接点必须自然过渡。\n"
+            "声音要求：禁止上一镜声音戛然而止后下一镜声音立刻硬切出现；应使用尾音延续、环境音桥接、渐入渐出或 J-cut/L-cut 处理。\n"
+            "时长要求：每个分镜的“建议时长”必须写区间（如 3-5 秒），不要只写单点秒数。\n"
             "若原文篇幅较长，请保证开端、发展、转折、高潮、结局都有镜头覆盖，避免只写前几段情节。\n"
+            "若输出长度受限，请优先保留关键对白与剧情推进信息，再压缩修饰性描写，不得省略关键台词。\n"
             "如果原文信息不完整，请在不偏离原意的前提下补足角色外观锚点、环境视觉基调和分镜动作。\n"
             "请直接输出最终剧本，不要写解释、前言或额外说明。\n\n"
             "【用户正文开始】\n"
@@ -2193,7 +2213,14 @@ class TextGenerationEngine:
             "请基于我附带的 TXT 正文文件生成一份可直接用于短剧生产的 Markdown 脚本。\n"
             f"{'用户指定视觉风格：' + visual_style if requested_visual_style else '视觉风格：请你根据题材与情绪自动决策，并在全片保持统一。'}\n"
             f"分镜覆盖要求：必须覆盖原文主线与关键转折，至少输出 {minimum_shot_count} 个分镜，建议输出 {recommended_shot_count} 个分镜。\n"
+            "对话还原要求：尽量还原小说中的全部人物对话，优先保留原文原句，不要改写成摘要。\n"
+            "分镜细节要求：每个分镜都要写清剧情节点、人物动作、情绪变化、镜头运动与环境细节。\n"
+            "剧情顺序要求：必须按原文叙事顺序逐段覆盖，不得跳段合并或忽略关键情节。\n"
+            "连续性要求：前后分镜内容必须连贯，中间连接点必须自然过渡。\n"
+            "声音要求：禁止上一镜声音戛然而止后下一镜声音立刻硬切出现；应使用尾音延续、环境音桥接、渐入渐出或 J-cut/L-cut 处理。\n"
+            "时长要求：每个分镜的“建议时长”必须写区间（如 3-5 秒），不要只写单点秒数。\n"
             "若原文篇幅较长，请保证开端、发展、转折、高潮、结局都有镜头覆盖，避免只写前几段情节。\n"
+            "若输出长度受限，请优先保留关键对白与剧情推进信息，再压缩修饰性描写，不得省略关键台词。\n"
             "如果原文信息不完整，请在不偏离原意的前提下补足角色外观锚点、环境视觉基调和分镜动作。\n"
             "请完整阅读附件文件内容，并直接输出最终剧本，不要写解释、前言或额外说明。"
         )
@@ -4264,7 +4291,8 @@ class TextGenerationEngine:
     def _enforce_video_hard_requirements(self, prompt: str) -> str:
         base_prompt = prompt.strip()
         hard_requirement = (
-            "硬性要求（必须满足）：镜头转换连贯衔接，不打断对白，不在一句对白中途切断。"
+            "硬性要求（必须满足）：镜头转换连贯衔接，不打断对白，不在一句对白中途切断；"
+            "前后片段声音必须自然过渡，禁止上一段声音戛然而止后下一段声音立即硬切。"
         )
         if hard_requirement in base_prompt:
             return base_prompt

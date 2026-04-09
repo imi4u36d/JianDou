@@ -4,6 +4,7 @@ export const TERMINAL_TASK_STATUSES: TaskStatus[] = ["COMPLETED", "FAILED"];
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   PENDING: "排队等待",
+  PAUSED: "已暂停",
   ANALYZING: "分析素材",
   PLANNING: "生成方案",
   RENDERING: "渲染导出",
@@ -13,6 +14,7 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 
 export const TASK_LIFECYCLE_GROUP_LABELS = {
   queued: "排队中",
+  paused: "已暂停",
   running: "处理中",
   completed: "已完成",
   failed: "失败"
@@ -32,6 +34,8 @@ export function getTaskLifecycleGroup(status: TaskStatus) {
       return "completed";
     case "FAILED":
       return "failed";
+    case "PAUSED":
+      return "paused";
     case "ANALYZING":
     case "PLANNING":
     case "RENDERING":

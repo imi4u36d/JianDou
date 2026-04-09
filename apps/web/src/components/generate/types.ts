@@ -30,7 +30,7 @@ export interface GenerateFormCardProps {
   canSubmit: boolean;
 }
 
-export type ProgressStatus = "idle" | "running" | "completed" | "failed";
+export type ProgressStatus = "idle" | "running" | "paused" | "completed" | "failed";
 
 export interface TaskProgressState {
   status: ProgressStatus;

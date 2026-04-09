@@ -29,6 +29,8 @@ function mapTaskStatus(status: TaskStatus, rawProgress: number | null | undefine
   switch (status) {
     case "PENDING":
       return { status: "running" as const, stage: "任务排队中", progress: Math.max(progress, 12) };
+    case "PAUSED":
+      return { status: "paused" as const, stage: "任务已暂停", progress: Math.max(progress, 1) };
     case "ANALYZING":
       return { status: "running" as const, stage: "分析输入内容", progress: Math.max(progress, 34) };
     case "PLANNING":

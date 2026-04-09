@@ -27,8 +27,12 @@ function normalizeRuntimeConfig(config: Partial<RuntimeConfig>): RuntimeConfig {
 
 export async function loadRuntimeConfig() {
   try {
+    // 使用 Vite 的 BASE_URL 组装静态资源地址，避免在 /tasks 等子路由下被解析成相对路径。
+    const basePath = import.meta.env.BASE_URL || "/";
+    const runtimeConfigUrl = new URL(`runtime-config.json`, window.location.origin + basePath).toString();
+
     // 加载公开的运行时配置，便于部署环境在不重建前端的情况下覆盖接口地址。
-    const response = await fetch(new URL("runtime-config.json", document.baseURI).toString(), {
+    const response = await fetch(runtimeConfigUrl, {
       cache: "no-store"
     });
     if (!response.ok) {

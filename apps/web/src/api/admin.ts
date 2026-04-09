@@ -65,6 +65,10 @@ export function retryAdminTask(taskId: string) {
   return postJson<TaskDetail>(`/admin/tasks/${taskId}/retry`, {});
 }
 
+export function terminateAdminTask(taskId: string) {
+  return postJson<TaskDetail>(`/admin/tasks/${taskId}/terminate`, {});
+}
+
 export function deleteAdminTask(taskId: string) {
   return deleteJson<TaskDeleteResult>(`/admin/tasks/${taskId}`);
 }

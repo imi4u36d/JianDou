@@ -43,11 +43,23 @@
               </select>
             </label>
             <label class="grid gap-2 text-sm text-slate-700">
-              视频时长
-              <select v-model="form.videoDurationSeconds" class="field-select">
-                <option value="auto">自动（按分镜脚本）</option>
-                <option v-for="item in durationOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              视频总时长限制
+              <select v-model="durationLimitMode" class="field-select">
+                <option value="auto">自动</option>
+                <option value="manual">手动输入最大时长</option>
               </select>
+            </label>
+            <label v-if="durationLimitMode === 'manual'" class="grid gap-2 text-sm text-slate-700">
+              最大总时长（秒）
+              <input
+                v-model="manualMaxDurationSeconds"
+                class="field-input"
+                type="number"
+                min="1"
+                max="120"
+                step="1"
+                placeholder="请输入 1-120"
+              />
             </label>
           </div>
 
@@ -181,6 +193,8 @@ const promptSource = ref("手动输入");
 const statusText = ref("等待填写参数");
 const uploadedText = ref<UploadResponse | null>(null);
 const textFileInput = ref<HTMLInputElement | null>(null);
+const durationLimitMode = ref<"auto" | "manual">("auto");
+const manualMaxDurationSeconds = ref("");
 const nowMs = ref(Date.now());
 const localTaskStartedAtMs = ref<number | null>(null);
 const localTaskEndedAtMs = ref<number | null>(null);
@@ -223,19 +237,40 @@ function isPreferredVideoModel(value: string | null | undefined): boolean {
   return normalized.includes("seeddance") || normalized.includes("seedance");
 }
 
-function formatDurationSelection(value: CreateGenerationTaskRequest["videoDurationSeconds"]): string {
-  if (value === "auto") {
-    return "自动（按分镜脚本）";
+function parseDurationSeconds(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
   }
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return `${Math.trunc(value)}s`;
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
   }
-  return "未选择";
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) {
+    return null;
+  }
+  const seconds = Math.trunc(numeric);
+  if (seconds < 1 || seconds > 120) {
+    return null;
+  }
+  return seconds;
 }
 
-function resolvePromptDurationSeconds(value: CreateGenerationTaskRequest["videoDurationSeconds"]): number {
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return Math.trunc(value);
+function formatDurationSelection(): string {
+  if (durationLimitMode.value === "auto") {
+    return "自动";
+  }
+  const manualMax = parseDurationSeconds(manualMaxDurationSeconds.value);
+  if (manualMax !== null) {
+    return `手动上限 ${manualMax}s`;
+  }
+  return "手动（未填写）";
+}
+
+function resolvePromptDurationSeconds(): number {
+  const manualMax = parseDurationSeconds(manualMaxDurationSeconds.value);
+  if (durationLimitMode.value === "manual" && manualMax !== null) {
+    return manualMax;
   }
   const defaultDuration = options.value?.defaultVideoDurationSeconds;
   if (typeof defaultDuration === "number" && Number.isFinite(defaultDuration) && defaultDuration > 0) {
@@ -345,7 +380,32 @@ const videoSizeOptions = computed<GenerationVideoSizeOption[]>(() => {
     });
   return [...filtered].sort(compareVideoSizeByArea);
 });
-const durationOptions = computed<GenerationVideoDurationOption[]>(() => options.value?.videoDurations ?? []);
+const durationOptions = computed<GenerationVideoDurationOption[]>(() => {
+  const source = options.value?.videoDurations ?? [];
+  const selectedVideoModel = normalizeModelName(form.value.videoModel);
+  const filtered = source.filter((item) => {
+    if (!selectedVideoModel) {
+      return true;
+    }
+    const supportedModels = Array.isArray(item.supportedModels) ? item.supportedModels : [];
+    if (!supportedModels.length) {
+      return true;
+    }
+    return supportedModels.some((model) => normalizeModelName(model) === selectedVideoModel);
+  });
+  return [...filtered].sort((a, b) => a.value - b.value);
+});
+const minimumSupportedDurationSeconds = computed(() => {
+  const first = durationOptions.value.find((item) => Number.isFinite(item.value) && item.value > 0);
+  return first ? Math.trunc(first.value) : null;
+});
+const normalizedManualMaxDurationSeconds = computed(() => parseDurationSeconds(manualMaxDurationSeconds.value));
+const isDurationLimitValid = computed(() => {
+  if (durationLimitMode.value === "auto") {
+    return true;
+  }
+  return normalizedManualMaxDurationSeconds.value !== null;
+});
 const promptSourceLabel = computed(() => {
   return form.value.creativePrompt?.trim() ? promptSource.value : "系统默认";
 });
@@ -390,7 +450,7 @@ const progressElapsedLabel = computed(() => {
 });
 
 const isFormReady = computed(() => {
-  return Boolean(form.value.title.trim() && form.value.videoDurationSeconds);
+  return Boolean(form.value.title.trim() && isDurationLimitValid.value);
 });
 
 const submitLabel = computed(() => {
@@ -462,7 +522,7 @@ const summaryRows = computed(() => {
     { label: "当前进度", value: `${Math.max(0, Math.min(100, progressValue))}%` },
     { label: "模型配置", value: modelSummary },
     { label: "分辨率", value: form.value.videoSize || "未选择" },
-    { label: "视频时长", value: formatDurationSelection(form.value.videoDurationSeconds) },
+    { label: "视频时长", value: formatDurationSelection() },
     { label: "已生成结果", value: task?.outputs?.length ? `${task.outputs.length} 条` : "暂无" },
   ];
 });
@@ -477,7 +537,7 @@ watch(
       localTaskEndedAtMs.value = null;
       return;
     }
-    if (status === "completed" || status === "failed") {
+    if (status === "completed" || status === "failed" || status === "paused") {
       if (localTaskEndedAtMs.value === null) {
         localTaskEndedAtMs.value = Date.now();
       }
@@ -515,13 +575,12 @@ async function loadOptions() {
       isPreferredVideoModel,
       result.defaultVideoModel ?? null,
     );
-    if (form.value.videoDurationSeconds == null) {
-      if (typeof result.defaultVideoDurationSeconds === "number" && result.defaultVideoDurationSeconds > 0) {
-        form.value.videoDurationSeconds = result.defaultVideoDurationSeconds;
-      } else if (result.videoDurations.length > 0) {
-        form.value.videoDurationSeconds = result.videoDurations[0].value;
-      } else {
-        form.value.videoDurationSeconds = "auto";
+    form.value.videoDurationSeconds = "auto";
+    if (!manualMaxDurationSeconds.value.trim()) {
+      const fallbackDuration =
+        parseDurationSeconds(result.defaultVideoDurationSeconds) ?? parseDurationSeconds(result.videoDurations[0]?.value);
+      if (fallbackDuration !== null) {
+        manualMaxDurationSeconds.value = String(fallbackDuration);
       }
     }
     statusText.value = "参数已加载，可创建任务";
@@ -578,14 +637,14 @@ async function handleGeneratePrompt() {
     statusText.value = "请先填写任务标题";
     return;
   }
-  if (!form.value.videoDurationSeconds) {
-    statusText.value = "请先选择视频时长";
+  if (!isDurationLimitValid.value) {
+    statusText.value = "请先填写合法的最大总时长（1-120 秒）";
     return;
   }
   generatingPrompt.value = true;
   statusText.value = "正在生成提示词...";
   try {
-    const seconds = resolvePromptDurationSeconds(form.value.videoDurationSeconds);
+    const seconds = resolvePromptDurationSeconds();
     const result = await generateCreativePrompt({
       title: form.value.title,
       aspectRatio: form.value.aspectRatio,
@@ -614,6 +673,23 @@ async function submitTask() {
     statusText.value = "请先补全任务参数";
     return;
   }
+  const manualMax = normalizedManualMaxDurationSeconds.value;
+  if (durationLimitMode.value === "manual" && manualMax === null) {
+    statusText.value = "请先填写合法的最大总时长（1-120 秒）";
+    return;
+  }
+
+  let minDurationSeconds: number | null = null;
+  let maxDurationSeconds: number | null = null;
+  if (durationLimitMode.value === "manual" && manualMax !== null) {
+    const fallbackMin =
+      minimumSupportedDurationSeconds.value ??
+      parseDurationSeconds(options.value?.defaultVideoDurationSeconds) ??
+      1;
+    minDurationSeconds = Math.max(1, Math.min(manualMax, fallbackMin));
+    maxDurationSeconds = manualMax;
+  }
+
   submitting.value = true;
   localTaskStartedAtMs.value = Date.now();
   localTaskEndedAtMs.value = null;
@@ -628,7 +704,9 @@ async function submitTask() {
       textAnalysisModel: form.value.textAnalysisModel || null,
       videoModel: form.value.videoModel || null,
       videoSize: form.value.videoSize || null,
-      videoDurationSeconds: form.value.videoDurationSeconds ?? null,
+      videoDurationSeconds: "auto",
+      minDurationSeconds,
+      maxDurationSeconds,
       transcriptText: form.value.transcriptText?.trim() || null,
       stopBeforeVideoGeneration: shouldStopBeforeVideoGeneration(),
     };

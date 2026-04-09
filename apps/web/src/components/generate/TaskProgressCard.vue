@@ -67,6 +67,9 @@ const statusLabel = computed(() => {
   if (props.state.status === "running") {
     return "进行中";
   }
+  if (props.state.status === "paused") {
+    return "已暂停";
+  }
   return "待开始";
 });
 </script>
@@ -147,6 +150,11 @@ const statusLabel = computed(() => {
 .status-running {
   background: #dbeafe;
   color: #1d4ed8;
+}
+
+.status-paused {
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .status-completed {

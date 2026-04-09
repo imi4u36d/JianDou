@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 class TaskStatus(str, Enum):
     PENDING = "PENDING"
+    PAUSED = "PAUSED"
     ANALYZING = "ANALYZING"
     PLANNING = "PLANNING"
     RENDERING = "RENDERING"

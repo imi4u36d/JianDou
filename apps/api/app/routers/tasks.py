@@ -157,6 +157,36 @@ def retry_task(request: Request, task_id: str) -> TaskDetail:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@router.post("/tasks/{task_id}/pause", response_model=TaskDetail)
+def pause_task(request: Request, task_id: str) -> TaskDetail:
+    try:
+        return request.app.state.runtime.service.pause_task(task_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/tasks/{task_id}/continue", response_model=TaskDetail)
+def continue_task(request: Request, task_id: str) -> TaskDetail:
+    try:
+        return request.app.state.runtime.service.continue_task(task_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/tasks/{task_id}/terminate", response_model=TaskDetail)
+def terminate_task(request: Request, task_id: str) -> TaskDetail:
+    try:
+        return request.app.state.runtime.service.terminate_task(task_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.delete("/tasks/{task_id}", response_model=TaskDeleteResult)
 def delete_task(request: Request, task_id: str) -> TaskDeleteResult:
     try:

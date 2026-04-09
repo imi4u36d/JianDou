@@ -174,7 +174,9 @@ EDITING_MODE_LABELS = {"drama": "短剧生成"}
 
 DRAMA_PROMPT_APPENDIX = (
     "短剧模式补充：请优先保留高燃卡点、对白完整、冲突升级、反转和情绪爆点，"
-    "不要把一句对白或一组动作切断。"
+    "不要把一句对白或一组动作切断。前后镜头与中间连接点必须连贯，"
+    "声音过渡要自然，禁止上一段声音戛然而止后下一段声音立即硬切。"
+    "音频仅保留人物对白与环境音，禁止旁白、画外音和解说配音。"
 )
 
 _SCRIPT_DURATION_RANGE_RE = re.compile(
@@ -184,6 +186,9 @@ _SCRIPT_DURATION_RANGE_RE = re.compile(
 _SCRIPT_DURATION_VALUE_RE = re.compile(
     r"(?<![\d.])(?P<value>\d{1,3}(?:\.\d+)?)\s*(?:s|秒)(?![a-zA-Z])",
     re.IGNORECASE,
+)
+_SHOT_HEADING_RE = re.compile(
+    r"^\s*#{2,4}\s*分镜\s*(?P<index>[0-9一二三四五六七八九十百千两]+)?\s*[·\-：:]*\s*(?P<title>.*)$"
 )
 
 
@@ -203,6 +208,14 @@ def _is_content_policy_blocked_error(message: str | None) -> bool:
         "审核",
     )
     return any(keyword in normalized for keyword in keywords)
+
+
+class TaskPausedError(RuntimeError):
+    pass
+
+
+class TaskTerminatedError(RuntimeError):
+    pass
 
 
 class TaskService:
@@ -818,6 +831,7 @@ class TaskService:
             )
             context_payload["keyframeStatus"] = "failed"
             context_payload["keyframeRunId"] = run_response.id
+            context_payload.pop("keyframeRemoteSourceUrl", None)
             context_payload["keyframeError"] = truncate_text(error_message, 500) or error_message
             self.storage.save_task_context(task_id, context_payload)
             self._trace(
@@ -856,6 +870,7 @@ class TaskService:
             )
             context_payload["keyframeStatus"] = "failed"
             context_payload["keyframeRunId"] = run_response.id
+            context_payload.pop("keyframeRemoteSourceUrl", None)
             context_payload["keyframeError"] = error_message
             self.storage.save_task_context(task_id, context_payload)
             self._trace(
@@ -875,6 +890,7 @@ class TaskService:
 
         metadata = result.metadata if isinstance(result.metadata, dict) else {}
         model_info = result.modelInfo if isinstance(result.modelInfo, dict) else {}
+        remote_source_url = str(metadata.get("remoteSourceUrl") or "").strip()
         provider = str(
             model_info.get("provider")
             or metadata.get("provider")
@@ -962,6 +978,10 @@ class TaskService:
         context_payload["keyframeStatus"] = "succeeded"
         context_payload["keyframeRunId"] = run_response.id
         context_payload["keyframeOutputUrl"] = output_url
+        if remote_source_url:
+            context_payload["keyframeRemoteSourceUrl"] = remote_source_url
+        else:
+            context_payload.pop("keyframeRemoteSourceUrl", None)
         context_payload["keyframeModel"] = resolved_model
         context_payload["keyframeProvider"] = provider
         context_payload.pop("keyframeError", None)
@@ -1013,11 +1033,270 @@ class TaskService:
         values = self._extract_script_duration_values(script_text)
         if not values:
             return fallback, 0
-        total_seconds = int(round(sum(values)))
-        if total_seconds <= 0:
+        average_seconds = int(round(sum(values) / max(1, len(values))))
+        if average_seconds <= 0:
             return fallback, 0
-        resolved = max(1, min(120, total_seconds))
+        resolved = max(1, min(120, average_seconds))
         return resolved, len(values)
+
+    def _parse_duration_range_hint(self, text: str | None) -> tuple[int, int] | None:
+        normalized_text = str(text or "").strip()
+        if not normalized_text:
+            return None
+
+        range_match = _SCRIPT_DURATION_RANGE_RE.search(normalized_text)
+        if range_match:
+            try:
+                left = float(range_match.group("left"))
+                right = float(range_match.group("right"))
+            except Exception:
+                return None
+            low = max(1, min(120, int(round(min(left, right)))))
+            high = max(low, min(120, int(round(max(left, right)))))
+            return low, high
+
+        value_match = _SCRIPT_DURATION_VALUE_RE.search(normalized_text)
+        if value_match:
+            try:
+                value = float(value_match.group("value"))
+            except Exception:
+                return None
+            center = max(1, min(120, int(round(value))))
+            low = max(1, center - 1)
+            high = min(120, center + 1)
+            if high <= low:
+                high = min(120, low + 1)
+            return low, max(low, high)
+        return None
+
+    def _extract_storyboard_shot_duration_ranges(self, analysis_script_text: str) -> list[tuple[int, int]]:
+        normalized_text = str(analysis_script_text or "").strip()
+        if not normalized_text:
+            return []
+        lines = [line.rstrip() for line in normalized_text.splitlines()]
+        ranges: list[tuple[int, int]] = []
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if len(cells) < 2:
+                continue
+            if all(re.fullmatch(r"[:\-\s]*", cell or "") for cell in cells):
+                continue
+            first = cells[0]
+            if not first:
+                continue
+            if "镜号" in first or "shot" in first.lower():
+                continue
+            duration_cell = cells[6] if len(cells) > 6 else cells[-1]
+            parsed = self._parse_duration_range_hint(duration_cell)
+            if parsed is not None:
+                ranges.append(parsed)
+
+        if ranges:
+            return ranges
+
+        fallback_ranges: list[tuple[int, int]] = []
+        for match in _SCRIPT_DURATION_RANGE_RE.finditer(normalized_text):
+            parsed = self._parse_duration_range_hint(match.group(0))
+            if parsed is not None:
+                fallback_ranges.append(parsed)
+        return fallback_ranges
+
+    def _resolve_video_model_duration_constraints(self, video_model: str | None) -> tuple[int, int, bool]:
+        normalized_model = self.normalize_video_model_key(video_model or "")
+        constraints = self.text_generator.get_model_constraints()
+        for item in constraints:
+            if str(item.get("mediaKind") or "").strip().lower() != "video":
+                continue
+            model_key = self.normalize_video_model_key(str(item.get("model") or ""))
+            if model_key != normalized_model:
+                continue
+            min_duration = max(1, min(120, int(item.get("minDurationSeconds") or self._default_generation_duration_seconds())))
+            max_duration = max(min_duration, min(120, int(item.get("maxDurationSeconds") or min_duration)))
+            return min_duration, max_duration, min_duration == max_duration
+        fallback = self._default_generation_duration_seconds()
+        safe_fallback = max(1, min(120, int(fallback)))
+        return safe_fallback, safe_fallback, True
+
+    def _build_clip_duration_plan(
+        self,
+        *,
+        clip_count: int,
+        default_min_duration: int,
+        default_max_duration: int,
+        shot_duration_ranges: list[tuple[int, int]],
+    ) -> list[tuple[int, int, int]]:
+        normalized_count = max(1, int(clip_count or 1))
+        global_min = max(1, min(120, int(default_min_duration or 1)))
+        global_max = max(global_min, min(120, int(default_max_duration or global_min)))
+        plan: list[tuple[int, int, int]] = []
+        for index in range(normalized_count):
+            if index < len(shot_duration_ranges):
+                clip_min_raw, clip_max_raw = shot_duration_ranges[index]
+            else:
+                clip_min_raw, clip_max_raw = global_min, global_max
+            clip_min = max(global_min, min(global_max, int(clip_min_raw)))
+            clip_max = max(global_min, min(global_max, int(clip_max_raw)))
+            if clip_min > clip_max:
+                clip_min, clip_max = global_min, global_max
+            clip_target = max(clip_min, min(clip_max, int(round((clip_min + clip_max) / 2))))
+            plan.append((clip_target, clip_min, clip_max))
+        return plan
+
+    def _strip_narration_voiceover_text(self, text: str | None) -> str:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return ""
+        lowered = normalized.lower()
+        if "旁白" not in normalized and "画外音" not in normalized and "解说" not in normalized and "narration" not in lowered and "voiceover" not in lowered and "voice over" not in lowered:
+            return normalized
+        cleaned = re.sub(
+            r"[（(]\s*(?:旁白|画外音|解说|narration|voice\s*over|voiceover)\s*[)）]\s*[:：]?\s*",
+            "",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        segments = re.split(r"[；;。!！?？\n]+", cleaned)
+        kept: list[str] = []
+        for segment in segments:
+            candidate = segment.strip()
+            if not candidate:
+                continue
+            lowered_candidate = candidate.lower()
+            if "旁白" in candidate or "画外音" in candidate or "解说" in candidate or "narration" in lowered_candidate or "voiceover" in lowered_candidate or "voice over" in lowered_candidate:
+                continue
+            kept.append(candidate)
+        merged = "；".join(kept).strip("，,；;。 ")
+        return merged
+
+    def _extract_storyboard_shot_prompts(self, analysis_script_text: str) -> list[str]:
+        max_outputs = max(1, int(self.settings.pipeline.max_output_count or 1))
+        normalized = str(analysis_script_text or "").strip()
+        if not normalized:
+            return []
+        lines = [line.rstrip() for line in normalized.splitlines()]
+        shot_prompts: list[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if len(cells) < 4:
+                continue
+            if all(re.fullmatch(r"[:\-\s]*", cell or "") for cell in cells):
+                continue
+            first = cells[0]
+            if not first:
+                continue
+            if "镜号" in first or "shot" in first.lower():
+                continue
+            shot_index = re.sub(r"[^0-9一二三四五六七八九十百千两]", "", first) or str(len(shot_prompts) + 1)
+            scene = cells[1] if len(cells) > 1 else ""
+            camera = cells[2] if len(cells) > 2 else ""
+            visual = cells[3] if len(cells) > 3 else ""
+            dialogue = self._strip_narration_voiceover_text(cells[4] if len(cells) > 4 else "")
+            audio = cells[5] if len(cells) > 5 else ""
+            duration_hint = cells[6] if len(cells) > 6 else ""
+            parts = [f"镜头编号：{shot_index}"]
+            if scene:
+                parts.append(f"剧情节点：{scene}")
+            if camera:
+                parts.append(f"镜头语言：{camera}")
+            if visual:
+                parts.append(f"画面描述：{visual}")
+            if dialogue:
+                parts.append(f"人物对白：{dialogue}")
+            if audio:
+                parts.append(f"声音设计：{audio}")
+            if duration_hint:
+                parts.append(f"建议时长：{duration_hint}")
+            prompt = "；".join(parts)
+            if prompt:
+                shot_prompts.append(truncate_text(prompt, 420) or prompt)
+            if len(shot_prompts) >= max_outputs:
+                return shot_prompts
+
+        if shot_prompts:
+            return shot_prompts
+
+        current_title = ""
+        current_lines: list[str] = []
+
+        def flush_heading_shot() -> None:
+            nonlocal current_title, current_lines
+            if len(shot_prompts) >= max_outputs:
+                current_title = ""
+                current_lines = []
+                return
+            title = current_title.strip()
+            body = " ".join(item.strip("-* \t") for item in current_lines if item.strip())
+            body = self._strip_narration_voiceover_text(body)
+            if title and body:
+                merged = f"剧情节点：{title}；画面描述：{body}"
+            elif title:
+                merged = f"剧情节点：{title}"
+            else:
+                merged = body
+            merged = merged.strip()
+            if merged:
+                shot_prompts.append(truncate_text(merged, 420) or merged)
+            current_title = ""
+            current_lines = []
+
+        for line in lines:
+            stripped = line.strip()
+            match = _SHOT_HEADING_RE.match(stripped)
+            if match:
+                flush_heading_shot()
+                current_title = str(match.group("title") or "").strip()
+                continue
+            if current_title:
+                current_lines.append(line)
+
+        flush_heading_shot()
+        return shot_prompts[:max_outputs]
+
+    def _build_sequential_clip_prompts(
+        self,
+        *,
+        base_prompt: str,
+        analysis_script_text: str,
+        fallback_count: int,
+    ) -> list[str]:
+        max_outputs = max(1, int(self.settings.pipeline.max_output_count or 1))
+        requested_count = max(1, min(max_outputs, int(fallback_count or 1)))
+        shot_prompts = self._extract_storyboard_shot_prompts(analysis_script_text)
+        audio_rule = "音频要求：保留人物对白与环境音，禁止旁白、画外音、解说配音。"
+        if shot_prompts:
+            total = len(shot_prompts)
+            prompts: list[str] = []
+            for index, shot_prompt in enumerate(shot_prompts, start=1):
+                continuity_hint = "承接上一镜动作与情绪，衔接自然。" if index > 1 else "建立场景与人物关系。"
+                composed = (
+                    f"{base_prompt}\n\n"
+                    f"按剧情顺序仅生成第 {index}/{total} 镜，不要跨镜头合并。\n"
+                    f"{shot_prompt}\n"
+                    f"{continuity_hint}\n"
+                    f"{audio_rule}"
+                )
+                prompts.append(truncate_text(composed, 6200) or composed)
+            return prompts
+
+        prompts: list[str] = []
+        for index in range(1, requested_count + 1):
+            continuity_hint = "承接上一镜动作与情绪，衔接自然。" if index > 1 else "建立场景与人物关系。"
+            composed = (
+                f"{base_prompt}\n\n"
+                f"按剧情顺序仅生成第 {index}/{requested_count} 镜，不要跨镜头合并。\n"
+                f"{continuity_hint}\n"
+                f"{audio_rule}"
+            )
+            prompts.append(truncate_text(composed, 6200) or composed)
+        return prompts
 
     def _record_video_model_usage(self, result: GenerateTextMediaResponse) -> None:
         metadata = result.metadata if isinstance(result.metadata, dict) else {}
@@ -1130,7 +1409,10 @@ class TaskService:
         text_model = resolve_text_analysis_target(self.settings.model, model_name)
         transcript_excerpt = truncate_text((payload.transcriptText or "").strip(), 1400) or ""
         mode_label = self._editing_mode_label(payload.editingMode)
-        mode_hint = "短剧模式强调高燃卡点、对白完整、冲突升级和反转情绪。"
+        mode_hint = (
+            "短剧模式强调高燃卡点、对白完整、冲突升级和反转情绪，"
+            "并要求镜头连接点与声音转场自然连续，仅保留人物对白和环境音，去掉旁白配音。"
+        )
         request_prompt = (
             "你是视频混剪策划，请只输出 JSON，不要解释。\n"
             "目标：生成一段适合视频剪辑规划的大模型提示词，给后续剪辑模型使用。\n"
@@ -1202,7 +1484,9 @@ class TaskService:
         return (
             f"围绕《{payload.title}》做短剧生成，目标时长{duration_label}，"
             f"{semantic_hint}，开头采用{intro}，结尾落在{outro}，"
-            "不要切断对白或连续动作，最后一拍要有明确落点。"
+            "不要切断对白或连续动作，最后一拍要有明确落点，"
+            "相邻片段声音要平滑衔接，避免戛然而止与硬切入，"
+            "只保留人物对白与环境音，不要旁白和画外音解说。"
         )
 
     def _append_editing_mode_prompt(
@@ -1365,10 +1649,14 @@ class TaskService:
         mapping = {
             "task.created": "PENDING",
             "task.retry_requested": "PENDING",
+            "task.continue_requested": "PENDING",
             "task.claimed": "ANALYZING",
             "analysis.started": "ANALYZING",
             "planning.started": "PLANNING",
             "render.started": "RENDERING",
+            "task.paused": "PAUSED",
+            "task.paused_by_developer_setting": "PAUSED",
+            "task.terminated": "FAILED",
             "task.completed": "COMPLETED",
             "task.failed": "FAILED",
         }
@@ -1445,15 +1733,19 @@ class TaskService:
 
         duration_mode = "auto" if payload.videoDurationSeconds == "auto" else "fixed"
         requested_duration = payload.videoDurationSeconds if isinstance(payload.videoDurationSeconds, int) else None
-        fallback_duration = (
-            requested_duration
-            or payload.maxDurationSeconds
-            or payload.minDurationSeconds
-            or self._default_generation_duration_seconds()
+        model_min_duration, model_max_duration, _ = self._resolve_video_model_duration_constraints(
+            payload.videoModel or self.settings.model.video_model_name
         )
-        resolved_duration = max(1, min(120, int(fallback_duration)))
-        min_duration = int(payload.minDurationSeconds or resolved_duration)
-        max_duration = int(payload.maxDurationSeconds or resolved_duration)
+        if requested_duration is not None:
+            resolved_duration = max(1, min(120, int(requested_duration)))
+            min_duration = int(payload.minDurationSeconds or resolved_duration)
+            max_duration = int(payload.maxDurationSeconds or resolved_duration)
+        else:
+            min_duration = int(payload.minDurationSeconds or model_min_duration)
+            max_duration = int(payload.maxDurationSeconds or model_max_duration)
+            resolved_duration = max(1, min(120, int(round((min_duration + max_duration) / 2))))
+        min_duration = max(1, min(120, min_duration))
+        max_duration = max(1, min(120, max_duration))
         if min_duration > max_duration:
             raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
 
@@ -1493,7 +1785,7 @@ class TaskService:
                 "videoModel": payload.videoModel or "",
                 "videoSize": payload.videoSize or "",
                 "durationMode": duration_mode,
-                "durationSeconds": requested_duration or max_duration,
+                "durationSeconds": resolved_duration,
                 "requestedDurationSeconds": payload.videoDurationSeconds if payload.videoDurationSeconds is not None else "",
                 "stopBeforeVideoGeneration": bool(payload.stopBeforeVideoGeneration),
             }
@@ -1511,7 +1803,9 @@ class TaskService:
                 "text_analysis_model": payload.textAnalysisModel or "",
                 "video_size": payload.videoSize or "",
                 "duration_mode": duration_mode,
-                "duration_seconds": requested_duration or max_duration,
+                "duration_seconds": resolved_duration,
+                "min_duration_seconds": min_duration,
+                "max_duration_seconds": max_duration,
                 "stop_before_video_generation": bool(payload.stopBeforeVideoGeneration),
                 "creative_prompt_source": "custom"
                 if str(payload.creativePrompt or "").strip()
@@ -1556,7 +1850,7 @@ class TaskService:
             generatedAt=_iso(utcnow()),
             counts=AdminOverviewCounts(
                 totalTasks=total,
-                queuedTasks=len([task for task in tasks if task.status == "PENDING"]),
+                queuedTasks=len([task for task in tasks if task.status in {"PENDING", "PAUSED"}]),
                 runningTasks=len([task for task in tasks if task.status in {"ANALYZING", "PLANNING", "RENDERING"}]),
                 completedTasks=len([task for task in tasks if task.status == "COMPLETED"]),
                 failedTasks=len([task for task in tasks if task.status == "FAILED"]),
@@ -1668,7 +1962,22 @@ class TaskService:
             task.finished_at = None
             task.retry_count = (task.retry_count or 0) + 1
             session.commit()
-        self._save_task_context(task_id)
+        context_payload = self._load_task_context(task_id)
+        context_payload.pop("pauseRequested", None)
+        context_payload.pop("pauseReason", None)
+        context_payload.pop("resumeReuseAnalysis", None)
+        context_payload.pop("pausedByDeveloperMode", None)
+        context_payload.pop("terminateRequested", None)
+        context_payload.pop("terminateReason", None)
+        context_payload.pop("terminateMessage", None)
+        context_payload.pop("keyframeStatus", None)
+        context_payload.pop("keyframeRunId", None)
+        context_payload.pop("keyframeOutputUrl", None)
+        context_payload.pop("keyframeRemoteSourceUrl", None)
+        context_payload.pop("keyframeModel", None)
+        context_payload.pop("keyframeProvider", None)
+        context_payload.pop("keyframeError", None)
+        self.storage.save_task_context(task_id, context_payload)
 
         self._trace(
             task_id,
@@ -1680,6 +1989,139 @@ class TaskService:
             },
         )
         self.dispatch_task(task_id)
+        return self.get_task_detail(task_id)
+
+    def pause_task(self, task_id: str) -> TaskDetail:
+        previous_status = ""
+        immediate_paused = False
+        with self.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                raise LookupError("task not found")
+            if task.status in {"COMPLETED", "FAILED"}:
+                raise ValueError("已结束任务不支持暂停。")
+            if task.status == "RENDERING":
+                raise ValueError("渲染中的任务暂不支持暂停，请等待当前生成片段完成后再操作。")
+            if task.status == "PAUSED":
+                return self._task_to_detail(task)
+            previous_status = str(task.status or "")
+            if task.status == "PENDING":
+                task.status = "PAUSED"
+                task.progress = max(1, int(task.progress or 0))
+                immediate_paused = True
+            session.commit()
+
+        context_payload = self._load_task_context(task_id)
+        context_payload["pauseRequested"] = True
+        context_payload["pauseReason"] = "manual"
+        self.storage.save_task_context(task_id, context_payload)
+
+        if immediate_paused:
+            self._trace(
+                task_id,
+                "api",
+                "task.paused",
+                "任务已暂停。",
+                {
+                    "reason": "manual",
+                    "previous_status": previous_status,
+                    "immediate": True,
+                },
+            )
+        else:
+            self._trace(
+                task_id,
+                "api",
+                "task.pause_requested",
+                "已收到暂停请求，将在当前阶段结束后暂停。",
+                {
+                    "reason": "manual",
+                    "status": previous_status,
+                    "immediate": False,
+                },
+                "WARN",
+            )
+        return self.get_task_detail(task_id)
+
+    def continue_task(self, task_id: str) -> TaskDetail:
+        with self.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                raise LookupError("task not found")
+            if task.status != "PAUSED":
+                raise ValueError("仅支持继续已暂停任务。")
+            task.status = "PENDING"
+            task.progress = max(1, int(task.progress or 0))
+            task.error_message = ""
+            task.finished_at = None
+            session.commit()
+
+        context_payload = self._load_task_context(task_id)
+        paused_by_developer_mode = self._context_paused_by_developer_mode(context_payload)
+        context_payload["pauseRequested"] = False
+        context_payload.pop("pauseReason", None)
+        context_payload.pop("terminateRequested", None)
+        context_payload.pop("terminateReason", None)
+        context_payload.pop("terminateMessage", None)
+        if paused_by_developer_mode:
+            context_payload["stopBeforeVideoGeneration"] = False
+            context_payload["resumeReuseAnalysis"] = True
+            context_payload["pausedByDeveloperMode"] = False
+        else:
+            context_payload.pop("resumeReuseAnalysis", None)
+        self.storage.save_task_context(task_id, context_payload)
+
+        self._trace(
+            task_id,
+            "api",
+            "task.continue_requested",
+            "任务已继续执行。",
+            {
+                "paused_by_developer_mode": paused_by_developer_mode,
+            },
+        )
+        self.dispatch_task(task_id)
+        return self.get_task_detail(task_id)
+
+    def terminate_task(self, task_id: str) -> TaskDetail:
+        termination_message = "任务已手动终止。"
+        previous_status = ""
+        changed = False
+        with self.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                raise LookupError("task not found")
+            if task.status == "COMPLETED":
+                raise ValueError("已完成任务不支持终止。")
+            previous_status = str(task.status or "")
+            if task.status != "FAILED" or str(task.error_message or "").strip() != termination_message:
+                task.status = "FAILED"
+                task.progress = max(1, min(99, int(task.progress or 0)))
+                task.error_message = termination_message
+                task.finished_at = utcnow()
+                session.commit()
+                changed = True
+
+        context_payload = self._load_task_context(task_id)
+        context_payload["terminateRequested"] = True
+        context_payload["terminateReason"] = "manual"
+        context_payload["terminateMessage"] = termination_message
+        context_payload["pauseRequested"] = False
+        context_payload.pop("pauseReason", None)
+        self.storage.save_task_context(task_id, context_payload)
+
+        self._trace(
+            task_id,
+            "api",
+            "task.terminated",
+            "任务已终止。",
+            {
+                "reason": "manual",
+                "previous_status": previous_status,
+                "changed": changed,
+            },
+            "WARN",
+        )
         return self.get_task_detail(task_id)
 
     def delete_task(self, task_id: str) -> TaskDeleteResult:
@@ -1791,6 +2233,7 @@ class TaskService:
                 if min_duration > max_duration:
                     min_duration, max_duration = max_duration, min_duration
                 stop_before_video_generation = self._context_stop_before_video_generation(context_payload)
+                self._raise_if_interrupt_requested(task_id, checkpoint="analysis.bootstrap")
                 task.status = "ANALYZING"
                 task.progress = max(10, int(task.progress or 0))
                 task.started_at = task.started_at or utcnow()
@@ -1818,80 +2261,118 @@ class TaskService:
             analysis_model_info: dict[str, object] = {}
             analysis_call_chain: list[dict[str, object]] = []
             analysis_failure_message = ""
-            try:
-                analysis_request = GenerationRunRequest(
-                    kind="script",
-                    input={"text": analysis_source_text},
-                    model={"textAnalysisModel": text_model},
-                    options={},
+            reuse_analysis_result = self._context_resume_reuse_analysis(context_payload)
+            if reuse_analysis_result:
+                analysis_prompt = str(context_payload.get("analysisPrompt") or "").strip() or prompt
+                analysis_script_text = str(context_payload.get("analysisScriptText") or "").strip()
+                analysis_run_id = str(context_payload.get("analysisRunId") or "").strip()
+                raw_model_info = context_payload.get("analysisModelInfo")
+                raw_call_chain = context_payload.get("analysisCallChain")
+                if isinstance(raw_model_info, dict):
+                    analysis_model_info = dict(raw_model_info)
+                if isinstance(raw_call_chain, list):
+                    analysis_call_chain = [item for item in raw_call_chain if isinstance(item, dict)]
+                context_payload["resumeReuseAnalysis"] = False
+                self.storage.save_task_context(task_id, context_payload)
+                self._trace(
+                    task_id,
+                    "analysis",
+                    "analysis.reused",
+                    "已复用暂停前的分析结果，继续执行生成。",
+                    {
+                        "analysis_run_id": analysis_run_id,
+                        "has_script": bool(analysis_script_text),
+                    },
                 )
-                analysis_response = self.generation_orchestrator.create_run(analysis_request)
-                analysis_run_id = analysis_response.id
-                if analysis_response.status == GenerationRunStatus.SUCCEEDED and analysis_response.resultScript is not None:
-                    analysis_result = analysis_response.resultScript
-                    if isinstance(analysis_result.modelInfo, dict):
-                        analysis_model_info = analysis_result.modelInfo
-                    if isinstance(analysis_result.callChain, list):
-                        analysis_call_chain = [item for item in analysis_result.callChain if isinstance(item, dict)]
-                    analysis_markdown_path = str(getattr(analysis_result, "markdownPath", "") or "").strip()
-                    analysis_markdown_url = str(getattr(analysis_result, "markdownUrl", "") or "").strip()
-                    script_text = str(analysis_result.scriptMarkdown or analysis_result.sourceText or "").strip()
-                    if script_text:
-                        analysis_script_text = script_text
-                        analysis_prompt = f"{prompt}\n\n{truncate_text(script_text, 1200)}"
-                    context_payload["analysisRunId"] = analysis_run_id
-                    if analysis_markdown_path:
-                        context_payload["analysisScriptMarkdownPath"] = analysis_markdown_path
-                    if analysis_markdown_url:
-                        context_payload["analysisScriptMarkdownUrl"] = analysis_markdown_url
-                    self.storage.save_task_context(task_id, context_payload)
-                    self._trace(
-                        task_id,
-                        "analysis",
-                        "analysis.completed",
-                        "文本分析阶段完成。",
-                        {
-                            "run_id": analysis_run_id,
-                            "model": text_model or analysis_target.model_name,
-                            "provider": str(analysis_model_info.get("provider") or analysis_target.provider or ""),
-                            "has_script": bool(script_text),
-                            "markdown_path": analysis_markdown_path,
-                        },
+            else:
+                try:
+                    analysis_request = GenerationRunRequest(
+                        kind="script",
+                        input={"text": analysis_source_text},
+                        model={"textAnalysisModel": text_model},
+                        options={},
                     )
-                else:
-                    error_message = analysis_response.error.message if analysis_response.error else "analysis run failed"
-                    analysis_failure_message = str(error_message)
+                    analysis_response = self.generation_orchestrator.create_run(analysis_request)
+                    analysis_run_id = analysis_response.id
+                    if analysis_response.status == GenerationRunStatus.SUCCEEDED and analysis_response.resultScript is not None:
+                        analysis_result = analysis_response.resultScript
+                        if isinstance(analysis_result.modelInfo, dict):
+                            analysis_model_info = analysis_result.modelInfo
+                        if isinstance(analysis_result.callChain, list):
+                            analysis_call_chain = [item for item in analysis_result.callChain if isinstance(item, dict)]
+                        analysis_markdown_path = str(getattr(analysis_result, "markdownPath", "") or "").strip()
+                        analysis_markdown_url = str(getattr(analysis_result, "markdownUrl", "") or "").strip()
+                        script_text = str(analysis_result.scriptMarkdown or analysis_result.sourceText or "").strip()
+                        if script_text:
+                            analysis_script_text = script_text
+                            analysis_prompt = f"{prompt}\n\n{truncate_text(script_text, 1200)}"
+                        context_payload["analysisRunId"] = analysis_run_id
+                        if analysis_markdown_path:
+                            context_payload["analysisScriptMarkdownPath"] = analysis_markdown_path
+                        if analysis_markdown_url:
+                            context_payload["analysisScriptMarkdownUrl"] = analysis_markdown_url
+                        self.storage.save_task_context(task_id, context_payload)
+                        self._trace(
+                            task_id,
+                            "analysis",
+                            "analysis.completed",
+                            "文本分析阶段完成。",
+                            {
+                                "run_id": analysis_run_id,
+                                "model": text_model or analysis_target.model_name,
+                                "provider": str(analysis_model_info.get("provider") or analysis_target.provider or ""),
+                                "has_script": bool(script_text),
+                                "markdown_path": analysis_markdown_path,
+                            },
+                        )
+                    else:
+                        error_message = analysis_response.error.message if analysis_response.error else "analysis run failed"
+                        analysis_failure_message = str(error_message)
+                        self._trace(
+                            task_id,
+                            "analysis",
+                            "analysis.model_failed",
+                            "文本分析模型不可用，已回退原始提示词。",
+                            {
+                                "run_id": analysis_run_id,
+                                "model": text_model or analysis_target.model_name,
+                                "provider": analysis_target.provider,
+                                "error": error_message,
+                            },
+                            "WARN",
+                        )
+                except Exception as exc:
+                    analysis_failure_message = str(exc)
                     self._trace(
                         task_id,
                         "analysis",
                         "analysis.model_failed",
-                        "文本分析模型不可用，已回退原始提示词。",
+                        "文本分析模型调用失败，已回退原始提示词。",
                         {
-                            "run_id": analysis_run_id,
                             "model": text_model or analysis_target.model_name,
                             "provider": analysis_target.provider,
-                            "error": error_message,
+                            "error": str(exc),
                         },
                         "WARN",
                     )
-            except Exception as exc:
-                analysis_failure_message = str(exc)
-                self._trace(
-                    task_id,
-                    "analysis",
-                    "analysis.model_failed",
-                    "文本分析模型调用失败，已回退原始提示词。",
-                    {
-                        "model": text_model or analysis_target.model_name,
-                        "provider": analysis_target.provider,
-                        "error": str(exc),
-                    },
-                    "WARN",
-                )
+            context_payload["analysisPrompt"] = analysis_prompt
+            context_payload["analysisScriptText"] = analysis_script_text
+            if analysis_run_id:
+                context_payload["analysisRunId"] = analysis_run_id
+            if analysis_model_info:
+                context_payload["analysisModelInfo"] = analysis_model_info
+            else:
+                context_payload.pop("analysisModelInfo", None)
+            if analysis_call_chain:
+                context_payload["analysisCallChain"] = analysis_call_chain
+            else:
+                context_payload.pop("analysisCallChain", None)
+            self.storage.save_task_context(task_id, context_payload)
             if _is_content_policy_blocked_error(analysis_failure_message):
                 raise RuntimeError(
                     f"文本分析被内容安全策略拦截，任务已终止：{truncate_text(analysis_failure_message, 360) or analysis_failure_message}"
                 )
+            self._raise_if_interrupt_requested(task_id, checkpoint="analysis.completed")
 
             with self.session() as session:
                 task = session.get(Task, task_id)
@@ -1912,14 +2393,25 @@ class TaskService:
                     "analysis_call_chain_count": len(analysis_call_chain),
                 },
             )
+            shot_duration_ranges = self._extract_storyboard_shot_duration_ranges(analysis_script_text)
             if duration_mode == "auto":
-                resolved_duration, matched_duration_count = self._resolve_auto_duration_seconds(
-                    analysis_script_text,
-                    fallback_seconds=max_duration,
-                )
-                duration_seconds = resolved_duration
-                min_duration = resolved_duration
-                max_duration = resolved_duration
+                matched_duration_count = 0
+                duration_source = "fallback"
+                if shot_duration_ranges:
+                    min_duration = max(1, min(120, min(item[0] for item in shot_duration_ranges)))
+                    max_duration = max(min_duration, min(120, max(item[1] for item in shot_duration_ranges)))
+                    duration_seconds = max(1, min(120, int(round((min_duration + max_duration) / 2))))
+                    matched_duration_count = len(shot_duration_ranges)
+                    duration_source = "storyboard_ranges"
+                else:
+                    resolved_duration, matched_duration_count = self._resolve_auto_duration_seconds(
+                        analysis_script_text,
+                        fallback_seconds=max_duration,
+                    )
+                    duration_seconds = resolved_duration
+                    min_duration = max(1, min(120, min(min_duration, duration_seconds)))
+                    max_duration = max(min_duration, min(120, max(max_duration, duration_seconds)))
+                    duration_source = "script_average"
                 with self.session() as session:
                     task = session.get(Task, task_id)
                     if task is not None:
@@ -1936,17 +2428,50 @@ class TaskService:
                     "自动时长已根据分镜脚本确定。",
                     {
                         "duration_seconds": duration_seconds,
+                        "min_duration_seconds": min_duration,
+                        "max_duration_seconds": max_duration,
                         "matched_duration_count": matched_duration_count,
+                        "duration_source": duration_source,
                         "fallback_used": matched_duration_count == 0,
                     },
                 )
+            clip_prompts = self._build_sequential_clip_prompts(
+                base_prompt=analysis_prompt,
+                analysis_script_text=analysis_script_text,
+                fallback_count=output_count,
+            )
+            output_count = max(1, len(clip_prompts))
+            context_payload["resolvedOutputCount"] = output_count
+            self.storage.save_task_context(task_id, context_payload)
+            with self.session() as session:
+                task = session.get(Task, task_id)
+                if task is not None:
+                    task.output_count = output_count
+                    session.commit()
+            self._trace(
+                task_id,
+                "planning",
+                "planning.shots_resolved",
+                "已完成分镜数量解析，按镜头顺序生成。",
+                {
+                    "output_count": output_count,
+                    "from_storyboard": bool(analysis_script_text.strip()),
+                },
+            )
+            self._raise_if_interrupt_requested(task_id, checkpoint="planning.completed")
             if stop_before_video_generation:
                 context_payload["keyframeStatus"] = "skipped"
                 context_payload.pop("keyframeRunId", None)
                 context_payload.pop("keyframeOutputUrl", None)
+                context_payload.pop("keyframeRemoteSourceUrl", None)
                 context_payload.pop("keyframeModel", None)
                 context_payload.pop("keyframeProvider", None)
                 context_payload.pop("keyframeError", None)
+                context_payload["analysisPrompt"] = analysis_prompt
+                context_payload["analysisScriptText"] = analysis_script_text
+                context_payload["pauseRequested"] = False
+                context_payload["pauseReason"] = "developer_mode"
+                context_payload["pausedByDeveloperMode"] = True
                 self.storage.save_task_context(task_id, context_payload)
                 self._trace(
                     task_id,
@@ -1986,15 +2511,15 @@ class TaskService:
                     task = session.get(Task, task_id)
                     if task is None:
                         return
-                    task.status = "COMPLETED"
-                    task.progress = 100
-                    task.finished_at = utcnow()
+                    task.status = "PAUSED"
+                    task.progress = max(55, int(task.progress or 0))
+                    task.finished_at = None
                     session.commit()
                 self._trace(
                     task_id,
                     "pipeline",
-                    "task.completed",
-                    "开发者模式：任务已在视频生成前停止。",
+                    "task.paused_by_developer_setting",
+                    "开发者模式：任务已在视频生成前暂停，可在当前基础上继续生成。",
                     {
                         "outputs": 0,
                         "task_type": TaskType.GENERATION.value,
@@ -2004,6 +2529,7 @@ class TaskService:
                     },
                 )
                 return
+            self._raise_if_interrupt_requested(task_id, checkpoint="planning.keyframe_generation")
             try:
                 self._generate_planning_keyframe(
                     task_id=task_id,
@@ -2041,6 +2567,7 @@ class TaskService:
                     "stop_before_video_generation": False,
                 },
             )
+            self._raise_if_interrupt_requested(task_id, checkpoint="planning.post_keyframe")
 
             with self.session() as session:
                 task = session.get(Task, task_id)
@@ -2059,37 +2586,133 @@ class TaskService:
                     "provider": self.text_generator.infer_video_provider(video_model or ""),
                     "video_size": video_size or "",
                     "duration_seconds": duration_seconds,
+                    "min_duration_seconds": min_duration,
+                    "max_duration_seconds": max_duration,
                     "output_count": output_count,
                     "has_keyframe": bool(str(context_payload.get("keyframeOutputUrl") or "").strip()),
                 },
             )
 
-            keyframe_output_url = str(context_payload.get("keyframeOutputUrl") or "").strip()
+            model_min_duration, model_max_duration, model_fixed_duration = self._resolve_video_model_duration_constraints(video_model)
+            effective_min_duration = max(1, min(120, int(min_duration)))
+            effective_max_duration = max(effective_min_duration, min(120, int(max_duration)))
+            if model_fixed_duration:
+                effective_min_duration = model_min_duration
+                effective_max_duration = model_max_duration
+            else:
+                effective_min_duration = max(effective_min_duration, model_min_duration)
+                effective_max_duration = min(effective_max_duration, model_max_duration)
+                if effective_min_duration > effective_max_duration:
+                    effective_min_duration = model_min_duration
+                    effective_max_duration = model_max_duration
+
+            if (
+                effective_min_duration != min_duration
+                or effective_max_duration != max_duration
+                or model_fixed_duration
+            ):
+                self._trace(
+                    task_id,
+                    "render",
+                    "render.duration_constrained_by_model",
+                    "已按视频模型能力约束镜头时长范围。",
+                    {
+                        "requested_min_duration_seconds": min_duration,
+                        "requested_max_duration_seconds": max_duration,
+                        "effective_min_duration_seconds": effective_min_duration,
+                        "effective_max_duration_seconds": effective_max_duration,
+                        "model_fixed_duration": model_fixed_duration,
+                        "model_supported_min_duration_seconds": model_min_duration,
+                        "model_supported_max_duration_seconds": model_max_duration,
+                        "video_model": video_model or "",
+                    },
+                    "WARN",
+                )
+
+            clip_duration_plan = self._build_clip_duration_plan(
+                clip_count=output_count,
+                default_min_duration=effective_min_duration,
+                default_max_duration=effective_max_duration,
+                shot_duration_ranges=shot_duration_ranges,
+            )
+
+            keyframe_output_url = self._resolve_video_reference_image_url(
+                context_payload=context_payload,
+                video_model=video_model,
+            )
             keyframe_run_id = str(context_payload.get("keyframeRunId") or "").strip()
             normalized_video_model = self.normalize_video_model_key(video_model or "")
             requires_reference_image = normalized_video_model == "seeddance-1.5-pro"
             if requires_reference_image and not keyframe_output_url:
-                raise RuntimeError("seeddance-1.5-pro requires reference image, but keyframe generation did not produce output")
+                raise RuntimeError("seeddance-1.5-pro requires reference image url, but keyframe url is empty")
 
-            for index in range(output_count):
-                clip_prompt = analysis_prompt
-                if output_count > 1:
-                    clip_prompt = f"{analysis_prompt}\n\n请生成第 {index + 1} 条差异化短剧片段。"
+            for index, clip_prompt in enumerate(clip_prompts):
+                self._raise_if_interrupt_requested(task_id, checkpoint=f"render.clip_{index + 1}_start")
+                clip_duration_seconds, clip_min_duration, clip_max_duration = clip_duration_plan[index]
+
+                clip_keyframe_output_url = keyframe_output_url
+                clip_keyframe_run_id = keyframe_run_id
+                if output_count > 1 and index > 0:
+                    try:
+                        self._generate_planning_keyframe(
+                            task_id=task_id,
+                            task_title=task_title,
+                            aspect_ratio=task_aspect_ratio,
+                            prompt=clip_prompt,
+                            analysis_script_text="",
+                            text_model=text_model,
+                            context_payload=context_payload,
+                        )
+                        clip_keyframe_output_url = self._resolve_video_reference_image_url(
+                            context_payload=context_payload,
+                            video_model=video_model,
+                        )
+                        clip_keyframe_run_id = str(context_payload.get("keyframeRunId") or "").strip()
+                        if clip_keyframe_output_url:
+                            keyframe_output_url = clip_keyframe_output_url
+                            keyframe_run_id = clip_keyframe_run_id
+                        self._trace(
+                            task_id,
+                            "render",
+                            "render.clip_keyframe_generated",
+                            "已为当前镜头生成独立关键帧。",
+                            {
+                                "clip_index": index + 1,
+                                "keyframe_output_url": clip_keyframe_output_url,
+                                "keyframe_run_id": clip_keyframe_run_id,
+                            },
+                        )
+                    except Exception as exc:
+                        self._trace(
+                            task_id,
+                            "render",
+                            "render.clip_keyframe_failed",
+                            "当前镜头关键帧生成失败，回退使用上一张关键帧。",
+                            {
+                                "clip_index": index + 1,
+                                "error": str(exc),
+                                "fallback_keyframe_output_url": keyframe_output_url,
+                            },
+                            "WARN",
+                        )
+
+                if requires_reference_image and not clip_keyframe_output_url:
+                    raise RuntimeError("seeddance-1.5-pro requires reference image url, but clip keyframe url is empty")
                 video_input: dict[str, object] = {
                     "prompt": clip_prompt,
                     "videoSize": video_size,
-                    "durationSeconds": duration_seconds,
-                    "minDurationSeconds": min_duration,
-                    "maxDurationSeconds": max_duration,
+                    "durationSeconds": clip_duration_seconds,
+                    "minDurationSeconds": clip_min_duration,
+                    "maxDurationSeconds": clip_max_duration,
                 }
-                if keyframe_output_url:
+                if clip_keyframe_output_url:
                     extras: dict[str, object] = {
-                        "referenceImageUrl": keyframe_output_url,
-                        "imageUrl": keyframe_output_url,
-                        "sourceImageUrl": keyframe_output_url,
+                        "referenceImageUrl": clip_keyframe_output_url,
+                        "imageUrl": clip_keyframe_output_url,
+                        "sourceImageUrl": clip_keyframe_output_url,
                     }
-                    if keyframe_run_id:
-                        extras["keyframeRunId"] = keyframe_run_id
+                    if clip_keyframe_run_id:
+                        extras["keyframeRunId"] = clip_keyframe_run_id
                     video_input["extras"] = extras
                 run_request = GenerationRunRequest(
                     kind="video",
@@ -2135,7 +2758,7 @@ class TaskService:
                     or video_model
                     or ""
                 ).strip()
-                clip_duration = float(result.durationSeconds or duration_seconds or max_duration or 0.0)
+                clip_duration = float(result.durationSeconds or clip_duration_seconds or clip_max_duration or 0.0)
                 latency_ms = max(0, int((call_finished_at - call_started_at).total_seconds() * 1000))
                 model_call_id = new_id("mdlcall")
                 material_asset_id = new_id("asset")
@@ -2250,7 +2873,9 @@ class TaskService:
                         "output_url": output_url,
                     },
                 )
+                self._raise_if_interrupt_requested(task_id, checkpoint=f"render.clip_{index + 1}_completed")
 
+            self._raise_if_interrupt_requested(task_id, checkpoint="render.completed")
             with self.session() as session:
                 task = session.get(Task, task_id)
                 if task is None:
@@ -2266,6 +2891,8 @@ class TaskService:
                 "生成任务执行完成。",
                 {"outputs": output_count, "task_type": TaskType.GENERATION.value},
             )
+        except (TaskPausedError, TaskTerminatedError):
+            return
         except Exception as exc:
             self._fail_task(task_id, exc, message="生成任务失败。")
 
@@ -2388,7 +3015,44 @@ class TaskService:
     def _claim_task(self, task_id: str) -> bool:
         with self.session() as session:
             task = session.get(Task, task_id)
-            if task is None or task.status not in {"PENDING", "FAILED"}:
+            if task is None or task.status != "PENDING":
+                return False
+            context_payload = self._load_task_context(task_id)
+            if self._context_terminate_requested(context_payload):
+                task.status = "FAILED"
+                task.progress = max(1, min(99, int(task.progress or 0)))
+                task.error_message = truncate_text(
+                    str(context_payload.get("terminateMessage") or "任务已手动终止。"),
+                    1000,
+                )
+                task.finished_at = utcnow()
+                session.commit()
+                self._trace(
+                    task_id,
+                    "pipeline",
+                    "task.terminated",
+                    "任务在执行前已终止。",
+                    {
+                        "reason": str(context_payload.get("terminateReason") or "manual"),
+                        "checkpoint": "claim",
+                    },
+                    "WARN",
+                )
+                return False
+            if self._context_pause_requested(context_payload):
+                task.status = "PAUSED"
+                task.progress = max(1, int(task.progress or 0))
+                session.commit()
+                self._trace(
+                    task_id,
+                    "pipeline",
+                    "task.paused",
+                    "任务在执行前已暂停。",
+                    {
+                        "reason": str(context_payload.get("pauseReason") or "manual"),
+                        "checkpoint": "claim",
+                    },
+                )
                 return False
             task.status = "ANALYZING"
             task.progress = max(task.progress or 0, 1)
@@ -2546,6 +3210,109 @@ class TaskService:
         if isinstance(raw, str):
             return raw.strip().lower() in {"1", "true", "yes", "on"}
         return False
+
+    def _resolve_video_reference_image_url(
+        self,
+        *,
+        context_payload: dict[str, object],
+        video_model: str | None,
+    ) -> str:
+        local_url = str(context_payload.get("keyframeOutputUrl") or "").strip()
+        remote_url = str(context_payload.get("keyframeRemoteSourceUrl") or "").strip()
+        normalized_video_model = self.normalize_video_model_key(video_model or "")
+        if normalized_video_model == "seeddance-1.5-pro":
+            if remote_url:
+                return remote_url
+            return local_url
+        return local_url or remote_url
+
+    def _context_pause_requested(self, payload: dict[str, object]) -> bool:
+        raw = payload.get("pauseRequested")
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return False
+
+    def _context_terminate_requested(self, payload: dict[str, object]) -> bool:
+        raw = payload.get("terminateRequested")
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return False
+
+    def _context_resume_reuse_analysis(self, payload: dict[str, object]) -> bool:
+        raw = payload.get("resumeReuseAnalysis")
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return False
+
+    def _context_paused_by_developer_mode(self, payload: dict[str, object]) -> bool:
+        raw = payload.get("pausedByDeveloperMode")
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return False
+
+    def _raise_if_terminate_requested(self, task_id: str, *, checkpoint: str) -> None:
+        context_payload = self._load_task_context(task_id)
+        if not self._context_terminate_requested(context_payload):
+            return
+        terminate_reason = str(context_payload.get("terminateReason") or "manual")
+        terminate_message = truncate_text(str(context_payload.get("terminateMessage") or "任务已手动终止。"), 1000)
+        with self.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                raise TaskTerminatedError("task terminated")
+            if task.status != "FAILED":
+                task.status = "FAILED"
+                task.progress = max(1, min(99, int(task.progress or 0)))
+                task.error_message = terminate_message
+                task.finished_at = utcnow()
+                session.commit()
+        raise TaskTerminatedError(f"task terminated at {checkpoint} ({terminate_reason})")
+
+    def _raise_if_pause_requested(self, task_id: str, *, checkpoint: str) -> None:
+        context_payload = self._load_task_context(task_id)
+        if not self._context_pause_requested(context_payload):
+            return
+        pause_reason = str(context_payload.get("pauseReason") or "manual")
+        with self.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                raise TaskPausedError("task paused")
+            if task.status != "PAUSED":
+                task.status = "PAUSED"
+                task.progress = max(1, min(99, int(task.progress or 0)))
+                task.finished_at = None
+                session.commit()
+        self._trace(
+            task_id,
+            "pipeline",
+            "task.paused",
+            "任务已暂停。",
+            {
+                "reason": pause_reason,
+                "checkpoint": checkpoint,
+            },
+        )
+        raise TaskPausedError("task paused")
+
+    def _raise_if_interrupt_requested(self, task_id: str, *, checkpoint: str) -> None:
+        self._raise_if_terminate_requested(task_id, checkpoint=checkpoint)
+        self._raise_if_pause_requested(task_id, checkpoint=checkpoint)
 
     def _coerce_trace_level(self, value: str) -> TraceLevel:
         normalized = str(value or "INFO").strip().upper()

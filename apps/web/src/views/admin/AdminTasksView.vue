@@ -42,6 +42,7 @@
           <select v-model="statusFilter" class="admin-field">
             <option value="all">全部状态</option>
             <option value="PENDING">排队中</option>
+            <option value="PAUSED">已暂停</option>
             <option value="ANALYZING">分析中</option>
             <option value="PLANNING">编排中</option>
             <option value="RENDERING">渲染中</option>
@@ -264,6 +265,8 @@ function statusLabel(status: TaskStatus) {
   switch (status) {
     case "PENDING":
       return "排队中";
+    case "PAUSED":
+      return "已暂停";
     case "ANALYZING":
       return "分析中";
     case "PLANNING":
@@ -283,6 +286,8 @@ function statusPillClass(status: TaskStatus) {
   switch (status) {
     case "PENDING":
       return "bg-slate-100 text-slate-700";
+    case "PAUSED":
+      return "bg-amber-100 text-amber-700";
     case "ANALYZING":
       return "bg-sky-100 text-sky-700";
     case "PLANNING":
@@ -308,6 +313,9 @@ function progressBarClass(status: TaskStatus) {
   if (status === "RENDERING") {
     return "bg-amber-500";
   }
+  if (status === "PAUSED") {
+    return "bg-amber-400";
+  }
   return "bg-sky-500";
 }
 
@@ -317,6 +325,9 @@ function rowToneClass(status: TaskStatus) {
   }
   if (status === "RENDERING") {
     return "bg-amber-50/30";
+  }
+  if (status === "PAUSED") {
+    return "bg-amber-50/25";
   }
   return "";
 }
@@ -340,6 +351,9 @@ function progressLabel(task: TaskListItem) {
   }
   if (task.status === "RENDERING") {
     return "渲染中";
+  }
+  if (task.status === "PAUSED") {
+    return "已暂停";
   }
   if (task.status === "PLANNING") {
     return "编排中";

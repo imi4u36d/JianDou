@@ -50,7 +50,7 @@ provider = "qwen"
 # 默认文本生成模型。
 model_name = "qwen3.6-plus"
 # 默认图片生成模型。
-image_model_name = "Doubao-Seedream-5.0-lite"
+image_model_name = "Doubao-Seedream-4.5"
 # 主模型不可用时的回退模型。
 fallback_model_name = "qwen-plus"
 # 文本分析与理解专用的模型提供方。

@@ -44,6 +44,33 @@
         查看详情
       </RouterLink>
       <button
+        v-if="canPause"
+        class="btn-secondary w-full"
+        :disabled="busy"
+        type="button"
+        @click="$emit('pause', task)"
+      >
+        暂停
+      </button>
+      <button
+        v-if="canContinue"
+        class="btn-primary w-full"
+        :disabled="busy"
+        type="button"
+        @click="$emit('continue', task)"
+      >
+        继续生成
+      </button>
+      <button
+        v-if="canTerminate"
+        class="btn-warning w-full"
+        :disabled="busy"
+        type="button"
+        @click="$emit('terminate', task)"
+      >
+        终止
+      </button>
+      <button
         v-if="task.status === 'FAILED'"
         class="btn-warning w-full"
         :disabled="busy"
@@ -87,6 +114,9 @@ const durationLabel = computed(() => {
 });
 const updatedAtLabel = computed(() => new Date(props.task.updatedAt).toLocaleString());
 const running = computed(() => lifecycleGroup.value === "running");
+const canPause = computed(() => ["PENDING", "ANALYZING", "PLANNING"].includes(props.task.status));
+const canContinue = computed(() => props.task.status === "PAUSED");
+const canTerminate = computed(() => ["PENDING", "ANALYZING", "PLANNING", "RENDERING"].includes(props.task.status));
 const selectable = computed(() => Boolean(props.selectable));
 const selected = computed(() => Boolean(props.selected));
 const lifecycleLabel = computed(() => {
@@ -95,6 +125,8 @@ const lifecycleLabel = computed(() => {
       return "已完成，可查看结果";
     case "failed":
       return "失败，建议重试或删除";
+    case "paused":
+      return "已暂停，可继续生成";
     case "running":
       return "正在处理，请稍后";
     default:
@@ -107,6 +139,8 @@ const statusRailClass = computed(() => {
       return "bg-gradient-to-b from-emerald-400 to-emerald-300";
     case "failed":
       return "bg-gradient-to-b from-rose-400 to-orange-300";
+    case "paused":
+      return "bg-gradient-to-b from-amber-400 to-amber-300";
     case "running":
       return "bg-gradient-to-b from-sky-400 to-indigo-300";
     default:
@@ -115,6 +149,9 @@ const statusRailClass = computed(() => {
 });
 
 const emit = defineEmits<{
+  (event: "pause", task: TaskListItem): void;
+  (event: "continue", task: TaskListItem): void;
+  (event: "terminate", task: TaskListItem): void;
   (event: "retry", task: TaskListItem): void;
   (event: "delete", task: TaskListItem): void;
   (event: "select", task: TaskListItem): void;

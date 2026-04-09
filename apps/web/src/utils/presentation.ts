@@ -7,6 +7,7 @@ type StatusMeta = {
 
 export const TASK_STATUS_META: Record<TaskStatus, StatusMeta> = {
   PENDING: { label: "排队中", tone: "neutral" },
+  PAUSED: { label: "已暂停", tone: "warning" },
   ANALYZING: { label: "解析中", tone: "info" },
   PLANNING: { label: "规划中", tone: "warning" },
   RENDERING: { label: "生成中", tone: "warning" },

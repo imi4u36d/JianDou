@@ -974,7 +974,7 @@ class FusionPlanner:
         goal_header = "目标：基于视觉事件理解、字幕时间轴、音频卡点和镜头切换信号，输出更容易停留、对白更完整、情绪爆点更准确的短剧切条方案。"
         mode_rules = "当前是短剧模式，请优先围绕高燃卡点、对白完整、反转、冲突升级和情绪爆点来决定切点。\n"
         reason_rule = "4. title 要像投放素材标题，reason 要说明这是哪个冲突/反转/高燃卡点。\n"
-        mode_tail_rules = "7. 当前是短剧模式，优先围绕剧情高点和对白边界取点。\n"
+        mode_tail_rules = "8. 当前是短剧模式，优先围绕剧情高点和对白边界取点。\n"
         return (
             f"{role_header}\n"
             f"{goal_header}\n"
@@ -994,7 +994,8 @@ class FusionPlanner:
             f"音频峰值时间点：\n{json.dumps(audio_peaks_payload, ensure_ascii=False)}\n"
             f"镜头切换时间点：\n{json.dumps(scene_changes_payload, ensure_ascii=False)}\n"
             "如果提供了带时间戳字幕/台词，请将切点尽量贴近字幕时间边界，并确保不要把人物对白从中间截断。"
-            "开头和结尾尽量贴近动作、句子、镜头切换或情绪落点边界，不要从连续动作的半截突然切入或切出。\n"
+            "开头和结尾尽量贴近动作、句子、镜头切换或情绪落点边界，不要从连续动作的半截突然切入或切出。"
+            "同时尽量把切点放在自然的声音衔接处，避免上一段声音戛然而止、下一段声音立即硬切。\n"
             "请基于上述信号直接推理并输出，输出格式必须为："
             '{"clips":[{"clipIndex":1,"title":"...","reason":"...","startSeconds":0,"endSeconds":10,"durationSeconds":10}]}\n'
             "带时间戳字幕/台词（若为空则表示未提供）：\n"
@@ -1008,6 +1009,7 @@ class FusionPlanner:
             f"{reason_rule}"
             "5. 优先完整保留一句关键对白或一个完整动作，不要切断句子中段。\n"
             "6. 如果镜头切换时间点足够接近 clip 边界，优先把边界贴近镜头切换点。\n"
+            "7. clip 边界应尽量落在自然声学边界，避免明显音频断裂感。\n"
             f"{mode_tail_rules}"
         )
 

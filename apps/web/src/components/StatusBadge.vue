@@ -28,6 +28,8 @@ const badgeClass = computed(() => {
       return "border-cyan-300 bg-cyan-50 text-cyan-800";
     case "ANALYZING":
       return "border-sky-300 bg-sky-50 text-sky-800";
+    case "PAUSED":
+      return "border-amber-300 bg-amber-50 text-amber-800";
     default:
       return "border-slate-300 bg-slate-100 text-slate-700";
   }

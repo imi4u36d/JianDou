@@ -38,6 +38,7 @@
             <select v-model="statusFilter" class="field-select">
               <option value="all">全部状态</option>
               <option value="PENDING">排队中</option>
+              <option value="PAUSED">已暂停</option>
               <option value="ANALYZING">分析中</option>
               <option value="PLANNING">编排中</option>
               <option value="RENDERING">渲染中</option>
@@ -137,6 +138,9 @@
                 :selectable="true"
                 :selected="task.id === selectedTaskId"
                 @select="handleSelectTask"
+                @pause="handlePause"
+                @continue="handleContinueTask"
+                @terminate="handleTerminate"
                 @retry="handleRetry"
                 @delete="handleDelete"
               />
@@ -150,6 +154,9 @@
                 :selectable="true"
                 :selected="task.id === selectedTaskId"
                 @select="handleSelectTask"
+                @pause="handlePause"
+                @continue="handleContinueTask"
+                @terminate="handleTerminate"
                 @retry="handleRetry"
                 @delete="handleDelete"
               />
@@ -175,6 +182,33 @@
         </div>
         <div class="flex items-center gap-2">
           <span class="surface-chip">进度 {{ selectedTaskDetail?.progress ?? selectedTaskSummary?.progress ?? 0 }}%</span>
+          <button
+            v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)"
+            class="btn-secondary btn-sm"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handlePause(selectedTaskActionTask)"
+          >
+            暂停
+          </button>
+          <button
+            v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)"
+            class="btn-warning btn-sm"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleTerminate(selectedTaskActionTask)"
+          >
+            终止
+          </button>
+          <button
+            v-if="selectedTaskActionTask?.status === 'PAUSED'"
+            class="btn-primary btn-sm"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleContinueTask(selectedTaskActionTask)"
+          >
+            继续生成
+          </button>
           <button class="btn-secondary btn-sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
             刷新详情
           </button>
@@ -249,7 +283,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { deleteTask, fetchTask, fetchTaskTrace, fetchTasks, retryTask } from "@/api/tasks";
+import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, retryTask, terminateTask } from "@/api/tasks";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import HintBell from "@/components/HintBell.vue";
 import PageHeader from "@/components/PageHeader.vue";
@@ -293,7 +327,7 @@ function applyRouteFilters() {
   searchText.value = normalizeQueryValue(route.query.q);
 
   const nextStatus = normalizeQueryValue(route.query.status);
-  statusFilter.value = ["PENDING", "ANALYZING", "PLANNING", "RENDERING", "COMPLETED", "FAILED"].includes(nextStatus)
+  statusFilter.value = ["PENDING", "PAUSED", "ANALYZING", "PLANNING", "RENDERING", "COMPLETED", "FAILED"].includes(nextStatus)
     ? (nextStatus as TaskStatus)
     : "all";
 
@@ -316,6 +350,8 @@ const selectedTaskSummary = computed(() => {
   return tasks.value.find((task) => task.id === selectedTaskId.value) ?? null;
 });
 
+const selectedTaskActionTask = computed(() => selectedTaskDetail.value ?? selectedTaskSummary.value);
+
 const selectedTaskStageLabel = computed(() => {
   if (selectedTaskDetail.value) {
     return formatTaskStatus(selectedTaskDetail.value.status);
@@ -329,13 +365,16 @@ const selectedTaskStageLabel = computed(() => {
 const selectedTaskStages = computed(() => {
   const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status ?? "PENDING";
   const stageOrder: TaskStatus[] = ["ANALYZING", "PLANNING", "RENDERING", "COMPLETED"];
-  const currentIndex = stageOrder.indexOf(status);
-  const toLabel = (state: "pending" | "active" | "done" | "failed") => {
+  const pausedAtRender = status === "PAUSED";
+  const currentIndex = pausedAtRender ? 2 : stageOrder.indexOf(status);
+  const toLabel = (state: "pending" | "active" | "paused" | "done" | "failed") => {
     switch (state) {
       case "done":
         return "已完成";
       case "active":
         return "进行中";
+      case "paused":
+        return "已暂停";
       case "failed":
         return "失败";
       default:
@@ -345,9 +384,9 @@ const selectedTaskStages = computed(() => {
   const items = [
     { key: "ANALYZING", label: "素材分析", state: currentIndex > 0 ? "done" : currentIndex === 0 ? "active" : "pending" },
     { key: "PLANNING", label: "任务编排", state: currentIndex > 1 ? "done" : currentIndex === 1 ? "active" : "pending" },
-    { key: "RENDERING", label: "视频生成", state: currentIndex > 2 ? "done" : currentIndex === 2 ? "active" : "pending" },
+    { key: "RENDERING", label: "视频生成", state: pausedAtRender ? "paused" : currentIndex > 2 ? "done" : currentIndex === 2 ? "active" : "pending" },
     { key: "COMPLETED", label: "任务完成", state: status === "COMPLETED" ? "done" : status === "FAILED" ? "failed" : "pending" },
-  ] as Array<{ key: string; label: string; state: "pending" | "active" | "done" | "failed" }>;
+  ] as Array<{ key: string; label: string; state: "pending" | "active" | "paused" | "done" | "failed" }>;
   return items.map((item) => ({ ...item, stateLabel: toLabel(item.state) }));
 });
 
@@ -398,6 +437,12 @@ const groupedTasks = computed(() => {
       title: TASK_LIFECYCLE_GROUP_LABELS.running,
       description: "分析、编排和渲染中的任务会优先显示在这里。",
       items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "running")
+    },
+    {
+      key: "paused",
+      title: TASK_LIFECYCLE_GROUP_LABELS.paused,
+      description: "已暂停的任务可继续生成，也可以直接删除。",
+      items: sortedFilteredTasks.value.filter((task) => getTaskLifecycleGroup(task.status) === "paused")
     },
     {
       key: "queued",
@@ -543,6 +588,58 @@ async function handleRetry(task: TaskListItem) {
   }
 }
 
+async function handlePause(task: TaskListItem) {
+  if (managingTaskId.value) {
+    return;
+  }
+  managingTaskId.value = task.id;
+  errorMessage.value = "";
+  try {
+    await pauseTask(task.id);
+    await Promise.all([loadTasks(), loadSelectedTaskDetails()]);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "暂停任务失败";
+  } finally {
+    managingTaskId.value = "";
+  }
+}
+
+async function handleContinueTask(task: TaskListItem) {
+  if (managingTaskId.value) {
+    return;
+  }
+  managingTaskId.value = task.id;
+  errorMessage.value = "";
+  try {
+    await continueTask(task.id);
+    await Promise.all([loadTasks(), loadSelectedTaskDetails()]);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "继续任务失败";
+  } finally {
+    managingTaskId.value = "";
+  }
+}
+
+async function handleTerminate(task: TaskListItem) {
+  if (managingTaskId.value) {
+    return;
+  }
+  const ok = window.confirm(`确认终止任务“${task.title}”吗？终止后任务会变为失败状态，可再删除或重试。`);
+  if (!ok) {
+    return;
+  }
+  managingTaskId.value = task.id;
+  errorMessage.value = "";
+  try {
+    await terminateTask(task.id);
+    await Promise.all([loadTasks(), loadSelectedTaskDetails()]);
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "终止任务失败";
+  } finally {
+    managingTaskId.value = "";
+  }
+}
+
 async function handleDelete(task: TaskListItem) {
   if (managingTaskId.value) {
     return;
@@ -581,12 +678,14 @@ function formatDateTime(value?: string | null) {
   return new Date(timestamp).toLocaleString();
 }
 
-function stageStateClass(state: "pending" | "active" | "done" | "failed") {
+function stageStateClass(state: "pending" | "active" | "paused" | "done" | "failed") {
   switch (state) {
     case "done":
       return "border-emerald-200 bg-emerald-50 text-emerald-800";
     case "active":
       return "border-sky-200 bg-sky-50 text-sky-800";
+    case "paused":
+      return "border-amber-200 bg-amber-50 text-amber-800";
     case "failed":
       return "border-rose-200 bg-rose-50 text-rose-700";
     default:

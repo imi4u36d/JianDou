@@ -54,6 +54,18 @@ export function retryTask(taskId: string) {
   return postJson<TaskDetail>(`/tasks/${taskId}/retry`, {});
 }
 
+export function pauseTask(taskId: string) {
+  return postJson<TaskDetail>(`/tasks/${taskId}/pause`, {});
+}
+
+export function continueTask(taskId: string) {
+  return postJson<TaskDetail>(`/tasks/${taskId}/continue`, {});
+}
+
+export function terminateTask(taskId: string) {
+  return postJson<TaskDetail>(`/tasks/${taskId}/terminate`, {});
+}
+
 export function deleteTask(taskId: string) {
   return deleteJson<TaskDeleteResult>(`/tasks/${taskId}`);
 }

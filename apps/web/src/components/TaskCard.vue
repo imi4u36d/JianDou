@@ -23,6 +23,7 @@
       <span v-else-if="task.hasTranscript" class="surface-chip">文本输入</span>
       <span v-if="task.status === 'FAILED'" class="surface-chip">需要处理</span>
       <span v-if="task.status === 'COMPLETED'" class="surface-chip">可查看结果</span>
+      <span v-if="task.status === 'PAUSED'" class="surface-chip">可继续生成</span>
     </div>
 
     <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-600">
@@ -56,6 +57,33 @@
       <RouterLink v-else :to="{ path: '/tasks', query: { selected: task.id } }" class="btn-secondary">
         查看详情
       </RouterLink>
+      <button
+        v-if="canPause"
+        class="btn-secondary"
+        :disabled="busy"
+        type="button"
+        @click.stop="$emit('pause', task)"
+      >
+        暂停
+      </button>
+      <button
+        v-if="canContinue"
+        class="btn-primary"
+        :disabled="busy"
+        type="button"
+        @click.stop="$emit('continue', task)"
+      >
+        继续生成
+      </button>
+      <button
+        v-if="canTerminate"
+        class="btn-warning"
+        :disabled="busy"
+        type="button"
+        @click.stop="$emit('terminate', task)"
+      >
+        终止
+      </button>
       <button
         v-if="showRetryAction && task.status === 'FAILED'"
         class="btn-warning"
@@ -94,6 +122,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (event: "pause", task: TaskListItem): void;
+  (event: "continue", task: TaskListItem): void;
+  (event: "terminate", task: TaskListItem): void;
   (event: "retry", task: TaskListItem): void;
   (event: "delete", task: TaskListItem): void;
   (event: "select", task: TaskListItem): void;
@@ -109,12 +140,17 @@ const durationLabel = computed(() => {
 });
 const updatedAtLabel = computed(() => new Date(props.task.updatedAt).toLocaleString());
 const running = computed(() => lifecycleGroup.value === "running");
+const canPause = computed(() => ["PENDING", "ANALYZING", "PLANNING"].includes(props.task.status));
+const canContinue = computed(() => props.task.status === "PAUSED");
+const canTerminate = computed(() => ["PENDING", "ANALYZING", "PLANNING", "RENDERING"].includes(props.task.status));
 const lifecycleLabel = computed(() => {
   switch (lifecycleGroup.value) {
     case "completed":
       return "归档完成";
     case "failed":
       return "处理失败";
+    case "paused":
+      return "已暂停，可继续";
     case "running":
       return "正在处理";
     default:
@@ -127,6 +163,8 @@ const statusRailClass = computed(() => {
       return "bg-emerald-400";
     case "failed":
       return "bg-rose-400";
+    case "paused":
+      return "bg-amber-400";
     case "running":
       return "bg-sky-400";
     default:
@@ -139,6 +177,8 @@ const statusFrameClass = computed(() => {
       return "hover:border-emerald-300";
     case "failed":
       return "hover:border-rose-300";
+    case "paused":
+      return "hover:border-amber-300";
     case "running":
       return "hover:border-sky-300";
     default:

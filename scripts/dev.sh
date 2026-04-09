@@ -102,7 +102,13 @@ trap cleanup EXIT INT TERM
 echo "启动后端: http://127.0.0.1:${API_PORT}"
 (
   cd "$API_DIR"
-  exec "$VENV_PYTHON" -m uvicorn app.main:app --reload --host "$API_HOST" --port "$API_PORT"
+  exec "$VENV_PYTHON" -m uvicorn app.main:app \
+    --reload \
+    --reload-dir "$ROOT_DIR/apps/api" \
+    --reload-dir "$ROOT_DIR/packages" \
+    --reload-dir "$ROOT_DIR/config" \
+    --host "$API_HOST" \
+    --port "$API_PORT"
 ) &
 API_PID=$!
 

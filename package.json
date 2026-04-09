@@ -6,7 +6,7 @@
     "dev": "bash scripts/dev.sh",
     "web:dev": "npm --prefix apps/web run dev",
     "web:build": "npm --prefix apps/web run build",
-    "api:dev": "cd apps/api && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "api:dev": "uvicorn app.main:app --app-dir apps/api --reload --reload-dir apps/api --reload-dir packages --reload-dir config --host 0.0.0.0 --port 8000",
     "worker:dev": "cd apps/worker && python3 -m app.main"
   }
 }
