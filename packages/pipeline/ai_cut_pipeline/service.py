@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
@@ -13,7 +14,8 @@ import urllib.request
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
-from ai_cut_shared.config import Settings, resolve_text_analysis_target
+from ai_cut_ai.providers import ModelGateway, ModelRouter
+from ai_cut_shared.config import Settings
 from ai_cut_db.models import MaterialAsset, SystemLog, Task, TaskModelCall, TaskResult, TaskStatusHistory
 from ai_cut_ai.planner import PlannerChain, parse_transcript_cues
 from ai_cut_shared.schemas import (
@@ -66,17 +68,7 @@ from ai_cut_ai.text_generation import (
     GenerateTextScriptResponse,
     TextGenerationEngine,
 )
-from ai_cut_shared.utils import (
-    build_text_request_body,
-    extract_llm_text_response,
-    looks_like_qwen_model,
-    new_id,
-    parse_json_object,
-    resolve_llm_request_endpoint,
-    should_use_responses_api,
-    truncate_text,
-    utcnow,
-)
+from ai_cut_shared.utils import extract_llm_text_response, new_id, parse_json_object, truncate_text, utcnow
 
 
 _CN_TZ = timezone(timedelta(hours=8))
@@ -210,6 +202,53 @@ def _is_content_policy_blocked_error(message: str | None) -> bool:
     return any(keyword in normalized for keyword in keywords)
 
 
+def _json_safe(value: object, *, depth: int = 0) -> object:
+    if depth >= 10:
+        return truncate_text(str(value), 1000) or str(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, datetime):
+        return _iso(value)
+    if isinstance(value, Path):
+        return value.as_posix()
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="ignore")
+    if is_dataclass(value) and not isinstance(value, type):
+        return _json_safe(asdict(value), depth=depth + 1)
+    if hasattr(value, "model_dump"):
+        try:
+            return _json_safe(value.model_dump(mode="json"), depth=depth + 1)  # type: ignore[attr-defined]
+        except TypeError:
+            try:
+                return _json_safe(value.model_dump(), depth=depth + 1)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        except Exception:
+            pass
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(item, depth=depth + 1)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item, depth=depth + 1) for item in value]
+    if hasattr(value, "__dict__"):
+        try:
+            return {
+                str(key): _json_safe(item, depth=depth + 1)
+                for key, item in vars(value).items()
+                if not str(key).startswith("_")
+            }
+        except Exception:
+            pass
+    return truncate_text(str(value), 1000) or str(value)
+
+
+def _json_safe_dict(value: object) -> dict[str, object]:
+    payload = _json_safe(value)
+    return payload if isinstance(payload, dict) else {}
+
+
 class TaskPausedError(RuntimeError):
     pass
 
@@ -230,6 +269,8 @@ class TaskService:
         self.session_factory = session_factory
         self.storage = storage
         self.planner = planner
+        self.model_router = ModelRouter(settings)
+        self.model_gateway = ModelGateway(settings)
         self.text_generator = TextGenerationEngine(settings=settings, storage=storage)
         self.generation_orchestrator = GenerationOrchestrator(
             self.text_generator,
@@ -724,11 +765,14 @@ class TaskService:
         return truncate_text("\n\n".join(parts), 4500) or normalized_prompt
 
     def _infer_image_provider(self, model_name: str | None) -> str:
-        normalized = str(model_name or "").strip().lower()
-        if "seedream" in normalized:
-            return "volcengine"
-        provider = str(self.settings.model.provider or "").strip()
-        return provider or "unknown"
+        try:
+            target = self.model_router.resolve(model_name, capability="image_generation", kind="image")
+            return target.provider_name or "unknown"
+        except Exception:
+            normalized = str(model_name or "").strip().lower()
+            if "seedream" in normalized:
+                return "volcengine"
+            return "unknown"
 
     def _extension_from_mime_type(self, mime_type: str | None) -> str:
         normalized = str(mime_type or "").strip().lower()
@@ -756,8 +800,7 @@ class TaskService:
         requested_image_model = str(
             context_payload.get("imageModel")
             or context_payload.get("imageProviderModel")
-            or self.settings.model.image_model_name
-            or self.settings.model.model_name
+            or self.settings.model.defaults.image_generation
             or ""
         ).strip()
         keyframe_prompt = self._build_keyframe_prompt(
@@ -802,7 +845,7 @@ class TaskService:
             options={},
         )
         run_response = self.generation_orchestrator.create_run(run_request)
-        response_payload = run_response.model_dump()
+        response_payload = _json_safe_dict(run_response.model_dump())
 
         if run_response.status != GenerationRunStatus.SUCCEEDED or run_response.resultImage is None:
             error_message = run_response.error.message if run_response.error else "keyframe generation run failed"
@@ -822,7 +865,7 @@ class TaskService:
                 provider_model=requested_image_model,
                 requested_model=requested_image_model,
                 resolved_model="",
-                request_payload=run_request.model_dump(),
+                request_payload=_json_safe_dict(run_request.model_dump()),
                 response_payload=response_payload,
                 success=False,
                 http_status=http_status,
@@ -861,7 +904,7 @@ class TaskService:
                 provider_model=requested_image_model,
                 requested_model=requested_image_model,
                 resolved_model="",
-                request_payload=run_request.model_dump(),
+                request_payload=_json_safe_dict(run_request.model_dump()),
                 response_payload=response_payload,
                 success=False,
                 http_status=200,
@@ -902,7 +945,7 @@ class TaskService:
             or model_info.get("providerModel")
             or metadata.get("providerModel")
             or requested_image_model
-            or self.settings.model.image_model_name
+            or self.settings.model.defaults.image_generation
             or ""
         ).strip()
         mime_type = str(
@@ -926,7 +969,7 @@ class TaskService:
             provider_model=requested_image_model,
             requested_model=requested_image_model,
             resolved_model=resolved_model,
-            request_payload=run_request.model_dump(),
+            request_payload=_json_safe_dict(run_request.model_dump()),
             response_payload=response_payload,
             success=True,
             http_status=200,
@@ -964,13 +1007,13 @@ class TaskService:
                     public_url=output_url,
                     third_party_url=output_url,
                     remote_url=output_url,
-                    metadata_json={
+                    metadata_json=_json_safe_dict({
                         "runId": run_response.id,
                         "modelCallId": model_call_id,
                         "kind": "keyframe",
                         "callChain": result.callChain,
                         "modelInfo": model_info,
-                    },
+                    }),
                 )
             )
             session.commit()
@@ -1325,6 +1368,8 @@ class TaskService:
             "height": result.height,
             "metadata": metadata,
         }
+        request_payload = _json_safe_dict(request_payload)
+        response_payload = _json_safe_dict(response_payload)
         with self.session() as session:
             session.add(
                 TaskModelCall(
@@ -1383,11 +1428,7 @@ class TaskService:
     def generate_creative_prompt(self, payload: GenerateCreativePromptRequest) -> GenerateCreativePromptResponse:
         if payload.minDurationSeconds > payload.maxDurationSeconds:
             raise ValueError("minDurationSeconds must be less than or equal to maxDurationSeconds")
-
-        text_model = resolve_text_analysis_target(self.settings.model)
-        if not text_model.api_key or not text_model.endpoint:
-            raise RuntimeError("creative prompt provider is not configured")
-
+        text_model = self.model_router.resolve(capability="creative_prompt", kind="text")
         model_name = text_model.model_name
         generated = self._call_creative_prompt_model(model_name, payload)
         if not generated:
@@ -1406,7 +1447,6 @@ class TaskService:
         model_name: str,
         payload: GenerateCreativePromptRequest,
     ) -> str:
-        text_model = resolve_text_analysis_target(self.settings.model, model_name)
         transcript_excerpt = truncate_text((payload.transcriptText or "").strip(), 1400) or ""
         mode_label = self._editing_mode_label(payload.editingMode)
         mode_hint = (
@@ -1430,44 +1470,17 @@ class TaskService:
             f"字幕/台词摘录：{json.dumps(transcript_excerpt, ensure_ascii=False)}\n"
             '输出格式：{"prompt":"..."}'
         )
-        use_responses_api = should_use_responses_api(
-            provider=text_model.provider,
-            endpoint=text_model.endpoint,
+        _, result = self.model_gateway.invoke_text(
             model_name=model_name,
-        )
-        request_endpoint = resolve_llm_request_endpoint(
-            text_model.endpoint,
-            use_responses_api=use_responses_api,
-        )
-        body = build_text_request_body(
-            model_name=model_name,
+            capability="creative_prompt",
             system_prompt=self.settings.prompts.creative_prompt_generator_json_only,
             user_prompt=request_prompt,
             temperature=min(0.55, max(0.18, self.settings.model.temperature + 0.08)),
             max_tokens=min(500, self.settings.model.max_tokens),
-            use_responses_api=use_responses_api,
-            enable_thinking=looks_like_qwen_model(model_name),
+            enable_thinking=False,
         )
-        request = urllib.request.Request(
-            request_endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {text_model.api_key}",
-            },
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw = response.read().decode("utf-8")
-        except (TimeoutError, socket.timeout) as exc:
-            raise RuntimeError(f"creative prompt timed out: {exc}") from exc
-        except urllib.error.HTTPError as exc:
-            raise RuntimeError(f"creative prompt failed: {exc.code}") from exc
-        except urllib.error.URLError as exc:
-            raise RuntimeError(f"creative prompt network failed: {exc}") from exc
-        parsed = json.loads(raw)
-        content = extract_llm_text_response(parsed if isinstance(parsed, dict) else {}, raw)
-        parsed_prompt, _ = parse_json_object(content or raw)
+        content = extract_llm_text_response(result.payload, result.raw_text)
+        parsed_prompt, _ = parse_json_object(content or result.raw_text)
         prompt = str(parsed_prompt.get("prompt", "")).strip()
         return truncate_text(prompt, 180) or ""
 
@@ -1667,8 +1680,9 @@ class TaskService:
         if not normalized_task_id:
             raise ValueError("remote task id is required")
 
-        task_endpoint = str(self.settings.model.seeddance_video_task_endpoint or "").strip()
-        api_key = str(self.settings.model.seeddance_api_key or self.settings.model.api_key or "").strip()
+        provider = self.settings.model.providers.get("volcengine_seed")
+        task_endpoint = str((provider.extras.get("task_base_url") if provider else "") or "").strip()
+        api_key = str((provider.api_key if provider else "") or "").strip()
         if not task_endpoint:
             raise ValueError("seeddance video task endpoint is empty")
         if not api_key:
@@ -1734,7 +1748,7 @@ class TaskService:
         duration_mode = "auto" if payload.videoDurationSeconds == "auto" else "fixed"
         requested_duration = payload.videoDurationSeconds if isinstance(payload.videoDurationSeconds, int) else None
         model_min_duration, model_max_duration, _ = self._resolve_video_model_duration_constraints(
-            payload.videoModel or self.settings.model.video_model_name
+            payload.videoModel or self.settings.model.defaults.video_generation
         )
         if requested_duration is not None:
             resolved_duration = max(1, min(120, int(requested_duration)))
@@ -1845,7 +1859,7 @@ class TaskService:
     def get_admin_overview(self) -> AdminOverview:
         tasks = self.list_tasks()
         total = len(tasks)
-        text_model = resolve_text_analysis_target(self.settings.model)
+        text_model = self.model_router.resolve(capability="text_analysis", kind="text")
         return AdminOverview(
             generatedAt=_iso(utcnow()),
             counts=AdminOverviewCounts(
@@ -1859,14 +1873,14 @@ class TaskService:
                 averageProgress=round(sum(task.progress for task in tasks) / total) if total else 0,
             ),
             modelReady=bool(
-                text_model.provider
+                text_model.provider_name
                 and text_model.model_name
-                and text_model.endpoint
+                and text_model.base_url
                 and text_model.api_key
             ),
             primaryModel=text_model.model_name,
             textModel=text_model.model_name,
-            visionModel=self.settings.model.vision_model_name,
+            visionModel=self.settings.model.defaults.vision_analysis,
             recentTasks=tasks[:8],
             recentFailures=[task for task in tasks if task.status == "FAILED"][:6],
             recentRunningTasks=[task for task in tasks if task.status in {"ANALYZING", "PLANNING", "RENDERING"}][:6],
@@ -2239,7 +2253,7 @@ class TaskService:
                 task.started_at = task.started_at or utcnow()
                 session.commit()
 
-            analysis_target = resolve_text_analysis_target(self.settings.model, text_model)
+            analysis_target = self.model_router.resolve(text_model, capability="text_analysis", kind="text")
             self._trace(
                 task_id,
                 "analysis",
@@ -2248,7 +2262,7 @@ class TaskService:
                 {
                     "task_type": TaskType.GENERATION.value,
                     "model": text_model or analysis_target.model_name,
-                    "provider": analysis_target.provider,
+                    "provider": analysis_target.provider_name,
                     "output_count": output_count,
                     "analysis_text_source": "transcript" if transcript_text else "creative_prompt",
                     "analysis_text_length": len(analysis_source_text),
@@ -2320,7 +2334,7 @@ class TaskService:
                             {
                                 "run_id": analysis_run_id,
                                 "model": text_model or analysis_target.model_name,
-                                "provider": str(analysis_model_info.get("provider") or analysis_target.provider or ""),
+                                "provider": str(analysis_model_info.get("provider") or analysis_target.provider_name or ""),
                                 "has_script": bool(script_text),
                                 "markdown_path": analysis_markdown_path,
                             },
@@ -2336,7 +2350,7 @@ class TaskService:
                             {
                                 "run_id": analysis_run_id,
                                 "model": text_model or analysis_target.model_name,
-                                "provider": analysis_target.provider,
+                                "provider": analysis_target.provider_name,
                                 "error": error_message,
                             },
                             "WARN",
@@ -2350,7 +2364,7 @@ class TaskService:
                         "文本分析模型调用失败，已回退原始提示词。",
                         {
                             "model": text_model or analysis_target.model_name,
-                            "provider": analysis_target.provider,
+                            "provider": analysis_target.provider_name,
                             "error": str(exc),
                         },
                         "WARN",
@@ -2388,7 +2402,7 @@ class TaskService:
                 "生成任务进入编排阶段。",
                 {
                     "model": text_model or analysis_target.model_name,
-                    "provider": analysis_target.provider,
+                    "provider": analysis_target.provider_name,
                     "analysis_run_id": analysis_run_id,
                     "analysis_call_chain_count": len(analysis_call_chain),
                 },
@@ -2541,7 +2555,7 @@ class TaskService:
                     context_payload=context_payload,
                 )
             except Exception as exc:
-                image_model = str(self.settings.model.image_model_name or "").strip()
+                image_model = str(self.settings.model.defaults.image_generation or "").strip()
                 self._trace(
                     task_id,
                     "planning",
@@ -2737,8 +2751,8 @@ class TaskService:
                         provider_model=str(video_model or ""),
                         requested_model=str(video_model or ""),
                         resolved_model="",
-                        request_payload=run_request.model_dump(),
-                        response_payload=run_response.model_dump(),
+                        request_payload=_json_safe_dict(run_request.model_dump()),
+                        response_payload=_json_safe_dict(run_response.model_dump()),
                         success=False,
                         http_status=int(getattr(run_response.error, "httpStatus", 0) or 0) if run_response.error else 0,
                         error_code=str(run_response.error.code or "generation_failed") if run_response.error else "generation_failed",
@@ -2781,8 +2795,8 @@ class TaskService:
                             model_alias=str(model_info.get("providerModel") or video_model or ""),
                             endpoint_host=str(model_info.get("endpointHost") or ""),
                             request_id=str(model_info.get("requestId") or run_response.id or ""),
-                            request_payload_json=run_request.model_dump(),
-                            response_payload_json=run_response.model_dump(),
+                            request_payload_json=_json_safe_dict(run_request.model_dump()),
+                            response_payload_json=_json_safe_dict(run_response.model_dump()),
                             http_status=200,
                             response_status_code=200,
                             success=True,
@@ -2823,11 +2837,11 @@ class TaskService:
                             public_url=output_url,
                             third_party_url=output_url,
                             remote_url=output_url,
-                            metadata_json={
+                            metadata_json=_json_safe_dict({
                                 "runId": run_response.id,
                                 "callChain": result.callChain,
                                 "modelInfo": model_info,
-                            },
+                            }),
                         )
                     )
                     session.add(
@@ -3332,7 +3346,7 @@ class TaskService:
         payload: dict[str, object] | None = None,
         level: str = "INFO",
     ) -> None:
-        safe_payload = payload if isinstance(payload, dict) else {}
+        safe_payload = _json_safe_dict(payload)
         level_enum = self._coerce_trace_level(level)
         normalized_stage = _task_stage(stage)
         writer = TaskTraceWriter(task_id=task_id, trace_path=self.storage.task_trace_path(task_id))

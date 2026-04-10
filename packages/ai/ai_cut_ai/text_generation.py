@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
 from html import escape as html_escape
 from math import gcd
@@ -19,7 +19,6 @@ import urllib.request
 from pydantic import BaseModel, Field, model_validator
 
 from ai_cut_ai.generation import ImageGenerationModule, VideoGenerationModule
-from ai_cut_shared.config import Settings, resolve_text_analysis_target
 from ai_cut_storage.storage import MediaStorage
 from ai_cut_shared.utils import (
     build_text_request_body,
@@ -32,6 +31,18 @@ from ai_cut_shared.utils import (
     should_use_responses_api,
     truncate_text,
 )
+
+try:
+    from ai_cut_shared.config import Settings as _SharedSettings  # type: ignore[attr-defined]
+except Exception:
+    _SharedSettings = Any  # type: ignore[assignment]
+
+try:
+    from ai_cut_shared.config import resolve_text_analysis_target as _legacy_resolve_text_analysis_target  # type: ignore[attr-defined]
+except Exception:
+    _legacy_resolve_text_analysis_target = None
+
+Settings = _SharedSettings
 
 _SchemaGenerationVersionInfo = None
 _SchemaGenerationOptionsResponse = None
@@ -408,6 +419,20 @@ class _VideoModelSpec:
         if allowed:
             return len(allowed) == 1
         return self.min_duration_seconds == self.max_duration_seconds
+
+
+@dataclass(frozen=True)
+class _ResolvedModelTarget:
+    model_name: str
+    provider: str
+    family: str | None
+    mode: str
+    endpoint: str
+    api_key: str
+    task_endpoint: str | None = None
+    billing: dict[str, Any] | None = None
+    usage: dict[str, Any] | None = None
+    raw: Any = None
 
 
 _PROFILES: list[_VersionProfile] = [
@@ -1178,51 +1203,831 @@ class TextGenerationEngine:
         self._image_module.bind_video_module(self._video_module)
         self._video_module.bind_image_module(self._image_module)
 
+    def _json_compatible(self, value: Any, *, depth: int = 0) -> Any:
+        if depth >= 10:
+            return truncate_text(str(value), 1000) or str(value)
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, Path):
+            return value.as_posix()
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="ignore")
+        if is_dataclass(value) and not isinstance(value, type):
+            return self._json_compatible(asdict(value), depth=depth + 1)
+        if hasattr(value, "model_dump"):
+            try:
+                return self._json_compatible(value.model_dump(mode="json"), depth=depth + 1)  # type: ignore[attr-defined]
+            except TypeError:
+                try:
+                    return self._json_compatible(value.model_dump(), depth=depth + 1)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        if isinstance(value, dict):
+            return {
+                str(key): self._json_compatible(item, depth=depth + 1)
+                for key, item in value.items()
+            }
+        if isinstance(value, (list, tuple, set)):
+            return [self._json_compatible(item, depth=depth + 1) for item in value]
+        if hasattr(value, "__dict__"):
+            try:
+                return {
+                    str(key): self._json_compatible(item, depth=depth + 1)
+                    for key, item in vars(value).items()
+                    if not str(key).startswith("_")
+                }
+            except Exception:
+                pass
+        return truncate_text(str(value), 1000) or str(value)
+
+    def _as_mapping(self, value: Any) -> dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        if value is None:
+            return {}
+        if is_dataclass(value) and not isinstance(value, type):
+            try:
+                dumped = asdict(value)
+                if isinstance(dumped, dict):
+                    return dumped
+            except Exception:
+                pass
+        if hasattr(value, "model_dump"):
+            try:
+                dumped = value.model_dump()  # type: ignore[attr-defined]
+                if isinstance(dumped, dict):
+                    return dumped
+            except Exception:
+                pass
+        if hasattr(value, "dict"):
+            try:
+                dumped = value.dict()  # type: ignore[attr-defined]
+                if isinstance(dumped, dict):
+                    return dumped
+            except Exception:
+                pass
+        if hasattr(value, "__dict__"):
+            try:
+                return {
+                    str(key): item
+                    for key, item in vars(value).items()
+                    if not str(key).startswith("_")
+                }
+            except Exception:
+                return {}
+        return {}
+
+    def _read_mapping_value(self, container: Any, key: str) -> Any:
+        if container is None or not key:
+            return None
+        if isinstance(container, dict):
+            if key in container:
+                return container.get(key)
+            return None
+        return getattr(container, key, None)
+
+    def _first_non_empty_string(self, values: Iterable[Any]) -> str:
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    def _model_value(self, *keys: str, default: Any = None) -> Any:
+        model_config = getattr(self.settings, "model", None)
+        defaults = self._registry_defaults()
+        for key in keys:
+            direct = self._read_mapping_value(model_config, key)
+            if direct is not None and direct != "":
+                return direct
+            fallback = defaults.get(key)
+            if fallback is not None and fallback != "":
+                return fallback
+        return default
+
+    def _registry_defaults(self) -> dict[str, Any]:
+        model_config = getattr(self.settings, "model", None)
+        defaults = self._read_mapping_value(model_config, "defaults")
+        return self._as_mapping(defaults)
+
+    def _iter_registry_entries(self, raw: Any) -> list[tuple[str, dict[str, Any]]]:
+        entries: list[tuple[str, dict[str, Any]]] = []
+        if isinstance(raw, dict):
+            for key, value in raw.items():
+                mapping = self._as_mapping(value)
+                if not mapping and isinstance(value, str):
+                    mapping = {"name": value}
+                if mapping:
+                    entries.append((str(key), mapping))
+            return entries
+        if isinstance(raw, list):
+            for index, value in enumerate(raw):
+                mapping = self._as_mapping(value)
+                if not mapping:
+                    continue
+                key = self._first_non_empty_string(
+                    (
+                        mapping.get("id"),
+                        mapping.get("key"),
+                        mapping.get("name"),
+                        mapping.get("model"),
+                        mapping.get("value"),
+                    )
+                ) or str(index)
+                entries.append((key, mapping))
+        return entries
+
+    def _registry_models(self) -> list[tuple[str, dict[str, Any]]]:
+        raw = self._model_value("models", default={})
+        return self._iter_registry_entries(raw)
+
+    def _registry_providers(self) -> list[tuple[str, dict[str, Any]]]:
+        raw = self._model_value("providers", default={})
+        return self._iter_registry_entries(raw)
+
+    def _identifier_candidates(self, key: str, payload: dict[str, Any]) -> set[str]:
+        candidates: set[str] = set()
+        for value in (
+            key,
+            payload.get("id"),
+            payload.get("key"),
+            payload.get("name"),
+            payload.get("provider"),
+            payload.get("providerName"),
+            payload.get("provider_name"),
+            payload.get("model"),
+            payload.get("model_name"),
+            payload.get("modelName"),
+            payload.get("value"),
+        ):
+            if isinstance(value, str) and value.strip():
+                candidates.add(value.strip().lower())
+        aliases = payload.get("aliases")
+        if isinstance(aliases, list):
+            for alias in aliases:
+                if isinstance(alias, str) and alias.strip():
+                    candidates.add(alias.strip().lower())
+        elif isinstance(aliases, str) and aliases.strip():
+            for alias in aliases.split(","):
+                normalized = alias.strip().lower()
+                if normalized:
+                    candidates.add(normalized)
+        return candidates
+
+    def _record_matches_kind(self, payload: dict[str, Any], kind: str) -> bool:
+        normalized_kind = kind.strip().lower()
+        if not normalized_kind:
+            return True
+        expected = {
+            "text_analysis": {"text_analysis", "text", "analysis", "script", "llm"},
+            "image": {"image", "text_to_image", "t2i"},
+            "video": {"video", "text_to_video", "t2v", "image_to_video", "i2v"},
+            "vision": {"vision", "vl", "multimodal", "analysis"},
+        }.get(normalized_kind, {normalized_kind})
+        candidates: set[str] = set()
+        for key in ("kind", "type", "role", "mode"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                candidates.add(value.strip().lower())
+        for key in ("capabilities", "supportedKinds", "tags", "usage", "usages", "tasks"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str) and item.strip():
+                        candidates.add(item.strip().lower())
+            elif isinstance(value, str) and value.strip():
+                for item in value.split(","):
+                    normalized = item.strip().lower()
+                    if normalized:
+                        candidates.add(normalized)
+        if not candidates:
+            return True
+        return bool(candidates & expected)
+
+    def _find_model_record(self, model_name: str | None, *, kind: str | None = None) -> tuple[str, dict[str, Any]] | None:
+        normalized = str(model_name or "").strip().lower()
+        models = self._registry_models()
+        if normalized:
+            for key, payload in models:
+                if kind and not self._record_matches_kind(payload, kind):
+                    continue
+                if normalized in self._identifier_candidates(key, payload):
+                    return key, payload
+        if kind:
+            for key, payload in models:
+                if not self._record_matches_kind(payload, kind):
+                    continue
+                if bool(payload.get("isDefault")) or bool(payload.get("default")):
+                    return key, payload
+        return None
+
+    def _find_provider_record(self, provider_name: str | None) -> tuple[str, dict[str, Any]] | None:
+        normalized = str(provider_name or "").strip().lower()
+        if not normalized:
+            return None
+        for key, payload in self._registry_providers():
+            if normalized in self._identifier_candidates(key, payload):
+                return key, payload
+        return None
+
+    def _resolve_default_model_name(self, kind: str, legacy_name: str | None = None) -> str:
+        defaults = self._registry_defaults()
+        key_groups = {
+            "text_analysis": (
+                "textAnalysisModel",
+                "text_analysis_model",
+                "textModel",
+                "text_model",
+                "analysisModel",
+                "analysis_model",
+            ),
+            "image": ("imageModel", "image_model"),
+            "video": ("videoModel", "video_model"),
+            "vision": ("visionModel", "vision_model"),
+        }
+        keys = key_groups.get(kind, ())
+        value = self._first_non_empty_string(defaults.get(key) for key in keys)
+        if value:
+            return value
+        return str(legacy_name or "").strip()
+
+    def _resolve_default_provider_name(self, kind: str, legacy_provider: str | None = None) -> str:
+        defaults = self._registry_defaults()
+        key_groups = {
+            "text_analysis": ("textAnalysisProvider", "text_analysis_provider", "textProvider", "text_provider"),
+            "image": ("imageProvider", "image_provider"),
+            "video": ("videoProvider", "video_provider"),
+            "vision": ("visionProvider", "vision_provider"),
+        }
+        keys = key_groups.get(kind, ())
+        value = self._first_non_empty_string(defaults.get(key) for key in keys)
+        if value:
+            return value
+        return str(legacy_provider or "").strip()
+
+    def _target_endpoint_from_record(self, payload: dict[str, Any], *, kind: str, task: bool = False) -> str:
+        if not payload:
+            return ""
+        if task:
+            keys = (
+                f"{kind}TaskEndpoint",
+                f"{kind}_task_endpoint",
+                "taskEndpoint",
+                "task_endpoint",
+            )
+            return self._first_non_empty_string(payload.get(key) for key in keys)
+        keys = (
+            f"{kind}Endpoint",
+            f"{kind}_endpoint",
+            "requestEndpoint",
+            "request_endpoint",
+            "endpoint",
+            "url",
+        )
+        return self._first_non_empty_string(payload.get(key) for key in keys)
+
+    def _target_api_key_from_record(self, payload: dict[str, Any]) -> str:
+        if not payload:
+            return ""
+        for key in ("apiKey", "api_key", "key", "token"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        auth_block = self._as_mapping(payload.get("auth"))
+        for key in ("apiKey", "api_key", "key", "token"):
+            value = auth_block.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    def _model_gateway(self) -> Any:
+        containers = (getattr(self.settings, "model", None), self.settings)
+        for container in containers:
+            if container is None:
+                continue
+            for key in ("model_gateway", "modelGateway", "gateway", "model_router", "modelRouter", "router"):
+                value = self._read_mapping_value(container, key)
+                if value is not None:
+                    return value
+        return None
+
+    def _call_gateway_optional(self, method_names: tuple[str, ...], kwargs_candidates: list[dict[str, Any]]) -> Any:
+        gateway = self._model_gateway()
+        if gateway is None:
+            return None
+        for method_name in method_names:
+            method = getattr(gateway, method_name, None)
+            if not callable(method):
+                continue
+            for kwargs in kwargs_candidates:
+                try:
+                    return method(**kwargs)
+                except TypeError:
+                    continue
+                except Exception:
+                    continue
+        return None
+
+    def _coerce_resolved_target(
+        self,
+        raw_target: Any,
+        *,
+        kind: str,
+        fallback_model_name: str,
+        fallback_provider: str,
+        fallback_endpoint: str,
+        fallback_api_key: str,
+        fallback_task_endpoint: str | None = None,
+        fallback_family: str | None = None,
+        fallback_mode: str = "chat_completions",
+    ) -> _ResolvedModelTarget:
+        payload = self._as_mapping(raw_target)
+        model_name = self._first_non_empty_string(
+            (
+                payload.get("model_name"),
+                payload.get("modelName"),
+                payload.get("model"),
+                payload.get("value"),
+                payload.get("name"),
+                fallback_model_name,
+            )
+        )
+        provider = self._first_non_empty_string(
+            (
+                payload.get("provider"),
+                payload.get("providerName"),
+                payload.get("provider_name"),
+                fallback_provider,
+            )
+        )
+        endpoint = self._first_non_empty_string(
+            (
+                payload.get("endpoint"),
+                payload.get("request_endpoint"),
+                payload.get("requestEndpoint"),
+                self._target_endpoint_from_record(payload, kind=kind),
+                fallback_endpoint,
+            )
+        )
+        api_key = self._first_non_empty_string(
+            (
+                payload.get("api_key"),
+                payload.get("apiKey"),
+                self._target_api_key_from_record(payload),
+                fallback_api_key,
+            )
+        )
+        task_endpoint = self._first_non_empty_string(
+            (
+                payload.get("task_endpoint"),
+                payload.get("taskEndpoint"),
+                self._target_endpoint_from_record(payload, kind=kind, task=True),
+                fallback_task_endpoint or "",
+            )
+        ) or None
+        family = self._first_non_empty_string((payload.get("family"), fallback_family or "")) or None
+        mode = self._first_non_empty_string((payload.get("mode"), fallback_mode))
+        billing = self._as_mapping(payload.get("billing")) or self._as_mapping(self._model_value("billing", default={})) or None
+        usage = self._as_mapping(payload.get("usage")) or self._as_mapping(self._model_value("usage", default={})) or None
+        return _ResolvedModelTarget(
+            model_name=model_name,
+            provider=provider,
+            family=family,
+            mode=mode,
+            endpoint=endpoint,
+            api_key=api_key,
+            task_endpoint=task_endpoint,
+            billing=billing,
+            usage=usage,
+            raw=self._json_compatible(raw_target),
+        )
+
+    def _resolve_model_target(
+        self,
+        *,
+        kind: str,
+        requested_model: str | None = None,
+        requested_provider: str | None = None,
+        legacy_default_model: str | None = None,
+        legacy_default_provider: str | None = None,
+        legacy_endpoint: str | None = None,
+        legacy_api_key: str | None = None,
+        legacy_task_endpoint: str | None = None,
+        legacy_mode: str = "chat_completions",
+        legacy_family: str | None = None,
+    ) -> _ResolvedModelTarget:
+        normalized_requested_model = str(requested_model or "").strip()
+        normalized_requested_provider = str(requested_provider or "").strip()
+        default_model_name = self._resolve_default_model_name(kind, legacy_default_model)
+        default_provider_name = self._resolve_default_provider_name(kind, legacy_default_provider)
+        fallback_model = normalized_requested_model or default_model_name
+        if not fallback_model:
+            fallback_model = (
+                _TEXT_ANALYSIS_MODEL_PROFILES[0].key
+                if kind == "text_analysis"
+                else "qwen-vl-plus-latest"
+                if kind == "vision"
+                else "wan2.6-i2v"
+                if kind == "video"
+                else str(self._model_value("model_name", default="") or "")
+            )
+        fallback_provider = normalized_requested_provider or default_provider_name
+        fallback_endpoint = str(legacy_endpoint or "").strip()
+        fallback_api_key = str(legacy_api_key or "").strip()
+        fallback_task_endpoint = str(legacy_task_endpoint or "").strip() or None
+
+        gateway_method_candidates = {
+            "text_analysis": ("resolve_text_analysis_target", "resolve_text_target", "resolve_target", "route_text_analysis", "route_text"),
+            "image": ("resolve_image_target", "resolve_image_model", "resolve_target", "route_image"),
+            "video": ("resolve_video_target", "resolve_video_model", "resolve_target", "route_video"),
+            "vision": ("resolve_vision_target", "resolve_vision_model", "resolve_target", "route_vision"),
+        }
+        gateway_kwargs_candidates = [
+            {"kind": kind, "model_name": normalized_requested_model, "provider": normalized_requested_provider},
+            {"kind": kind, "model": normalized_requested_model, "provider": normalized_requested_provider},
+            {"kind": kind, "requested_model": normalized_requested_model, "requested_provider": normalized_requested_provider},
+            {"model_name": normalized_requested_model, "provider": normalized_requested_provider},
+            {"model": normalized_requested_model, "provider": normalized_requested_provider},
+            {"requested_model": normalized_requested_model, "requested_provider": normalized_requested_provider},
+            {"model_name": normalized_requested_model},
+            {"model": normalized_requested_model},
+            {"requested_model": normalized_requested_model},
+            {"kind": kind},
+            {},
+        ]
+        gateway_result = self._call_gateway_optional(
+            gateway_method_candidates.get(kind, ("resolve_target",)),
+            gateway_kwargs_candidates,
+        )
+        if gateway_result is not None:
+            return self._coerce_resolved_target(
+                gateway_result,
+                kind=kind,
+                fallback_model_name=fallback_model,
+                fallback_provider=fallback_provider,
+                fallback_endpoint=fallback_endpoint,
+                fallback_api_key=fallback_api_key,
+                fallback_task_endpoint=fallback_task_endpoint,
+                fallback_family=legacy_family,
+                fallback_mode=legacy_mode,
+            )
+
+        matched_model = self._find_model_record(fallback_model, kind=kind) or self._find_model_record(fallback_model)
+        model_record_key = ""
+        model_record: dict[str, Any] = {}
+        if matched_model is not None:
+            model_record_key, model_record = matched_model
+        resolved_model_name = self._first_non_empty_string(
+            (
+                model_record.get("model_name"),
+                model_record.get("modelName"),
+                model_record.get("model"),
+                model_record.get("value"),
+                model_record.get("name"),
+                model_record_key,
+                fallback_model,
+            )
+        )
+        resolved_provider = self._first_non_empty_string(
+            (
+                normalized_requested_provider,
+                model_record.get("provider"),
+                model_record.get("providerName"),
+                model_record.get("provider_name"),
+                fallback_provider,
+                legacy_default_provider or "",
+            )
+        )
+        provider_record_pair = self._find_provider_record(resolved_provider)
+        provider_record = provider_record_pair[1] if provider_record_pair else {}
+        endpoint = self._first_non_empty_string(
+            (
+                self._target_endpoint_from_record(model_record, kind=kind),
+                self._target_endpoint_from_record(provider_record, kind=kind),
+                fallback_endpoint,
+            )
+        )
+        task_endpoint = self._first_non_empty_string(
+            (
+                self._target_endpoint_from_record(model_record, kind=kind, task=True),
+                self._target_endpoint_from_record(provider_record, kind=kind, task=True),
+                fallback_task_endpoint or "",
+            )
+        ) or None
+        api_key = self._first_non_empty_string(
+            (
+                self._target_api_key_from_record(model_record),
+                self._target_api_key_from_record(provider_record),
+                fallback_api_key,
+            )
+        )
+        family = self._first_non_empty_string(
+            (
+                model_record.get("family"),
+                provider_record.get("family"),
+                legacy_family or "",
+            )
+        ) or None
+        mode = self._first_non_empty_string(
+            (
+                model_record.get("mode"),
+                provider_record.get("mode"),
+                legacy_mode,
+            )
+        )
+        billing = (
+            self._as_mapping(model_record.get("billing"))
+            or self._as_mapping(provider_record.get("billing"))
+            or self._as_mapping(self._model_value("billing", default={}))
+            or None
+        )
+        usage = (
+            self._as_mapping(model_record.get("usage"))
+            or self._as_mapping(provider_record.get("usage"))
+            or self._as_mapping(self._model_value("usage", default={}))
+            or None
+        )
+        return _ResolvedModelTarget(
+            model_name=resolved_model_name,
+            provider=resolved_provider,
+            family=family,
+            mode=mode,
+            endpoint=endpoint,
+            api_key=api_key,
+            task_endpoint=task_endpoint,
+            billing=billing,
+            usage=usage,
+            raw=model_record or provider_record or None,
+        )
+
+    def _resolve_text_analysis_target(self, requested_model: str | None = None) -> _ResolvedModelTarget:
+        legacy_default_model_name = str(self._model_value("text_analysis_model_name", "model_name", default="")).strip()
+        legacy_default_provider = str(self._model_value("provider", default="")).strip()
+        legacy_endpoint = self._first_non_empty_string(
+            (
+                self._model_value("text_analysis_endpoint", default=None),
+                self._model_value("endpoint", default=None),
+            )
+        )
+        legacy_api_key = self._first_non_empty_string(
+            (
+                self._model_value("text_analysis_api_key", default=None),
+                self._model_value("api_key", default=None),
+            )
+        )
+        resolved = self._resolve_model_target(
+            kind="text_analysis",
+            requested_model=requested_model,
+            legacy_default_model=legacy_default_model_name,
+            legacy_default_provider=legacy_default_provider,
+            legacy_endpoint=legacy_endpoint,
+            legacy_api_key=legacy_api_key,
+            legacy_mode=str(self._model_value("text_analysis_mode", default="chat_completions") or "chat_completions"),
+            legacy_family=_text_analysis_model_profile(requested_model or legacy_default_model_name).family,
+        )
+        if (not resolved.endpoint or not resolved.api_key) and callable(_legacy_resolve_text_analysis_target):
+            try:
+                legacy_target = _legacy_resolve_text_analysis_target(getattr(self.settings, "model", None), requested_model)
+            except Exception:
+                legacy_target = None
+            if legacy_target is not None:
+                return self._coerce_resolved_target(
+                    legacy_target,
+                    kind="text_analysis",
+                    fallback_model_name=resolved.model_name,
+                    fallback_provider=resolved.provider,
+                    fallback_endpoint=resolved.endpoint,
+                    fallback_api_key=resolved.api_key,
+                    fallback_task_endpoint=resolved.task_endpoint,
+                    fallback_family=resolved.family,
+                    fallback_mode=resolved.mode,
+                )
+        return resolved
+
+    def _resolve_image_target(self, requested_model: str | None = None) -> _ResolvedModelTarget:
+        return self._resolve_model_target(
+            kind="image",
+            requested_model=requested_model,
+            legacy_default_model=str(self._model_value("image_model_name", "model_name", default="")).strip(),
+            legacy_default_provider=str(self._model_value("provider", default="")).strip(),
+            legacy_endpoint=str(self._model_value("endpoint", default="")).strip(),
+            legacy_api_key=str(self._model_value("api_key", default="")).strip(),
+            legacy_mode="chat_completions",
+        )
+
+    def _resolve_video_target(self, requested_model: str | None = None, *, provider_hint: str | None = None) -> _ResolvedModelTarget:
+        return self._resolve_model_target(
+            kind="video",
+            requested_model=requested_model,
+            requested_provider=provider_hint,
+            legacy_default_model=str(self._model_value("video_model_name", default="")).strip(),
+            legacy_default_provider=provider_hint or str(self._model_value("provider", default="")).strip(),
+            legacy_endpoint=self._resolve_video_endpoint_legacy(),
+            legacy_task_endpoint=self._resolve_video_task_endpoint_legacy(),
+            legacy_api_key=str(self._model_value("api_key", default="")).strip(),
+            legacy_mode="async_task",
+        )
+
+    def _resolve_vision_target(self, requested_model: str | None = None) -> _ResolvedModelTarget:
+        return self._resolve_model_target(
+            kind="vision",
+            requested_model=requested_model,
+            legacy_default_model=str(self._model_value("vision_model_name", "model_name", default="")).strip(),
+            legacy_default_provider=str(self._model_value("provider", default="")).strip(),
+            legacy_endpoint=str(self._model_value("endpoint", default="")).strip(),
+            legacy_api_key=str(self._model_value("api_key", default="")).strip(),
+            legacy_mode="chat_completions",
+        )
+
+    def _model_timeout_seconds(self) -> float:
+        try:
+            return max(1.0, float(self._model_value("timeout_seconds", "timeoutSeconds", default=60.0)))
+        except Exception:
+            return 60.0
+
+    def _model_temperature(self) -> float:
+        try:
+            return float(self._model_value("temperature", default=0.7))
+        except Exception:
+            return 0.7
+
+    def _model_max_tokens(self) -> int:
+        try:
+            return max(1, int(self._model_value("max_tokens", "maxTokens", default=1024)))
+        except Exception:
+            return 1024
+
+    def _raw_response_from_gateway(self, gateway_result: Any) -> bytes:
+        if isinstance(gateway_result, bytes):
+            return gateway_result
+        if isinstance(gateway_result, str):
+            return gateway_result.encode("utf-8")
+        if isinstance(gateway_result, tuple) and gateway_result:
+            if len(gateway_result) >= 2 and isinstance(gateway_result[1], bytes):
+                return gateway_result[1]
+            if len(gateway_result) >= 2 and isinstance(gateway_result[1], str):
+                return gateway_result[1].encode("utf-8")
+            return self._raw_response_from_gateway(gateway_result[0])
+        payload = self._as_mapping(gateway_result)
+        return json.dumps(self._json_compatible(payload), ensure_ascii=False).encode("utf-8")
+
+    def _invoke_text_target(
+        self,
+        *,
+        target: _ResolvedModelTarget,
+        body: dict[str, Any],
+        timeout_seconds: float | None = None,
+    ) -> bytes:
+        gateway_result = self._call_gateway_optional(
+            ("invoke_text_analysis", "invoke_text", "request_text", "invoke_model", "invoke"),
+            [
+                {"target": target.raw or target, "body": body, "model_name": target.model_name},
+                {"target": target.raw or target, "body": body, "model": target.model_name},
+                {"target": target.raw or target, "body": body},
+                {"model_name": target.model_name, "target": target.raw or target, "body": body},
+                {"model": target.model_name, "target": target.raw or target, "body": body},
+                {"model_name": target.model_name, "body": body},
+                {"model": target.model_name, "body": body},
+            ],
+        )
+        if gateway_result is not None:
+            return self._raw_response_from_gateway(gateway_result)
+        if not target.endpoint:
+            raise RuntimeError("model endpoint is empty")
+        if not target.api_key:
+            raise RuntimeError("model api key is empty")
+        request = urllib.request.Request(
+            target.endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {target.api_key}",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=timeout_seconds if timeout_seconds is not None else self._model_timeout_seconds()) as response:
+            return response.read()
+
+    def _invoke_vision_target(
+        self,
+        *,
+        target: _ResolvedModelTarget,
+        model_name: str,
+        body: dict[str, Any],
+    ) -> bytes:
+        gateway_result = self._call_gateway_optional(
+            ("invoke_vision", "invoke_vision_model", "request_vision", "invoke_model", "invoke"),
+            [
+                {
+                    "model_name": model_name,
+                    "target": target.raw or target,
+                    "body": body,
+                    "messages": body.get("messages"),
+                    "temperature": body.get("temperature"),
+                    "max_tokens": body.get("max_tokens"),
+                },
+                {
+                    "model": model_name,
+                    "target": target.raw or target,
+                    "body": body,
+                    "messages": body.get("messages"),
+                    "temperature": body.get("temperature"),
+                    "max_tokens": body.get("max_tokens"),
+                },
+                {"model_name": model_name, "body": body},
+                {"model": model_name, "body": body},
+            ],
+        )
+        if gateway_result is not None:
+            return self._raw_response_from_gateway(gateway_result)
+        if not target.endpoint:
+            raise RuntimeError("vision model endpoint is empty")
+        if not target.api_key:
+            raise RuntimeError("vision model api key is empty")
+        request = urllib.request.Request(
+            target.endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {target.api_key}",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
+            return response.read()
+
     def list_versions(self) -> GenerationOptionsResponse:
         return self.get_generation_options()
 
     def _configured_text_analysis_models(self) -> list[_TextAnalysisModelProfile]:
-        raw = str(getattr(self.settings.model, "text_analysis_models", "") or "").strip()
+        raw = str(self._model_value("text_analysis_models", "textAnalysisModels", default="") or "").strip()
         if not raw:
-            return list(_TEXT_ANALYSIS_MODEL_PROFILES)
-        ordered: list[_TextAnalysisModelProfile] = []
-        seen: set[str] = set()
-        items: list[str] = []
-        if raw.startswith("["):
-            try:
-                parsed = json.loads(raw)
-                if isinstance(parsed, list):
-                    for entry in parsed:
-                        if isinstance(entry, str):
-                            items.append(entry)
-                        elif isinstance(entry, dict):
-                            items.append(str(entry.get("value") or entry.get("model") or "").strip())
-            except Exception:
-                items = []
-        if not items:
-            items = [item.strip() for item in raw.split(",")]
-        for item in items:
-            key = _normalize_text_analysis_model_name(item)
-            profile = self._text_analysis_models.get(key)
-            if profile is None or profile.key in seen:
+            ordered = list(_TEXT_ANALYSIS_MODEL_PROFILES)
+        else:
+            ordered: list[_TextAnalysisModelProfile] = []
+            seen: set[str] = set()
+            items: list[str] = []
+            if raw.startswith("["):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        for entry in parsed:
+                            if isinstance(entry, str):
+                                items.append(entry)
+                            elif isinstance(entry, dict):
+                                items.append(str(entry.get("value") or entry.get("model") or "").strip())
+                except Exception:
+                    items = []
+            if not items:
+                items = [item.strip() for item in raw.split(",")]
+            for item in items:
+                key = _normalize_text_analysis_model_name(item)
+                profile = self._text_analysis_models.get(key)
+                if profile is None or profile.key in seen:
+                    continue
+                ordered.append(profile)
+                seen.add(profile.key)
+            if not ordered:
+                ordered = list(_TEXT_ANALYSIS_MODEL_PROFILES)
+
+        for model_key, model_payload in self._registry_models():
+            if not self._record_matches_kind(model_payload, "text_analysis"):
                 continue
-            ordered.append(profile)
-            seen.add(profile.key)
-        if not ordered:
-            return list(_TEXT_ANALYSIS_MODEL_PROFILES)
+            model_name = self._first_non_empty_string(
+                (
+                    model_payload.get("model_name"),
+                    model_payload.get("modelName"),
+                    model_payload.get("model"),
+                    model_payload.get("value"),
+                    model_payload.get("name"),
+                    model_key,
+                )
+            )
+            key = _normalize_text_analysis_model_name(model_name)
+            profile = self._text_analysis_models.get(key)
+            if profile is None:
+                continue
+            if all(item.key != profile.key for item in ordered):
+                ordered.append(profile)
+        seen = {item.key for item in ordered}
         for profile in _TEXT_ANALYSIS_MODEL_PROFILES:
             if profile.key not in seen:
                 ordered.append(profile)
+                seen.add(profile.key)
         return ordered
 
     def _default_text_analysis_model(self) -> _TextAnalysisModelProfile:
         configured = self._configured_text_analysis_models()
-        preferred_key = _normalize_text_analysis_model_name(self.settings.model.text_analysis_model_name)
+        resolved_target = self._resolve_text_analysis_target(None)
+        preferred_key = _normalize_text_analysis_model_name(
+            resolved_target.model_name or str(self._model_value("text_analysis_model_name", "model_name", default=""))
+        )
         preferred = next((item for item in configured if item.key == preferred_key), None)
         return preferred or configured[0]
 
     def _configured_video_model_specs(self) -> list[_VideoModelSpec]:
-        raw = str(getattr(self.settings.model, "video_models", "") or "").strip()
+        raw = str(self._model_value("video_models", "videoModels", default="") or "").strip()
         items: list[str] = []
         if raw.startswith("["):
             try:
@@ -1253,7 +2058,12 @@ class TextGenerationEngine:
 
     def _default_video_model_spec(self) -> _VideoModelSpec:
         configured = self._configured_video_model_specs()
-        preferred_key = _normalize_video_model_name(self.settings.model.video_model_name)
+        preferred_key = _normalize_video_model_name(
+            self._resolve_default_model_name(
+                "video",
+                str(self._model_value("video_model_name", default="")),
+            )
+        )
         preferred = next((item for item in configured if item.name == preferred_key), None)
         return preferred or configured[0]
 
@@ -1273,9 +2083,11 @@ class TextGenerationEngine:
         ]
 
     def _resolve_text_analysis_model(self, explicit_model: str | None = None) -> _TextAnalysisModelProfile:
-        key = _normalize_text_analysis_model_name(explicit_model) or _normalize_text_analysis_model_name(
-            self.settings.model.text_analysis_model_name
-        )
+        key = _normalize_text_analysis_model_name(explicit_model)
+        if not key:
+            key = _normalize_text_analysis_model_name(self._resolve_text_analysis_target(None).model_name)
+        if not key:
+            key = _normalize_text_analysis_model_name(str(self._model_value("text_analysis_model_name", default="")))
         return self._text_analysis_models.get(key) or self._default_text_analysis_model()
 
     def get_generation_options(self) -> GenerationOptionsResponse:
@@ -1335,6 +2147,9 @@ class TextGenerationEngine:
         return self.get_generation_options()
 
     def infer_video_provider(self, model_name: str) -> str:
+        resolved_target = self._resolve_video_target(model_name)
+        if resolved_target.provider:
+            return resolved_target.provider
         normalized_name = _normalize_video_model_name(model_name)
         spec = _VIDEO_MODELS.get(normalized_name)
         if spec is None:
@@ -1382,21 +2197,26 @@ class TextGenerationEngine:
 
     def get_video_model_usage(self) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
+        usage_block = self._as_mapping(self._model_value("usage", default={}))
+        billing_block = self._as_mapping(self._model_value("billing", default={}))
         default_video_spec = self._default_video_model_spec()
         for option in _video_model_options(default_video_spec.name, self._configured_video_model_specs()):
             model_key = str(option.get("value") or "").strip()
             if not model_key:
                 continue
+            model_usage = self._as_mapping(usage_block.get(model_key)) if isinstance(usage_block, dict) else {}
+            model_billing = self._as_mapping(billing_block.get(model_key)) if isinstance(billing_block, dict) else {}
+            provider_target = self._resolve_video_target(model_key, provider_hint=self.infer_video_provider(model_key))
             items.append(
                 {
                     "model": model_key,
                     "label": str(option.get("label") or model_key),
-                    "provider": self.infer_video_provider(model_key),
-                    "used": 0,
-                    "remaining": None,
-                    "quota": None,
-                    "usedDurationSeconds": 0.0,
-                    "updatedAt": None,
+                    "provider": provider_target.provider or self.infer_video_provider(model_key),
+                    "used": int(model_usage.get("used") or model_usage.get("count") or 0),
+                    "remaining": model_usage.get("remaining"),
+                    "quota": model_usage.get("quota") or model_billing.get("quota"),
+                    "usedDurationSeconds": float(model_usage.get("usedDurationSeconds") or model_usage.get("durationSeconds") or 0.0),
+                    "updatedAt": model_usage.get("updatedAt") or model_billing.get("updatedAt"),
                 }
             )
         return {
@@ -1413,7 +2233,7 @@ class TextGenerationEngine:
     def probe_text_analysis_model(self, payload: Any = None) -> ProbeTextAnalysisModelResponse:
         request_obj = self._normalize_text_analysis_probe_request(payload)
         requested_model = str(request_obj.textAnalysisModel or "").strip() or None
-        target = resolve_text_analysis_target(self.settings.model, requested_model)
+        target = self._resolve_text_analysis_target(requested_model)
         endpoint = str(target.endpoint or "").strip()
         api_key = str(target.api_key or "").strip()
         if not endpoint or not api_key:
@@ -1433,18 +2253,25 @@ class TextGenerationEngine:
             use_responses_api=use_responses_api,
             enable_thinking=False,
         )
-        request = urllib.request.Request(
-            request_endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-        )
         started_at = time.perf_counter()
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw_response = response.read()
+            request_target = _ResolvedModelTarget(
+                model_name=target.model_name,
+                provider=target.provider,
+                family=target.family,
+                mode=target.mode,
+                endpoint=request_endpoint,
+                api_key=api_key,
+                task_endpoint=target.task_endpoint,
+                billing=target.billing,
+                usage=target.usage,
+                raw=target.raw,
+            )
+            raw_response = self._invoke_text_target(
+                target=request_target,
+                body=body,
+                timeout_seconds=self._model_timeout_seconds(),
+            )
         except (TimeoutError, socket.timeout) as exc:
             raise RuntimeError(f"text analysis probe timed out ({target.model_name}): {exc}") from exc
         except urllib.error.HTTPError as exc:
@@ -1524,7 +2351,7 @@ class TextGenerationEngine:
             "message": message,
         }
         if details:
-            entry["details"] = details
+            entry["details"] = self._json_compatible(details)
         call_chain.append(entry)
 
     def _is_openai_text_analysis_target(self, *, provider: str | None, endpoint: str | None) -> bool:
@@ -1611,7 +2438,7 @@ class TextGenerationEngine:
             },
         )
         started_at = time.perf_counter()
-        with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+        with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
             raw_response = response.read()
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
         payload = self._parse_json_bytes(raw_response)
@@ -1644,7 +2471,7 @@ class TextGenerationEngine:
             method="DELETE",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds):
+            with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()):
                 pass
             self._trace_call(
                 call_chain,
@@ -1815,7 +2642,7 @@ class TextGenerationEngine:
     ) -> tuple[str, _TextAnalysisModelProfile, str]:
         requested_model = str(selected_model or "").strip() or None
         profile = self._resolve_text_analysis_model(requested_model)
-        target = resolve_text_analysis_target(self.settings.model, requested_model or profile.key)
+        target = self._resolve_text_analysis_target(requested_model or profile.key)
         profile = _text_analysis_model_profile(target.model_name)
         endpoint = str(target.endpoint or "").strip()
         api_key = str(target.api_key or "").strip()
@@ -1831,18 +2658,10 @@ class TextGenerationEngine:
             model_name=target.model_name,
             system_prompt=self.settings.prompts.text_analysis_rewriter,
             user_prompt=text,
-            temperature=min(0.45, max(0.08, self.settings.model.temperature)),
-            max_tokens=min(max_tokens, self.settings.model.max_tokens),
+            temperature=min(0.45, max(0.08, self._model_temperature())),
+            max_tokens=min(max_tokens, self._model_max_tokens()),
             use_responses_api=use_responses_api,
             enable_thinking=looks_like_qwen_model(target.model_name),
-        )
-        request = urllib.request.Request(
-            request_endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
         )
         self._trace_call(
             call_chain,
@@ -1859,8 +2678,23 @@ class TextGenerationEngine:
         )
         started_at = time.perf_counter()
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw_response = response.read()
+            request_target = _ResolvedModelTarget(
+                model_name=target.model_name,
+                provider=target.provider,
+                family=target.family,
+                mode=target.mode,
+                endpoint=request_endpoint,
+                api_key=api_key,
+                task_endpoint=target.task_endpoint,
+                billing=target.billing,
+                usage=target.usage,
+                raw=target.raw,
+            )
+            raw_response = self._invoke_text_target(
+                target=request_target,
+                body=body,
+                timeout_seconds=self._model_timeout_seconds(),
+            )
         except Exception as exc:
             raise RuntimeError(f"text analysis request failed ({target.model_name}): {exc}") from exc
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
@@ -1973,14 +2807,17 @@ class TextGenerationEngine:
         video_spec = self._resolve_video_model_spec(request_obj) if media_type == "video" else None
         if media_type == "video":
             if video_spec and video_spec.provider_kind == "seeddance":
-                provider_endpoint = self._resolve_seeddance_endpoint()
-                provider_api_key = self._resolve_seeddance_api_key()
+                provider_target = self._resolve_video_target(video_spec.name, provider_hint="volcengine")
+                provider_endpoint = str(provider_target.endpoint or self._resolve_seeddance_endpoint()).strip()
+                provider_api_key = str(provider_target.api_key or self._resolve_seeddance_api_key()).strip()
             else:
-                provider_endpoint = self._resolve_video_endpoint()
-                provider_api_key = str(self.settings.model.api_key or "").strip()
+                provider_target = self._resolve_video_target(video_spec.name if video_spec else None)
+                provider_endpoint = str(provider_target.endpoint or self._resolve_video_endpoint()).strip()
+                provider_api_key = str(provider_target.api_key or self._model_value("api_key", default="")).strip()
         else:
-            provider_endpoint = str(self.settings.model.endpoint).strip()
-            provider_api_key = str(self.settings.model.api_key or "").strip()
+            provider_target = self._resolve_image_target(None)
+            provider_endpoint = str(provider_target.endpoint or self._model_value("endpoint", default="")).strip()
+            provider_api_key = str(provider_target.api_key or self._model_value("api_key", default="")).strip()
         if not provider_endpoint or not provider_api_key:
             self._trace_call(
                 call_chain,
@@ -2042,12 +2879,12 @@ class TextGenerationEngine:
         model_name = str(
             remote_model_info.get("providerModel")
             or remote_metadata.get("providerModel")
-            or (resolved_video_spec.name if resolved_video_spec is not None else self.settings.model.model_name)
+            or (resolved_video_spec.name if resolved_video_spec is not None else self._model_value("model_name", default=""))
         ).strip()
         provider_name = str(
             remote_model_info.get("provider")
             or remote_metadata.get("provider")
-            or (self.infer_video_provider(model_name) if media_type == "video" else self.settings.model.provider)
+            or (self.infer_video_provider(model_name) if media_type == "video" else self._model_value("provider", default=""))
         ).strip()
         task_endpoint_host = str(remote_model_info.get("taskEndpointHost") or "").strip()
         if media_type == "video" and not task_endpoint_host:
@@ -2083,8 +2920,8 @@ class TextGenerationEngine:
                     "textAnalysisEndpointHost": text_analysis_endpoint_host or None,
                     "endpointHost": endpoint_host,
                     "taskEndpointHost": task_endpoint_host or None,
-                    "temperature": self.settings.model.temperature if media_type != "video" else None,
-                    "maxTokens": self.settings.model.max_tokens if media_type != "video" else None,
+                    "temperature": self._model_temperature() if media_type != "video" else None,
+                    "maxTokens": self._model_max_tokens() if media_type != "video" else None,
                     "strategyVersion": strategy_version,
                     "strategyVersionLabel": profile.name,
                     "strategySummary": profile.summary,
@@ -2092,7 +2929,7 @@ class TextGenerationEngine:
                     "timeoutSeconds": (
                         self.settings.model.video_poll_timeout_seconds
                         if media_type == "video"
-                        else self.settings.model.timeout_seconds
+                        else self._model_timeout_seconds()
                     ),
                     "promptExtend": self.settings.model.video_prompt_extend if media_type == "video" else None,
                 },
@@ -2131,21 +2968,18 @@ class TextGenerationEngine:
         )
 
         text_analysis_profile = self._resolve_text_analysis_model(requested_text_analysis_model or None)
-        text_analysis_target = resolve_text_analysis_target(
-            self.settings.model,
+        text_analysis_target = self._resolve_text_analysis_target(
             requested_text_analysis_model or text_analysis_profile.key,
         )
         endpoint = str(text_analysis_target.endpoint or "").strip()
         api_key = str(text_analysis_target.api_key or "").strip()
         fallback_used = False
         configured_fallback_name = str(
-            self.settings.model.text_analysis_fallback_model_name
-            or self.settings.model.model_name
+            self._model_value("text_analysis_fallback_model_name", "model_name", default="")
             or ""
         ).strip()
         configured_fallback_profile = self._resolve_text_analysis_model(configured_fallback_name or None)
-        configured_fallback_target = resolve_text_analysis_target(
-            self.settings.model,
+        configured_fallback_target = self._resolve_text_analysis_target(
             configured_fallback_profile.key,
         )
         if not endpoint or not api_key:
@@ -2224,8 +3058,8 @@ class TextGenerationEngine:
             "如果原文信息不完整，请在不偏离原意的前提下补足角色外观锚点、环境视觉基调和分镜动作。\n"
             "请完整阅读附件文件内容，并直接输出最终剧本，不要写解释、前言或额外说明。"
         )
-        temperature = min(0.45, max(0.12, self.settings.model.temperature + 0.05))
-        script_token_candidates = _script_output_token_candidates(self.settings.model.max_tokens)
+        temperature = min(0.45, max(0.12, self._model_temperature() + 0.05))
+        script_token_candidates = _script_output_token_candidates(self._model_max_tokens())
         max_output_tokens = script_token_candidates[0]
         use_openai_file_input = (
             source_text_file_path is not None
@@ -2233,7 +3067,7 @@ class TextGenerationEngine:
         )
         input_mode = "inline"
         raw_response = b""
-        script_request_timeout_seconds = max(float(self.settings.model.timeout_seconds), 300.0)
+        script_request_timeout_seconds = max(float(self._model_timeout_seconds()), 300.0)
 
         def send_inline_script_request(
             *,
@@ -2260,14 +3094,6 @@ class TextGenerationEngine:
                 use_responses_api=use_responses_api,
                 enable_thinking=False,
             )
-            request = urllib.request.Request(
-                request_endpoint,
-                data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {target_api_key}",
-                },
-            )
             self._trace_call(
                 call_chain,
                 stage="remote_request",
@@ -2286,8 +3112,23 @@ class TextGenerationEngine:
             )
 
             request_started = time.perf_counter()
-            with urllib.request.urlopen(request, timeout=script_request_timeout_seconds) as response:
-                response_bytes = response.read()
+            request_target = _ResolvedModelTarget(
+                model_name=target_model_name,
+                provider=target_provider,
+                family=text_analysis_target.family,
+                mode=target_mode,
+                endpoint=request_endpoint,
+                api_key=target_api_key,
+                task_endpoint=text_analysis_target.task_endpoint,
+                billing=text_analysis_target.billing,
+                usage=text_analysis_target.usage,
+                raw=text_analysis_target.raw,
+            )
+            response_bytes = self._invoke_text_target(
+                target=request_target,
+                body=body,
+                timeout_seconds=script_request_timeout_seconds,
+            )
             elapsed_ms = int((time.perf_counter() - request_started) * 1000)
             self._trace_call(
                 call_chain,
@@ -2631,7 +3472,7 @@ class TextGenerationEngine:
                     "endpointHost": endpoint_host,
                     "temperature": temperature,
                     "maxTokens": max_output_tokens,
-                    "timeoutSeconds": self.settings.model.timeout_seconds,
+                    "timeoutSeconds": self._model_timeout_seconds(),
                     "fallbackUsed": fallback_used,
                     "inputMode": input_mode,
                 },
@@ -2677,7 +3518,11 @@ class TextGenerationEngine:
             else:
                 payload = request_obj.model_dump() if hasattr(request_obj, "model_dump") else dict(request_obj.__dict__)
                 backend_request = GenerateTextMediaRequest(**payload)
-            backend_model_name = (spec.backend_model_name or self.settings.model.video_model_name or "wan2.6-t2v").strip()
+            backend_model_name = (
+                spec.backend_model_name
+                or self._resolve_default_model_name("video", str(self._model_value("video_model_name", default="")))
+                or "wan2.6-t2v"
+            ).strip()
             backend_request.providerModel = backend_model_name
             backend_request.videoModel = backend_model_name
             rewritten_prompt = self._rewrite_prompt_with_qwen_vl(
@@ -2736,7 +3581,10 @@ class TextGenerationEngine:
         width, height = self._resolve_dimensions(request_obj)
         duration_seconds = float(getattr(request_obj, "durationSeconds", 0.0) or 0.0)
         aspect_ratio = self._aspect_ratio_label(width, height)
-        request_model_name = str(self.settings.model.image_model_name or self.settings.model.model_name or "").strip()
+        request_model_name = self._resolve_default_model_name(
+            "image",
+            str(self._model_value("image_model_name", "model_name", default="")).strip(),
+        )
         extras = getattr(request_obj, "extras", None)
         force_provider_model_for_image = bool(isinstance(extras, dict) and extras.get("forceProviderModelForImage"))
         if media_type == "image" and force_provider_model_for_image:
@@ -2757,14 +3605,16 @@ class TextGenerationEngine:
                 request_model_name=request_model_name,
             )
 
-        endpoint = str(self.settings.model.endpoint).strip()
+        image_target = self._resolve_image_target(request_model_name)
+        endpoint = str(image_target.endpoint or "").strip()
+        provider_name = str(image_target.provider or self._model_value("provider", default="")).strip()
         if not endpoint:
             raise RuntimeError("model endpoint is empty")
-        if not self.settings.model.api_key:
+        if not image_target.api_key:
             raise RuntimeError("model api_key is empty")
 
         use_responses_api = should_use_responses_api(
-            provider=self.settings.model.provider,
+            provider=provider_name,
             endpoint=endpoint,
             model_name=request_model_name,
         )
@@ -2780,19 +3630,10 @@ class TextGenerationEngine:
                 f"Prompt: {shaped_prompt}\n"
                 'Output JSON: {"file_url":"https://...", "base64_data":"...", "mime_type":"image/png or video/mp4"}'
             ),
-            temperature=min(0.35, max(0.05, self.settings.model.temperature)),
-            max_tokens=min(900, self.settings.model.max_tokens),
+            temperature=min(0.35, max(0.05, self._model_temperature())),
+            max_tokens=min(900, self._model_max_tokens()),
             use_responses_api=use_responses_api,
             enable_thinking=looks_like_qwen_model(request_model_name),
-        )
-
-        request = urllib.request.Request(
-            request_endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.model.api_key}",
-            },
         )
         self._trace_call(
             call_chain,
@@ -2802,7 +3643,7 @@ class TextGenerationEngine:
             message="remote generation request sent",
             details={
                 "modelName": request_model_name,
-                "provider": self.settings.model.provider,
+                "provider": provider_name,
                 "kind": media_type,
                 "temperature": body["temperature"],
                 "maxTokens": body.get("max_output_tokens", body.get("max_tokens")),
@@ -2810,8 +3651,23 @@ class TextGenerationEngine:
         )
         request_started = time.perf_counter()
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw_response = response.read()
+            request_target = _ResolvedModelTarget(
+                model_name=request_model_name,
+                provider=provider_name,
+                family=image_target.family,
+                mode=image_target.mode,
+                endpoint=request_endpoint,
+                api_key=image_target.api_key,
+                task_endpoint=image_target.task_endpoint,
+                billing=image_target.billing,
+                usage=image_target.usage,
+                raw=image_target.raw,
+            )
+            raw_response = self._invoke_text_target(
+                target=request_target,
+                body=body,
+                timeout_seconds=self._model_timeout_seconds(),
+            )
             elapsed_ms = int((time.perf_counter() - request_started) * 1000)
             self._trace_call(
                 call_chain,
@@ -2975,7 +3831,7 @@ class TextGenerationEngine:
         )
         request_started = time.perf_counter()
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+            with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
                 raw_response = response.read()
             elapsed_ms = int((time.perf_counter() - request_started) * 1000)
             self._trace_call(
@@ -3074,12 +3930,15 @@ class TextGenerationEngine:
         return "1K"
 
     def _rewrite_prompt_with_qwen_vl(self, *, shaped_prompt: str, call_chain: list[dict[str, Any]]) -> str:
-        endpoint = str(self.settings.model.endpoint or "").strip()
-        if not endpoint or not self.settings.model.api_key:
-            return shaped_prompt
-        model_name = str(self.settings.model.vision_model_name or "qwen-vl-plus-latest").strip()
+        model_name = self._resolve_default_model_name(
+            "vision",
+            str(self._model_value("vision_model_name", default="qwen-vl-plus-latest")).strip(),
+        )
         if not model_name:
             model_name = "qwen-vl-plus-latest"
+        vision_target = self._resolve_vision_target(model_name)
+        if not vision_target.endpoint or not vision_target.api_key:
+            return shaped_prompt
         body = {
             "model": model_name,
             "messages": [
@@ -3092,20 +3951,15 @@ class TextGenerationEngine:
                     "content": shaped_prompt,
                 },
             ],
-            "temperature": min(0.4, max(0.05, self.settings.model.temperature)),
-            "max_tokens": min(1200, self.settings.model.max_tokens),
+            "temperature": min(0.4, max(0.05, self._model_temperature())),
+            "max_tokens": min(1200, self._model_max_tokens()),
         }
-        request = urllib.request.Request(
-            endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.model.api_key}",
-            },
-        )
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw_response = response.read()
+            raw_response = self._invoke_vision_target(
+                target=vision_target,
+                model_name=model_name,
+                body=body,
+            )
         except Exception as exc:
             self._trace_call(
                 call_chain,
@@ -3140,9 +3994,12 @@ class TextGenerationEngine:
         generation_id: str,
         call_chain: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        endpoint = self._resolve_seeddance_endpoint()
-        task_endpoint = self._resolve_seeddance_task_endpoint()
-        api_key = self._resolve_seeddance_api_key()
+        spec = self._resolve_video_model_spec(request_obj)
+        target = self._resolve_video_target(spec.name, provider_hint="volcengine")
+        endpoint = str(target.endpoint or self._resolve_seeddance_endpoint()).strip()
+        task_endpoint = str(target.task_endpoint or self._resolve_seeddance_task_endpoint()).strip()
+        api_key = str(target.api_key or self._resolve_seeddance_api_key()).strip()
+        provider_name = str(target.provider or self.infer_video_provider(spec.name)).strip()
         if not endpoint:
             raise RuntimeError("seeddance video endpoint is empty")
         if not task_endpoint:
@@ -3150,7 +4007,6 @@ class TextGenerationEngine:
         if not api_key:
             raise RuntimeError("seeddance api key is empty")
 
-        spec = self._resolve_video_model_spec(request_obj)
         width, height = self._resolve_dimensions(request_obj)
         normalized_width, normalized_height, normalized_size = self._normalize_video_size(
             spec=spec,
@@ -3205,7 +4061,7 @@ class TextGenerationEngine:
             details={
                 "modelName": spec.name,
                 "backendModelName": backend_model_name,
-                "provider": self.infer_video_provider(spec.name),
+                "provider": provider_name,
                 "size": normalized_size,
                 "durationSeconds": int(normalized_duration),
                 "minDurationSeconds": min_requested_duration,
@@ -3214,7 +4070,7 @@ class TextGenerationEngine:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+            with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
                 raw_response = response.read()
         except urllib.error.HTTPError as exc:
             detail = ""
@@ -3277,7 +4133,7 @@ class TextGenerationEngine:
             data, mime_type = self._download_binary(
                 video_url,
                 call_chain=call_chain,
-                timeout_seconds=max(float(self.settings.model.timeout_seconds), 300.0),
+                timeout_seconds=max(float(self._model_timeout_seconds()), 300.0),
             )
         except Exception as exc:
             raise RuntimeError(
@@ -3304,7 +4160,7 @@ class TextGenerationEngine:
                 "actualPrompt": prompt_with_flags,
                 "referenceImageUrl": reference_image_url,
                 "modelInfo": {
-                    "provider": self.infer_video_provider(spec.name),
+                    "provider": provider_name,
                     "modelName": backend_model_name,
                     "providerModel": spec.name,
                     "endpointHost": urllib.parse.urlparse(endpoint).netloc or endpoint,
@@ -3334,16 +4190,20 @@ class TextGenerationEngine:
         generation_id: str,
         call_chain: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        endpoint = self._resolve_video_endpoint()
-        task_endpoint = self._resolve_video_task_endpoint()
+        spec = self._resolve_video_model_spec(request_obj)
+        provider_hint = "volcengine" if spec.provider_kind == "seeddance" else "aliyun-bailian"
+        video_target = self._resolve_video_target(spec.name, provider_hint=provider_hint)
+        endpoint = str(video_target.endpoint or self._resolve_video_endpoint()).strip()
+        task_endpoint = str(video_target.task_endpoint or self._resolve_video_task_endpoint()).strip()
+        api_key = str(video_target.api_key or self._model_value("api_key", default="")).strip()
+        provider_name = str(video_target.provider or self.infer_video_provider(spec.name)).strip()
         if not endpoint:
             raise RuntimeError("video endpoint is empty")
         if not task_endpoint:
             raise RuntimeError("video task endpoint is empty")
-        if not self.settings.model.api_key:
+        if not api_key:
             raise RuntimeError("model api_key is empty")
 
-        spec = self._resolve_video_model_spec(request_obj)
         backend_model_name = (spec.backend_model_name or spec.name).strip() or spec.name
         width, height = self._resolve_dimensions(request_obj)
         normalized_width, normalized_height, normalized_size = self._normalize_video_size(
@@ -3424,7 +4284,7 @@ class TextGenerationEngine:
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.model.api_key}",
+                "Authorization": f"Bearer {api_key}",
                 "X-DashScope-Async": "enable",
             },
         )
@@ -3437,7 +4297,7 @@ class TextGenerationEngine:
             details={
                 "modelName": spec.name,
                 "backendModelName": backend_model_name,
-                "provider": self.infer_video_provider(spec.name),
+                "provider": provider_name,
                 "size": normalized_size,
                 "durationSeconds": int(normalized_duration),
                 "minDurationSeconds": min_requested_duration,
@@ -3448,7 +4308,7 @@ class TextGenerationEngine:
 
         request_started = time.perf_counter()
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+            with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
                 raw_response = response.read()
             elapsed_ms = int((time.perf_counter() - request_started) * 1000)
             self._trace_call(
@@ -3485,6 +4345,7 @@ class TextGenerationEngine:
         poll_result = self._poll_dashscope_video_task(
             task_id=task_id,
             task_endpoint=task_endpoint,
+            api_key=api_key,
             call_chain=call_chain,
         )
         video_url = self._extract_video_url(poll_result)
@@ -3494,7 +4355,7 @@ class TextGenerationEngine:
         data, mime_type = self._download_binary(
             video_url,
             call_chain=call_chain,
-            timeout_seconds=max(float(self.settings.model.timeout_seconds), 300.0),
+            timeout_seconds=max(float(self._model_timeout_seconds()), 300.0),
         )
         mime_type = mime_type or "video/mp4"
         output_path = self._prepare_output_path(generation_id, "video", self._extension_from_mime_or_url(mime_type, video_url, "video"))
@@ -3536,7 +4397,7 @@ class TextGenerationEngine:
                 "stylePreset": getattr(request_obj, "stylePreset", None),
                 "actualPrompt": remote_prompt,
                 "modelInfo": {
-                    "provider": self.infer_video_provider(spec.name),
+                    "provider": provider_name,
                     "modelName": backend_model_name,
                     "providerModel": spec.name,
                     "endpointHost": urllib.parse.urlparse(endpoint).netloc or endpoint,
@@ -3553,6 +4414,7 @@ class TextGenerationEngine:
         *,
         task_id: str,
         task_endpoint: str,
+        api_key: str,
         call_chain: list[dict[str, Any]],
     ) -> dict[str, Any]:
         deadline = time.monotonic() + max(30.0, float(self.settings.model.video_poll_timeout_seconds))
@@ -3566,11 +4428,11 @@ class TextGenerationEngine:
             request = urllib.request.Request(
                 poll_url,
                 headers={
-                    "Authorization": f"Bearer {self.settings.model.api_key}",
+                    "Authorization": f"Bearer {api_key}",
                 },
             )
             try:
-                with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
                     raw_response = response.read()
             except (TimeoutError, socket.timeout) as exc:
                 self._trace_call(
@@ -3663,7 +4525,7 @@ class TextGenerationEngine:
                 },
             )
             try:
-                with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
+                with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
                     raw_response = response.read()
             except (TimeoutError, socket.timeout):
                 time.sleep(interval)
@@ -4042,7 +4904,7 @@ class TextGenerationEngine:
             try:
                 with urllib.request.urlopen(
                     request,
-                    timeout=timeout_seconds if timeout_seconds is not None else self.settings.model.timeout_seconds,
+                    timeout=timeout_seconds if timeout_seconds is not None else self._model_timeout_seconds(),
                 ) as response:
                     data = response.read()
                     mime_type = response.headers.get_content_type() or ""
@@ -4361,7 +5223,9 @@ class TextGenerationEngine:
                 requested_duration = getattr(request_obj, "durationSeconds", None)
                 duration_seconds = float(requested_duration) if requested_duration not in {None, ""} else None
         version_int = int(version.lstrip("v") or "1")
-        enriched_metadata = dict(metadata)
+        enriched_metadata = self._json_compatible(dict(metadata))
+        if not isinstance(enriched_metadata, dict):
+            enriched_metadata = {}
         enriched_metadata.setdefault("version", version_int)
         enriched_metadata.setdefault("shapedPrompt", shaped_prompt)
         enriched_metadata.setdefault("filePath", relative)
@@ -4395,9 +5259,12 @@ class TextGenerationEngine:
         return self._build_model(GenerateTextMediaResponse, payload)
 
     def _build_model(self, model_class: Any, payload: dict[str, Any]) -> Any:
+        safe_payload = self._json_compatible(payload)
+        if not isinstance(safe_payload, dict):
+            safe_payload = {}
         if hasattr(model_class, "model_validate"):
-            return model_class.model_validate(payload)
-        return model_class(**payload)
+            return model_class.model_validate(safe_payload)
+        return model_class(**safe_payload)
 
     def _resolve_video_model_spec(self, request_obj: GenerateTextMediaRequest | None = None) -> _VideoModelSpec:
         raw_name = ""
@@ -4408,7 +5275,7 @@ class TextGenerationEngine:
                 or ""
             ).strip().lower()
         if not raw_name:
-            raw_name = str(self.settings.model.video_model_name or "").strip().lower()
+            raw_name = self._resolve_default_model_name("video", str(self._model_value("video_model_name", default=""))).lower()
         if not raw_name:
             raw_name = "wan2.6-i2v"
         normalized_name = _normalize_video_model_name(raw_name)
@@ -4420,11 +5287,11 @@ class TextGenerationEngine:
             raise RuntimeError(f"unsupported video model '{raw_name}', supported models: {supported}")
         return spec
 
-    def _resolve_video_endpoint(self) -> str:
-        endpoint = str(self.settings.model.video_endpoint or "").strip()
+    def _resolve_video_endpoint_legacy(self) -> str:
+        endpoint = str(self._model_value("video_endpoint", default="") or "").strip()
         if endpoint:
             return endpoint
-        base = str(self.settings.model.endpoint or "").strip()
+        base = str(self._model_value("endpoint", default="") or "").strip()
         if not base:
             return ""
         parsed = urllib.parse.urlparse(base)
@@ -4432,11 +5299,11 @@ class TextGenerationEngine:
             return f"{parsed.scheme}://{parsed.netloc}/api/v1/services/aigc/video-generation/video-synthesis"
         return base.rstrip("/") + "/api/v1/services/aigc/video-generation/video-synthesis"
 
-    def _resolve_video_task_endpoint(self) -> str:
-        endpoint = str(self.settings.model.video_task_endpoint or "").strip()
+    def _resolve_video_task_endpoint_legacy(self) -> str:
+        endpoint = str(self._model_value("video_task_endpoint", default="") or "").strip()
         if endpoint:
             return endpoint
-        base = self._resolve_video_endpoint()
+        base = self._resolve_video_endpoint_legacy()
         if not base:
             return ""
         parsed = urllib.parse.urlparse(base)
@@ -4444,17 +5311,51 @@ class TextGenerationEngine:
             return f"{parsed.scheme}://{parsed.netloc}/api/v1/tasks"
         return base.rstrip("/") + "/api/v1/tasks"
 
+    def _resolve_video_endpoint(self) -> str:
+        resolved = self._resolve_video_target(None)
+        endpoint = str(resolved.endpoint or "").strip()
+        if endpoint:
+            return endpoint
+        return self._resolve_video_endpoint_legacy()
+
+    def _resolve_video_task_endpoint(self) -> str:
+        resolved = self._resolve_video_target(None)
+        endpoint = str(resolved.task_endpoint or "").strip()
+        if endpoint:
+            return endpoint
+        return self._resolve_video_task_endpoint_legacy()
+
     def _resolve_seeddance_endpoint(self) -> str:
-        endpoint = str(self.settings.model.seeddance_video_endpoint or "").strip()
+        resolved = self._resolve_video_target("seeddance-1.5-pro", provider_hint="volcengine")
+        endpoint = str(resolved.endpoint or "").strip()
+        if endpoint:
+            return endpoint
+        endpoint = str(self._model_value("seeddance_video_endpoint", default="") or "").strip()
         if endpoint:
             return endpoint
         return ""
 
     def _resolve_seedream_image_endpoint(self) -> str:
+        resolved = self._resolve_model_target(
+            kind="image",
+            requested_model=_DEFAULT_SEEDREAM_IMAGE_MODEL,
+            requested_provider="volcengine",
+            legacy_default_provider="volcengine",
+            legacy_endpoint="https://ark.cn-beijing.volces.com/api/v3/images/generations",
+            legacy_api_key="",
+        )
+        endpoint = str(resolved.endpoint or "").strip()
+        if endpoint:
+            parsed = urllib.parse.urlparse(endpoint)
+            if parsed.scheme and parsed.netloc and "volces.com" in parsed.netloc.lower():
+                if endpoint.rstrip("/").endswith("/api/v3/images/generations"):
+                    return endpoint
+                return f"{parsed.scheme}://{parsed.netloc}/api/v3/images/generations"
+            return endpoint
         candidates = (
-            str(self.settings.model.seeddance_video_endpoint or "").strip(),
-            str(self.settings.model.seeddance_video_task_endpoint or "").strip(),
-            str(self.settings.model.endpoint or "").strip(),
+            str(self._model_value("seeddance_video_endpoint", default="") or "").strip(),
+            str(self._model_value("seeddance_video_task_endpoint", default="") or "").strip(),
+            str(self._model_value("endpoint", default="") or "").strip(),
         )
         for candidate in candidates:
             if not candidate:
@@ -4465,19 +5366,35 @@ class TextGenerationEngine:
         return "https://ark.cn-beijing.volces.com/api/v3/images/generations"
 
     def _resolve_seeddance_task_endpoint(self) -> str:
-        endpoint = str(self.settings.model.seeddance_video_task_endpoint or "").strip()
+        resolved = self._resolve_video_target("seeddance-1.5-pro", provider_hint="volcengine")
+        endpoint = str(resolved.task_endpoint or "").strip()
+        if endpoint:
+            return endpoint
+        endpoint = str(self._model_value("seeddance_video_task_endpoint", default="") or "").strip()
         if endpoint:
             return endpoint
         return self._resolve_seeddance_endpoint()
 
     def _resolve_seeddance_api_key(self) -> str:
-        explicit = str(self.settings.model.seeddance_api_key or "").strip()
+        resolved = self._resolve_video_target("seeddance-1.5-pro", provider_hint="volcengine")
+        explicit = str(resolved.api_key or "").strip()
         if explicit:
             return explicit
-        return str(self.settings.model.api_key or "").strip()
+        explicit = str(self._model_value("seeddance_api_key", default="") or "").strip()
+        if explicit:
+            return explicit
+        return str(self._model_value("api_key", default="") or "").strip()
 
     def _resolve_seedream_api_key(self) -> str:
-        return self._resolve_seeddance_api_key()
+        target = self._resolve_model_target(
+            kind="image",
+            requested_model=_DEFAULT_SEEDREAM_IMAGE_MODEL,
+            requested_provider="volcengine",
+            legacy_default_provider="volcengine",
+            legacy_endpoint=self._resolve_seedream_image_endpoint(),
+            legacy_api_key=self._resolve_seeddance_api_key(),
+        )
+        return str(target.api_key or "").strip() or self._resolve_seeddance_api_key()
 
     def _extract_task_id(self, payload: dict[str, Any]) -> str:
         candidates: list[Any] = [
@@ -4671,23 +5588,19 @@ class TextGenerationEngine:
         return message or None
 
     def invoke_vision_model(self, *, model_name: str, body: dict[str, Any]) -> dict[str, Any]:
-        endpoint = str(self.settings.model.endpoint or "").strip()
-        api_key = str(self.settings.model.api_key or "").strip()
-        if not endpoint:
+        target = self._resolve_vision_target(model_name)
+        if not target.endpoint:
             raise RuntimeError("vision model endpoint is empty")
-        if not api_key:
+        if not target.api_key:
             raise RuntimeError("vision model api key is empty")
-        request = urllib.request.Request(
-            endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-        )
+        request_body = dict(body)
+        request_body.setdefault("model", model_name)
         try:
-            with urllib.request.urlopen(request, timeout=self.settings.model.timeout_seconds) as response:
-                raw = response.read()
+            raw = self._invoke_vision_target(
+                target=target,
+                model_name=model_name,
+                body=request_body,
+            )
         except (TimeoutError, socket.timeout) as exc:
             raise RuntimeError(f"Vision request timed out ({model_name}): {exc}") from exc
         except urllib.error.HTTPError as exc:

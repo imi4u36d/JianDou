@@ -45,52 +45,6 @@ file = "config/prompts"
 
 # 模型服务提供方和推理默认配置。
 [model]
-# 主生成模型使用的服务提供方。
-provider = "qwen"
-# 默认文本生成模型。
-model_name = "qwen3.6-plus"
-# 默认图片生成模型。
-image_model_name = "Doubao-Seedream-4.5"
-# 主模型不可用时的回退模型。
-fallback_model_name = "qwen-plus"
-# 文本分析与理解专用的模型提供方。
-text_analysis_provider = "chatgpt"
-# 优先用于脚本分析和语义理解的模型。
-text_analysis_model_name = "gpt-5.4"
-# 优先分析模型不可用时的备用模型。
-text_analysis_fallback_model_name = "qwen3.6-plus"
-# 文本分析模型请求地址。
-text_analysis_endpoint = "https://api.openai.com/v1/chat/completions"
-# 文本分析模型专用 API Key（严格模式必填）。
-text_analysis_api_key = "replace-with-openai-key"
-# 提供给前端展示分析模型选项的 JSON 字符串目录。
-text_analysis_models = "[{\"value\":\"gpt-5.4\",\"label\":\"GPT-5.4\",\"provider\":\"chatgpt\",\"family\":\"gpt\",\"endpoint\":\"https://api.openai.com/v1/chat/completions\",\"description\":\"ChatGPT / OpenAI key 模式，适合人物、对白、语境和剧情理解。\"},{\"value\":\"qwen3.6-plus\",\"label\":\"Qwen 3.6 Plus\",\"provider\":\"qwen\",\"family\":\"qwen\",\"description\":\"兼容当前阿里百炼 Key 模式的文本分析模型。\"}]"
-# 用于抽帧理解的视觉模型。
-vision_model_name = "qwen-vl-plus-latest"
-# 视觉模型的备用选项。
-vision_fallback_model_name = "qwen3-vl-flash"
-# 主提供方兼容 OpenAI responses 的基础地址。
-endpoint = "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1"
-# 阿里云视频生成提交地址。
-video_endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
-# 阿里云视频任务轮询地址。
-video_task_endpoint = "https://dashscope.aliyuncs.com/api/v1/tasks"
-# 阿里云链路默认使用的视频生成模型。
-video_model_name = "wan2.6-i2v"
-# 显式暴露给前端的视频模型列表（严格模式必填）。
-video_models = "[\"wan2.6-i2v\"]"
-# 按模型维度的额度映射，JSON 字符串格式，可供前端或计费提示使用。
-video_model_usage_quota = "{\"wan2.6-i2v\":300,\"wan2.6-t2v\":300,\"qwen-vl\":200,\"seeddance-1.5-pro\":200}"
-# 火山 SeedDance 提交地址。
-seeddance_video_endpoint = "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
-# 火山 SeedDance 任务轮询地址。
-seeddance_video_task_endpoint = "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
-# SeedDance / 即梦兼容请求使用的 API Key。
-seeddance_api_key = "51828257-b005-4f0e-9317-0adfca3d0610"
-# SeedDance 任务轮询间隔，单位秒。
-seeddance_poll_interval_seconds = 8
-# SeedDance 任务最长等待时间，单位秒。
-seeddance_poll_timeout_seconds = 600
 # 查询阿里云计费用量时使用的 Access Key ID。
 aliyun_billing_access_key_id = ""
 # 查询阿里云计费用量时使用的 Access Key Secret。
@@ -99,22 +53,18 @@ aliyun_billing_access_key_secret = ""
 volcengine_billing_access_key_id = ""
 # 查询火山计费用量时使用的 Access Key Secret。
 volcengine_billing_access_key_secret = ""
+# 按模型维度的额度映射，JSON 字符串格式，可供前端或计费提示使用。
+video_model_usage_quota = "{\"wan2.6-i2v\":300,\"wan2.6-t2v\":300,\"qwen-vl\":200,\"seeddance-1.5-pro\":200}"
 # 视频生成时是否允许服务端自动扩写或改写提示词。
 video_prompt_extend = false
 # 阿里云视频任务轮询间隔，单位秒。
 video_poll_interval_seconds = 8
 # 阿里云视频任务最长等待时间，单位秒。
 video_poll_timeout_seconds = 600
-# 视频生成统一提交端点（严格模式必填）。
-video_generation_endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
-# 视频生成统一默认模型（严格模式必填）。
-video_generation_default_model = "wan2.6-i2v"
 # 视频生成统一轮询间隔（严格模式必填）。
 video_generation_poll_interval_seconds = 8
 # 视频生成统一最大等待时长（严格模式必填）。
 video_generation_max_wait_seconds = 600
-# 主兼容提供方共用的 API Key。
-api_key = "replace-with-your-key"
 # 模型请求超时时间，单位秒。
 timeout_seconds = 120
 # 文本生成采样温度。
@@ -123,6 +73,93 @@ temperature = 0.15
 max_tokens = 2000
 # 视觉分析时抽取的帧数。
 vision_frame_count = 6
+
+[model.providers.qwen]
+provider = "qwen"
+api_key = "replace-with-your-key"
+base_url = "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1"
+
+[model.providers.qwen.extras]
+video_endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
+video_task_endpoint = "https://dashscope.aliyuncs.com/api/v1/tasks"
+video_generation_endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
+
+[model.providers.openai]
+provider = "openai"
+api_key = "replace-with-openai-key"
+base_url = "https://api.openai.com/v1"
+
+[model.providers.volcengine]
+provider = "volcengine"
+api_key = "replace-with-seeddance-key"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+
+[model.providers.volcengine.extras]
+seeddance_video_endpoint = "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
+seeddance_video_task_endpoint = "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
+seeddance_poll_interval_seconds = 8
+seeddance_poll_timeout_seconds = 600
+seedream_image_endpoint = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+
+[model.models."gpt-5.4"]
+provider = "openai"
+kind = "text"
+label = "GPT-5.4"
+capabilities = ["text"]
+fallback = "qwen3.6-plus"
+
+[model.models."qwen3.6-plus"]
+provider = "qwen"
+kind = "text"
+label = "Qwen 3.6 Plus"
+capabilities = ["text"]
+fallback = "qwen-plus"
+
+[model.models."qwen-plus"]
+provider = "qwen"
+kind = "text"
+label = "Qwen Plus"
+capabilities = ["text"]
+
+[model.models."qwen-vl-plus-latest"]
+provider = "qwen"
+kind = "vision"
+label = "Qwen-VL Plus"
+capabilities = ["vision", "text"]
+fallback = "qwen3-vl-flash"
+
+[model.models."qwen3-vl-flash"]
+provider = "qwen"
+kind = "vision"
+label = "Qwen 3 VL Flash"
+capabilities = ["vision", "text"]
+
+[model.models."Doubao-Seedream-4.5"]
+provider = "volcengine"
+kind = "image"
+label = "Doubao Seedream 4.5"
+capabilities = ["image"]
+
+[model.models."wan2.6-i2v"]
+provider = "qwen"
+kind = "video"
+label = "Wan 2.6 图生视频"
+capabilities = ["video"]
+
+[model.models."seeddance-1.5-pro"]
+provider = "volcengine"
+kind = "video"
+label = "SeedDance 1.5 Pro"
+capabilities = ["video"]
+
+[model.defaults]
+text_analysis = "gpt-5.4"
+planner_fusion = "gpt-5.4"
+creative_prompt = "qwen3.6-plus"
+vision_analysis = "qwen-vl-plus-latest"
+prompt_rewrite = "qwen-vl-plus-latest"
+image_generation = "Doubao-Seedream-4.5"
+video_generation = "wan2.6-i2v"
 
 # 请求未显式指定时使用的流程默认值。
 [pipeline]

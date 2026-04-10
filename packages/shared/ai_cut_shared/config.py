@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import json
 import os
 import tomllib
 
@@ -72,10 +71,34 @@ def _resolve_path(base: Path, value: str) -> Path:
     return (base / path).resolve()
 
 
+def _ensure_dict(value: Any, *, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"invalid config field: {field} must be a table")
+    return value
+
+
+def _normalize_name(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _normalize_list(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        items = [item.strip() for item in value.split(",")]
+        return tuple(item for item in items if item)
+    if isinstance(value, (list, tuple)):
+        values: list[str] = []
+        for item in value:
+            normalized = _normalize_name(str(item))
+            if normalized:
+                values.append(normalized)
+        return tuple(values)
+    raise ValueError("list value must be string or array")
+
+
 @dataclass(frozen=True)
 class AppSettings:
-    """应用名称、环境和服务监听相关配置。"""
-
     name: str
     env: str
     api_host: str
@@ -86,23 +109,17 @@ class AppSettings:
 
 @dataclass(frozen=True)
 class DatabaseSettings:
-    """主关系型数据库连接配置。"""
-
     url: str
     echo: bool
 
 
 @dataclass(frozen=True)
 class RedisSettings:
-    """后端服务使用的 Redis 连接配置。"""
-
     url: str
 
 
 @dataclass(frozen=True)
 class StorageSettings:
-    """存储资源对应的本地路径和公开访问地址配置。"""
-
     root_dir: str
     uploads_dir: str
     outputs_dir: str
@@ -111,54 +128,40 @@ class StorageSettings:
 
 
 @dataclass(frozen=True)
-class ModelSettings:
-    """模型访问所需的提供方、地址、凭证和超时配置。"""
-
+class ProviderSettings:
+    name: str
     provider: str
-    model_name: str
-    image_model_name: str
-    fallback_model_name: str | None
-    text_analysis_provider: str
-    text_analysis_model_name: str
-    text_analysis_fallback_model_name: str | None
-    text_analysis_endpoint: str
-    text_analysis_api_key: str
-    text_analysis_models: str
-    vision_model_name: str | None
-    vision_fallback_model_name: str | None
-    endpoint: str
-    video_endpoint: str
-    video_task_endpoint: str
-    video_model_name: str
-    video_models: str
-    video_prompt_extend: bool
-    video_poll_interval_seconds: int
-    video_poll_timeout_seconds: int
-    video_generation_endpoint: str
-    video_generation_default_model: str
-    video_generation_poll_interval_seconds: int
-    video_generation_max_wait_seconds: int
-    seeddance_video_endpoint: str
-    seeddance_video_task_endpoint: str
-    seeddance_api_key: str
-    seeddance_poll_interval_seconds: int
-    seeddance_poll_timeout_seconds: int
-    aliyun_billing_access_key_id: str
-    aliyun_billing_access_key_secret: str
-    volcengine_billing_access_key_id: str
-    volcengine_billing_access_key_secret: str
-    video_model_usage_quota: str
     api_key: str
-    timeout_seconds: int
-    temperature: float
-    max_tokens: int
-    vision_frame_count: int
+    base_url: str
+    extras: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ModelDefinition:
+    name: str
+    provider: str
+    kind: str
+    label: str
+    capabilities: tuple[str, ...]
+    family: str | None = None
+    description: str | None = None
+    aliases: tuple[str, ...] = ()
+    fallback_model: str | None = None
+
+
+@dataclass(frozen=True)
+class ModelDefaults:
+    text_analysis: str
+    planner_fusion: str
+    creative_prompt: str
+    vision_analysis: str
+    prompt_rewrite: str
+    image_generation: str
+    video_generation: str
 
 
 @dataclass(frozen=True)
 class RemoteModelTarget:
-    """应用提供方与模型回退逻辑后得到的最终远端模型目标。"""
-
     provider: str
     family: str
     mode: str
@@ -169,9 +172,169 @@ class RemoteModelTarget:
 
 
 @dataclass(frozen=True)
-class PipelineSettings:
-    """输出规格和模板选择相关的产品默认配置。"""
+class ModelSettings:
+    providers: dict[str, ProviderSettings]
+    models: dict[str, ModelDefinition]
+    defaults: ModelDefaults
+    aliyun_billing_access_key_id: str
+    aliyun_billing_access_key_secret: str
+    volcengine_billing_access_key_id: str
+    volcengine_billing_access_key_secret: str
+    video_model_usage_quota: str
+    timeout_seconds: int
+    temperature: float
+    max_tokens: int
+    vision_frame_count: int
 
+    def _provider(self, key: str) -> ProviderSettings | None:
+        return self.providers.get(key)
+
+    def _default_model(self, key: str) -> ModelDefinition | None:
+        model_name = getattr(self.defaults, key, None)
+        if not model_name:
+            return None
+        return self.models.get(model_name)
+
+    @property
+    def provider(self) -> str:
+        provider = self._provider("aliyun_compatible")
+        return provider.provider if provider is not None else ""
+
+    @property
+    def endpoint(self) -> str:
+        provider = self._provider("aliyun_compatible")
+        return provider.base_url if provider is not None else ""
+
+    @property
+    def api_key(self) -> str:
+        provider = self._provider("aliyun_compatible")
+        return provider.api_key if provider is not None else ""
+
+    @property
+    def model_name(self) -> str:
+        return self.defaults.text_analysis
+
+    @property
+    def fallback_model_name(self) -> str | None:
+        model = self._default_model("text_analysis")
+        return model.fallback_model if model is not None else None
+
+    @property
+    def text_analysis_model_name(self) -> str:
+        return self.defaults.text_analysis
+
+    @property
+    def text_analysis_fallback_model_name(self) -> str | None:
+        return self.fallback_model_name
+
+    @property
+    def text_analysis_models(self) -> str:
+        return ",".join(name for name, item in self.models.items() if "text_analysis" in item.capabilities)
+
+    @property
+    def vision_model_name(self) -> str | None:
+        return self.defaults.vision_analysis
+
+    @property
+    def vision_fallback_model_name(self) -> str | None:
+        model = self._default_model("vision_analysis")
+        return model.fallback_model if model is not None else None
+
+    @property
+    def image_model_name(self) -> str:
+        return self.defaults.image_generation
+
+    @property
+    def video_model_name(self) -> str:
+        return self.defaults.video_generation
+
+    @property
+    def video_models(self) -> str:
+        return ",".join(name for name, item in self.models.items() if "video_generation" in item.capabilities)
+
+    @property
+    def video_endpoint(self) -> str:
+        provider = self._provider("aliyun_video")
+        return provider.base_url if provider is not None else ""
+
+    @property
+    def video_task_endpoint(self) -> str:
+        provider = self._provider("aliyun_video")
+        if provider is None:
+            return ""
+        return str(provider.extras.get("task_base_url") or "").strip()
+
+    @property
+    def video_prompt_extend(self) -> bool:
+        provider = self._provider("aliyun_video")
+        if provider is None:
+            return False
+        return bool(provider.extras.get("prompt_extend"))
+
+    @property
+    def video_poll_interval_seconds(self) -> int:
+        provider = self._provider("aliyun_video")
+        if provider is None:
+            return 8
+        return int(provider.extras.get("poll_interval_seconds") or 8)
+
+    @property
+    def video_poll_timeout_seconds(self) -> int:
+        provider = self._provider("aliyun_video")
+        if provider is None:
+            return 600
+        return int(provider.extras.get("poll_timeout_seconds") or 600)
+
+    @property
+    def video_generation_endpoint(self) -> str:
+        return self.video_endpoint
+
+    @property
+    def video_generation_default_model(self) -> str:
+        return self.defaults.video_generation
+
+    @property
+    def video_generation_poll_interval_seconds(self) -> int:
+        return self.video_poll_interval_seconds
+
+    @property
+    def video_generation_max_wait_seconds(self) -> int:
+        return self.video_poll_timeout_seconds
+
+    @property
+    def seeddance_video_endpoint(self) -> str:
+        provider = self._provider("volcengine_seed")
+        return provider.base_url if provider is not None else ""
+
+    @property
+    def seeddance_video_task_endpoint(self) -> str:
+        provider = self._provider("volcengine_seed")
+        if provider is None:
+            return ""
+        return str(provider.extras.get("task_base_url") or "").strip()
+
+    @property
+    def seeddance_api_key(self) -> str:
+        provider = self._provider("volcengine_seed")
+        return provider.api_key if provider is not None else ""
+
+    @property
+    def seeddance_poll_interval_seconds(self) -> int:
+        provider = self._provider("volcengine_seed")
+        if provider is None:
+            return 8
+        return int(provider.extras.get("poll_interval_seconds") or 8)
+
+    @property
+    def seeddance_poll_timeout_seconds(self) -> int:
+        provider = self._provider("volcengine_seed")
+        if provider is None:
+            return 600
+        return int(provider.extras.get("poll_timeout_seconds") or 600)
+
+
+@dataclass(frozen=True)
+class PipelineSettings:
     default_aspect_ratio: str
     max_output_count: int
     max_source_minutes: int
@@ -181,8 +344,6 @@ class PipelineSettings:
 
 @dataclass(frozen=True)
 class PromptSettings:
-    """系统提示词配置，启动时从独立文件加载。"""
-
     connectivity_probe: str
     text_analysis_rewriter: str
     short_drama_script: str
@@ -195,8 +356,6 @@ class PromptSettings:
 
 @dataclass(frozen=True)
 class Settings:
-    """由 TOML 和环境变量共同解析后的完整应用配置。"""
-
     repo_root: Path
     config_path: Path
     app: AppSettings
@@ -226,189 +385,6 @@ class Settings:
     @property
     def using_inline_execution(self) -> bool:
         return self.app.execution_mode.lower() == "inline"
-
-
-def _normalize_model_name(value: str | None) -> str:
-    return (value or "").strip()
-
-
-def _normalize_provider_name(value: str | None) -> str:
-    return _normalize_model_name(value).lower()
-
-
-def _looks_like_chatgpt_provider(value: str | None) -> bool:
-    normalized = _normalize_provider_name(value)
-    return normalized in {"chatgpt", "openai", "gpt"}
-
-
-def _looks_like_chatgpt_model(value: str | None) -> bool:
-    normalized = _normalize_model_name(value).lower()
-    if not normalized:
-        return False
-    return normalized.startswith(("gpt", "chatgpt", "o1", "o3", "o4"))
-
-
-def _looks_like_qwen_model(value: str | None) -> bool:
-    normalized = _normalize_model_name(value).lower()
-    if not normalized:
-        return False
-    return normalized.startswith(("qwen", "qwq"))
-
-
-def default_text_analysis_model_name(model: ModelSettings) -> str:
-    explicit = _normalize_model_name(model.text_analysis_model_name)
-    if not explicit:
-        raise ValueError("missing required config field: model.text_analysis_model_name")
-    return explicit
-
-
-def resolve_text_analysis_target(model: ModelSettings, requested_model: str | None = None) -> RemoteModelTarget:
-    selected_model = _normalize_model_name(requested_model) or default_text_analysis_model_name(model)
-    analysis_provider = _required_text(model.text_analysis_provider, field="model.text_analysis_provider")
-    analysis_endpoint = _required_text(model.text_analysis_endpoint, field="model.text_analysis_endpoint")
-    analysis_api_key = _required_text(model.text_analysis_api_key, field="model.text_analysis_api_key")
-    compatible_provider = _required_text(model.provider, field="model.provider")
-    compatible_endpoint = _required_text(model.endpoint, field="model.endpoint")
-    compatible_api_key = _required_text(model.api_key, field="model.api_key")
-
-    selected_lower = selected_model.lower()
-    analysis_provider_lower = analysis_provider.lower()
-
-    # Adapter routing: selected model family decides which credential set to use.
-    # - ChatGPT family models use dedicated text_analysis_* config.
-    # - Qwen/compatible models use main compatible provider config.
-    if _looks_like_qwen_model(selected_lower):
-        family = "qwen"
-        mode = "compatible_key"
-        provider = compatible_provider
-        endpoint = compatible_endpoint
-        api_key = compatible_api_key
-    elif _looks_like_chatgpt_model(selected_lower):
-        family = "chatgpt"
-        mode = "chatgpt_key"
-        provider = analysis_provider
-        endpoint = analysis_endpoint
-        api_key = analysis_api_key
-    elif _looks_like_chatgpt_provider(analysis_provider_lower):
-        family = "chatgpt"
-        mode = "chatgpt_key"
-        provider = analysis_provider
-        endpoint = analysis_endpoint
-        api_key = analysis_api_key
-    elif analysis_provider_lower.startswith("qwen"):
-        family = "qwen"
-        mode = "compatible_key"
-        provider = compatible_provider
-        endpoint = compatible_endpoint
-        api_key = compatible_api_key
-    else:
-        family = "compatible"
-        mode = "compatible_key"
-        provider = compatible_provider
-        endpoint = compatible_endpoint
-        api_key = compatible_api_key
-    return RemoteModelTarget(
-        provider=provider,
-        family=family,
-        mode=mode,
-        model_name=selected_model,
-        fallback_model_name=_normalize_model_name(model.fallback_model_name) or None,
-        endpoint=endpoint,
-        api_key=api_key,
-    )
-
-
-def text_analysis_model_options(model: ModelSettings) -> list[dict[str, object]]:
-    default_model = default_text_analysis_model_name(model)
-    options: list[dict[str, object]] = []
-    seen: set[str] = set()
-
-    default_target = resolve_text_analysis_target(model, default_model)
-    predefined = [
-        (
-            default_model,
-            default_model,
-            default_target.provider,
-            default_target.family,
-            "文本分析默认模型（严格配置）。",
-        ),
-    ]
-
-    for value, label, provider, family, description in predefined:
-        normalized = _normalize_model_name(value)
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        options.append(
-            {
-                "value": normalized,
-                "label": label,
-                "description": description,
-                "provider": provider,
-                "family": family,
-                "isDefault": normalized == default_model,
-            }
-        )
-
-    raw_catalog = _normalize_model_name(model.text_analysis_models)
-    if raw_catalog:
-        try:
-            parsed = json.loads(raw_catalog)
-        except Exception as exc:
-            raise ValueError("invalid JSON in model.text_analysis_models") from exc
-        if not isinstance(parsed, list):
-            raise ValueError("model.text_analysis_models must be a JSON list")
-        for item in parsed:
-            if isinstance(item, dict):
-                normalized = _normalize_model_name(
-                    str(item.get("value") or item.get("model") or item.get("name") or item.get("label") or "")
-                )
-                if not normalized or normalized in seen:
-                    continue
-                seen.add(normalized)
-                options.append(
-                    {
-                        "value": normalized,
-                        "label": _normalize_model_name(str(item.get("label") or item.get("name") or normalized))
-                        or normalized,
-                        "description": _normalize_model_name(str(item.get("description") or "")) or None,
-                        "provider": _normalize_model_name(str(item.get("provider") or model.text_analysis_provider)) or None,
-                        "family": _normalize_model_name(str(item.get("family") or "")) or None,
-                        "isDefault": normalized == default_model,
-                    }
-                )
-            elif isinstance(item, str):
-                normalized = _normalize_model_name(item)
-                if not normalized or normalized in seen:
-                    continue
-                seen.add(normalized)
-                target = resolve_text_analysis_target(model, normalized)
-                options.append(
-                    {
-                        "value": normalized,
-                        "label": normalized,
-                        "description": "文本分析模型（自定义配置）。",
-                        "provider": target.provider,
-                        "family": target.family,
-                        "isDefault": normalized == default_model,
-                    }
-                )
-
-    if default_model not in seen:
-        target = resolve_text_analysis_target(model, default_model)
-        options.insert(
-            0,
-            {
-                "value": default_model,
-                "label": default_model,
-                "description": "当前默认文本分析模型。",
-                "provider": target.provider,
-                "family": target.family,
-                "isDefault": True,
-            }
-        )
-
-    return options
 
 
 def _load_prompt_settings(prompt_config_path: Path) -> PromptSettings:
@@ -447,20 +423,112 @@ def _load_prompt_settings(prompt_config_path: Path) -> PromptSettings:
     )
 
 
-def load_settings(config_path: str | Path | None = None) -> Settings:
-    """加载 TOML 配置，并允许环境变量覆盖单个字段。"""
+def _parse_provider_settings(raw_model: dict[str, Any]) -> dict[str, ProviderSettings]:
+    raw_providers = _ensure_dict(raw_model.get("providers", {}), field="model.providers")
+    providers: dict[str, ProviderSettings] = {}
+    for key, item in raw_providers.items():
+        provider_section = _ensure_dict(item, field=f"model.providers.{key}")
+        extras_raw = provider_section.get("extras", {})
+        providers[key] = ProviderSettings(
+            name=key,
+            provider=_required_text(provider_section.get("provider") or key, field=f"model.providers.{key}.provider"),
+            api_key=_required_text(provider_section.get("api_key"), field=f"model.providers.{key}.api_key"),
+            base_url=_required_text(provider_section.get("base_url"), field=f"model.providers.{key}.base_url"),
+            extras=dict(extras_raw) if isinstance(extras_raw, dict) else {},
+        )
+    if not providers:
+        raise ValueError("missing required config field: model.providers")
+    return providers
 
+
+def _parse_model_definitions(raw_model: dict[str, Any], providers: dict[str, ProviderSettings]) -> dict[str, ModelDefinition]:
+    raw_models = _ensure_dict(raw_model.get("models", {}), field="model.models")
+    models: dict[str, ModelDefinition] = {}
+    for key, item in raw_models.items():
+        model_section = _ensure_dict(item, field=f"model.models.{key}")
+        provider_key = _required_text(model_section.get("provider"), field=f"model.models.{key}.provider")
+        if provider_key not in providers:
+            raise ValueError(f"model '{key}' references unknown provider '{provider_key}'")
+        capabilities = _normalize_list(model_section.get("capabilities"))
+        if not capabilities:
+            raise ValueError(f"missing required config field: model.models.{key}.capabilities")
+        models[key] = ModelDefinition(
+            name=key,
+            provider=provider_key,
+            kind=_required_text(model_section.get("kind"), field=f"model.models.{key}.kind"),
+            label=_required_text(model_section.get("label") or key, field=f"model.models.{key}.label"),
+            capabilities=capabilities,
+            family=_optional_text(model_section.get("family")),
+            description=_optional_text(model_section.get("description")),
+            aliases=_normalize_list(model_section.get("aliases")),
+            fallback_model=_optional_text(model_section.get("fallback_model")),
+        )
+    if not models:
+        raise ValueError("missing required config field: model.models")
+    for key, model in models.items():
+        if model.fallback_model and model.fallback_model not in models:
+            raise ValueError(f"model '{key}' fallback references unknown model '{model.fallback_model}'")
+    return models
+
+
+def _parse_model_defaults(raw_model: dict[str, Any], models: dict[str, ModelDefinition]) -> ModelDefaults:
+    defaults_section = _ensure_dict(raw_model.get("defaults", {}), field="model.defaults")
+    defaults = ModelDefaults(
+        text_analysis=_required_text(defaults_section.get("text_analysis"), field="model.defaults.text_analysis"),
+        planner_fusion=_required_text(defaults_section.get("planner_fusion"), field="model.defaults.planner_fusion"),
+        creative_prompt=_required_text(defaults_section.get("creative_prompt"), field="model.defaults.creative_prompt"),
+        vision_analysis=_required_text(defaults_section.get("vision_analysis"), field="model.defaults.vision_analysis"),
+        prompt_rewrite=_required_text(defaults_section.get("prompt_rewrite"), field="model.defaults.prompt_rewrite"),
+        image_generation=_required_text(defaults_section.get("image_generation"), field="model.defaults.image_generation"),
+        video_generation=_required_text(defaults_section.get("video_generation"), field="model.defaults.video_generation"),
+    )
+    for field_name, model_name in (
+        ("text_analysis", defaults.text_analysis),
+        ("planner_fusion", defaults.planner_fusion),
+        ("creative_prompt", defaults.creative_prompt),
+        ("vision_analysis", defaults.vision_analysis),
+        ("prompt_rewrite", defaults.prompt_rewrite),
+        ("image_generation", defaults.image_generation),
+        ("video_generation", defaults.video_generation),
+    ):
+        if model_name not in models:
+            raise ValueError(f"model.defaults.{field_name} references unknown model '{model_name}'")
+    return defaults
+
+
+def resolve_text_analysis_target(model: ModelSettings, requested_model: str | None = None) -> RemoteModelTarget:
+    model_name = _normalize_name(requested_model) or model.defaults.text_analysis
+    definition = model.models.get(model_name)
+    if definition is None:
+        raise ValueError(f"unknown model: {model_name}")
+    provider = model.providers.get(definition.provider)
+    if provider is None:
+        raise ValueError(f"unknown provider: {definition.provider}")
+    adapter = str(provider.extras.get("adapter") or provider.provider).strip()
+    family = _normalize_name(definition.family) or definition.kind
+    return RemoteModelTarget(
+        provider=provider.provider,
+        family=family,
+        mode=adapter,
+        model_name=definition.name,
+        fallback_model_name=definition.fallback_model,
+        endpoint=provider.base_url,
+        api_key=provider.api_key,
+    )
+
+
+def load_settings(config_path: str | Path | None = None) -> Settings:
     path = Path(config_path) if config_path is not None else default_config_path()
     with path.open("rb") as handle:
         raw = tomllib.load(handle)
 
-    app = raw.get("app", {})
-    database = raw.get("database", {})
-    redis = raw.get("redis", {})
-    storage = raw.get("storage", {})
-    model = raw.get("model", {})
-    pipeline = raw.get("pipeline", {})
-    prompt = raw.get("prompt", {})
+    app = _ensure_dict(raw.get("app", {}), field="app")
+    database = _ensure_dict(raw.get("database", {}), field="database")
+    redis = _ensure_dict(raw.get("redis", {}), field="redis")
+    storage = _ensure_dict(raw.get("storage", {}), field="storage")
+    model = _ensure_dict(raw.get("model", {}), field="model")
+    pipeline = _ensure_dict(raw.get("pipeline", {}), field="pipeline")
+    prompt = _ensure_dict(raw.get("prompt", {}), field="prompt")
 
     repo = repo_root()
 
@@ -470,17 +538,6 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
             return env_value
         return section.get(key)
 
-    def _pick_alias(section: dict[str, Any], keys: tuple[str, ...], env_names: tuple[str, ...]) -> Any:
-        for env_name in env_names:
-            env_value = os.getenv(env_name)
-            if env_value is not None and env_value != "":
-                return env_value
-        for key in keys:
-            value = section.get(key)
-            if value is not None and value != "":
-                return value
-        return None
-
     prompt_path_value = _pick(prompt, "file", "AI_CUT_PROMPTS_PATH")
     prompt_config_path = (
         _resolve_path(repo, _required_text(prompt_path_value, field="prompt.file"))
@@ -488,6 +545,10 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         else default_prompt_config_path()
     )
     prompts = _load_prompt_settings(prompt_config_path)
+
+    providers = _parse_provider_settings(model)
+    models = _parse_model_definitions(model, providers)
+    defaults = _parse_model_defaults(model, models)
 
     return Settings(
         repo_root=repo,
@@ -521,122 +582,9 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
             ),
         ),
         model=ModelSettings(
-            provider=_required_text(_pick(model, "provider", "AI_CUT_MODEL_PROVIDER"), field="model.provider"),
-            model_name=_required_text(_pick(model, "model_name", "AI_CUT_MODEL_NAME"), field="model.model_name"),
-            image_model_name=_required_text(
-                _pick(model, "image_model_name", "AI_CUT_IMAGE_MODEL_NAME"),
-                field="model.image_model_name",
-            ),
-            fallback_model_name=_optional_text(_pick(model, "fallback_model_name", "AI_CUT_MODEL_FALLBACK_NAME")),
-            text_analysis_provider=_required_text(
-                _pick(model, "text_analysis_provider", "AI_CUT_TEXT_ANALYSIS_PROVIDER"),
-                field="model.text_analysis_provider",
-            ),
-            text_analysis_model_name=_required_text(
-                _pick(model, "text_analysis_model_name", "AI_CUT_TEXT_ANALYSIS_MODEL_NAME"),
-                field="model.text_analysis_model_name",
-            ),
-            text_analysis_fallback_model_name=_optional_text(
-                _pick(model, "text_analysis_fallback_model_name", "AI_CUT_TEXT_ANALYSIS_FALLBACK_MODEL_NAME")
-            ),
-            text_analysis_endpoint=_required_text(
-                _pick(model, "text_analysis_endpoint", "AI_CUT_TEXT_ANALYSIS_ENDPOINT"),
-                field="model.text_analysis_endpoint",
-            ),
-            text_analysis_api_key=_required_text(
-                _pick(model, "text_analysis_api_key", "AI_CUT_TEXT_ANALYSIS_API_KEY"),
-                field="model.text_analysis_api_key",
-            ),
-            text_analysis_models=_required_text(
-                _pick(model, "text_analysis_models", "AI_CUT_TEXT_ANALYSIS_MODELS"),
-                field="model.text_analysis_models",
-            ),
-            vision_model_name=_optional_text(_pick(model, "vision_model_name", "AI_CUT_VISION_MODEL_NAME")),
-            vision_fallback_model_name=_optional_text(
-                _pick(model, "vision_fallback_model_name", "AI_CUT_VISION_MODEL_FALLBACK_NAME")
-            ),
-            endpoint=_required_text(_pick(model, "endpoint", "AI_CUT_MODEL_ENDPOINT"), field="model.endpoint"),
-            video_endpoint=_required_text(
-                _pick(model, "video_endpoint", "AI_CUT_VIDEO_ENDPOINT"),
-                field="model.video_endpoint",
-            ),
-            video_task_endpoint=_required_text(
-                _pick(model, "video_task_endpoint", "AI_CUT_VIDEO_TASK_ENDPOINT"),
-                field="model.video_task_endpoint",
-            ),
-            video_model_name=_required_text(
-                _pick(model, "video_model_name", "AI_CUT_VIDEO_MODEL_NAME"),
-                field="model.video_model_name",
-            ),
-            video_models=_required_text(_pick(model, "video_models", "AI_CUT_VIDEO_MODELS"), field="model.video_models"),
-            video_prompt_extend=_required_bool(
-                _pick(model, "video_prompt_extend", "AI_CUT_VIDEO_PROMPT_EXTEND"),
-                field="model.video_prompt_extend",
-            ),
-            video_poll_interval_seconds=_required_int(
-                _pick(model, "video_poll_interval_seconds", "AI_CUT_VIDEO_POLL_INTERVAL"),
-                field="model.video_poll_interval_seconds",
-            ),
-            video_poll_timeout_seconds=_required_int(
-                _pick(model, "video_poll_timeout_seconds", "AI_CUT_VIDEO_POLL_TIMEOUT"),
-                field="model.video_poll_timeout_seconds",
-            ),
-            video_generation_endpoint=_required_text(
-                _pick(model, "video_generation_endpoint", "AI_CUT_VIDEO_GENERATION_ENDPOINT"),
-                field="model.video_generation_endpoint",
-            ),
-            video_generation_default_model=_required_text(
-                _pick(model, "video_generation_default_model", "AI_CUT_VIDEO_GENERATION_DEFAULT_MODEL"),
-                field="model.video_generation_default_model",
-            ),
-            video_generation_poll_interval_seconds=_required_int(
-                _pick(model, "video_generation_poll_interval_seconds", "AI_CUT_VIDEO_GENERATION_POLL_INTERVAL"),
-                field="model.video_generation_poll_interval_seconds",
-            ),
-            video_generation_max_wait_seconds=_required_int(
-                _pick(model, "video_generation_max_wait_seconds", "AI_CUT_VIDEO_GENERATION_MAX_WAIT"),
-                field="model.video_generation_max_wait_seconds",
-            ),
-            seeddance_video_endpoint=_required_text(
-                _pick_alias(
-                    model,
-                    ("seeddance_video_endpoint", "jimeng_video_endpoint"),
-                    ("AI_CUT_SEEDDANCE_VIDEO_ENDPOINT", "AI_CUT_JIMENG_VIDEO_ENDPOINT"),
-                ),
-                field="model.seeddance_video_endpoint",
-            ),
-            seeddance_video_task_endpoint=_required_text(
-                _pick_alias(
-                    model,
-                    ("seeddance_video_task_endpoint", "jimeng_video_task_endpoint"),
-                    ("AI_CUT_SEEDDANCE_VIDEO_TASK_ENDPOINT", "AI_CUT_JIMENG_VIDEO_TASK_ENDPOINT"),
-                ),
-                field="model.seeddance_video_task_endpoint",
-            ),
-            seeddance_api_key=_required_text(
-                _pick_alias(
-                    model,
-                    ("seeddance_api_key", "jimeng_api_key"),
-                    ("AI_CUT_SEEDDANCE_API_KEY", "AI_CUT_JIMENG_API_KEY"),
-                ),
-                field="model.seeddance_api_key",
-            ),
-            seeddance_poll_interval_seconds=_required_int(
-                _pick_alias(
-                    model,
-                    ("seeddance_poll_interval_seconds", "jimeng_poll_interval_seconds"),
-                    ("AI_CUT_SEEDDANCE_POLL_INTERVAL", "AI_CUT_JIMENG_POLL_INTERVAL"),
-                ),
-                field="model.seeddance_poll_interval_seconds",
-            ),
-            seeddance_poll_timeout_seconds=_required_int(
-                _pick_alias(
-                    model,
-                    ("seeddance_poll_timeout_seconds", "jimeng_poll_timeout_seconds"),
-                    ("AI_CUT_SEEDDANCE_POLL_TIMEOUT", "AI_CUT_JIMENG_POLL_TIMEOUT"),
-                ),
-                field="model.seeddance_poll_timeout_seconds",
-            ),
+            providers=providers,
+            models=models,
+            defaults=defaults,
             aliyun_billing_access_key_id=_optional_text(
                 _pick(model, "aliyun_billing_access_key_id", "AI_CUT_ALIYUN_BILLING_ACCESS_KEY_ID")
             )
@@ -657,7 +605,6 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
                 _pick(model, "video_model_usage_quota", "AI_CUT_VIDEO_MODEL_USAGE_QUOTA")
             )
             or "",
-            api_key=_required_text(_pick(model, "api_key", "AI_CUT_MODEL_API_KEY"), field="model.api_key"),
             timeout_seconds=_required_int(_pick(model, "timeout_seconds", "AI_CUT_MODEL_TIMEOUT"), field="model.timeout_seconds"),
             temperature=_required_float(_pick(model, "temperature", "AI_CUT_MODEL_TEMPERATURE"), field="model.temperature"),
             max_tokens=_required_int(_pick(model, "max_tokens", "AI_CUT_MODEL_MAX_TOKENS"), field="model.max_tokens"),

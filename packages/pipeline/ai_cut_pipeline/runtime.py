@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from ai_cut_shared.config import Settings, load_settings, resolve_text_analysis_target
+from ai_cut_ai.providers import ModelRouter
+from ai_cut_shared.config import Settings, load_settings
 from ai_cut_db.db import create_sqlalchemy_engine, init_database, build_session_factory
 from ai_cut_ai.planner import build_planner
 from ai_cut_storage.storage import MediaStorage
@@ -23,8 +24,9 @@ class BackendRuntime:
     worker: TaskWorker
 
     def describe(self) -> dict[str, object]:
-        text_model = resolve_text_analysis_target(self.settings.model)
-        endpoint = text_model.endpoint.strip()
+        router = ModelRouter(self.settings)
+        text_model = router.resolve(capability="text_analysis", kind="text")
+        endpoint = text_model.base_url.strip()
         endpoint_host = ""
         if endpoint:
             try:
@@ -33,14 +35,14 @@ class BackendRuntime:
                 endpoint_host = endpoint
 
         model_ready = bool(
-            text_model.provider
+            text_model.provider_name
             and text_model.model_name
             and endpoint
             and text_model.api_key
         )
 
         config_errors: list[str] = []
-        if not text_model.provider:
+        if not text_model.provider_name:
             config_errors.append("missing provider")
         if not text_model.model_name:
             config_errors.append("missing model_name")
@@ -54,14 +56,15 @@ class BackendRuntime:
             "env": self.settings.app.env,
             "execution_mode": self.settings.app.execution_mode,
             "database_url": self.database_url,
-            "model_provider": text_model.provider,
+            "model_provider": text_model.provider_name,
             "storage_root": str(self.settings.storage_root),
             "model": {
-                "provider": text_model.provider,
+                "provider": text_model.provider_name,
                 "primary_model": text_model.model_name,
-                "text_analysis_provider": text_model.provider,
+                "fallback_model": text_model.fallback_model,
+                "text_analysis_provider": text_model.provider_name,
                 "text_analysis_model": text_model.model_name,
-                "vision_model": self.settings.model.vision_model_name,
+                "vision_model": self.settings.model.defaults.vision_analysis,
                 "endpoint_host": endpoint_host,
                 "api_key_present": bool(text_model.api_key),
                 "ready": model_ready,
@@ -73,8 +76,8 @@ class BackendRuntime:
                 "drama_planning": True,
                 "timed_transcript_supported": True,
                 "transcript_semantic_planning": True,
-                "visual_content_analysis": bool(self.settings.model.vision_model_name),
-                "visual_event_reasoning": bool(self.settings.model.vision_model_name),
+                "visual_content_analysis": bool(self.settings.model.defaults.vision_analysis),
+                "visual_event_reasoning": bool(self.settings.model.defaults.vision_analysis),
                 "subtitle_visual_fusion": True,
                 "audio_peak_signal": True,
                 "scene_boundary_signal": True,

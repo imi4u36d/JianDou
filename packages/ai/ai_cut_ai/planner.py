@@ -9,7 +9,8 @@ import json
 import re
 
 from ai_cut_ai.generation_v2 import PlannerModelGateway
-from ai_cut_shared.config import Settings, resolve_text_analysis_target
+from ai_cut_ai.providers import ModelRouter
+from ai_cut_shared.config import Settings
 from ai_cut_media.media import detect_scene_changes, sample_audio_peaks, sample_video_frames
 from ai_cut_shared.schemas import ClipPlan, MediaProbe, TaskSpec
 from ai_cut_shared.utils import (
@@ -475,6 +476,7 @@ class VisionEventAnalyzer:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.gateway = PlannerModelGateway(settings)
+        self.router = ModelRouter(settings)
 
     def _build_messages(
         self,
@@ -767,15 +769,12 @@ class VisionEventAnalyzer:
         )
 
     def analyze(self, context: PlannerContext, signals: SignalBundle) -> VisionAnalysisResult | None:
-        if not self.settings.model.api_key or not self.settings.model.endpoint:
-            raise RuntimeError("Vision analyzer provider is not configured")
         source_entries = _source_entries(context)
         if not source_entries:
             return None
 
-        model_name = (self.settings.model.vision_model_name or "").strip()
-        if not model_name:
-            raise RuntimeError("Vision model is not configured")
+        vision_target = self.router.resolve(capability="vision_analysis", kind="vision")
+        model_name = vision_target.model_name
 
         collected_sources: list[VisionSourceAnalysis] = []
         all_frame_timestamps: list[float] = []
@@ -886,6 +885,7 @@ class FusionPlanner:
         self.settings = settings
         self.vision_analyzer = vision_analyzer
         self.gateway = PlannerModelGateway(settings)
+        self.router = ModelRouter(settings)
 
     def _trace_signal_candidates(self, context: PlannerContext, signals: SignalBundle) -> None:
         if context.trace is None:
@@ -1020,7 +1020,6 @@ class FusionPlanner:
         signals: SignalBundle,
         vision_analysis: VisionAnalysisResult | None,
     ) -> list[ClipPlan]:
-        text_model = resolve_text_analysis_target(self.settings.model, model_name)
         prompt = self._build_prompt(context, signals, vision_analysis)
         if context.trace is not None:
             context.trace(
@@ -1052,7 +1051,6 @@ class FusionPlanner:
         try:
             body, raw = self.gateway.invoke_text_analysis(
                 model_name=model_name,
-                target=text_model,
                 system_prompt=self.settings.prompts.planner_fusion_json_only,
                 user_prompt=prompt,
                 temperature=self.settings.model.temperature,
@@ -1140,10 +1138,7 @@ class FusionPlanner:
         return result
 
     def plan(self, context: PlannerContext) -> list[ClipPlan]:
-        text_model = resolve_text_analysis_target(self.settings.model)
-        if not text_model.api_key or not text_model.endpoint:
-            raise RuntimeError("Fusion planner provider is not configured")
-
+        text_model = self.router.resolve(capability="planner_fusion", kind="text")
         signals = collect_signal_bundle(context, self.settings.model.vision_frame_count)
         self._trace_signal_candidates(context, signals)
 
@@ -1159,8 +1154,8 @@ class FusionPlanner:
                 f"开始调用融合规划模型 {model_name} 生成最终剪辑方案。",
                 {
                     "model": model_name,
-                    "provider": text_model.provider,
-                    "mode": text_model.mode,
+                    "provider": text_model.provider_name,
+                    "mode": text_model.provider_name,
                     "visual_source_count": len(vision_analysis.sources) if vision_analysis else 0,
                     "visual_shot_count": len(vision_analysis.shots) if vision_analysis else 0,
                     "visual_event_count": len(vision_analysis.events) if vision_analysis else 0,
