@@ -87,8 +87,8 @@ def _build_text_request_body(
     }
 
 
-class OpenAICompatibleAdapter:
-    name = "openai_compatible"
+class QwenAdapter:
+    name = "qwen"
 
     def invoke_text(
         self,

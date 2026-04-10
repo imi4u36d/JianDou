@@ -757,7 +757,7 @@ _TEXT_ANALYSIS_MODEL_PROFILES: tuple[_TextAnalysisModelProfile, ...] = (
         label="Qwen 3.6 Plus",
         provider="aliyun-bailian",
         family="qwen",
-        summary="阿里 Qwen 文本分析模型，兼容现有百炼 key 配置。",
+        summary="阿里 Qwen 文本分析模型，使用独立的 Qwen 服务配置。",
         aliases=("qwen", "qwen3.6-plus", "qwen-max-latest", "qwen-max", "qwen-plus"),
     ),
 )
@@ -3000,7 +3000,7 @@ class TextGenerationEngine:
                     stage="provider",
                     event="fallback",
                     status="retry",
-                    message="text analysis model config missing, fallback to configured compatible model",
+                    message="text analysis model config missing, fallback to configured backup model",
                     details={
                         "requestedModel": requested_text_analysis_model or text_analysis_profile.key,
                         "resolvedModel": fallback_target.model_name,
@@ -3341,7 +3341,7 @@ class TextGenerationEngine:
                         stage="provider",
                         event="fallback",
                         status="retry",
-                        message="primary text analysis model rejected, fallback to configured compatible model",
+                        message="primary text analysis model rejected, fallback to configured backup model",
                         details={
                             "statusCode": status_code,
                             "requestedModel": requested_text_analysis_model or text_analysis_profile.key,

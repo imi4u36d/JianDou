@@ -1680,7 +1680,8 @@ class TaskService:
         if not normalized_task_id:
             raise ValueError("remote task id is required")
 
-        provider = self.settings.model.providers.get("volcengine_seed")
+        seeddance_model = self.settings.model.models.get("seeddance-1.5-pro")
+        provider = self.settings.model.providers.get(seeddance_model.provider) if seeddance_model is not None else None
         task_endpoint = str((provider.extras.get("task_base_url") if provider else "") or "").strip()
         api_key = str((provider.api_key if provider else "") or "").strip()
         if not task_endpoint:

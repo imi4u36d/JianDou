@@ -78,16 +78,12 @@ provider = "openai"
 api_key = "sk-d73debc1d49545b695bdedb6f8c50577"
 base_url = "https://api.openai.com/v1"
 
-[model.providers.openai.extras]
-adapter = "openai_native"
-
-[model.providers.aliyun_compatible]
-provider = "aliyun-bailian"
+[model.providers.qwen]
+provider = "qwen"
 api_key = "sk-d73debc1d49545b695bdedb6f8c50577"
 base_url = "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1"
 
-[model.providers.aliyun_compatible.extras]
-adapter = "openai_compatible"
+[model.providers.qwen.extras]
 use_responses_api = true
 
 [model.providers.aliyun_video]
@@ -125,16 +121,16 @@ aliases = ["gpt5.4", "gpt-5", "chatgpt"]
 fallback_model = "qwen3.6-plus"
 
 [model.models."qwen3.6-plus"]
-provider = "aliyun_compatible"
+provider = "qwen"
 kind = "text"
 label = "Qwen 3.6 Plus"
 family = "qwen"
 capabilities = ["text_analysis", "planner_fusion", "creative_prompt", "script_generation"]
-description = "阿里云兼容模式文本模型。"
+description = "阿里 Qwen 文本模型。"
 aliases = ["qwen", "qwen-plus", "qwen-max", "qwen-max-latest"]
 
 [model.models."qwen-plus"]
-provider = "aliyun_compatible"
+provider = "qwen"
 kind = "text"
 label = "Qwen Plus"
 family = "qwen"
@@ -142,7 +138,7 @@ capabilities = ["text_analysis", "planner_fusion", "creative_prompt", "script_ge
 description = "Qwen 通用文本模型。"
 
 [model.models."qwen-vl-plus-latest"]
-provider = "aliyun_compatible"
+provider = "qwen"
 kind = "vision"
 label = "Qwen-VL Plus"
 family = "qwen-vl"
@@ -152,7 +148,7 @@ aliases = ["qwen-vl", "qwen-vl-plus", "qwen-vl-workflow"]
 fallback_model = "qwen3-vl-flash"
 
 [model.models."qwen3-vl-flash"]
-provider = "aliyun_compatible"
+provider = "qwen"
 kind = "vision"
 label = "Qwen 3 VL Flash"
 family = "qwen-vl"

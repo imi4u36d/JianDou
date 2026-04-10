@@ -189,25 +189,40 @@ class ModelSettings:
     def _provider(self, key: str) -> ProviderSettings | None:
         return self.providers.get(key)
 
+    def _provider_for_model(self, model_name: str | None) -> ProviderSettings | None:
+        normalized_name = _normalize_name(model_name)
+        if not normalized_name:
+            return None
+        model = self.models.get(normalized_name)
+        if model is None:
+            return None
+        return self.providers.get(model.provider)
+
     def _default_model(self, key: str) -> ModelDefinition | None:
         model_name = getattr(self.defaults, key, None)
         if not model_name:
             return None
         return self.models.get(model_name)
 
+    def _provider_for_default(self, key: str) -> ProviderSettings | None:
+        model = self._default_model(key)
+        if model is None:
+            return None
+        return self.providers.get(model.provider)
+
     @property
     def provider(self) -> str:
-        provider = self._provider("aliyun_compatible")
+        provider = self._provider_for_default("text_analysis")
         return provider.provider if provider is not None else ""
 
     @property
     def endpoint(self) -> str:
-        provider = self._provider("aliyun_compatible")
+        provider = self._provider_for_default("text_analysis")
         return provider.base_url if provider is not None else ""
 
     @property
     def api_key(self) -> str:
-        provider = self._provider("aliyun_compatible")
+        provider = self._provider_for_default("text_analysis")
         return provider.api_key if provider is not None else ""
 
     @property
@@ -254,33 +269,33 @@ class ModelSettings:
 
     @property
     def video_endpoint(self) -> str:
-        provider = self._provider("aliyun_video")
+        provider = self._provider_for_default("video_generation")
         return provider.base_url if provider is not None else ""
 
     @property
     def video_task_endpoint(self) -> str:
-        provider = self._provider("aliyun_video")
+        provider = self._provider_for_default("video_generation")
         if provider is None:
             return ""
         return str(provider.extras.get("task_base_url") or "").strip()
 
     @property
     def video_prompt_extend(self) -> bool:
-        provider = self._provider("aliyun_video")
+        provider = self._provider_for_default("video_generation")
         if provider is None:
             return False
         return bool(provider.extras.get("prompt_extend"))
 
     @property
     def video_poll_interval_seconds(self) -> int:
-        provider = self._provider("aliyun_video")
+        provider = self._provider_for_default("video_generation")
         if provider is None:
             return 8
         return int(provider.extras.get("poll_interval_seconds") or 8)
 
     @property
     def video_poll_timeout_seconds(self) -> int:
-        provider = self._provider("aliyun_video")
+        provider = self._provider_for_default("video_generation")
         if provider is None:
             return 600
         return int(provider.extras.get("poll_timeout_seconds") or 600)
@@ -303,31 +318,31 @@ class ModelSettings:
 
     @property
     def seeddance_video_endpoint(self) -> str:
-        provider = self._provider("volcengine_seed")
+        provider = self._provider_for_model("seeddance-1.5-pro")
         return provider.base_url if provider is not None else ""
 
     @property
     def seeddance_video_task_endpoint(self) -> str:
-        provider = self._provider("volcengine_seed")
+        provider = self._provider_for_model("seeddance-1.5-pro")
         if provider is None:
             return ""
         return str(provider.extras.get("task_base_url") or "").strip()
 
     @property
     def seeddance_api_key(self) -> str:
-        provider = self._provider("volcengine_seed")
+        provider = self._provider_for_model("seeddance-1.5-pro")
         return provider.api_key if provider is not None else ""
 
     @property
     def seeddance_poll_interval_seconds(self) -> int:
-        provider = self._provider("volcengine_seed")
+        provider = self._provider_for_model("seeddance-1.5-pro")
         if provider is None:
             return 8
         return int(provider.extras.get("poll_interval_seconds") or 8)
 
     @property
     def seeddance_poll_timeout_seconds(self) -> int:
-        provider = self._provider("volcengine_seed")
+        provider = self._provider_for_model("seeddance-1.5-pro")
         if provider is None:
             return 600
         return int(provider.extras.get("poll_timeout_seconds") or 600)
@@ -504,12 +519,12 @@ def resolve_text_analysis_target(model: ModelSettings, requested_model: str | No
     provider = model.providers.get(definition.provider)
     if provider is None:
         raise ValueError(f"unknown provider: {definition.provider}")
-    adapter = str(provider.extras.get("adapter") or provider.provider).strip()
+    route_mode = str(provider.extras.get("adapter") or provider.provider).strip()
     family = _normalize_name(definition.family) or definition.kind
     return RemoteModelTarget(
         provider=provider.provider,
         family=family,
-        mode=adapter,
+        mode=route_mode,
         model_name=definition.name,
         fallback_model_name=definition.fallback_model,
         endpoint=provider.base_url,
