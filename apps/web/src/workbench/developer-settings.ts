@@ -3,8 +3,8 @@ export interface DeveloperSettings {
   stopBeforeVideoGeneration: boolean;
 }
 
-const STORAGE_KEY = "ai-cut-developer-settings-v1";
-const UPDATE_EVENT = "ai-cut:developer-settings-updated";
+const STORAGE_KEY = "jiandou-developer-settings-v1";
+const UPDATE_EVENT = "jiandou:developer-settings-updated";
 
 const DEFAULT_SETTINGS: DeveloperSettings = {
   enabled: false,

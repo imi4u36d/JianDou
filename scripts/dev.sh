@@ -11,8 +11,10 @@ API_HOST="${API_HOST:-0.0.0.0}"
 API_PORT="${API_PORT:-8000}"
 WEB_HOST="${WEB_HOST:-0.0.0.0}"
 WEB_PORT="${WEB_PORT:-5173}"
+JIANDOU_EXECUTION_MODE="${JIANDOU_EXECUTION_MODE:-queue}"
 
 API_PID=""
+WORKER_PID=""
 WEB_PID=""
 
 cleanup() {
@@ -22,11 +24,16 @@ cleanup() {
     kill "${API_PID}" 2>/dev/null || true
   fi
 
+  if [[ -n "${WORKER_PID}" ]] && kill -0 "${WORKER_PID}" 2>/dev/null; then
+    kill "${WORKER_PID}" 2>/dev/null || true
+  fi
+
   if [[ -n "${WEB_PID}" ]] && kill -0 "${WEB_PID}" 2>/dev/null; then
     kill "${WEB_PID}" 2>/dev/null || true
   fi
 
   wait "${API_PID}" 2>/dev/null || true
+  wait "${WORKER_PID}" 2>/dev/null || true
   wait "${WEB_PID}" 2>/dev/null || true
 }
 
@@ -96,13 +103,25 @@ fi
 
 stop_service_if_running "后端" "$API_PORT"
 stop_service_if_running "前端" "$WEB_PORT"
+if command -v pgrep >/dev/null 2>&1; then
+  EXISTING_WORKER_PIDS="$(pgrep -f "$VENV_PYTHON -m app.main" || true)"
+  if [[ -n "${EXISTING_WORKER_PIDS// }" ]]; then
+    echo "检测到 worker 旧进程，尝试关闭: ${EXISTING_WORKER_PIDS//$'\n'/ }"
+    while read -r pid; do
+      [[ -z "$pid" ]] && continue
+      if [[ "$pid" != "$$" ]] && kill -0 "$pid" 2>/dev/null; then
+        kill "$pid" 2>/dev/null || true
+      fi
+    done <<< "$EXISTING_WORKER_PIDS"
+  fi
+fi
 
 trap cleanup EXIT INT TERM
 
 echo "启动后端: http://127.0.0.1:${API_PORT}"
 (
   cd "$API_DIR"
-  exec "$VENV_PYTHON" -m uvicorn app.main:app \
+  exec env JIANDOU_EXECUTION_MODE="$JIANDOU_EXECUTION_MODE" "$VENV_PYTHON" -m uvicorn app.main:app \
     --reload \
     --reload-dir "$ROOT_DIR/apps/api" \
     --reload-dir "$ROOT_DIR/packages" \
@@ -112,6 +131,13 @@ echo "启动后端: http://127.0.0.1:${API_PORT}"
 ) &
 API_PID=$!
 
+echo "启动 worker: queue consumer"
+(
+  cd "$ROOT_DIR/apps/worker"
+  exec env JIANDOU_EXECUTION_MODE="$JIANDOU_EXECUTION_MODE" "$VENV_PYTHON" -m app.main
+) &
+WORKER_PID=$!
+
 echo "启动前端: http://localhost:${WEB_PORT}"
 (
   cd "$ROOT_DIR"
@@ -119,11 +145,16 @@ echo "启动前端: http://localhost:${WEB_PORT}"
 ) &
 WEB_PID=$!
 
-echo "前后端已启动，按 Ctrl+C 可同时停止。"
+echo "API / worker / web 已启动，按 Ctrl+C 可同时停止。"
 
 while true; do
   if ! kill -0 "$API_PID" 2>/dev/null; then
     echo "后端进程已退出。"
+    exit 1
+  fi
+
+  if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+    echo "worker 进程已退出。"
     exit 1
   fi
 

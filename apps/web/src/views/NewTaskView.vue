@@ -171,6 +171,12 @@ import TaskProgressCard from "@/components/generate/TaskProgressCard.vue";
 import { useTaskProgress } from "@/components/generate/useTaskProgress";
 import HintBell from "@/components/HintBell.vue";
 import PageHeader from "@/components/PageHeader.vue";
+import {
+  formatTaskModelValue,
+  formatTaskRequestedDuration,
+  formatTaskResolvedDuration,
+  getTaskRequestSnapshot,
+} from "@/utils/task-request";
 import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";
 import type {
   CreateGenerationTaskRequest,
@@ -234,7 +240,7 @@ function isPreferredTextModel(value: string | null | undefined): boolean {
 
 function isPreferredVideoModel(value: string | null | undefined): boolean {
   const normalized = normalizeModelName(value);
-  return normalized.includes("seeddance") || normalized.includes("seedance");
+  return normalized.includes("seedance");
 }
 
 function parseDurationSeconds(value: unknown): number | null {
@@ -359,6 +365,15 @@ function compareVideoSizeByArea(a: GenerationVideoSizeOption, b: GenerationVideo
 
 const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.textAnalysisModels ?? []);
 const videoModelOptions = computed<GenerationVideoModelInfo[]>(() => options.value?.videoModels ?? []);
+const selectedVideoModelOption = computed<GenerationVideoModelInfo | null>(() => {
+  const selectedVideoModel = normalizeModelName(form.value.videoModel);
+  if (!selectedVideoModel) {
+    return null;
+  }
+  return (
+    videoModelOptions.value.find((item) => normalizeModelName(item.value) === selectedVideoModel) ?? null
+  );
+});
 const videoSizeOptions = computed<GenerationVideoSizeOption[]>(() => {
   const source = options.value?.videoSizes ?? [];
   const targetAspectRatio = form.value.aspectRatio;
@@ -381,6 +396,18 @@ const videoSizeOptions = computed<GenerationVideoSizeOption[]>(() => {
   return [...filtered].sort(compareVideoSizeByArea);
 });
 const durationOptions = computed<GenerationVideoDurationOption[]>(() => {
+  const modelDurations = Array.isArray(selectedVideoModelOption.value?.supportedDurations)
+    ? selectedVideoModelOption.value?.supportedDurations ?? []
+    : [];
+  if (modelDurations.length) {
+    return [...new Set(modelDurations)]
+      .filter((item) => Number.isFinite(item) && item > 0)
+      .sort((a, b) => a - b)
+      .map((item) => ({
+        value: Math.trunc(item),
+        label: `${Math.trunc(item)} 秒`,
+      }));
+  }
   const source = options.value?.videoDurations ?? [];
   const selectedVideoModel = normalizeModelName(form.value.videoModel);
   const filtered = source.filter((item) => {
@@ -512,17 +539,24 @@ const previewResultMeta = computed(() => {
 
 const summaryRows = computed(() => {
   const task = progressTaskDetail.value;
+  const snapshot = getTaskRequestSnapshot(task);
   const progressValue = task ? Math.round(task.progress ?? 0) : progressState.value.progress;
-  const modelSummary = loadingOptions.value
+  const modelSummary = task
+    ? `${formatTaskModelValue(snapshot.textAnalysisModel)} / ${formatTaskModelValue(snapshot.videoModel)}`
+    : loadingOptions.value
     ? "加载中"
     : `${form.value.textAnalysisModel || "未选择"} / ${form.value.videoModel || "未选择"}`;
+  const videoSizeSummary = task ? formatTaskModelValue(snapshot.videoSize) : form.value.videoSize || "未选择";
+  const durationSummary = task
+    ? `${formatTaskRequestedDuration(snapshot)} / 生效 ${formatTaskResolvedDuration(task)}`
+    : formatDurationSelection();
   return [
     { label: "任务 ID", value: progressTaskId.value || "未创建" },
     { label: "当前状态", value: task?.status || (submitting.value ? "CREATING" : progressState.value.stage) },
     { label: "当前进度", value: `${Math.max(0, Math.min(100, progressValue))}%` },
     { label: "模型配置", value: modelSummary },
-    { label: "分辨率", value: form.value.videoSize || "未选择" },
-    { label: "视频时长", value: formatDurationSelection() },
+    { label: "分辨率", value: videoSizeSummary },
+    { label: "视频时长", value: durationSummary },
     { label: "已生成结果", value: task?.outputs?.length ? `${task.outputs.length} 条` : "暂无" },
   ];
 });
@@ -577,8 +611,13 @@ async function loadOptions() {
     );
     form.value.videoDurationSeconds = "auto";
     if (!manualMaxDurationSeconds.value.trim()) {
+      const configuredModel = result.videoModels.find(
+        (item) => normalizeModelName(item.value) === normalizeModelName(form.value.videoModel),
+      );
       const fallbackDuration =
-        parseDurationSeconds(result.defaultVideoDurationSeconds) ?? parseDurationSeconds(result.videoDurations[0]?.value);
+        parseDurationSeconds(result.defaultVideoDurationSeconds) ??
+        parseDurationSeconds(configuredModel?.supportedDurations?.[0]) ??
+        parseDurationSeconds(result.videoDurations[0]?.value);
       if (fallbackDuration !== null) {
         manualMaxDurationSeconds.value = String(fallbackDuration);
       }

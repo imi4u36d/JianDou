@@ -6,7 +6,7 @@
         <div class="admin-panel-header border-b border-slate-300/80">
           <div class="admin-heading-block min-w-0">
             <p class="admin-eyebrow">Admin Console</p>
-            <h1 class="admin-title">AI Cut 管理系统</h1>
+            <h1 class="admin-title">JianDou 管理系统</h1>
             <p class="admin-subtitle max-w-3xl">
               面向运营与运维的数据管理界面，聚焦任务管理、异常处理和系统配置状态。
             </p>

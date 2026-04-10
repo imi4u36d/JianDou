@@ -87,14 +87,6 @@ function normalizeCallChain(raw: unknown): GenerationCallLogEntry[] {
 function normalizeOptions(raw: unknown): GenerationOptionsResponse {
   const record = asRecord(raw) ?? {};
   return {
-    versions: Array.isArray(record.versions)
-      ? record.versions
-          .map((item) => asNumber(item))
-          .filter((item): item is number => item !== null)
-          .map((item) => Math.trunc(item))
-      : [1],
-    versionDetails: Array.isArray(record.versionDetails) ? (record.versionDetails as GenerationOptionsResponse["versionDetails"]) : [],
-    defaultVersion: asNumber(record.defaultVersion) ? Math.trunc(asNumber(record.defaultVersion) as number) : 1,
     stylePresets: Array.isArray(record.stylePresets) ? (record.stylePresets as GenerationOptionsResponse["stylePresets"]) : [],
     imageSizes: Array.isArray(record.imageSizes) ? (record.imageSizes as GenerationOptionsResponse["imageSizes"]) : [],
     textAnalysisModels: Array.isArray(record.textAnalysisModels)

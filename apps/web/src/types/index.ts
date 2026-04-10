@@ -132,14 +132,6 @@ export interface ProbeTextAnalysisModelResponse {
 
 export type GenerationMediaKind = "image" | "video";
 
-export interface GenerationVersionInfo {
-  version: number;
-  label: string;
-  isDefault?: boolean;
-  supportedKinds?: GenerationMediaKind[];
-  description?: string | null;
-}
-
 export interface GenerationVideoModelInfo {
   value: string;
   label: string;
@@ -214,9 +206,6 @@ export interface GenerationVideoDurationOption {
 }
 
 export interface GenerationOptionsResponse {
-  versions: number[];
-  versionDetails?: GenerationVersionInfo[];
-  defaultVersion?: number | null;
   stylePresets: GenerationStylePresetOption[];
   imageSizes: GenerationImageSizeOption[];
   videoModels: GenerationVideoModelInfo[];
@@ -336,7 +325,7 @@ export interface TaskTraceEvent {
   payload: Record<string, unknown>;
 }
 
-export interface SeeddanceTaskQueryResult {
+export interface SeedanceTaskQueryResult {
   taskId: string;
   status: string;
   videoUrl?: string | null;
@@ -366,6 +355,22 @@ export interface TaskListItem {
   editingMode?: EditingMode;
 }
 
+export interface TaskRequestSnapshot {
+  taskType?: string | null;
+  title?: string | null;
+  creativePrompt?: string | null;
+  platform?: string | null;
+  aspectRatio?: string | null;
+  textAnalysisModel?: string | null;
+  videoModel?: string | null;
+  videoSize?: string | null;
+  videoDurationSeconds?: number | "auto" | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
+  transcriptText?: string | null;
+  stopBeforeVideoGeneration?: boolean | null;
+}
+
 export interface TaskDetail extends TaskListItem {
   sourceFileName: string;
   sourceFileNames?: string[];
@@ -390,6 +395,7 @@ export interface TaskDetail extends TaskListItem {
   sourceAssets?: TaskSourceAssetSummary[];
   storyboardScript?: string | null;
   materials?: TaskMaterial[];
+  requestSnapshot?: TaskRequestSnapshot;
   plan?: TaskPlanClip[];
   outputs: TaskOutput[];
 }

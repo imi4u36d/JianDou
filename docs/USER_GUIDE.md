@@ -16,7 +16,7 @@ cp config/app.example.toml config/app.toml
 ```
 
 2. 打开 `config/app.toml`，替换所有模型相关 Key。  
-3. 如需覆盖配置，可使用 `AI_CUT_*` 环境变量（例如 `AI_CUT_DATABASE_URL`）。
+3. 如需覆盖配置，可使用 `JIANDOU_*` 环境变量（例如 `JIANDOU_DATABASE_URL`）。
 
 ## 3. Docker 一键启动（推荐）
 
@@ -58,7 +58,7 @@ python3 -m venv .venv
 .venv/bin/pip install -e packages/shared -e packages/db -e packages/storage -e packages/media -e packages/ai -e packages/pipeline -e packages/backend_core -e apps/api -e apps/worker
 ```
 
-### 4.3 同时启动前后端
+### 4.3 同时启动 API、worker 和前端
 
 ```bash
 npm run dev
@@ -67,6 +67,7 @@ npm run dev
 该命令会调用 `scripts/dev.sh`，自动启动：
 
 - FastAPI：`http://127.0.0.1:8000`
+- Worker：消费 Redis 队列中的生成任务
 - Vite：`http://127.0.0.1:5173`
 
 ## 5. 典型使用流程
@@ -91,6 +92,5 @@ npm run dev
 
 ### 6.3 任务长时间停留在 `PENDING`
 
-- `execution_mode=inline` 时应自动执行
-- 非 inline 模式需要确保 worker 在运行
-
+- 当前默认模式为 `queue`
+- 请确认 `scripts/dev.sh` 启动的 worker 仍在运行，或 Docker 中的 `jiandou-worker` 容器正常

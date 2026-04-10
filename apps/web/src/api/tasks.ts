@@ -7,7 +7,7 @@ import type {
   TaskDetail,
   TaskFilters,
   TaskListItem,
-  SeeddanceTaskQueryResult,
+  SeedanceTaskQueryResult,
   TaskTraceEvent,
   UploadResponse,
 } from "@/types";
@@ -46,8 +46,8 @@ export function fetchTaskTrace(taskId: string, limit = 500) {
   return getJson<TaskTraceEvent[]>(`/tasks/${taskId}/trace?limit=${limit}`);
 }
 
-export function fetchSeeddanceTaskResult(remoteTaskId: string) {
-  return getJson<SeeddanceTaskQueryResult>(`/tasks/seeddance/${encodeURIComponent(remoteTaskId)}`);
+export function fetchSeedanceTaskResult(remoteTaskId: string) {
+  return getJson<SeedanceTaskQueryResult>(`/tasks/seedance/${encodeURIComponent(remoteTaskId)}`);
 }
 
 export function retryTask(taskId: string) {

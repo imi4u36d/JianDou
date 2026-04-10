@@ -61,6 +61,27 @@
             <p class="mt-1 text-xs text-slate-500">{{ planningSummary.detail }}</p>
           </div>
 
+          <div class="border-t border-slate-200/80 px-5 py-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-semibold text-slate-900">创建参数</h4>
+              <span class="admin-chip">时长模式 {{ requestDurationMode }}</span>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <article v-for="item in requestRows" :key="item.label" class="admin-panel-soft p-4">
+                <p class="text-xs uppercase tracking-wide text-slate-500">{{ item.label }}</p>
+                <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ item.value }}</p>
+              </article>
+            </div>
+            <article v-if="task.creativePrompt" class="admin-panel-soft mt-3 p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">创意提示词</p>
+              <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ task.creativePrompt }}</p>
+            </article>
+            <article v-if="requestTranscriptPreview" class="admin-panel-soft mt-3 p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">文本输入摘要</p>
+              <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ requestTranscriptPreview }}</p>
+            </article>
+          </div>
+
           <div v-if="task.errorMessage" class="border-t border-slate-200/80 px-5 py-4">
             <div class="admin-alert-error">
               {{ task.errorMessage }}
@@ -160,6 +181,16 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { deleteAdminTask, fetchAdminTask, fetchAdminTaskTrace, retryAdminTask } from "@/api/admin";
 import type { TaskDetail, TaskTraceEvent } from "@/types";
+import {
+  formatTaskDurationMode,
+  formatTaskModelValue,
+  formatTaskRequestedDuration,
+  formatTaskResolvedDuration,
+  formatTaskStopBeforeVideoGeneration,
+  formatTaskTranscriptSummary,
+  getTaskRequestSnapshot,
+  previewTaskTranscript,
+} from "@/utils/task-request";
 
 const route = useRoute();
 const router = useRouter();
@@ -198,6 +229,28 @@ const planningSummary = computed(() => {
     title: "当前任务使用标准生成链路",
     detail: "系统按分析、编排、渲染阶段持续推进。"
   };
+});
+
+const requestSnapshot = computed(() => getTaskRequestSnapshot(task.value));
+
+const requestDurationMode = computed(() => formatTaskDurationMode(requestSnapshot.value));
+
+const requestTranscriptPreview = computed(() => previewTaskTranscript(requestSnapshot.value));
+
+const requestRows = computed(() => {
+  if (!task.value) {
+    return [];
+  }
+  return [
+    { label: "文本模型", value: formatTaskModelValue(requestSnapshot.value.textAnalysisModel) },
+    { label: "视频模型", value: formatTaskModelValue(requestSnapshot.value.videoModel) },
+    { label: "视频尺寸", value: formatTaskModelValue(requestSnapshot.value.videoSize) },
+    { label: "请求时长", value: formatTaskRequestedDuration(requestSnapshot.value) },
+    { label: "生效时长", value: formatTaskResolvedDuration(task.value) },
+    { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(requestSnapshot.value) },
+    { label: "文本输入", value: formatTaskTranscriptSummary(requestSnapshot.value) },
+    { label: "创建平台", value: formatTaskModelValue(requestSnapshot.value.platform || task.value.platform) },
+  ];
 });
 
 const orderedTraceEvents = computed(() => [...traceEvents.value].reverse());

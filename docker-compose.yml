@@ -1,14 +1,16 @@
 # 本地开发所需的数据库、缓存、API 和前端服务编排。
+name: jiandou
+
 services:
   # MySQL 用于存储任务元数据和持久化业务数据。
   mysql:
     image: mysql:8.4
-    container_name: ai-cut-mysql
+    container_name: jiandou-mysql
     environment:
       # 仅供本地开发容器使用的 root 密码。
       MYSQL_ROOT_PASSWORD: root
       # 首次启动时自动创建的数据库名。
-      MYSQL_DATABASE: ai_cut
+      MYSQL_DATABASE: jiandou
     ports:
       - "3306:3306"
     volumes:
@@ -24,7 +26,7 @@ services:
   # Redis 为后端提供缓存和轻量协调能力。
   redis:
     image: redis:7.4
-    container_name: ai-cut-redis
+    container_name: jiandou-redis
     ports:
       - "6379:6379"
     volumes:
@@ -41,17 +43,19 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: ai-cut-api
+    container_name: jiandou-api
     working_dir: /app/apps/api
     environment:
       # 通过 compose 内部服务名连接 MySQL。
-      AI_CUT_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/ai_cut?charset=utf8mb4
+      JIANDOU_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/jiandou?charset=utf8mb4
       # 通过 compose 内部服务名连接 Redis。
-      AI_CUT_REDIS_URL: redis://redis:6379/0
+      JIANDOU_REDIS_URL: redis://redis:6379/0
+      # API 仅负责入队与查询，任务实际由 worker 消费。
+      JIANDOU_EXECUTION_MODE: queue
       # 后端 CORS 和回调场景使用的前端来源地址。
-      AI_CUT_WEB_ORIGIN: http://127.0.0.1:5173
+      JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173
       # 生成资源经由 API 服务对外暴露时使用的公共前缀。
-      AI_CUT_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
+      JIANDOU_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
     command:
       [
         "uvicorn",
@@ -86,12 +90,40 @@ services:
       redis:
         condition: service_healthy
 
+  # 独立 worker 负责消费 Redis 队列并执行生成任务。
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: jiandou-worker
+    working_dir: /app/apps/worker
+    environment:
+      JIANDOU_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/jiandou?charset=utf8mb4
+      JIANDOU_REDIS_URL: redis://redis:6379/0
+      JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173
+      JIANDOU_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
+      JIANDOU_EXECUTION_MODE: queue
+    command: ["python", "app/main.py"]
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./apps/worker:/app/apps/worker
+      - ./packages:/app/packages
+      - ./config:/app/config
+      - ./storage/uploads:/app/storage/uploads
+      - ./storage/outputs:/app/storage/outputs
+      - ./storage/temp:/app/storage/temp
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # Vue 前端的 Vite 开发服务器。
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    container_name: ai-cut-web
+    container_name: jiandou-web
     working_dir: /app/apps/web
     environment:
       # 使用轮询方式监听文件，提升 Docker 挂载目录下的热更新稳定性。
