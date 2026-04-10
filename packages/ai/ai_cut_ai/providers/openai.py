@@ -11,11 +11,11 @@ import urllib.request
 from ai_cut_shared.config import Settings
 
 from .base import ProviderResult, ResolvedModelTarget
-from .openai_compatible import OpenAICompatibleAdapter
+from .qwen import QwenAdapter
 
 
-class OpenAINativeAdapter(OpenAICompatibleAdapter):
-    name = "openai_native"
+class OpenAIAdapter(QwenAdapter):
+    name = "openai"
 
     def invoke_text(
         self,

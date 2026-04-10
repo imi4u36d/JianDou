@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from .base import ProviderAdapter
-from .openai_compatible import OpenAICompatibleAdapter
-from .openai_native import OpenAINativeAdapter
+from .openai import OpenAIAdapter
+from .qwen import QwenAdapter
 
 
 class _UnsupportedAdapter:
@@ -18,8 +18,8 @@ class _UnsupportedAdapter:
 
 def build_provider_registry() -> dict[str, ProviderAdapter]:
     return {
-        "openai_native": OpenAINativeAdapter(),
-        "openai_compatible": OpenAICompatibleAdapter(),
+        "openai": OpenAIAdapter(),
+        "qwen": QwenAdapter(),
         "aliyun_video": _UnsupportedAdapter("aliyun_video"),
         "volcengine_seed": _UnsupportedAdapter("volcengine_seed"),
     }
