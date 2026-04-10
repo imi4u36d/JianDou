@@ -6,7 +6,7 @@ from backend_core.schemas import (
     CreateGenerationTaskRequest,
     GenerateCreativePromptRequest,
     GenerateCreativePromptResponse,
-    SeeddanceTaskQueryResponse,
+    SeedanceTaskQueryResponse,
     TaskDeleteResult,
     TaskDetail,
     TaskListItem,
@@ -137,10 +137,10 @@ def get_task_logs(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.get("/tasks/seeddance/{remote_task_id}", response_model=SeeddanceTaskQueryResponse)
-def query_seeddance_task_result(request: Request, remote_task_id: str) -> SeeddanceTaskQueryResponse:
+@router.get("/tasks/seedance/{remote_task_id}", response_model=SeedanceTaskQueryResponse)
+def query_seedance_task_result(request: Request, remote_task_id: str) -> SeedanceTaskQueryResponse:
     try:
-        return request.app.state.runtime.service.query_seeddance_task_result(remote_task_id)
+        return request.app.state.runtime.service.query_seedance_task_result(remote_task_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

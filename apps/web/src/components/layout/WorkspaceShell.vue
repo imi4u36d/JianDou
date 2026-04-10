@@ -3,10 +3,10 @@
     <aside class="app-sidebar" :class="{ 'app-sidebar-open': sidebarOpen }">
       <div class="app-sidebar__header">
         <RouterLink class="brand-mark" to="/">
-          <span class="brand-mark__icon">A</span>
+          <span class="brand-mark__icon">J</span>
           <span>
-            <strong>AI Cut</strong>
-            <small>Text to Video</small>
+            <strong>JianDou</strong>
+            <small>煎豆</small>
           </span>
         </RouterLink>
         <button class="shell-icon-btn lg:hidden" type="button" @click="sidebarOpen = false">
@@ -61,7 +61,7 @@
         <button class="shell-icon-btn" type="button" @click="sidebarOpen = true">
           菜单
         </button>
-        <RouterLink class="mobile-bar__brand" to="/">AI Cut</RouterLink>
+        <RouterLink class="mobile-bar__brand" to="/">JianDou · 煎豆</RouterLink>
         <span class="shell-icon-btn shell-icon-btn-placeholder" aria-hidden="true">占位</span>
       </header>
 

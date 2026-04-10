@@ -16,7 +16,7 @@ cp config/app.example.toml config/app.toml
 ```
 
 2. 打开 `config/app.toml`，替换所有模型相关 Key。  
-3. 如需覆盖配置，可使用 `AI_CUT_*` 环境变量（例如 `AI_CUT_DATABASE_URL`）。
+3. 如需覆盖配置，可使用 `JIANDOU_*` 环境变量（例如 `JIANDOU_DATABASE_URL`）。
 
 ## 3. Docker 一键启动（推荐）
 

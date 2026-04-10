@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ai_cut_shared.schemas import (
+from jiandou_shared.schemas import (
     GenerationRunRequest,
     GenerationRunResponse,
     ModelCatalog,

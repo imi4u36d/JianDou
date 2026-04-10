@@ -336,7 +336,7 @@ export interface TaskTraceEvent {
   payload: Record<string, unknown>;
 }
 
-export interface SeeddanceTaskQueryResult {
+export interface SeedanceTaskQueryResult {
   taskId: string;
   status: string;
   videoUrl?: string | null;
