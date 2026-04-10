@@ -16,7 +16,7 @@ execution_mode = "inline"
 # 主数据库连接配置。
 [database]
 # 应用数据库的 SQLAlchemy DSN。
-url = "mysql+pymysql://root:root@127.0.0.1:3306/ai_cut?charset=utf8mb4&init_command=SET%20time_zone%3D%27%2B08%3A00%27"
+url = "mysql+pymysql://root:root@127.0.0.1:3306/jiandou?charset=utf8mb4&init_command=SET%20time_zone%3D%27%2B08%3A00%27"
 # 是否输出 SQL 日志，便于调试。
 echo = false
 
@@ -120,7 +120,6 @@ label = "GPT-5.4"
 family = "gpt"
 capabilities = ["text_analysis", "planner_fusion", "creative_prompt", "script_generation"]
 description = "OpenAI 文本理解与生成模型。"
-aliases = ["gpt5.4", "gpt-5", "chatgpt"]
 fallback_model = "qwen3.6-plus"
 
 [model.models."qwen3.6-plus"]
@@ -130,7 +129,6 @@ label = "Qwen 3.6 Plus"
 family = "qwen"
 capabilities = ["text_analysis", "planner_fusion", "creative_prompt", "script_generation"]
 description = "阿里 Qwen 文本模型。"
-aliases = ["qwen", "qwen-plus", "qwen-max", "qwen-max-latest"]
 
 [model.models."qwen-plus"]
 provider = "qwen"
@@ -147,7 +145,6 @@ label = "Qwen-VL Plus"
 family = "qwen-vl"
 capabilities = ["vision_analysis", "prompt_rewrite"]
 description = "Qwen-VL 视觉理解模型。"
-aliases = ["qwen-vl", "qwen-vl-plus", "qwen-vl-workflow"]
 fallback_model = "qwen3-vl-flash"
 
 [model.models."qwen3-vl-flash"]
@@ -165,7 +162,6 @@ label = "Doubao Seedream 4.5"
 family = "seedream"
 capabilities = ["image_generation"]
 description = "Seedream 文生图模型。"
-aliases = ["doubao-seedream-4.5", "seedream-4.5"]
 
 [model.models."wan2.6-i2v"]
 provider = "wan"

@@ -21,3 +21,6 @@ dependencies = [
   "alibabacloud_credentials>=1.0.8",
   "volcengine>=1.0.219",
 ]
+
+[tool.setuptools]
+packages = ["backend_core"]

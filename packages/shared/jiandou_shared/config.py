@@ -145,7 +145,6 @@ class ModelDefinition:
     capabilities: tuple[str, ...]
     family: str | None = None
     description: str | None = None
-    aliases: tuple[str, ...] = ()
     fallback_model: str | None = None
 
 
@@ -480,7 +479,6 @@ def _parse_model_definitions(raw_model: dict[str, Any], providers: dict[str, Pro
             capabilities=capabilities,
             family=_optional_text(model_section.get("family")),
             description=_optional_text(model_section.get("description")),
-            aliases=_normalize_list(model_section.get("aliases")),
             fallback_model=_optional_text(model_section.get("fallback_model")),
         )
     if not models:

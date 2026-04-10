@@ -375,14 +375,6 @@ class GenerateTextMediaResponse(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
-class GenerationVersionInfo(BaseModel):
-    version: int = Field(ge=1, le=10)
-    label: str
-    isDefault: bool = False
-    supportedKinds: list[TextMediaKind] = Field(default_factory=list)
-    description: str | None = None
-
-
 class GenerationTextAnalysisModelInfo(BaseModel):
     value: str
     label: str
@@ -412,6 +404,9 @@ class GenerationVideoModelInfo(BaseModel):
     label: str
     description: str | None = None
     isDefault: bool = False
+    provider: str | None = None
+    family: str | None = None
+    generationMode: str | None = None
     supportedSizes: list[str] = Field(default_factory=list)
     supportedDurations: list[int] = Field(default_factory=list)
     aliases: list[str] = Field(default_factory=list)
@@ -436,9 +431,6 @@ class GenerationVideoDurationOption(BaseModel):
 
 
 class GenerationOptionsResponse(BaseModel):
-    versions: list[int] = Field(default_factory=list)
-    versionDetails: list[GenerationVersionInfo] = Field(default_factory=list)
-    defaultVersion: int | None = Field(default=None, ge=1, le=10)
     stylePresets: list[GenerationStylePresetOption] = Field(default_factory=list)
     imageSizes: list[GenerationImageSizeOption] = Field(default_factory=list)
     textAnalysisModels: list[GenerationTextAnalysisModelInfo] = Field(default_factory=list)
@@ -654,6 +646,24 @@ class TaskListItem(BaseModel):
     editingMode: EditingMode = EditingMode.DRAMA
 
 
+class TaskRequestSnapshot(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    taskType: str | None = None
+    title: str | None = None
+    creativePrompt: str | None = None
+    platform: str | None = None
+    aspectRatio: str | None = None
+    textAnalysisModel: str | None = None
+    videoModel: str | None = None
+    videoSize: str | None = None
+    videoDurationSeconds: int | Literal["auto"] | None = None
+    minDurationSeconds: int | None = None
+    maxDurationSeconds: int | None = None
+    transcriptText: str | None = None
+    stopBeforeVideoGeneration: bool | None = None
+
+
 class TaskDetail(TaskListItem):
     sourceFileName: str
     sourceFileNames: list[str] = Field(default_factory=list)
@@ -677,6 +687,7 @@ class TaskDetail(TaskListItem):
     sourceAssets: list[SourceAssetSummary] = Field(default_factory=list)
     storyboardScript: str | None = None
     materials: list[TaskMaterial] = Field(default_factory=list)
+    requestSnapshot: TaskRequestSnapshot = Field(default_factory=TaskRequestSnapshot)
     plan: list[ClipPlan] = Field(default_factory=list)
     outputs: list[TaskOutput] = Field(default_factory=list)
 
@@ -739,15 +750,12 @@ class ModelConstraint(BaseModel):
 
 class ModelCatalog(BaseModel):
     generatedAt: str | None = None
-    versions: list[int] = Field(default_factory=list)
-    versionDetails: list[GenerationVersionInfo] = Field(default_factory=list)
     stylePresets: list[GenerationStylePresetOption] = Field(default_factory=list)
     imageSizes: list[GenerationImageSizeOption] = Field(default_factory=list)
     textAnalysisModels: list[GenerationTextAnalysisModelInfo] = Field(default_factory=list)
     videoModels: list[GenerationVideoModelInfo] = Field(default_factory=list)
     videoSizes: list[GenerationVideoSizeOption] = Field(default_factory=list)
     videoDurations: list[GenerationVideoDurationOption] = Field(default_factory=list)
-    defaultVersion: int | None = None
     defaultTextAnalysisModel: str | None = None
     defaultVideoModel: str | None = None
     defaultImageSize: str | None = None
