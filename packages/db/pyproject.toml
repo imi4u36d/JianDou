@@ -3,10 +3,10 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-cut-db"
+name = "jiandou-db"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-  "ai-cut-shared==0.1.0",
+  "jiandou-shared==0.1.0",
   "SQLAlchemy>=2.0",
 ]

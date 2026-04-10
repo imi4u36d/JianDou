@@ -234,7 +234,7 @@ function isPreferredTextModel(value: string | null | undefined): boolean {
 
 function isPreferredVideoModel(value: string | null | undefined): boolean {
   const normalized = normalizeModelName(value);
-  return normalized.includes("seeddance") || normalized.includes("seedance");
+  return normalized.includes("seedance");
 }
 
 function parseDurationSeconds(value: unknown): number | null {
