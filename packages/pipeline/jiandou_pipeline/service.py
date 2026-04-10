@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import re
 import socket
-import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -170,6 +169,8 @@ DRAMA_PROMPT_APPENDIX = (
     "声音过渡要自然，禁止上一段声音戛然而止后下一段声音立即硬切。"
     "音频仅保留人物对白与环境音，禁止旁白、画外音和解说配音。"
 )
+
+_RUNNING_TASK_STATUSES = ("ANALYZING", "PLANNING", "RENDERING")
 
 _SCRIPT_DURATION_RANGE_RE = re.compile(
     r"(?P<left>\d{1,3}(?:\.\d+)?)\s*(?:-|~|～|—|到)\s*(?P<right>\d{1,3}(?:\.\d+)?)\s*(?:s|秒)",
@@ -1781,7 +1782,7 @@ class TaskService:
                 outro_template="none",
                 creative_prompt=prompt,
                 request_payload_json=request_payload,
-                execution_mode="generation",
+                execution_mode=self.settings.app.execution_mode,
                 status="PENDING",
                 progress=0,
             )
@@ -2912,16 +2913,9 @@ class TaskService:
             self._fail_task(task_id, exc, message="生成任务失败。")
 
     def dispatch_task(self, task_id: str) -> None:
-        if self.settings.using_inline_execution or self.worker is None or self.worker.job_queue is None:
-            self._trace(
-                task_id,
-                "dispatch",
-                "task.dispatched_inline",
-                "任务通过本地线程直接开始执行。",
-                {"execution_mode": self.settings.app.execution_mode},
-            )
-            thread = threading.Thread(target=self.process_task, args=(task_id,), daemon=True)
-            thread.start()
+        if self.worker is None or self.worker.job_queue is None:
+            exc = RuntimeError("worker queue is not configured")
+            self._fail_task(task_id, exc, message="任务分发失败，worker 未就绪。")
             return
         try:
             self.worker.job_queue.enqueue(task_id)
@@ -2930,19 +2924,24 @@ class TaskService:
                 "dispatch",
                 "task.enqueued",
                 "任务已进入队列，等待 worker 处理。",
-                {"queue_mode": True},
+                {"queue_mode": True, "execution_mode": self.settings.app.execution_mode},
             )
-        except Exception:
+        except Exception as exc:
             self._trace(
                 task_id,
                 "dispatch",
                 "task.enqueue_failed",
-                "任务入队失败，已回退为本地线程执行。",
-                {"queue_mode": True},
+                "任务入队失败。",
+                {
+                    "queue_mode": True,
+                    "execution_mode": self.settings.app.execution_mode,
+                    "error": str(exc),
+                },
                 "WARN",
             )
-            thread = threading.Thread(target=self.process_task, args=(task_id,), daemon=True)
-            thread.start()
+            wrapped = RuntimeError(f"task enqueue failed: {exc}")
+            self._fail_task(task_id, wrapped, message="任务入队失败。")
+            return
 
     def process_task(self, task_id: str) -> None:
         if not self._claim_task(task_id):
@@ -2968,6 +2967,26 @@ class TaskService:
             return
         self._process_generation_task(task_id)
         return
+
+    def recover_interrupted_tasks(self) -> int:
+        task_ids: list[str] = []
+        with self.session() as session:
+            task_ids = list(
+                session.scalars(
+                    select(Task.id).where(
+                        Task.status.in_(_RUNNING_TASK_STATUSES),
+                        Task.finished_at.is_(None),
+                    )
+                ).all()
+            )
+        failure_message = "检测到 worker 重启，运行中的任务已中断并标记失败，请重试。"
+        for task_id in task_ids:
+            self._fail_task(
+                task_id,
+                RuntimeError(failure_message),
+                message=failure_message,
+            )
+        return len(task_ids)
 
     def _record_task_model_call(
         self,

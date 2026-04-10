@@ -10,8 +10,8 @@ api_host = "0.0.0.0"
 api_port = 8000
 # 允许访问 API 的前端来源地址。
 web_origin = "http://localhost:5173"
-# 任务执行模式，inline 表示进程内直接执行。
-execution_mode = "inline"
+# 任务执行模式，queue 表示通过 Redis 队列交由 worker 执行。
+execution_mode = "queue"
 
 # 主数据库连接配置。
 [database]
@@ -137,6 +137,14 @@ label = "Qwen Plus"
 family = "qwen"
 capabilities = ["text_analysis", "planner_fusion", "creative_prompt", "script_generation"]
 description = "Qwen 通用文本模型。"
+
+[model.models."qwen3.5-flash"]
+provider = "qwen"
+kind = "text"
+label = "qwen3.5-flash"
+family = "qwen"
+capabilities = ["text_analysis", "planner_fusion", "creative_prompt", "script_generation"]
+description = "Qwen 通用文本模型 qwen3.5-flash。"
 
 [model.models."qwen-vl-plus-latest"]
 provider = "qwen"

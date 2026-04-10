@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from urllib.parse import urlparse
 
 from jiandou_ai.providers import ModelRouter
@@ -90,9 +91,16 @@ class BackendRuntime:
 def _build_engine(settings: Settings):
     preferred_url = settings.database.url
     engine = create_sqlalchemy_engine(preferred_url, echo=settings.database.echo)
-    with engine.connect():
-        pass
-    return engine, preferred_url
+    retry_deadline = time.monotonic() + 30.0
+    while True:
+        try:
+            with engine.connect():
+                pass
+            return engine, preferred_url
+        except Exception as exc:
+            if time.monotonic() >= retry_deadline:
+                raise
+            time.sleep(1.0)
 
 
 def _build_redis_queue(settings: Settings):
