@@ -10,3 +10,6 @@ dependencies = [
   "jiandou-shared==0.1.0",
   "SQLAlchemy>=2.0",
 ]
+
+[tool.setuptools]
+packages = ["jiandou_db"]

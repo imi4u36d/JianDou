@@ -48,6 +48,7 @@ from jiandou_shared.schemas import (
     TaskModelCallStatus,
     TaskOperationKind,
     TaskOutput as TaskOutputSchema,
+    TaskRequestSnapshot,
     TaskStage,
     TaskStatusHistoryRecord,
     TaskType,
@@ -61,7 +62,6 @@ from jiandou_storage.storage import MediaStorage
 from jiandou_pipeline.task_trace import TaskTraceWriter, read_task_trace
 from jiandou_ai.generation_v2.orchestrator import GenerationOrchestrator
 from jiandou_ai.text_generation import (
-    GenerationVersionInfo,
     GenerateTextMediaRequest,
     GenerateTextMediaResponse,
     GenerateTextScriptRequest,
@@ -375,9 +375,6 @@ class TaskService:
 
     def normalize_video_model_key(self, model_name: str) -> str:
         return self.generation_orchestrator.normalize_video_model_key(model_name)
-
-    def list_generation_versions(self) -> list[GenerationVersionInfo]:
-        return self.text_generator.list_versions()
 
     def generate_text_image(
         self,
@@ -1745,6 +1742,7 @@ class TaskService:
 
         prompt = self._resolve_task_creative_prompt(payload.creativePrompt)
         output_count = 1
+        request_payload = _json_safe_dict(payload.model_dump(mode="json"))
 
         duration_mode = "auto" if payload.videoDurationSeconds == "auto" else "fixed"
         requested_duration = payload.videoDurationSeconds if isinstance(payload.videoDurationSeconds, int) else None
@@ -1782,6 +1780,7 @@ class TaskService:
                 intro_template="none",
                 outro_template="none",
                 creative_prompt=prompt,
+                request_payload_json=request_payload,
                 execution_mode="generation",
                 status="PENDING",
                 progress=0,
@@ -3601,6 +3600,13 @@ class TaskService:
             return normalized
         return normalized[: limit - 3] + "..."
 
+    def _task_request_snapshot(self, task: Task) -> TaskRequestSnapshot:
+        payload = task.request_payload_json if isinstance(task.request_payload_json, dict) else {}
+        try:
+            return TaskRequestSnapshot.model_validate(payload)
+        except Exception:
+            return TaskRequestSnapshot()
+
     def _task_to_detail(self, task: Task) -> TaskDetail:
         outputs: list[TaskOutputSchema] = []
         for output in sorted(task.results, key=lambda item: item.clip_index):
@@ -3667,6 +3673,7 @@ class TaskService:
             sourceAssets=source_assets or ([self._source_asset_summary(source_asset)] if source_asset is not None else []),
             storyboardScript=storyboard_script,
             materials=materials,
+            requestSnapshot=self._task_request_snapshot(task),
             sourceAssetIds=source_material_ids,
             sourceFileNames=source_file_names,
             sourceAssetCount=len(source_material_ids),

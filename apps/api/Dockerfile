@@ -41,8 +41,7 @@ RUN pip install --upgrade pip \
     -e /app/packages/ai \
     -e /app/packages/pipeline \
     -e /app/packages/backend_core \
-    -e /app/apps/api \
-    -e /app/apps/worker
+    -e /app/apps/api
 
 WORKDIR /app/apps/api
 

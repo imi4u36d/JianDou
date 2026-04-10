@@ -1,4 +1,6 @@
 # 本地开发所需的数据库、缓存、API 和前端服务编排。
+name: jiandou
+
 services:
   # MySQL 用于存储任务元数据和持久化业务数据。
   mysql:

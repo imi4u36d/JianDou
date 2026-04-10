@@ -253,6 +253,31 @@
             </div>
           </div>
         </div>
+
+        <div v-if="selectedTaskDetail" class="surface-tile p-4 xl:col-span-2">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm font-semibold text-slate-900">创建参数</p>
+            <span class="surface-chip">时长模式 {{ selectedTaskDurationModeLabel }}</span>
+          </div>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-for="item in selectedTaskParameterRows"
+              :key="item.label"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
+            >
+              <p class="text-xs text-slate-500">{{ item.label }}</p>
+              <p class="mt-1 break-all font-semibold text-slate-900">{{ item.value }}</p>
+            </div>
+          </div>
+          <div v-if="selectedTaskDetail.creativePrompt" class="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-3">
+            <p class="text-xs text-slate-500">创意提示词</p>
+            <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ selectedTaskDetail.creativePrompt }}</p>
+          </div>
+          <div v-if="selectedTaskTranscriptPreview" class="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-3">
+            <p class="text-xs text-slate-500">文本输入摘要</p>
+            <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ selectedTaskTranscriptPreview }}</p>
+          </div>
+        </div>
       </div>
 
       <div class="surface-tile mt-4 p-4">
@@ -290,6 +315,16 @@ import PageHeader from "@/components/PageHeader.vue";
 import TaskCard from "@/components/TaskCard.vue";
 import TaskRow from "@/components/TaskRow.vue";
 import { usePolling } from "@/composables/usePolling";
+import {
+  formatTaskDurationMode,
+  formatTaskModelValue,
+  formatTaskRequestedDuration,
+  formatTaskResolvedDuration,
+  formatTaskStopBeforeVideoGeneration,
+  formatTaskTranscriptSummary,
+  getTaskRequestSnapshot,
+  previewTaskTranscript,
+} from "@/utils/task-request";
 import { formatTaskStatus, getTaskLifecycleGroup, TASK_LIFECYCLE_GROUP_LABELS } from "@/utils/task";
 
 const route = useRoute();
@@ -360,6 +395,31 @@ const selectedTaskStageLabel = computed(() => {
     return formatTaskStatus(selectedTaskSummary.value.status);
   }
   return "等待更新";
+});
+
+const selectedTaskRequestSnapshot = computed(() => getTaskRequestSnapshot(selectedTaskDetail.value));
+
+const selectedTaskDurationModeLabel = computed(() => formatTaskDurationMode(selectedTaskRequestSnapshot.value));
+
+const selectedTaskTranscriptPreview = computed(() => previewTaskTranscript(selectedTaskRequestSnapshot.value));
+
+const selectedTaskParameterRows = computed(() => {
+  const task = selectedTaskDetail.value;
+  if (!task) {
+    return [];
+  }
+  const snapshot = selectedTaskRequestSnapshot.value;
+  return [
+    { label: "文本模型", value: formatTaskModelValue(snapshot.textAnalysisModel) },
+    { label: "视频模型", value: formatTaskModelValue(snapshot.videoModel) },
+    { label: "视频尺寸", value: formatTaskModelValue(snapshot.videoSize) },
+    { label: "请求时长", value: formatTaskRequestedDuration(snapshot) },
+    { label: "生效时长", value: formatTaskResolvedDuration(task) },
+    { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(snapshot) },
+    { label: "文本输入", value: formatTaskTranscriptSummary(snapshot) },
+    { label: "创建平台", value: formatTaskModelValue(snapshot.platform || task.platform) },
+    { label: "画幅比例", value: formatTaskModelValue(snapshot.aspectRatio || task.aspectRatio) },
+  ];
 });
 
 const selectedTaskStages = computed(() => {

@@ -44,7 +44,6 @@ except Exception:
 
 Settings = _SharedSettings
 
-_SchemaGenerationVersionInfo = None
 _SchemaGenerationOptionsResponse = None
 _SchemaGenerationTextAnalysisModelInfo = None
 _SchemaGenerationVideoModelOption = None
@@ -55,11 +54,6 @@ _SchemaProbeTextAnalysisModelRequest = None
 _SchemaProbeTextAnalysisModelResponse = None
 _SchemaGenerateTextScriptRequest = None
 _SchemaGenerateTextScriptResponse = None
-
-try:
-    from jiandou_shared.schemas import GenerationVersionInfo as _SchemaGenerationVersionInfo  # type: ignore[attr-defined]
-except Exception:
-    _SchemaGenerationVersionInfo = None
 
 try:
     from jiandou_shared.schemas import GenerationOptionsResponse as _SchemaGenerationOptionsResponse  # type: ignore[attr-defined]
@@ -110,21 +104,6 @@ try:
     from jiandou_shared.schemas import GenerateTextScriptResponse as _SchemaGenerateTextScriptResponse  # type: ignore[attr-defined]
 except Exception:
     _SchemaGenerateTextScriptResponse = None
-
-
-if _SchemaGenerationVersionInfo is None:
-
-    class GenerationVersionInfo(BaseModel):
-        version: str
-        name: str
-        summary: str
-        imagePromptStyle: str
-        videoPromptStyle: str
-        recommendedAspectRatios: list[str] = Field(default_factory=lambda: ["9:16", "16:9"])
-
-
-else:
-    GenerationVersionInfo = _SchemaGenerationVersionInfo
 
 
 if _SchemaGenerationTextAnalysisModelInfo is None:
@@ -182,9 +161,6 @@ else:
 if _SchemaGenerationOptionsResponse is None:
 
     class GenerationOptionsResponse(BaseModel):
-        versions: list[int] = Field(default_factory=list)
-        versionDetails: list[dict[str, Any]] = Field(default_factory=list)
-        defaultVersion: int | None = None
         stylePresets: list[dict[str, Any]] = Field(default_factory=list)
         imageSizes: list[dict[str, Any]] = Field(default_factory=list)
         textAnalysisModels: list[dict[str, Any]] = Field(default_factory=list)
@@ -948,7 +924,7 @@ def _normalize_video_model_name(value: str | None) -> str:
     normalized = (value or "").strip().lower()
     if not normalized:
         return ""
-    return _VIDEO_MODEL_ALIASES.get(normalized, normalized)
+    return normalized
 
 
 def _normalize_seedream_image_model_name(value: str | None) -> str:
@@ -1071,11 +1047,6 @@ def _normalize_text_analysis_model_name(value: str | None) -> str:
     normalized = (value or "").strip().lower()
     if not normalized:
         return ""
-    for profile in _TEXT_ANALYSIS_MODEL_PROFILES:
-        if normalized == profile.key.lower():
-            return profile.key
-        if normalized in {alias.lower() for alias in profile.aliases}:
-            return profile.key
     return normalized
 
 
@@ -1365,16 +1336,6 @@ class TextGenerationEngine:
         ):
             if isinstance(value, str) and value.strip():
                 candidates.add(value.strip().lower())
-        aliases = payload.get("aliases")
-        if isinstance(aliases, list):
-            for alias in aliases:
-                if isinstance(alias, str) and alias.strip():
-                    candidates.add(alias.strip().lower())
-        elif isinstance(aliases, str) and aliases.strip():
-            for alias in aliases.split(","):
-                normalized = alias.strip().lower()
-                if normalized:
-                    candidates.add(normalized)
         return candidates
 
     def _record_matches_kind(self, payload: dict[str, Any], kind: str) -> bool:
@@ -1468,17 +1429,119 @@ class TextGenerationEngine:
             return value
         return str(legacy_provider or "").strip()
 
+    def _string_list(self, value: Any) -> list[str]:
+        if isinstance(value, (list, tuple, set)):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return []
+
+    def _model_record_name(self, key: str, payload: dict[str, Any]) -> str:
+        return self._first_non_empty_string(
+            (
+                payload.get("model_name"),
+                payload.get("modelName"),
+                payload.get("model"),
+                payload.get("value"),
+                payload.get("name"),
+                key,
+            )
+        )
+
+    def _text_analysis_profile_from_record(
+        self,
+        key: str,
+        payload: dict[str, Any],
+    ) -> _TextAnalysisModelProfile | None:
+        if not self._record_matches_kind(payload, "text_analysis"):
+            return None
+        model_name = self._model_record_name(key, payload)
+        if not model_name:
+            return None
+        label = self._first_non_empty_string((payload.get("label"), model_name, key))
+        provider = self._first_non_empty_string((payload.get("provider"),))
+        family = self._first_non_empty_string((payload.get("family"), provider, "text"))
+        description = self._first_non_empty_string((payload.get("description"), f"{label} 文本分析模型。"))
+        return _TextAnalysisModelProfile(
+            key=model_name,
+            label=label,
+            provider=provider,
+            summary=description,
+            family=family,
+            aliases=(),
+        )
+
+    def _lookup_text_analysis_profile(self, model_name: str | None) -> _TextAnalysisModelProfile | None:
+        match = self._find_model_record(model_name, kind="text_analysis")
+        if match is not None:
+            profile = self._text_analysis_profile_from_record(*match)
+            if profile is not None:
+                return profile
+        normalized = _normalize_text_analysis_model_name(model_name)
+        if normalized:
+            return self._text_analysis_models.get(normalized)
+        return None
+
+    def _video_model_option_payload(
+        self,
+        *,
+        spec: _VideoModelSpec,
+        default_model_name: str | None = None,
+    ) -> dict[str, Any]:
+        default_model_name = _normalize_video_model_name(default_model_name) or "wan2.6-i2v"
+        provider = self.infer_video_provider(spec.name)
+        generation_mode: Literal["t2v", "i2v", "vl"] = "t2v"
+        if spec.provider_kind == "qwen_vl_workflow":
+            generation_mode = "vl"
+        elif spec.name in {"wan2.6-i2v", "seedance-1.5-pro"}:
+            generation_mode = "i2v"
+        model_payload: dict[str, Any] = {}
+        match = self._find_model_record(spec.name, kind="video")
+        if match is not None:
+            _, model_payload = match
+        return {
+            "value": spec.name,
+            "label": self._first_non_empty_string((model_payload.get("label"), spec.label, spec.name)),
+            "description": self._first_non_empty_string((model_payload.get("description"), f"{spec.label} 视频模型 {spec.name}")),
+            "isDefault": spec.name == default_model_name,
+            "provider": self._first_non_empty_string((model_payload.get("provider"), provider)),
+            "family": self._first_non_empty_string((model_payload.get("family"), provider)),
+            "generationMode": generation_mode,
+            "supportedSizes": [size.replace("*", "x") for size in spec.supported_sizes],
+            "supportedDurations": [item["value"] for item in _video_duration_options(spec)],
+            "aliases": [],
+        }
+
+    def _video_model_options(
+        self,
+        default_model_name: str | None = None,
+        specs: Iterable[_VideoModelSpec] | None = None,
+    ) -> list[dict[str, Any]]:
+        return [
+            self._video_model_option_payload(spec=spec, default_model_name=default_model_name)
+            for spec in specs or _VIDEO_MODELS.values()
+        ]
+
     def _target_endpoint_from_record(self, payload: dict[str, Any], *, kind: str, task: bool = False) -> str:
         if not payload:
             return ""
+        extras = self._as_mapping(payload.get("extras"))
         if task:
             keys = (
                 f"{kind}TaskEndpoint",
                 f"{kind}_task_endpoint",
                 "taskEndpoint",
                 "task_endpoint",
+                "taskBaseUrl",
+                "task_base_url",
             )
-            return self._first_non_empty_string(payload.get(key) for key in keys)
+            return self._first_non_empty_string(
+                value
+                for value in (
+                    *(payload.get(key) for key in keys),
+                    *(extras.get(key) for key in keys),
+                )
+            )
         keys = (
             f"{kind}Endpoint",
             f"{kind}_endpoint",
@@ -1486,8 +1549,16 @@ class TextGenerationEngine:
             "request_endpoint",
             "endpoint",
             "url",
+            "baseUrl",
+            "base_url",
         )
-        return self._first_non_empty_string(payload.get(key) for key in keys)
+        return self._first_non_empty_string(
+            value
+            for value in (
+                *(payload.get(key) for key in keys),
+                *(extras.get(key) for key in keys),
+            )
+        )
 
     def _target_api_key_from_record(self, payload: dict[str, Any]) -> str:
         if not payload:
@@ -1764,7 +1835,13 @@ class TextGenerationEngine:
         )
 
     def _resolve_text_analysis_target(self, requested_model: str | None = None) -> _ResolvedModelTarget:
-        legacy_default_model_name = str(self._model_value("text_analysis_model_name", "model_name", default="")).strip()
+        model_defaults = self._read_mapping_value(getattr(self.settings, "model", None), "defaults")
+        legacy_default_model_name = self._first_non_empty_string(
+            (
+                self._read_mapping_value(model_defaults, "text_analysis"),
+                self._model_value("text_analysis_model_name", "model_name", default=""),
+            )
+        )
         legacy_default_provider = str(self._model_value("provider", default="")).strip()
         legacy_endpoint = self._first_non_empty_string(
             (
@@ -1786,7 +1863,7 @@ class TextGenerationEngine:
             legacy_endpoint=legacy_endpoint,
             legacy_api_key=legacy_api_key,
             legacy_mode=str(self._model_value("text_analysis_mode", default="chat_completions") or "chat_completions"),
-            legacy_family=_text_analysis_model_profile(requested_model or legacy_default_model_name).family,
+            legacy_family=self._resolve_text_analysis_model(requested_model or legacy_default_model_name).family,
         )
         if (not resolved.endpoint or not resolved.api_key) and callable(_legacy_resolve_text_analysis_target):
             try:
@@ -1819,11 +1896,17 @@ class TextGenerationEngine:
         )
 
     def _resolve_video_target(self, requested_model: str | None = None, *, provider_hint: str | None = None) -> _ResolvedModelTarget:
+        model_defaults = self._read_mapping_value(getattr(self.settings, "model", None), "defaults")
         return self._resolve_model_target(
             kind="video",
             requested_model=requested_model,
             requested_provider=provider_hint,
-            legacy_default_model=str(self._model_value("video_model_name", default="")).strip(),
+            legacy_default_model=self._first_non_empty_string(
+                (
+                    self._read_mapping_value(model_defaults, "video_generation"),
+                    self._model_value("video_model_name", default=""),
+                )
+            ),
             legacy_default_provider=provider_hint or str(self._model_value("provider", default="")).strip(),
             legacy_endpoint=self._resolve_video_endpoint_legacy(),
             legacy_task_endpoint=self._resolve_video_task_endpoint_legacy(),
@@ -1957,16 +2040,11 @@ class TextGenerationEngine:
         with urllib.request.urlopen(request, timeout=self._model_timeout_seconds()) as response:
             return response.read()
 
-    def list_versions(self) -> GenerationOptionsResponse:
-        return self.get_generation_options()
-
     def _configured_text_analysis_models(self) -> list[_TextAnalysisModelProfile]:
         raw = str(self._model_value("text_analysis_models", "textAnalysisModels", default="") or "").strip()
-        if not raw:
-            ordered = list(_TEXT_ANALYSIS_MODEL_PROFILES)
-        else:
-            ordered: list[_TextAnalysisModelProfile] = []
-            seen: set[str] = set()
+        ordered: list[_TextAnalysisModelProfile] = []
+        seen: set[str] = set()
+        if raw:
             items: list[str] = []
             if raw.startswith("["):
                 try:
@@ -1982,46 +2060,32 @@ class TextGenerationEngine:
             if not items:
                 items = [item.strip() for item in raw.split(",")]
             for item in items:
-                key = _normalize_text_analysis_model_name(item)
-                profile = self._text_analysis_models.get(key)
+                profile = self._lookup_text_analysis_profile(item)
                 if profile is None or profile.key in seen:
                     continue
                 ordered.append(profile)
                 seen.add(profile.key)
-            if not ordered:
-                ordered = list(_TEXT_ANALYSIS_MODEL_PROFILES)
-
         for model_key, model_payload in self._registry_models():
-            if not self._record_matches_kind(model_payload, "text_analysis"):
-                continue
-            model_name = self._first_non_empty_string(
-                (
-                    model_payload.get("model_name"),
-                    model_payload.get("modelName"),
-                    model_payload.get("model"),
-                    model_payload.get("value"),
-                    model_payload.get("name"),
-                    model_key,
-                )
-            )
-            key = _normalize_text_analysis_model_name(model_name)
-            profile = self._text_analysis_models.get(key)
+            profile = self._text_analysis_profile_from_record(model_key, model_payload)
             if profile is None:
                 continue
-            if all(item.key != profile.key for item in ordered):
-                ordered.append(profile)
-        seen = {item.key for item in ordered}
-        for profile in _TEXT_ANALYSIS_MODEL_PROFILES:
             if profile.key not in seen:
                 ordered.append(profile)
                 seen.add(profile.key)
-        return ordered
+        if ordered:
+            return ordered
+        return list(_TEXT_ANALYSIS_MODEL_PROFILES)
 
     def _default_text_analysis_model(self) -> _TextAnalysisModelProfile:
         configured = self._configured_text_analysis_models()
-        resolved_target = self._resolve_text_analysis_target(None)
+        model_defaults = self._read_mapping_value(getattr(self.settings, "model", None), "defaults")
         preferred_key = _normalize_text_analysis_model_name(
-            resolved_target.model_name or str(self._model_value("text_analysis_model_name", "model_name", default=""))
+            self._first_non_empty_string(
+                (
+                    self._read_mapping_value(model_defaults, "text_analysis"),
+                    self._model_value("text_analysis_model_name", "model_name", default=""),
+                )
+            )
         )
         preferred = next((item for item in configured if item.key == preferred_key), None)
         return preferred or configured[0]
@@ -2052,16 +2116,31 @@ class TextGenerationEngine:
                 continue
             ordered.append(spec)
             seen.add(spec.name)
+        for model_key, model_payload in self._registry_models():
+            if not self._record_matches_kind(model_payload, "video"):
+                continue
+            model_name = self._model_record_name(model_key, model_payload)
+            spec = _VIDEO_MODELS.get(_normalize_video_model_name(model_name))
+            if spec is None or spec.name in seen:
+                continue
+            ordered.append(spec)
+            seen.add(spec.name)
         if ordered:
             return ordered
         return [self._resolve_video_model_spec()]
 
     def _default_video_model_spec(self) -> _VideoModelSpec:
         configured = self._configured_video_model_specs()
+        model_defaults = self._read_mapping_value(getattr(self.settings, "model", None), "defaults")
         preferred_key = _normalize_video_model_name(
-            self._resolve_default_model_name(
-                "video",
-                str(self._model_value("video_model_name", default="")),
+            self._first_non_empty_string(
+                (
+                    self._read_mapping_value(model_defaults, "video_generation"),
+                    self._resolve_default_model_name(
+                        "video",
+                        str(self._model_value("video_model_name", default="")),
+                    ),
+                )
             )
         )
         preferred = next((item for item in configured if item.name == preferred_key), None)
@@ -2077,44 +2156,27 @@ class TextGenerationEngine:
                 "isDefault": profile.key == default_model.key,
                 "provider": profile.provider,
                 "family": profile.family,
-                "aliases": list(profile.aliases),
+                "aliases": [],
             }
             for profile in self._configured_text_analysis_models()
         ]
 
     def _resolve_text_analysis_model(self, explicit_model: str | None = None) -> _TextAnalysisModelProfile:
-        key = _normalize_text_analysis_model_name(explicit_model)
-        if not key:
-            key = _normalize_text_analysis_model_name(self._resolve_text_analysis_target(None).model_name)
-        if not key:
-            key = _normalize_text_analysis_model_name(str(self._model_value("text_analysis_model_name", default="")))
-        return self._text_analysis_models.get(key) or self._default_text_analysis_model()
+        model_defaults = self._read_mapping_value(getattr(self.settings, "model", None), "defaults")
+        for candidate in (
+            explicit_model,
+            self._read_mapping_value(model_defaults, "text_analysis"),
+            str(self._model_value("text_analysis_model_name", default="")),
+        ):
+            profile = self._lookup_text_analysis_profile(candidate)
+            if profile is not None:
+                return profile
+        configured = self._configured_text_analysis_models()
+        if configured:
+            return configured[0]
+        return _TEXT_ANALYSIS_MODEL_PROFILES[0]
 
     def get_generation_options(self) -> GenerationOptionsResponse:
-        version_details: list[GenerationVersionInfo] = []
-        for profile in _PROFILES:
-            description = (
-                f"Image shaping: {profile.image_prompt_style} "
-                f"Video shaping: {profile.video_prompt_style}"
-            )
-            if _SchemaGenerationVersionInfo is not None:
-                payload = {
-                    "version": int(profile.version.lstrip("v") or "1"),
-                    "label": profile.name,
-                    "isDefault": profile.version == "v1",
-                    "supportedKinds": ["image", "video"],
-                    "description": description,
-                }
-            else:
-                payload = {
-                    "version": profile.version,
-                    "name": profile.name,
-                    "summary": profile.summary,
-                    "imagePromptStyle": profile.image_prompt_style,
-                    "videoPromptStyle": profile.video_prompt_style,
-                    "recommendedAspectRatios": ["9:16", "16:9"],
-                }
-            version_details.append(self._build_model(GenerationVersionInfo, payload))
         configured_video_specs = self._configured_video_model_specs()
         default_video_spec = self._default_video_model_spec()
         default_video_size = (
@@ -2125,16 +2187,13 @@ class TextGenerationEngine:
         return self._build_model(
             GenerationOptionsResponse,
             {
-                "versions": [int(profile.version.lstrip("v") or "1") for profile in _PROFILES],
-                "versionDetails": [item.model_dump() if hasattr(item, "model_dump") else item for item in version_details],
                 "stylePresets": [],
                 "imageSizes": list(_DEFAULT_IMAGE_SIZES),
                 "textAnalysisModels": self._text_analysis_model_options(),
                 "defaultTextAnalysisModel": self._default_text_analysis_model().key,
-                "videoModels": _video_model_options(default_video_spec.name, configured_video_specs),
+                "videoModels": self._video_model_options(default_video_spec.name, configured_video_specs),
                 "videoSizes": _video_size_catalog(configured_video_specs),
                 "videoDurations": _video_duration_catalog(configured_video_specs),
-                "defaultVersion": 1,
                 "defaultStylePreset": None,
                 "defaultImageSize": "1024x1024",
                 "defaultVideoDurationSeconds": default_video_spec.default_duration_seconds,
@@ -2164,7 +2223,7 @@ class TextGenerationEngine:
         return _normalize_video_model_name(model_name)
 
     def get_model_aliases(self) -> dict[str, str]:
-        return dict(_VIDEO_MODEL_ALIASES)
+        return {}
 
     def get_model_constraints(self) -> list[dict[str, Any]]:
         constraints: list[dict[str, Any]] = []
@@ -2200,7 +2259,7 @@ class TextGenerationEngine:
         usage_block = self._as_mapping(self._model_value("usage", default={}))
         billing_block = self._as_mapping(self._model_value("billing", default={}))
         default_video_spec = self._default_video_model_spec()
-        for option in _video_model_options(default_video_spec.name, self._configured_video_model_specs()):
+        for option in self._video_model_options(default_video_spec.name, self._configured_video_model_specs()):
             model_key = str(option.get("value") or "").strip()
             if not model_key:
                 continue
@@ -2643,7 +2702,7 @@ class TextGenerationEngine:
         requested_model = str(selected_model or "").strip() or None
         profile = self._resolve_text_analysis_model(requested_model)
         target = self._resolve_text_analysis_target(requested_model or profile.key)
-        profile = _text_analysis_model_profile(target.model_name)
+        profile = self._resolve_text_analysis_model(target.model_name)
         endpoint = str(target.endpoint or "").strip()
         api_key = str(target.api_key or "").strip()
         if not endpoint or not api_key:

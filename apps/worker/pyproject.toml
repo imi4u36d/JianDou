@@ -14,3 +14,6 @@ dependencies = [
   "redis>=5.0",
   "pymysql>=1.1",
 ]
+
+[tool.setuptools]
+packages = ["app"]

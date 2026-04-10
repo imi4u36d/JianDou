@@ -9,3 +9,6 @@ requires-python = ">=3.11"
 dependencies = [
   "jiandou-shared==0.1.0",
 ]
+
+[tool.setuptools]
+packages = ["jiandou_storage"]

@@ -16,7 +16,7 @@ execution_mode = "inline"
 # 主数据库连接配置。
 [database]
 # 应用数据库的 SQLAlchemy DSN。
-url = "mysql+pymysql://root:root@127.0.0.1:3306/ai_cut?charset=utf8mb4&init_command=SET%20time_zone%3D%27%2B08%3A00%27"
+url = "mysql+pymysql://root:root@127.0.0.1:3306/jiandou?charset=utf8mb4&init_command=SET%20time_zone%3D%27%2B08%3A00%27"
 # 是否输出 SQL 日志，便于调试。
 echo = false
 

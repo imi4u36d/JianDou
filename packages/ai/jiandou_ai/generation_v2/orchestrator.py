@@ -59,15 +59,12 @@ class GenerationOrchestrator:
         ]
         return ModelCatalog(
             generatedAt=_utcnow_iso(),
-            versions=list(getattr(options, "versions", []) or []),
-            versionDetails=list(getattr(options, "versionDetails", []) or []),
             stylePresets=list(getattr(options, "stylePresets", []) or []),
             imageSizes=list(getattr(options, "imageSizes", []) or []),
             textAnalysisModels=list(getattr(options, "textAnalysisModels", []) or []),
             videoModels=list(getattr(options, "videoModels", []) or []),
             videoSizes=list(getattr(options, "videoSizes", []) or []),
             videoDurations=list(getattr(options, "videoDurations", []) or []),
-            defaultVersion=getattr(options, "defaultVersion", None),
             defaultTextAnalysisModel=getattr(options, "defaultTextAnalysisModel", None),
             defaultVideoModel=getattr(options, "defaultVideoModel", None),
             defaultImageSize=getattr(options, "defaultImageSize", None),
