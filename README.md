@@ -63,5 +63,5 @@ docker compose down -v
 npm run dev
 ```
 
-该命令会执行 `scripts/dev.sh`，同时启动前后端。  
+该命令会执行 `scripts/dev.sh`，同时启动 API、worker 和前端。  
 详细步骤见 [使用文档](./docs/USER_GUIDE.md)。

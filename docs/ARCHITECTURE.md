@@ -2,20 +2,20 @@
 
 ## 1. 系统概览
 
-JianDou 采用前后端分离 + 可独立 worker 的架构，核心目标是把“文本输入 -> 任务编排 -> 视频生成 -> 结果回传”串成统一任务链路。
+JianDou 采用前后端分离 + 独立 worker 的架构，核心目标是把“文本输入 -> 任务编排 -> 视频生成 -> 结果回传”串成统一任务链路。
 
 主要组件：
 
 - `apps/web`：Vue 3 + Vite 前端
 - `apps/api`：FastAPI API 网关
-- `apps/worker`：任务消费进程（可选）
+- `apps/worker`：任务消费进程
 - `packages/pipeline`：任务服务与执行流水线
 - `packages/ai`：模型调用、规划与生成编排
 - `packages/db`：SQLAlchemy 数据模型与数据库初始化
 - `packages/storage`：本地文件存储封装
 - `packages/shared`：配置与跨模块 schema
 - `MySQL`：任务与结果元数据
-- `Redis`：任务队列（非 inline 模式）
+- `Redis`：任务队列
 
 ## 2. 目录结构
 
@@ -44,9 +44,7 @@ jiandou/
 
 1. 前端调用 `POST /api/v2/tasks/generation` 创建任务  
 2. `TaskService.create_generation_task` 落库 `biz_tasks`，写入任务上下文  
-3. `dispatch_task` 根据 `execution_mode` 选择：
-- `inline`：本地线程直接执行 `process_task`
-- 非 `inline`：投递 Redis 队列，由 worker 消费
+3. `dispatch_task` 将任务投递到 Redis 队列，由 worker 消费
 4. 流水线执行阶段更新状态：
 - `PENDING -> ANALYZING -> PLANNING -> RENDERING -> COMPLETED`
 - 失败时置为 `FAILED`
@@ -86,4 +84,3 @@ jiandou/
 - `RENDERING`
 - `COMPLETED`
 - `FAILED`
-
