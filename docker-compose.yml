@@ -50,6 +50,8 @@ services:
       JIANDOU_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/jiandou?charset=utf8mb4
       # 通过 compose 内部服务名连接 Redis。
       JIANDOU_REDIS_URL: redis://redis:6379/0
+      # API 仅负责入队与查询，任务实际由 worker 消费。
+      JIANDOU_EXECUTION_MODE: queue
       # 后端 CORS 和回调场景使用的前端来源地址。
       JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173
       # 生成资源经由 API 服务对外暴露时使用的公共前缀。
@@ -79,6 +81,34 @@ services:
       - ./packages:/app/packages
       - ./config:/app/config
       # 将上传文件、生成结果和临时文件持久化到宿主机。
+      - ./storage/uploads:/app/storage/uploads
+      - ./storage/outputs:/app/storage/outputs
+      - ./storage/temp:/app/storage/temp
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 独立 worker 负责消费 Redis 队列并执行生成任务。
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: jiandou-worker
+    working_dir: /app/apps/worker
+    environment:
+      JIANDOU_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/jiandou?charset=utf8mb4
+      JIANDOU_REDIS_URL: redis://redis:6379/0
+      JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173
+      JIANDOU_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
+      JIANDOU_EXECUTION_MODE: queue
+    command: ["python", "app/main.py"]
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./apps/worker:/app/apps/worker
+      - ./packages:/app/packages
+      - ./config:/app/config
       - ./storage/uploads:/app/storage/uploads
       - ./storage/outputs:/app/storage/outputs
       - ./storage/temp:/app/storage/temp

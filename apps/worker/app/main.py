@@ -30,6 +30,7 @@ from backend_core.runtime import build_runtime
 
 def main() -> None:
     runtime = build_runtime()
+    runtime.service.recover_interrupted_tasks()
     runtime.worker.run_forever()
 
 
