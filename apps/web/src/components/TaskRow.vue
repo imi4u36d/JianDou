@@ -22,6 +22,8 @@
         <span>进度 {{ task.progress }}%</span>
         <span>时长 {{ durationLabel }}</span>
         <span>重试 {{ retryCount }}</span>
+        <span>评分 {{ effectRatingLabel }}</span>
+        <span>Seed {{ seedLabel }}</span>
       </div>
     </div>
 
@@ -33,6 +35,14 @@
       <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
         <p class="text-[11px] uppercase tracking-[0.24em] text-slate-500">状态说明</p>
         <p class="mt-2 text-sm font-medium text-slate-900">{{ lifecycleLabel }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <p class="text-[11px] uppercase tracking-[0.24em] text-slate-500">效果评分</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">{{ effectRatingLabel }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <p class="text-[11px] uppercase tracking-[0.24em] text-slate-500">任务 Seed</p>
+        <p class="mt-2 text-sm font-medium text-slate-900">{{ seedLabel }}</p>
       </div>
     </div>
 
@@ -111,6 +121,14 @@ const durationLabel = computed(() => {
     return formatTaskRange(props.task.minDurationSeconds, props.task.maxDurationSeconds);
   }
   return "待配置";
+});
+const effectRatingLabel = computed(() => {
+  const rating = props.task.effectRating;
+  return typeof rating === "number" && Number.isFinite(rating) && rating > 0 ? `${Math.trunc(rating)}/5` : "未评分";
+});
+const seedLabel = computed(() => {
+  const seed = props.task.taskSeed;
+  return typeof seed === "number" && Number.isFinite(seed) ? String(Math.trunc(seed)) : "未设置";
 });
 const updatedAtLabel = computed(() => new Date(props.task.updatedAt).toLocaleString());
 const running = computed(() => lifecycleGroup.value === "running");

@@ -20,7 +20,7 @@
           {{ health.runtime.model.ready ? "模型配置就绪" : "模型配置未完成" }}
         </span>
         <span class="admin-chip">{{ health.runtime.execution_mode }}</span>
-        <span class="admin-chip">{{ health.runtime.model.provider }}</span>
+        <span class="admin-chip">{{ health.runtime.model.provider || "未指定" }}</span>
       </div>
 
       <div class="grid gap-4 xl:grid-cols-2">
@@ -34,11 +34,11 @@
               <tbody>
                 <tr class="border-b border-slate-200">
                   <td class="w-48 bg-slate-50 text-xs font-medium text-slate-500">主模型</td>
-                  <td class="text-slate-900">{{ health.runtime.model.primary_model }}</td>
+                  <td class="text-slate-900">{{ health.runtime.model.primary_model || "未配置" }}</td>
                 </tr>
                 <tr class="border-b border-slate-200">
                   <td class="bg-slate-50 text-xs font-medium text-slate-500">文本分析模型</td>
-                  <td class="text-slate-900">{{ health.runtime.model.text_analysis_model || health.runtime.model.primary_model }}</td>
+                  <td class="text-slate-900">{{ health.runtime.model.text_analysis_model || "未配置" }}</td>
                 </tr>
                 <tr class="border-b border-slate-200">
                   <td class="bg-slate-50 text-xs font-medium text-slate-500">回退模型</td>

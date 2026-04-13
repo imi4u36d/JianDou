@@ -17,8 +17,7 @@
             <label class="grid gap-2 text-sm text-slate-700">
               画幅比例
               <select v-model="form.aspectRatio" class="field-select">
-                <option value="9:16">竖版 9:16</option>
-                <option value="16:9">横版 16:9</option>
+                <option v-for="item in aspectRatioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
             </label>
           </div>
@@ -27,19 +26,54 @@
             <label class="grid gap-2 text-sm text-slate-700">
               文本模型
               <select v-model="form.textAnalysisModel" class="field-select">
+                <option :value="null">请选择文本模型</option>
                 <option v-for="item in textModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-700">
+              视觉模型
+              <select v-model="form.visionModel" class="field-select">
+                <option :value="null">请选择视觉模型</option>
+                <option v-for="item in visionModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-700">
+              关键帧模型
+              <select v-model="form.imageModel" class="field-select">
+                <option :value="null">请选择关键帧模型</option>
+                <option v-for="item in imageModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
             </label>
             <label class="grid gap-2 text-sm text-slate-700">
               视频模型
               <select v-model="form.videoModel" class="field-select">
+                <option :value="null">请选择视频模型</option>
                 <option v-for="item in videoModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-700">
+              Seed
+              <input
+                v-model="seedInput"
+                class="field-input"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="留空则不指定"
+              />
+              <span class="text-xs text-slate-500">{{ seedCapabilityHint }}</span>
             </label>
             <label class="grid gap-2 text-sm text-slate-700">
               分辨率
               <select v-model="form.videoSize" class="field-select">
                 <option v-for="item in videoSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-700">
+              输出视频数量
+              <select v-model="form.outputCount" class="field-select">
+                <option value="auto">自动（按脚本分镜）</option>
+                <option v-for="item in outputCountOptions" :key="item" :value="item">{{ item }} 条</option>
               </select>
             </label>
             <label class="grid gap-2 text-sm text-slate-700">
@@ -61,6 +95,47 @@
                 placeholder="请输入 1-120"
               />
             </label>
+          </div>
+
+          <div class="surface-tile p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-slate-900">高分 Seed 复用</p>
+                <p class="mt-1 text-xs text-slate-500">按任务效果评分倒序读取已验证过的 seed，点击即可回填当前表单。</p>
+              </div>
+              <button type="button" class="btn-ghost btn-sm" :disabled="loadingReusableSeeds" @click="loadReusableSeeds">
+                {{ loadingReusableSeeds ? "刷新中..." : "刷新列表" }}
+              </button>
+            </div>
+            <p v-if="reusableSeedError" class="mt-3 text-sm text-rose-600">{{ reusableSeedError }}</p>
+            <div v-else-if="reusableSeedTasks.length" class="mt-4 grid gap-3">
+              <button
+                v-for="task in reusableSeedTasks"
+                :key="task.id"
+                type="button"
+                class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-slate-300 hover:bg-slate-50"
+                @click="applySeedFromTask(task)"
+              >
+                <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span class="surface-chip">Seed {{ formatReusableSeed(task.taskSeed) }}</span>
+                  <span class="surface-chip">评分 {{ formatReusableRating(task.effectRating) }}</span>
+                  <span v-if="task.ratedAt">{{ formatReusableDate(task.ratedAt) }}</span>
+                </div>
+                <p class="mt-2 text-sm font-semibold text-slate-900">{{ task.title }}</p>
+                <p class="mt-1 text-xs text-slate-500">
+                  {{ task.aspectRatio || "未知画幅" }} · {{ task.status }} · {{ task.id }}
+                </p>
+                <p v-if="task.effectRatingNote" class="mt-2 line-clamp-2 text-sm text-slate-600">{{ task.effectRatingNote }}</p>
+                <p
+                  v-if="selectedSeedSourceTaskId === task.id"
+                  class="mt-2 text-xs font-medium text-emerald-700"
+                >
+                  已回填到当前任务
+                </p>
+              </button>
+            </div>
+            <p v-else class="mt-3 text-sm text-slate-500">当前还没有可复用的高分 seed。</p>
+            <p class="mt-3 text-xs text-slate-500">提示：seed 复用只会回填种子，不会自动改动你当前选择的模型组合。</p>
           </div>
 
           <div class="surface-tile p-4">
@@ -166,25 +241,29 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { fetchGenerationOptions } from "@/api/generation";
-import { createGenerationTask, generateCreativePrompt, uploadText } from "@/api/tasks";
+import { createGenerationTask, fetchTasks, generateCreativePrompt, uploadText } from "@/api/tasks";
 import TaskProgressCard from "@/components/generate/TaskProgressCard.vue";
 import { useTaskProgress } from "@/components/generate/useTaskProgress";
 import HintBell from "@/components/HintBell.vue";
 import PageHeader from "@/components/PageHeader.vue";
 import {
   formatTaskModelValue,
+  formatTaskOutputCount,
   formatTaskRequestedDuration,
   formatTaskResolvedDuration,
+  formatTaskSeed,
   getTaskRequestSnapshot,
 } from "@/utils/task-request";
 import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";
 import type {
   CreateGenerationTaskRequest,
+  GenerationAspectRatioOption,
   GenerationOptionsResponse,
   GenerationTextAnalysisModelInfo,
   GenerationVideoDurationOption,
   GenerationVideoModelInfo,
   GenerationVideoSizeOption,
+  TaskListItem,
   UploadResponse,
 } from "@/types";
 
@@ -201,6 +280,11 @@ const uploadedText = ref<UploadResponse | null>(null);
 const textFileInput = ref<HTMLInputElement | null>(null);
 const durationLimitMode = ref<"auto" | "manual">("auto");
 const manualMaxDurationSeconds = ref("");
+const seedInput = ref("");
+const reusableSeedTasks = ref<TaskListItem[]>([]);
+const loadingReusableSeeds = ref(false);
+const reusableSeedError = ref("");
+const selectedSeedSourceTaskId = ref("");
 const nowMs = ref(Date.now());
 const localTaskStartedAtMs = ref<number | null>(null);
 const localTaskEndedAtMs = ref<number | null>(null);
@@ -221,8 +305,12 @@ const form = ref<CreateGenerationTaskRequest>({
   creativePrompt: "",
   aspectRatio: "9:16",
   textAnalysisModel: null,
+  visionModel: null,
+  imageModel: null,
   videoModel: null,
   videoSize: null,
+  outputCount: "auto",
+  seed: null,
   videoDurationSeconds: null,
   transcriptText: "",
 });
@@ -232,15 +320,6 @@ function normalizeModelName(value: string | null | undefined): string {
     .trim()
     .toLowerCase()
     .replace(/[\s._-]/g, "");
-}
-
-function isPreferredTextModel(value: string | null | undefined): boolean {
-  return normalizeModelName(value).includes("qwen36");
-}
-
-function isPreferredVideoModel(value: string | null | undefined): boolean {
-  const normalized = normalizeModelName(value);
-  return normalized.includes("seedance");
 }
 
 function parseDurationSeconds(value: unknown): number | null {
@@ -262,6 +341,25 @@ function parseDurationSeconds(value: unknown): number | null {
   return seconds;
 }
 
+function parseSeed(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
+  }
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) {
+    return null;
+  }
+  const seed = Math.trunc(numeric);
+  if (seed < 0) {
+    return null;
+  }
+  return seed;
+}
+
 function formatDurationSelection(): string {
   if (durationLimitMode.value === "auto") {
     return "自动";
@@ -271,6 +369,25 @@ function formatDurationSelection(): string {
     return `手动上限 ${manualMax}s`;
   }
   return "手动（未填写）";
+}
+
+function formatReusableSeed(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(Math.trunc(value)) : "未设置";
+}
+
+function formatReusableRating(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? `${Math.trunc(value)}/5` : "未评分";
+}
+
+function formatReusableDate(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+  return new Date(parsed).toLocaleString("zh-CN", { hour12: false });
 }
 
 function resolvePromptDurationSeconds(): number {
@@ -287,25 +404,6 @@ function resolvePromptDurationSeconds(): number {
     return Math.trunc(firstOption.value);
   }
   return 5;
-}
-
-function pickModelDefault(
-  modelOptions: Array<{ value: string; label?: string }>,
-  preferredMatcher: (value: string | null | undefined) => boolean,
-  backendDefault?: string | null,
-): string | null {
-  const preferred = modelOptions.find((item) => preferredMatcher(item.value) || preferredMatcher(item.label));
-  if (preferred) {
-    return preferred.value;
-  }
-  const normalizedBackendDefault = normalizeModelName(backendDefault);
-  if (normalizedBackendDefault) {
-    const matchedDefault = modelOptions.find((item) => normalizeModelName(item.value) === normalizedBackendDefault);
-    if (matchedDefault) {
-      return matchedDefault.value;
-    }
-  }
-  return modelOptions[0]?.value ?? null;
 }
 
 function resolveVideoSize(size: GenerationVideoSizeOption): { width: number; height: number } | null {
@@ -364,7 +462,20 @@ function compareVideoSizeByArea(a: GenerationVideoSizeOption, b: GenerationVideo
 }
 
 const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.textAnalysisModels ?? []);
+const aspectRatioOptions = computed<GenerationAspectRatioOption[]>(() => options.value?.aspectRatios ?? []);
+const visionModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.visionModels ?? []);
+const imageModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.imageModels ?? []);
 const videoModelOptions = computed<GenerationVideoModelInfo[]>(() => options.value?.videoModels ?? []);
+const outputCountOptions = computed<number[]>(() => Array.from({ length: 20 }, (_, index) => index + 1));
+const selectedVisionModelOption = computed<GenerationTextAnalysisModelInfo | null>(() => {
+  const selectedVisionModel = normalizeModelName(form.value.visionModel);
+  if (!selectedVisionModel) {
+    return null;
+  }
+  return (
+    visionModelOptions.value.find((item) => normalizeModelName(item.value) === selectedVisionModel) ?? null
+  );
+});
 const selectedVideoModelOption = computed<GenerationVideoModelInfo | null>(() => {
   const selectedVideoModel = normalizeModelName(form.value.videoModel);
   if (!selectedVideoModel) {
@@ -437,6 +548,21 @@ const promptSourceLabel = computed(() => {
   return form.value.creativePrompt?.trim() ? promptSource.value : "系统默认";
 });
 
+const seedCapabilityHint = computed(() => {
+  const visionSupportsSeed = Boolean(selectedVisionModelOption.value?.supportsSeed);
+  const videoSupportsSeed = Boolean(selectedVideoModelOption.value?.supportsSeed);
+  if (visionSupportsSeed && videoSupportsSeed) {
+    return "当前视觉模型和视频模型都会使用该 seed。";
+  }
+  if (videoSupportsSeed) {
+    return "当前仅视频模型会使用该 seed。";
+  }
+  if (visionSupportsSeed) {
+    return "当前仅视觉模型会使用该 seed。";
+  }
+  return "当前所选模型未声明支持 seed，保存后仅做任务记录。";
+});
+
 function parseTimestampMs(value: string | null | undefined): number | null {
   if (!value) {
     return null;
@@ -477,7 +603,14 @@ const progressElapsedLabel = computed(() => {
 });
 
 const isFormReady = computed(() => {
-  return Boolean(form.value.title.trim() && isDurationLimitValid.value);
+  return Boolean(
+    form.value.title.trim() &&
+      form.value.textAnalysisModel &&
+      form.value.visionModel &&
+      form.value.imageModel &&
+      form.value.videoModel &&
+      isDurationLimitValid.value,
+  );
 });
 
 const submitLabel = computed(() => {
@@ -542,10 +675,10 @@ const summaryRows = computed(() => {
   const snapshot = getTaskRequestSnapshot(task);
   const progressValue = task ? Math.round(task.progress ?? 0) : progressState.value.progress;
   const modelSummary = task
-    ? `${formatTaskModelValue(snapshot.textAnalysisModel)} / ${formatTaskModelValue(snapshot.videoModel)}`
+    ? `${formatTaskModelValue(snapshot.textAnalysisModel)} / ${formatTaskModelValue(snapshot.visionModel)} / ${formatTaskModelValue(snapshot.imageModel)} / ${formatTaskModelValue(snapshot.videoModel)}`
     : loadingOptions.value
     ? "加载中"
-    : `${form.value.textAnalysisModel || "未选择"} / ${form.value.videoModel || "未选择"}`;
+    : `${form.value.textAnalysisModel || "未选择"} / ${form.value.visionModel || "未选择"} / ${form.value.imageModel || "未选择"} / ${form.value.videoModel || "未选择"}`;
   const videoSizeSummary = task ? formatTaskModelValue(snapshot.videoSize) : form.value.videoSize || "未选择";
   const durationSummary = task
     ? `${formatTaskRequestedDuration(snapshot)} / 生效 ${formatTaskResolvedDuration(task)}`
@@ -556,7 +689,9 @@ const summaryRows = computed(() => {
     { label: "当前进度", value: `${Math.max(0, Math.min(100, progressValue))}%` },
     { label: "模型配置", value: modelSummary },
     { label: "分辨率", value: videoSizeSummary },
+    { label: "输出数量", value: task ? formatTaskOutputCount(snapshot) : form.value.outputCount === "auto" ? "自动" : `${form.value.outputCount ?? 1} 条` },
     { label: "视频时长", value: durationSummary },
+    { label: "Seed", value: task ? formatTaskSeed(snapshot) : String(parseSeed(seedInput.value) ?? "未设置") },
     { label: "已生成结果", value: task?.outputs?.length ? `${task.outputs.length} 条` : "暂无" },
   ];
 });
@@ -599,35 +734,53 @@ async function loadOptions() {
   try {
     const result = await fetchGenerationOptions();
     options.value = result;
-    form.value.textAnalysisModel = pickModelDefault(
-      result.textAnalysisModels ?? [],
-      isPreferredTextModel,
-      result.defaultTextAnalysisModel ?? null,
-    );
-    form.value.videoModel = pickModelDefault(
-      result.videoModels ?? [],
-      isPreferredVideoModel,
-      result.defaultVideoModel ?? null,
-    );
+    form.value.aspectRatio = (result.defaultAspectRatio as "9:16" | "16:9" | null) || form.value.aspectRatio;
+    form.value.textAnalysisModel = null;
+    form.value.visionModel = null;
+    form.value.imageModel = null;
+    form.value.videoModel = null;
+    form.value.outputCount = "auto";
     form.value.videoDurationSeconds = "auto";
     if (!manualMaxDurationSeconds.value.trim()) {
-      const configuredModel = result.videoModels.find(
-        (item) => normalizeModelName(item.value) === normalizeModelName(form.value.videoModel),
-      );
       const fallbackDuration =
         parseDurationSeconds(result.defaultVideoDurationSeconds) ??
-        parseDurationSeconds(configuredModel?.supportedDurations?.[0]) ??
         parseDurationSeconds(result.videoDurations[0]?.value);
       if (fallbackDuration !== null) {
         manualMaxDurationSeconds.value = String(fallbackDuration);
       }
     }
-    statusText.value = "参数已加载，可创建任务";
+    statusText.value = "参数已加载，请先选择模型再创建任务";
   } catch (error) {
     statusText.value = error instanceof Error ? error.message : "加载模型配置失败";
   } finally {
     loadingOptions.value = false;
   }
+}
+
+async function loadReusableSeeds() {
+  loadingReusableSeeds.value = true;
+  reusableSeedError.value = "";
+  try {
+    const tasks = await fetchTasks({ sort: "effect_rating_desc" });
+    reusableSeedTasks.value = tasks
+      .filter((task) => typeof task.taskSeed === "number" && Number.isFinite(task.taskSeed))
+      .filter((task) => typeof task.effectRating === "number" && Number.isFinite(task.effectRating) && task.effectRating > 0)
+      .slice(0, 8);
+  } catch (error) {
+    reusableSeedError.value = error instanceof Error ? error.message : "读取高分 seed 失败";
+  } finally {
+    loadingReusableSeeds.value = false;
+  }
+}
+
+function applySeedFromTask(task: TaskListItem) {
+  const seed = task.taskSeed;
+  if (typeof seed !== "number" || !Number.isFinite(seed)) {
+    return;
+  }
+  seedInput.value = String(Math.trunc(seed));
+  selectedSeedSourceTaskId.value = task.id;
+  statusText.value = `已复用任务 ${task.id} 的高分 seed：${Math.trunc(seed)}`;
 }
 
 watch(
@@ -640,7 +793,9 @@ watch(
     if (form.value.videoSize && items.some((item) => item.value === form.value.videoSize)) {
       return;
     }
-    form.value.videoSize = items[0].value;
+    const configuredDefault = options.value?.defaultVideoSize;
+    const matchedDefault = configuredDefault ? items.find((item) => item.value === configuredDefault) : null;
+    form.value.videoSize = matchedDefault?.value ?? items[0].value;
   },
   { immediate: true },
 );
@@ -709,7 +864,7 @@ async function handleGeneratePrompt() {
 
 async function submitTask() {
   if (!isFormReady.value) {
-    statusText.value = "请先补全任务参数";
+    statusText.value = "请先补全任务参数并选择全部模型";
     return;
   }
   const manualMax = normalizedManualMaxDurationSeconds.value;
@@ -741,8 +896,12 @@ async function submitTask() {
       creativePrompt: creativePrompt || undefined,
       aspectRatio: form.value.aspectRatio,
       textAnalysisModel: form.value.textAnalysisModel || null,
+      visionModel: form.value.visionModel || null,
+      imageModel: form.value.imageModel || null,
       videoModel: form.value.videoModel || null,
       videoSize: form.value.videoSize || null,
+      outputCount: form.value.outputCount ?? "auto",
+      seed: parseSeed(seedInput.value),
       videoDurationSeconds: "auto",
       minDurationSeconds,
       maxDurationSeconds,
@@ -785,6 +944,7 @@ onMounted(() => {
     nowMs.value = Date.now();
   }, 1000);
   void loadOptions();
+  void loadReusableSeeds();
 });
 
 onUnmounted(() => {

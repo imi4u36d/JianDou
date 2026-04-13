@@ -50,15 +50,16 @@
             <option value="FAILED">失败</option>
           </select>
         </label>
-        <label class="grid gap-1 text-xs text-slate-600">
-          排序
-          <select v-model="sortMode" class="admin-field">
-            <option value="updated_desc">最近更新</option>
-            <option value="created_desc">最新创建</option>
-            <option value="progress_desc">进度优先</option>
-            <option value="status_desc">状态优先</option>
-          </select>
-        </label>
+          <label class="grid gap-1 text-xs text-slate-600">
+            排序
+            <select v-model="sortMode" class="admin-field">
+              <option value="updated_desc">最近更新</option>
+              <option value="created_desc">最新创建</option>
+              <option value="progress_desc">进度优先</option>
+              <option value="effect_rating_desc">评分最高</option>
+              <option value="status_desc">状态优先</option>
+            </select>
+          </label>
       </div>
 
       <div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -101,12 +102,14 @@
       <div v-if="loading" class="px-4 py-8 text-sm text-slate-500">正在读取任务...</div>
       <div v-else-if="sortedTasks.length === 0" class="admin-empty m-5">当前没有符合筛选条件的任务。</div>
       <div v-else class="admin-table-wrap m-5">
-        <table class="admin-table min-w-[1400px]">
+        <table class="admin-table min-w-[1740px]">
           <thead>
             <tr>
               <th><input :checked="allVisibleSelected" type="checkbox" @change="toggleSelectVisible" /></th>
               <th>任务</th>
               <th>状态</th>
+              <th>Seed / 评分</th>
+              <th>诊断</th>
               <th>文本输入</th>
               <th>进度</th>
               <th>更新时间</th>
@@ -136,6 +139,20 @@
                   {{ statusLabel(task.status) }}
                 </span>
                 <p class="mt-1 text-xs text-slate-500">重试 {{ task.retryCount ?? 0 }} 次</p>
+              </td>
+              <td>
+                <p class="text-sm font-medium text-slate-900">{{ formatTaskSeed(task.taskSeed) }}</p>
+                <p class="mt-1 text-xs text-slate-500">
+                  {{ formatEffectRating(task.effectRating) }}
+                  <span v-if="task.ratedAt"> · {{ formatShortDate(task.ratedAt) }}</span>
+                </p>
+                <p v-if="task.effectRatingNote" class="mt-1 line-clamp-2 text-xs text-slate-500">{{ task.effectRatingNote }}</p>
+              </td>
+              <td>
+                <span :class="diagnosisPillClass(task.diagnosisSeverity)" class="inline-flex rounded px-2 py-0.5 text-xs font-medium">
+                  {{ diagnosisLabel(task.diagnosisSeverity) }}
+                </span>
+                <p class="mt-1 text-xs text-slate-500">{{ task.diagnosisHint || "暂无异常" }}</p>
               </td>
               <td>
                 <p class="text-sm text-slate-700">{{ semanticHint(task) }}</p>
@@ -195,7 +212,7 @@ const actionMessage = ref("");
 const actionMessageTone = ref<"success" | "warn">("success");
 const searchText = ref("");
 const statusFilter = ref<TaskStatus | "all">("all");
-const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "status_desc">("updated_desc");
+const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "status_desc" | "effect_rating_desc">("updated_desc");
 const selectedIds = ref<string[]>([]);
 let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -228,6 +245,19 @@ const sortedTasks = computed(() => {
   if (sortMode.value === "progress_desc") {
     return items.sort((left, right) => (right.progress ?? 0) - (left.progress ?? 0));
   }
+  if (sortMode.value === "effect_rating_desc") {
+    return items.sort((left, right) => {
+      const ratingDiff = (right.effectRating ?? 0) - (left.effectRating ?? 0);
+      if (ratingDiff !== 0) {
+        return ratingDiff;
+      }
+      const ratedAtDiff = new Date(right.ratedAt || 0).getTime() - new Date(left.ratedAt || 0).getTime();
+      if (ratedAtDiff !== 0) {
+        return ratedAtDiff;
+      }
+      return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+    });
+  }
   if (sortMode.value === "status_desc") {
     return items.sort((left, right) => String(left.status).localeCompare(String(right.status)));
   }
@@ -248,9 +278,9 @@ const summaryCards = computed(() => {
     { key: "total", label: "任务总量", value: total, hint: "全部任务" },
     { key: "running", label: "运行中", value: running, hint: "分析/编排/渲染阶段" },
     { key: "failed", label: "失败任务", value: failed, hint: "需要人工处理" },
+    { key: "highRisk", label: "高风险", value: tasks.value.filter((task) => task.diagnosisSeverity === "high").length, hint: "建议优先查看" },
     { key: "semantic", label: "文本输入任务", value: semantic, hint: "带字幕或文本输入" },
-    { key: "timed", label: "时间轴字幕", value: timedSemantic, hint: "切点准确度更高" },
-    { key: "average", label: "平均进度", value: `${average}%`, hint: "任务池整体推进" },
+    { key: "average", label: "平均进度", value: `${average}%`, hint: `时间轴字幕 ${timedSemantic} 条` },
   ];
 });
 
@@ -342,7 +372,21 @@ function semanticHint(task: TaskListItem) {
   return "无文本输入";
 }
 
+function formatTaskSeed(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? String(Math.trunc(value)) : "未设置";
+}
+
+function formatEffectRating(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? `${Math.trunc(value)}/5` : "未评分";
+}
+
 function progressLabel(task: TaskListItem) {
+  if (task.diagnosisSeverity === "high") {
+    return task.recommendedAction || "需要优先处理";
+  }
+  if (task.diagnosisSeverity === "medium") {
+    return task.diagnosisHint || "建议持续观察";
+  }
   if (task.status === "FAILED") {
     return "任务异常";
   }
@@ -362,6 +406,32 @@ function progressLabel(task: TaskListItem) {
     return "分析中";
   }
   return "待处理";
+}
+
+function diagnosisLabel(severity?: string | null) {
+  switch (severity) {
+    case "high":
+      return "高风险";
+    case "medium":
+      return "中风险";
+    case "low":
+      return "低风险";
+    default:
+      return "正常";
+  }
+}
+
+function diagnosisPillClass(severity?: string | null) {
+  switch (severity) {
+    case "high":
+      return "bg-rose-100 text-rose-700";
+    case "medium":
+      return "bg-amber-100 text-amber-700";
+    case "low":
+      return "bg-sky-100 text-sky-700";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
 }
 
 function formatShortDate(value: string) {
@@ -400,6 +470,7 @@ async function loadTasks() {
   tasks.value = await fetchAdminTasks({
     q: searchText.value.trim() || undefined,
     status: statusFilter.value,
+    sort: sortMode.value,
   });
 }
 

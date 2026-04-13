@@ -6,23 +6,23 @@ name = "JianDou"
 env = "local"
 # API 服务在当前运行环境中的监听地址。
 api_host = "0.0.0.0"
-# FastAPI / Uvicorn 对外监听端口。
+# Spring Boot API 对外监听端口。
 api_port = 8000
 # 允许访问 API 的前端来源地址。
 web_origin = "http://localhost:5173"
-# 任务执行模式，queue 表示通过 Redis 队列交由 worker 执行。
+# 任务执行模式，queue 表示由 Spring 内嵌 worker 通过数据库队列执行。
 execution_mode = "queue"
 
 # 主数据库连接配置。
 [database]
-# 应用数据库的 SQLAlchemy DSN。
-url = "mysql+pymysql://root:root@127.0.0.1:3306/jiandou?charset=utf8mb4&init_command=SET%20time_zone%3D%27%2B08%3A00%27"
+# 应用数据库的 JDBC URL。
+url = "jdbc:mysql://127.0.0.1:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
 # 是否输出 SQL 日志，便于调试。
 echo = false
 
-# Redis 连接配置，用于轻量协调和缓存。
+# Redis 连接配置，当前仅保留为历史兼容字段。
 [redis]
-# 包含库编号的 Redis DSN。
+# 若未来重新接入外部缓存/消息队列，可复用该字段。
 url = "redis://127.0.0.1:6379/0"
 
 # 本地文件存储结构，用于上传、产物和临时文件。
@@ -32,7 +32,7 @@ root_dir = "storage"
 # 上传源文件的保存目录。
 uploads_dir = "storage/uploads"
 # 生成媒体产物的输出目录。
-outputs_dir = "storage/outputs"
+outputs_dir = "storage/gen"
 # 临时工作文件目录。
 temp_dir = "storage/temp"
 # 对外可访问的存储根 URL。
@@ -67,7 +67,7 @@ vision_frame_count = 6
 [model.providers.qwen]
 provider = "qwen"
 api_key = "replace-with-your-key"
-base_url = "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 [model.providers.qwen.extras]
 use_responses_api = true
@@ -128,13 +128,15 @@ capabilities = ["text"]
 provider = "qwen"
 kind = "vision"
 label = "Qwen-VL Plus"
+supports_seed = true
 capabilities = ["vision", "text"]
-fallback = "qwen3-vl-flash"
+fallback = "qwen3-vl-flash-2026-01-22"
 
-[model.models."qwen3-vl-flash"]
+[model.models."qwen3-vl-flash-2026-01-22"]
 provider = "qwen"
 kind = "vision"
-label = "Qwen 3 VL Flash"
+label = "Qwen 3 VL Flash 2026-01-22"
+supports_seed = true
 capabilities = ["vision", "text"]
 
 [model.models."Doubao-Seedream-4.5"]
@@ -147,20 +149,22 @@ capabilities = ["image"]
 provider = "wan"
 kind = "video"
 label = "Wan 2.6 图生视频"
+supports_seed = true
 capabilities = ["video"]
 
 [model.models."seedance-1.5-pro"]
 provider = "seedance"
 kind = "video"
 label = "Seedance 1.5 Pro"
+supports_seed = false
 capabilities = ["video"]
 
 [model.defaults]
 text_analysis = "gpt-5.4"
 planner_fusion = "gpt-5.4"
 creative_prompt = "qwen3.6-plus"
-vision_analysis = "qwen-vl-plus-latest"
-prompt_rewrite = "qwen-vl-plus-latest"
+vision_analysis = "qwen3-vl-flash-2026-01-22"
+prompt_rewrite = "qwen3-vl-flash-2026-01-22"
 image_generation = "Doubao-Seedream-4.5"
 video_generation = "wan2.6-i2v"
 

@@ -2,37 +2,21 @@
 
 ## 1. 系统概览
 
-JianDou 采用前后端分离 + 独立 worker 的架构，核心目标是把“文本输入 -> 任务编排 -> 视频生成 -> 结果回传”串成统一任务链路。
+JianDou 采用前后端分离 + Spring 内嵌 worker 的架构，核心目标是把“文本输入 -> 任务编排 -> 视频生成 -> 结果回传”串成统一任务链路。
 
 主要组件：
 
 - `apps/web`：Vue 3 + Vite 前端
-- `apps/api`：FastAPI API 网关
-- `apps/worker`：任务消费进程
-- `packages/pipeline`：任务服务与执行流水线
-- `packages/ai`：模型调用、规划与生成编排
-- `packages/db`：SQLAlchemy 数据模型与数据库初始化
-- `packages/storage`：本地文件存储封装
-- `packages/shared`：配置与跨模块 schema
+- `apps/api-spring`：Spring Boot 3 API 与内嵌任务执行器
 - `MySQL`：任务与结果元数据
-- `Redis`：任务队列
 
 ## 2. 目录结构
 
 ```text
 jiandou/
 ├── apps/
-│   ├── api/        # FastAPI 服务
+│   ├── api-spring/ # Spring Boot 后端
 │   ├── web/        # Vue 前端
-│   └── worker/     # Worker 进程入口
-├── packages/
-│   ├── ai/         # 文本/视频生成与编排
-│   ├── pipeline/   # TaskService / TaskWorker
-│   ├── db/         # ORM 模型与建表
-│   ├── storage/    # 本地存储抽象
-│   ├── media/      # 媒体处理工具
-│   ├── shared/     # 配置与公共 schema
-│   └── backend_core/ # 对 pipeline 的兼容导出层
 ├── config/         # app 与 prompts 配置
 ├── storage/        # 上传、产物、临时文件
 └── docker-compose.yml
@@ -43,12 +27,13 @@ jiandou/
 ### 3.1 任务创建与执行
 
 1. 前端调用 `POST /api/v2/tasks/generation` 创建任务  
-2. `TaskService.create_generation_task` 落库 `biz_tasks`，写入任务上下文  
-3. `dispatch_task` 将任务投递到 Redis 队列，由 worker 消费
-4. 流水线执行阶段更新状态：
+2. Spring 应用服务落库 `biz_tasks`，写入任务上下文
+3. `TaskExecutionCoordinator` 创建 attempt 并进入数据库队列
+4. API 进程内的 `TaskWorkerRunner` 消费任务并执行分镜流水线
+5. 流水线执行阶段更新状态：
 - `PENDING -> ANALYZING -> PLANNING -> RENDERING -> COMPLETED`
 - 失败时置为 `FAILED`
-5. 结果写入数据库并落盘到 `storage/outputs`
+6. 结果写入数据库并落盘到 `storage/outputs`
 
 ### 3.2 文件流转
 
@@ -59,9 +44,9 @@ jiandou/
 
 ## 4. 配置体系
 
-- 主配置：`config/app.toml`
-- 示例配置：`config/app.example.toml`
-- 提示词配置：`config/prompts/*.toml`
+- 主配置：`config/app.yml`
+- 示例配置：`config/app.example.yml`
+- 提示词配置：`config/prompts/*.yml`
 - 支持通过 `JIANDOU_*` 环境变量覆盖（如 `JIANDOU_DATABASE_URL`、`JIANDOU_MODEL_API_KEY`）
 
 ## 5. 数据与状态
@@ -75,7 +60,7 @@ jiandou/
 - `biz_system_logs`：系统日志沉淀
 - `biz_material_assets`：素材资产信息
 
-任务状态枚举（见 `packages/shared/jiandou_shared/schemas.py`）：
+任务状态枚举：
 
 - `PENDING`
 - `PAUSED`

@@ -63,6 +63,7 @@
               <option value="created_desc">最新创建</option>
               <option value="progress_desc">进度优先</option>
               <option value="semantic_desc">文本输入优先</option>
+              <option value="effect_rating_desc">评分最高</option>
             </select>
           </label>
           <button :class="isFilterActive ? 'btn-warning' : 'btn-ghost'" type="button" @click="clearFilters">
@@ -251,6 +252,81 @@
               <span>比例</span>
               <span class="font-semibold text-slate-900">{{ selectedTaskDetail?.aspectRatio ?? selectedTaskSummary?.aspectRatio ?? "-" }}</span>
             </div>
+            <div class="flex items-center justify-between">
+              <span>当前 Worker</span>
+              <span class="max-w-[180px] truncate font-semibold text-slate-900">{{ selectedTaskWorkerLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Join 进度</span>
+              <span class="max-w-[180px] truncate font-semibold text-slate-900">{{ selectedTaskJoinLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>效果评分</span>
+              <span class="max-w-[180px] truncate font-semibold text-slate-900">{{ selectedTaskEffectRatingLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>任务 Seed</span>
+              <span class="max-w-[180px] truncate font-semibold text-slate-900">{{ selectedTaskSeedLabel }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="selectedTaskDetail" class="surface-tile p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm font-semibold text-slate-900">效果评分</p>
+            <span class="surface-chip">{{ selectedTaskEffectRatingLabel }}</span>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              v-for="score in [5, 4, 3, 2, 1]"
+              :key="score"
+              class="btn-secondary btn-sm"
+              :class="selectedTaskRatingDraft === score ? 'ring-2 ring-slate-300' : ''"
+              type="button"
+              :disabled="selectedTaskRatingSaving"
+              @click="selectedTaskRatingDraft = score"
+            >
+              {{ score }}/5
+            </button>
+          </div>
+          <textarea
+            v-model="selectedTaskRatingNote"
+            class="field-textarea mt-3"
+            rows="3"
+            placeholder="可选：记录这个 seed 在当前任务上的效果观察。"
+          ></textarea>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <button class="btn-primary btn-sm" type="button" :disabled="selectedTaskRatingSaving || !selectedTaskRatingDraft" @click="saveSelectedTaskRating">
+              {{ selectedTaskRatingSaving ? "保存中..." : "保存评分" }}
+            </button>
+            <span class="text-xs text-slate-500">评分对成功和失败任务都开放，并可用于按评分倒序筛选 seed。</span>
+          </div>
+        </div>
+
+        <div v-if="selectedTaskMonitoringRows.length" class="surface-tile p-4">
+          <p class="text-sm font-semibold text-slate-900">执行监控</p>
+          <div class="mt-3 grid gap-2 text-sm text-slate-600">
+            <div v-for="item in selectedTaskMonitoringRows" :key="item.label" class="flex items-center justify-between gap-3">
+              <span>{{ item.label }}</span>
+              <span class="max-w-[180px] truncate font-semibold text-slate-900">{{ item.value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="selectedTaskArtifactRows.length" class="surface-tile p-4 xl:col-span-2">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm font-semibold text-slate-900">产物目录</p>
+            <span class="surface-chip">{{ selectedTaskArtifactDirectoryHint }}</span>
+          </div>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <div
+              v-for="item in selectedTaskArtifactRows"
+              :key="item.label"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
+            >
+              <p class="text-xs text-slate-500">{{ item.label }}</p>
+              <p class="mt-1 break-all font-semibold text-slate-900">{{ item.value }}</p>
+            </div>
           </div>
         </div>
 
@@ -308,7 +384,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, retryTask, terminateTask } from "@/api/tasks";
+import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, rateTaskEffect, retryTask, terminateTask } from "@/api/tasks";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import HintBell from "@/components/HintBell.vue";
 import PageHeader from "@/components/PageHeader.vue";
@@ -317,9 +393,12 @@ import TaskRow from "@/components/TaskRow.vue";
 import { usePolling } from "@/composables/usePolling";
 import {
   formatTaskDurationMode,
+  formatTaskEffectRating,
   formatTaskModelValue,
+  formatTaskOutputCount,
   formatTaskRequestedDuration,
   formatTaskResolvedDuration,
+  formatTaskSeed,
   formatTaskStopBeforeVideoGeneration,
   formatTaskTranscriptSummary,
   getTaskRequestSnapshot,
@@ -336,7 +415,7 @@ const errorMessage = ref("");
 const lastLoadedAt = ref("尚未刷新");
 const searchText = ref("");
 const statusFilter = ref<TaskStatus | "all">("all");
-const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "semantic_desc">("updated_desc");
+const sortMode = ref<"updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "effect_rating_desc">("updated_desc");
 const viewMode = ref<"rows" | "cards">("rows");
 const managingTaskId = ref("");
 const collapsedGroups = ref<Record<string, boolean>>({});
@@ -345,6 +424,9 @@ const selectedTaskDetail = ref<TaskDetail | null>(null);
 const selectedTaskTrace = ref<TaskTraceEvent[]>([]);
 const selectedTaskLoading = ref(false);
 const selectedTaskError = ref("");
+const selectedTaskRatingDraft = ref<number | null>(null);
+const selectedTaskRatingNote = ref("");
+const selectedTaskRatingSaving = ref(false);
 let querySyncTimer: number | null = null;
 
 const isFilterActive = computed(() => {
@@ -367,7 +449,7 @@ function applyRouteFilters() {
     : "all";
 
   const nextSort = normalizeQueryValue(route.query.sort);
-  sortMode.value = ["updated_desc", "created_desc", "progress_desc", "semantic_desc"].includes(nextSort)
+  sortMode.value = ["updated_desc", "created_desc", "progress_desc", "semantic_desc", "effect_rating_desc"].includes(nextSort)
     ? (nextSort as typeof sortMode.value)
     : "updated_desc";
 
@@ -402,6 +484,20 @@ const selectedTaskRequestSnapshot = computed(() => getTaskRequestSnapshot(select
 const selectedTaskDurationModeLabel = computed(() => formatTaskDurationMode(selectedTaskRequestSnapshot.value));
 
 const selectedTaskTranscriptPreview = computed(() => previewTaskTranscript(selectedTaskRequestSnapshot.value));
+const selectedTaskEffectRatingLabel = computed(() => {
+  return formatTaskEffectRating(selectedTaskDetail.value?.effectRating ?? selectedTaskSummary.value?.effectRating);
+});
+const selectedTaskSeedLabel = computed(() => {
+  const detailSeed = selectedTaskDetail.value?.taskSeed;
+  if (typeof detailSeed === "number" && Number.isFinite(detailSeed)) {
+    return String(Math.trunc(detailSeed));
+  }
+  const summarySeed = selectedTaskSummary.value?.taskSeed;
+  if (typeof summarySeed === "number" && Number.isFinite(summarySeed)) {
+    return String(Math.trunc(summarySeed));
+  }
+  return formatTaskSeed(selectedTaskRequestSnapshot.value);
+});
 
 const selectedTaskParameterRows = computed(() => {
   const task = selectedTaskDetail.value;
@@ -411,15 +507,75 @@ const selectedTaskParameterRows = computed(() => {
   const snapshot = selectedTaskRequestSnapshot.value;
   return [
     { label: "文本模型", value: formatTaskModelValue(snapshot.textAnalysisModel) },
+    { label: "视觉模型", value: formatTaskModelValue(snapshot.visionModel) },
+    { label: "关键帧模型", value: formatTaskModelValue(snapshot.imageModel) },
     { label: "视频模型", value: formatTaskModelValue(snapshot.videoModel) },
     { label: "视频尺寸", value: formatTaskModelValue(snapshot.videoSize) },
+    { label: "输出数量", value: formatTaskOutputCount(snapshot) },
     { label: "请求时长", value: formatTaskRequestedDuration(snapshot) },
     { label: "生效时长", value: formatTaskResolvedDuration(task) },
+    { label: "任务 Seed", value: selectedTaskSeedLabel.value },
     { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(snapshot) },
     { label: "文本输入", value: formatTaskTranscriptSummary(snapshot) },
     { label: "创建平台", value: formatTaskModelValue(snapshot.platform || task.platform) },
     { label: "画幅比例", value: formatTaskModelValue(snapshot.aspectRatio || task.aspectRatio) },
   ];
+});
+
+const selectedTaskMonitoringRows = computed(() => {
+  const monitoring = selectedTaskDetail.value?.monitoring;
+  if (!monitoring) {
+    return [];
+  }
+  return [
+    { label: "当前阶段", value: formatMonitoringValue(monitoring.currentStage) },
+    { label: "Attempt 状态", value: formatMonitoringValue(monitoring.activeAttemptStatus) },
+    { label: "恢复阶段", value: formatMonitoringValue(monitoring.resumeFromStage) },
+    { label: "恢复镜头", value: formatMonitoringValue(monitoring.resumeFromClipIndex) },
+    { label: "计划镜头数", value: formatMonitoringValue(monitoring.plannedClipCount) },
+    { label: "已生成镜头数", value: formatMonitoringValue(monitoring.renderedClipCount) },
+    { label: "连续完成镜头", value: formatMonitoringValue(monitoring.contiguousRenderedClipCount) },
+    { label: "最新片段", value: formatMonitoringValue(monitoring.latestRenderedClipIndex) },
+  ].filter((item) => item.value !== "暂无");
+});
+
+const selectedTaskWorkerLabel = computed(() => formatMonitoringValue(selectedTaskDetail.value?.monitoring?.activeWorkerInstanceId));
+const selectedTaskJoinLabel = computed(() => {
+  const monitoring = selectedTaskDetail.value?.monitoring;
+  if (!monitoring) {
+    return "暂无";
+  }
+  return formatMonitoringValue(monitoring.latestJoinName || monitoring.latestJoinClipIndex);
+});
+
+const selectedTaskArtifactDirectories = computed(() => {
+  return selectedTaskDetail.value?.artifactDirectories ?? selectedTaskDetail.value?.monitoring?.artifactDirectories ?? null;
+});
+
+const selectedTaskArtifactDirectoryHint = computed(() => {
+  const artifactDirectories = selectedTaskArtifactDirectories.value;
+  if (!artifactDirectories?.baseRelativeDir) {
+    return "等待任务创建";
+  }
+  return artifactDirectories.baseRelativeDir;
+});
+
+const selectedTaskArtifactRows = computed(() => {
+  const artifactDirectories = selectedTaskArtifactDirectories.value;
+  if (!artifactDirectories) {
+    return [];
+  }
+  return [
+    { label: "Storage 根目录", value: formatMonitoringValue(artifactDirectories.storageRoot) },
+    { label: "任务基目录", value: formatMonitoringValue(artifactDirectories.baseAbsoluteDir || artifactDirectories.baseRelativeDir) },
+    { label: "运行目录", value: formatMonitoringValue(artifactDirectories.runningAbsoluteDir || artifactDirectories.runningRelativeDir) },
+    { label: "拼接目录", value: formatMonitoringValue(artifactDirectories.joinedAbsoluteDir || artifactDirectories.joinedRelativeDir) },
+    { label: "脚本文件", value: formatMonitoringValue(artifactDirectories.storyboardFileName) },
+    { label: "首帧命名", value: formatMonitoringValue(artifactDirectories.firstFramePattern) },
+    { label: "尾帧命名", value: formatMonitoringValue(artifactDirectories.lastFramePattern) },
+    { label: "片段命名", value: formatMonitoringValue(artifactDirectories.clipPattern) },
+    { label: "拼接命名", value: formatMonitoringValue(artifactDirectories.joinPattern) },
+  ].filter((item) => item.value !== "暂无");
 });
 
 const selectedTaskStages = computed(() => {
@@ -475,6 +631,18 @@ const sortedFilteredTasks = computed(() => {
       return items.sort((left, right) => (right.progress ?? 0) - (left.progress ?? 0));
     case "semantic_desc":
       return items.sort((left, right) => Number(Boolean(right.hasTimedTranscript || right.hasTranscript)) - Number(Boolean(left.hasTimedTranscript || left.hasTranscript)));
+    case "effect_rating_desc":
+      return items.sort((left, right) => {
+        const ratingDiff = (right.effectRating ?? 0) - (left.effectRating ?? 0);
+        if (ratingDiff !== 0) {
+          return ratingDiff;
+        }
+        const ratedAtDiff = new Date(right.ratedAt || 0).getTime() - new Date(left.ratedAt || 0).getTime();
+        if (ratedAtDiff !== 0) {
+          return ratedAtDiff;
+        }
+        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      });
     default:
       return items.sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
   }
@@ -531,7 +699,9 @@ async function loadTasks() {
   loading.value = tasks.value.length === 0;
   try {
     // Keep filtering local so typing and toggling view mode do not trigger extra requests.
-    tasks.value = await fetchTasks();
+    tasks.value = await fetchTasks({
+      sort: sortMode.value,
+    });
     lastLoadedAt.value = new Date().toLocaleString();
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "加载任务列表失败";
@@ -545,6 +715,8 @@ async function loadSelectedTaskDetails() {
     selectedTaskDetail.value = null;
     selectedTaskTrace.value = [];
     selectedTaskError.value = "";
+    selectedTaskRatingDraft.value = null;
+    selectedTaskRatingNote.value = "";
     return;
   }
   selectedTaskLoading.value = true;
@@ -556,6 +728,8 @@ async function loadSelectedTaskDetails() {
     ]);
     selectedTaskDetail.value = detail;
     selectedTaskTrace.value = [...trace].reverse();
+    selectedTaskRatingDraft.value = typeof detail.effectRating === "number" && detail.effectRating > 0 ? Math.trunc(detail.effectRating) : null;
+    selectedTaskRatingNote.value = detail.effectRatingNote?.trim() || "";
   } catch (error) {
     selectedTaskError.value = error instanceof Error ? error.message : "任务详情加载失败";
   } finally {
@@ -565,6 +739,25 @@ async function loadSelectedTaskDetails() {
 
 async function refreshSelectedTask() {
   await loadSelectedTaskDetails();
+}
+
+async function saveSelectedTaskRating() {
+  if (!selectedTaskId.value || !selectedTaskRatingDraft.value) {
+    return;
+  }
+  selectedTaskRatingSaving.value = true;
+  selectedTaskError.value = "";
+  try {
+    await rateTaskEffect(selectedTaskId.value, {
+      effectRating: selectedTaskRatingDraft.value,
+      effectRatingNote: selectedTaskRatingNote.value.trim() || undefined,
+    });
+    await Promise.all([loadTasks(), loadSelectedTaskDetails()]);
+  } catch (error) {
+    selectedTaskError.value = error instanceof Error ? error.message : "保存评分失败";
+  } finally {
+    selectedTaskRatingSaving.value = false;
+  }
 }
 
 function writeQuery() {
@@ -736,6 +929,17 @@ function formatDateTime(value?: string | null) {
     return value;
   }
   return new Date(timestamp).toLocaleString();
+}
+
+function formatMonitoringValue(value: unknown) {
+  if (value == null) {
+    return "暂无";
+  }
+  if (typeof value === "number") {
+    return value > 0 ? String(value) : "暂无";
+  }
+  const text = String(value).trim();
+  return text ? text : "暂无";
 }
 
 function stageStateClass(state: "pending" | "active" | "paused" | "done" | "failed") {

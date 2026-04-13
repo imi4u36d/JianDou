@@ -24,6 +24,8 @@
       <span v-if="task.status === 'FAILED'" class="surface-chip">需要处理</span>
       <span v-if="task.status === 'COMPLETED'" class="surface-chip">可查看结果</span>
       <span v-if="task.status === 'PAUSED'" class="surface-chip">可继续生成</span>
+      <span v-if="task.effectRating" class="surface-chip">评分 {{ effectRatingLabel }}</span>
+      <span v-if="task.taskSeed !== null && task.taskSeed !== undefined" class="surface-chip">Seed {{ task.taskSeed }}</span>
     </div>
 
     <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-600">
@@ -38,6 +40,14 @@
       <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-slate-500">重试</p>
         <p class="text-sm font-semibold text-slate-900">{{ retryCount }}</p>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">评分</p>
+        <p class="text-sm font-semibold text-slate-900">{{ effectRatingLabel }}</p>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">Seed</p>
+        <p class="text-sm font-semibold text-slate-900">{{ seedLabel }}</p>
       </div>
     </div>
 
@@ -137,6 +147,14 @@ const durationLabel = computed(() => {
     return formatTaskRange(props.task.minDurationSeconds, props.task.maxDurationSeconds);
   }
   return "待配置";
+});
+const effectRatingLabel = computed(() => {
+  const rating = props.task.effectRating;
+  return typeof rating === "number" && Number.isFinite(rating) && rating > 0 ? `${Math.trunc(rating)}/5` : "未评分";
+});
+const seedLabel = computed(() => {
+  const seed = props.task.taskSeed;
+  return typeof seed === "number" && Number.isFinite(seed) ? String(Math.trunc(seed)) : "未设置";
 });
 const updatedAtLabel = computed(() => new Date(props.task.updatedAt).toLocaleString());
 const running = computed(() => lifecycleGroup.value === "running");

@@ -64,8 +64,14 @@
                     <td>
                       <p class="font-medium text-slate-900">{{ task.title }}</p>
                       <p class="mt-0.5 text-xs text-slate-500">{{ task.sourceFileName }}</p>
+                      <p class="mt-1 text-xs text-slate-500">{{ task.diagnosisHint || "请进入详情查看诊断" }}</p>
                     </td>
-                    <td>{{ task.progress }}%</td>
+                    <td>
+                      <p>{{ task.progress }}%</p>
+                      <span :class="diagnosisPillClass(task.diagnosisSeverity)" class="mt-1 inline-flex rounded px-2 py-0.5 text-xs font-medium">
+                        {{ diagnosisLabel(task.diagnosisSeverity) }}
+                      </span>
+                    </td>
                     <td class="text-right">
                       <RouterLink :to="`/admin/tasks/${task.id}`" class="admin-btn-secondary admin-btn-sm">查看</RouterLink>
                     </td>
@@ -91,6 +97,7 @@
                   <p class="truncate text-sm font-medium text-slate-900">{{ task.title }}</p>
                   <span class="admin-chip">{{ task.status }} · {{ task.progress }}%</span>
                 </div>
+                <p class="mt-2 text-xs text-slate-500">{{ task.diagnosisHint || "运行中" }}</p>
               </article>
             </div>
             <div v-else class="admin-empty">
@@ -193,8 +200,9 @@ const metricCards = computed(() => {
     { key: "total", label: "总任务", value: overview.value.counts.totalTasks, hint: "系统任务总量" },
     { key: "running", label: "运行中", value: overview.value.counts.runningTasks, hint: "分析/规划/渲染中" },
     { key: "failed", label: "失败", value: overview.value.counts.failedTasks, hint: "需要优先处理" },
+    { key: "highRisk", label: "高风险", value: overview.value.counts.highRiskTasks, hint: "建议优先处置" },
     { key: "progress", label: "平均进度", value: `${overview.value.counts.averageProgress}%`, hint: "任务池推进情况" },
-    { key: "trace", label: "近期日志", value: overview.value.recentTraceCount, hint: "最近事件条数" },
+    { key: "trace", label: "近期日志", value: overview.value.recentTraceCount, hint: `中高风险 ${overview.value.counts.riskyTasks} 条` },
   ];
 });
 
@@ -210,6 +218,32 @@ function logLevelClass(level: string) {
     return "bg-amber-100 text-amber-700";
   }
   return "bg-slate-100 text-slate-700";
+}
+
+function diagnosisLabel(severity?: string | null) {
+  switch (severity) {
+    case "high":
+      return "高风险";
+    case "medium":
+      return "中风险";
+    case "low":
+      return "低风险";
+    default:
+      return "正常";
+  }
+}
+
+function diagnosisPillClass(severity?: string | null) {
+  switch (severity) {
+    case "high":
+      return "bg-rose-100 text-rose-700";
+    case "medium":
+      return "bg-amber-100 text-amber-700";
+    case "low":
+      return "bg-sky-100 text-sky-700";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
 }
 
 async function loadOverview() {

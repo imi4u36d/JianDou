@@ -1,9 +1,11 @@
 import { deleteJson, getJson, postJson } from "./client";
 import type {
   AdminOverview,
+  AdminTaskDiagnosis,
   AdminTaskBatchResult,
   AdminTaskFilters,
   AdminTraceEvent,
+  RateTaskEffectRequest,
   TaskDeleteResult,
   TaskDetail,
   TaskListItem,
@@ -22,12 +24,19 @@ export function fetchAdminTasks(filters?: AdminTaskFilters) {
   if (filters?.status && filters.status !== "all") {
     params.set("status", filters.status);
   }
+  if (filters?.sort?.trim()) {
+    params.set("sort", filters.sort.trim());
+  }
   const query = params.toString();
   return getJson<TaskListItem[]>(query ? `/admin/tasks?${query}` : "/admin/tasks");
 }
 
 export function fetchAdminTask(taskId: string) {
   return getJson<TaskDetail>(`/admin/tasks/${taskId}`);
+}
+
+export function fetchAdminTaskDiagnosis(taskId: string) {
+  return getJson<AdminTaskDiagnosis>(`/admin/tasks/${taskId}/diagnosis`);
 }
 
 export function fetchAdminTaskTrace(taskId: string, limit = 500) {
@@ -71,6 +80,10 @@ export function terminateAdminTask(taskId: string) {
 
 export function deleteAdminTask(taskId: string) {
   return deleteJson<TaskDeleteResult>(`/admin/tasks/${taskId}`);
+}
+
+export function rateAdminTaskEffect(taskId: string, payload: RateTaskEffectRequest) {
+  return postJson<TaskDetail>(`/admin/tasks/${taskId}/effect-rating`, payload);
 }
 
 export function bulkDeleteAdminTasks(taskIds: string[]) {

@@ -1,8 +1,0 @@
-pyproject.toml
-jiandou_worker.egg-info/PKG-INFO
-jiandou_worker.egg-info/SOURCES.txt
-jiandou_worker.egg-info/dependency_links.txt
-jiandou_worker.egg-info/requires.txt
-jiandou_worker.egg-info/top_level.txt
-app/__init__.py
-app/main.py
