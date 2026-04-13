@@ -3,6 +3,8 @@
 JianDou（中文名：煎豆）是一个 AI 文本驱动视频生成平台，面向短剧类内容生产场景。当前工程提供 Web 前端、FastAPI 后端、Worker 与本地化存储/数据库能力。
 我们的终极目标是打造一个可以让你快速消耗Token（不是）批量化最大利用率的提升文转视频的多线程异步并发平台。
 
+感谢TG大佬 Army1197的TOKEN支持😄
+
 ## Star History
 
 <a href="https://www.star-history.com/?repos=imi4u36d%2FJianDou&type=date&legend=top-left">
