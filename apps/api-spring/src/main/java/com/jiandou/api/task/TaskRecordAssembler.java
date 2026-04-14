@@ -1,5 +1,6 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.task.domain.GenerationRequestSnapshot;
 import com.jiandou.api.task.persistence.TaskRow;
 import com.jiandou.api.task.persistence.TaskStatusHistoryRow;
 import java.time.OffsetDateTime;
@@ -16,7 +17,6 @@ public class TaskRecordAssembler {
         task.id = row.taskId();
         task.title = row.title();
         task.status = row.status();
-        task.platform = row.platform();
         task.progress = row.progress();
         task.createdAt = format(row.createTime());
         task.updatedAt = format(row.updateTime());
@@ -43,7 +43,7 @@ public class TaskRecordAssembler {
         task.transcriptText = transcriptText(row.context());
         task.storyboardScript = storyboardScript(row.context());
         task.executionContext = row.context() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(row.context());
-        task.requestSnapshot = row.requestPayload() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(row.requestPayload());
+        task.requestSnapshot = GenerationRequestSnapshot.fromMap(row.requestPayload());
         return task;
     }
 
@@ -84,7 +84,6 @@ public class TaskRecordAssembler {
         return new TaskWriteModel(
             task.id,
             task.title,
-            task.platform,
             task.aspectRatio,
             task.minDurationSeconds,
             task.maxDurationSeconds,
@@ -102,7 +101,7 @@ public class TaskRecordAssembler {
             task.errorMessage,
             task.retryCount,
             task.completedOutputCount,
-            task.requestSnapshot == null ? new LinkedHashMap<>() : new LinkedHashMap<>(task.requestSnapshot),
+            task.requestSnapshot == null ? new LinkedHashMap<>() : new LinkedHashMap<>(task.requestSnapshot.toMap()),
             context,
             List.of(),
             sourceFileNames,
@@ -149,7 +148,6 @@ public class TaskRecordAssembler {
     public record TaskWriteModel(
         String taskId,
         String title,
-        String platform,
         String aspectRatio,
         int minDurationSeconds,
         int maxDurationSeconds,

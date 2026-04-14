@@ -1,66 +1,81 @@
 package com.jiandou.api.generation;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.YamlMapFactoryBean;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PromptTemplateResolver {
 
-    private static final Pattern SECTION_PATTERN = Pattern.compile("^\\[(.+)]$");
-    private static final Pattern ASSIGN_PATTERN = Pattern.compile("^([A-Za-z0-9_.\\-\"']+)\\s*=\\s*(.+)$");
+    private static final Logger log = LoggerFactory.getLogger(PromptTemplateResolver.class);
 
+    private final Environment environment;
     private final ModelRuntimePropertiesResolver modelRuntimePropertiesResolver;
+    private final GenerationConfigPathLocator configPathLocator;
+    private final boolean failFastOnPromptError;
+    private volatile PromptDiagnostics diagnostics = PromptDiagnostics.empty();
 
-    public PromptTemplateResolver(ModelRuntimePropertiesResolver modelRuntimePropertiesResolver) {
+    public PromptTemplateResolver(
+        Environment environment,
+        ModelRuntimePropertiesResolver modelRuntimePropertiesResolver,
+        GenerationConfigPathLocator configPathLocator
+    ) {
+        this.environment = environment;
         this.modelRuntimePropertiesResolver = modelRuntimePropertiesResolver;
+        this.configPathLocator = configPathLocator;
+        this.failFastOnPromptError = resolvePromptFailFast();
     }
 
     public String systemPrompt(String promptName, String key) {
         Path promptFile = locatePromptFile(promptName);
         if (promptFile == null || !Files.exists(promptFile)) {
-            return "";
+            return failOrEmpty(
+                "Prompt file not found for promptName=" + promptName + " key=" + key + " source=" + modelRuntimePropertiesResolver.configSource(),
+                null
+            );
         }
-        String lowerName = promptFile.getFileName().toString().toLowerCase(Locale.ROOT);
         try {
-            if (lowerName.endsWith(".yml") || lowerName.endsWith(".yaml")) {
-                return loadYamlPrompt(promptFile, key);
-            }
-            return loadTomlPrompt(promptFile, key);
-        } catch (IOException ignored) {
-            return "";
+            String resolved = loadYamlPrompt(promptFile, key);
+            diagnostics = PromptDiagnostics.empty();
+            return resolved;
+        } catch (RuntimeException ex) {
+            return failOrEmpty(
+                "Failed to load prompt template from file=" + promptFile.toAbsolutePath().normalize() + " key=" + key + ": " + ex.getMessage(),
+                ex
+            );
         }
     }
 
+    public List<String> promptErrors() {
+        return diagnostics.errors();
+    }
+
     private Path locatePromptFile(String promptName) {
-        String promptDirectory = modelRuntimePropertiesResolver.value("prompt", "file", "config/prompts");
-        Path current = Paths.get("").toAbsolutePath().normalize();
-        for (int depth = 0; depth < 6 && current != null; depth++) {
-            Path base = current.resolve(promptDirectory);
-            Path yml = base.resolve(promptName + ".yml");
-            if (Files.exists(yml)) {
-                return yml;
-            }
-            Path yaml = base.resolve(promptName + ".yaml");
-            if (Files.exists(yaml)) {
-                return yaml;
-            }
-            Path toml = base.resolve(promptName + ".toml");
-            if (Files.exists(toml)) {
-                return toml;
-            }
-            current = current.getParent();
+        String promptDirectory = firstNonBlank(
+            property("JIANDOU_PROMPT_DIR"),
+            property("jiandou.prompt.dir"),
+            modelRuntimePropertiesResolver.value("prompt", "file", "config/prompts")
+        );
+        Path base = configPathLocator.resolvePath(promptDirectory);
+        if (base == null) {
+            failOrEmpty("Prompt directory cannot be resolved: " + promptDirectory, null);
+            return null;
+        }
+        Path yml = base.resolve(promptName + ".yml").toAbsolutePath().normalize();
+        if (Files.exists(yml)) {
+            return yml;
+        }
+        Path yaml = base.resolve(promptName + ".yaml").toAbsolutePath().normalize();
+        if (Files.exists(yaml)) {
+            return yaml;
         }
         return null;
     }
@@ -71,42 +86,68 @@ public class PromptTemplateResolver {
         factory.afterPropertiesSet();
         Map<String, Object> loaded = factory.getObject();
         if (loaded == null) {
-            return "";
+            throw new IllegalStateException("Prompt yaml is empty");
         }
         Object systemPrompts = normalizeMap(loaded).get("system_prompts");
         if (!(systemPrompts instanceof Map<?, ?> systemPromptMap)) {
-            return "";
+            throw new IllegalStateException("Prompt yaml missing system_prompts section");
         }
         Object value = normalizeMap(systemPromptMap).get(key);
-        return value == null ? "" : String.valueOf(value).trim();
+        if (value == null) {
+            throw new IllegalStateException("Prompt key not found: " + key);
+        }
+        String text = String.valueOf(value).trim();
+        if (text.isBlank()) {
+            throw new IllegalStateException("Prompt key is blank: " + key);
+        }
+        return text;
     }
 
-    private String loadTomlPrompt(Path promptFile, String key) throws IOException {
-        boolean inSystemPrompts = false;
-        for (String rawLine : Files.readAllLines(promptFile, StandardCharsets.UTF_8)) {
-            String line = rawLine.trim();
-            if (line.isBlank()) {
-                continue;
-            }
-            Matcher sectionMatcher = SECTION_PATTERN.matcher(line);
-            if (sectionMatcher.matches()) {
-                inSystemPrompts = "system_prompts".equals(sectionMatcher.group(1).trim());
-                continue;
-            }
-            if (!inSystemPrompts) {
-                continue;
-            }
-            Matcher assignMatcher = ASSIGN_PATTERN.matcher(line);
-            if (!assignMatcher.matches()) {
-                continue;
-            }
-            String name = unquote(assignMatcher.group(1).trim());
-            if (!key.equals(name)) {
-                continue;
-            }
-            return parseTomlValue(assignMatcher.group(2).trim());
+    private String failOrEmpty(String message, RuntimeException cause) {
+        diagnostics = new PromptDiagnostics(List.of(message));
+        if (cause == null) {
+            log.warn(message);
+        } else {
+            log.error(message, cause);
+        }
+        if (failFastOnPromptError) {
+            throw new GenerationConfigurationException(message);
         }
         return "";
+    }
+
+    private boolean resolvePromptFailFast() {
+        String promptLevel = firstNonBlank(
+            property("JIANDOU_PROMPT_FAIL_FAST"),
+            property("jiandou.prompt.fail-fast")
+        );
+        if (!promptLevel.isBlank()) {
+            return boolValue(promptLevel);
+        }
+        return boolValue(firstNonBlank(
+            property("JIANDOU_CONFIG_FAIL_FAST"),
+            property("jiandou.config.fail-fast"),
+            "false"
+        ));
+    }
+
+    private boolean boolValue(String raw) {
+        String normalized = raw == null ? "" : raw.trim().toLowerCase();
+        return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private String property(String key) {
+        String value = environment.getProperty(key);
+        return value == null ? "" : value.trim();
     }
 
     @SuppressWarnings("unchecked")
@@ -123,25 +164,10 @@ public class PromptTemplateResolver {
         return normalized;
     }
 
-    private String parseTomlValue(String value) {
-        String trimmed = value.trim();
-        if (trimmed.startsWith("\"\"\"") && trimmed.endsWith("\"\"\"") && trimmed.length() >= 6) {
-            return trimmed.substring(3, trimmed.length() - 3).trim();
-        }
-        if (trimmed.length() >= 2) {
-            if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-                return trimmed.substring(1, trimmed.length() - 1);
-            }
-        }
-        return trimmed;
-    }
+    private record PromptDiagnostics(List<String> errors) {
 
-    private String unquote(String raw) {
-        String normalized = raw == null ? "" : raw.trim();
-        if (normalized.length() >= 2
-            && ((normalized.startsWith("\"") && normalized.endsWith("\"")) || (normalized.startsWith("'") && normalized.endsWith("'")))) {
-            return normalized.substring(1, normalized.length() - 1).trim();
+        private static PromptDiagnostics empty() {
+            return new PromptDiagnostics(List.of());
         }
-        return normalized;
     }
 }

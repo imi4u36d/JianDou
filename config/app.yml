@@ -40,21 +40,21 @@ model:
       base_url: "https://api.openai.com/v1"
     qwen:
       provider: "qwen"
-      api_key: "sk-ca42d55bbcae42acb66fc0e8d9ea3d3c"
+      api_key: "sk-4a35c7684ae1455e919ea3fa9827ad36"
       base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
       extras:
         use_responses_api: true
         timeout_seconds: 300
     ark:
       provider: "ark"
-      api_key: "02155083-c670-456f-91d8-ac51516c2540"
+      api_key: "777e66a1-3c30-409c-9bbc-5b963024bff8"
       base_url: "https://ark.cn-beijing.volces.com/api/v3"
       extras:
         use_responses_api: true
         timeout_seconds: 180
     wan:
       provider: "wan"
-      api_key: "sk-ca42d55bbcae42acb66fc0e8d9ea3d3c"
+      api_key: "sk-4a35c7684ae1455e919ea3fa9827ad36"
       base_url: "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
       extras:
         task_base_url: "https://dashscope.aliyuncs.com/api/v1/tasks"
@@ -63,17 +63,19 @@ model:
         prompt_extend: false
     seedream:
       provider: "seedream"
-      api_key: "02155083-c670-456f-91d8-ac51516c2540"
+      api_key: "777e66a1-3c30-409c-9bbc-5b963024bff8"
       base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
     seedance:
       provider: "seedance"
-      api_key: "02155083-c670-456f-91d8-ac51516c2540"
+      api_key: "777e66a1-3c30-409c-9bbc-5b963024bff8"
       base_url: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
       extras:
         task_base_url: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
         image_base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
         poll_interval_seconds: 8
         poll_timeout_seconds: 600
+        camera_fixed: false
+        watermark: true
   models:
     "qwen3.6-plus":
       provider: "qwen"
@@ -132,12 +134,12 @@ model:
       kind: "video"
       label: "Seedance 1.5 Pro"
       family: "seedance"
-      supports_seed: false
+      supports_seed: true
       capabilities:
         - "video_generation"
       description: "火山引擎 Seedance 视频模型。"
       generation_mode: "i2v"
-      supported_sizes: "720*1280,1280*720"
+      supported_sizes: "480*854,854*480,720*1280,1280*720"
       supported_durations: "4,6,8,10,12"
 
 catalog:
@@ -168,12 +170,20 @@ catalog:
       width: 720
       height: 1280
   video_sizes:
+    "480*854":
+      label: "480P · 9:16（480 x 854）"
+      width: 480
+      height: 854
+    "854*480":
+      label: "480P · 16:9（854 x 480）"
+      width: 854
+      height: 480
     "720*1280":
-      label: "720 x 1280"
+      label: "720P · 9:16（720 x 1280）"
       width: 720
       height: 1280
     "1280*720":
-      label: "1280 x 720"
+      label: "720P · 16:9（1280 x 720）"
       width: 1280
       height: 720
   video_durations:
@@ -187,19 +197,6 @@ catalog:
       label: "10 秒"
     "12":
       label: "12 秒"
-
-platform:
-  defaults:
-    default_platform: "douyin"
-    default_aspect_ratio: "9:16"
-    default_editing_mode: "drama"
-    default_style_preset: "cinematic"
-  platforms:
-    douyin:
-      label: "抖音"
-      default_aspect_ratio: "9:16"
-      default_video_size: "720*1280"
-      default_video_duration_seconds: 8
 
 pipeline:
   default_aspect_ratio: "9:16"

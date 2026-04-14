@@ -44,6 +44,6 @@ public class DatabaseSchemaInitializer {
     }
 
     private boolean isIgnorableSchemaError(SQLException ex) {
-        return ex.getErrorCode() == 1061 || ex.getErrorCode() == 1060;
+        return ex.getErrorCode() == 1061 || ex.getErrorCode() == 1060 || ex.getErrorCode() == 1091;
     }
 }

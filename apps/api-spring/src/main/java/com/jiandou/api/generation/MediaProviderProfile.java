@@ -12,6 +12,8 @@ public record MediaProviderProfile(
     int pollIntervalSeconds,
     int pollTimeoutSeconds,
     boolean promptExtend,
+    boolean cameraFixed,
+    boolean watermark,
     String source
 ) {
 

@@ -4,7 +4,7 @@
       <div class="new-task-main surface-panel surface-panel-warm p-6">
         <PageHeader eyebrow="创建任务" title="文本生成 Task" description="文本驱动视频生成，统一进入 Task 链路" />
         <div class="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
-          <HintBell title="模型参数" :items="['文本模型用于提示词理解', '视频模型决定生成质量', '分辨率与时长直接影响成本']" />
+          <HintBell title="模型参数" :items="['文本模型用于提示词理解', '视频模型决定生成质量', '清晰度与时长直接影响成本']" />
           <HintBell title="TXT 能力" text="支持上传小说 TXT，自动填充文本并辅助生成提示词。" />
         </div>
 
@@ -64,7 +64,7 @@
               <span class="text-xs text-slate-500">{{ seedCapabilityHint }}</span>
             </label>
             <label class="grid gap-2 text-sm text-slate-700">
-              分辨率
+              清晰度 / 画幅
               <select v-model="form.videoSize" class="field-select">
                 <option v-for="item in videoSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
@@ -89,11 +89,12 @@
                 v-model="manualMaxDurationSeconds"
                 class="field-input"
                 type="number"
-                min="1"
+                :min="minimumAllowedDurationSeconds ?? 1"
                 max="120"
                 step="1"
-                placeholder="请输入 1-120"
+                :placeholder="manualDurationPlaceholder"
               />
+              <span class="text-xs text-slate-500">{{ manualDurationHint }}</span>
             </label>
           </div>
 
@@ -113,7 +114,7 @@
                 v-for="task in reusableSeedTasks"
                 :key="task.id"
                 type="button"
-                class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-slate-300 hover:bg-slate-50"
+                class="seed-source-card rounded-2xl px-4 py-3 text-left transition"
                 @click="applySeedFromTask(task)"
               >
                 <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -537,12 +538,34 @@ const minimumSupportedDurationSeconds = computed(() => {
   const first = durationOptions.value.find((item) => Number.isFinite(item.value) && item.value > 0);
   return first ? Math.trunc(first.value) : null;
 });
+const minimumAllowedDurationSeconds = computed(() => minimumSupportedDurationSeconds.value ?? 1);
 const normalizedManualMaxDurationSeconds = computed(() => parseDurationSeconds(manualMaxDurationSeconds.value));
+const manualDurationHint = computed(() => {
+  const minimum = minimumAllowedDurationSeconds.value;
+  return `当前视频模型要求时长至少 ${minimum} 秒，最大 120 秒。`;
+});
+const manualDurationPlaceholder = computed(() => {
+  const minimum = minimumAllowedDurationSeconds.value;
+  return `请输入 ${minimum}-120`;
+});
+const manualDurationValidationMessage = computed(() => {
+  const minimum = minimumAllowedDurationSeconds.value;
+  if (!manualMaxDurationSeconds.value.trim()) {
+    return `请先填写合法的最大总时长（${minimum}-120 秒）`;
+  }
+  if (normalizedManualMaxDurationSeconds.value === null) {
+    return `请先填写合法的最大总时长（${minimum}-120 秒）`;
+  }
+  if (normalizedManualMaxDurationSeconds.value < minimum) {
+    return `当前视频模型要求最大总时长至少为 ${minimum} 秒`;
+  }
+  return "";
+});
 const isDurationLimitValid = computed(() => {
   if (durationLimitMode.value === "auto") {
     return true;
   }
-  return normalizedManualMaxDurationSeconds.value !== null;
+  return Boolean(normalizedManualMaxDurationSeconds.value !== null && !manualDurationValidationMessage.value);
 });
 const promptSourceLabel = computed(() => {
   return form.value.creativePrompt?.trim() ? promptSource.value : "系统默认";
@@ -688,7 +711,7 @@ const summaryRows = computed(() => {
     { label: "当前状态", value: task?.status || (submitting.value ? "CREATING" : progressState.value.stage) },
     { label: "当前进度", value: `${Math.max(0, Math.min(100, progressValue))}%` },
     { label: "模型配置", value: modelSummary },
-    { label: "分辨率", value: videoSizeSummary },
+    { label: "清晰度 / 画幅", value: videoSizeSummary },
     { label: "输出数量", value: task ? formatTaskOutputCount(snapshot) : form.value.outputCount === "auto" ? "自动" : `${form.value.outputCount ?? 1} 条` },
     { label: "视频时长", value: durationSummary },
     { label: "Seed", value: task ? formatTaskSeed(snapshot) : String(parseSeed(seedInput.value) ?? "未设置") },
@@ -832,7 +855,7 @@ async function handleGeneratePrompt() {
     return;
   }
   if (!isDurationLimitValid.value) {
-    statusText.value = "请先填写合法的最大总时长（1-120 秒）";
+    statusText.value = manualDurationValidationMessage.value;
     return;
   }
   generatingPrompt.value = true;
@@ -869,7 +892,11 @@ async function submitTask() {
   }
   const manualMax = normalizedManualMaxDurationSeconds.value;
   if (durationLimitMode.value === "manual" && manualMax === null) {
-    statusText.value = "请先填写合法的最大总时长（1-120 秒）";
+    statusText.value = manualDurationValidationMessage.value;
+    return;
+  }
+  if (durationLimitMode.value === "manual" && manualDurationValidationMessage.value) {
+    statusText.value = manualDurationValidationMessage.value;
     return;
   }
 
@@ -961,6 +988,18 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
+.new-task-view :deep(.surface-panel),
+.new-task-view :deep(.surface-tile) {
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-raise-soft);
+}
+
+.new-task-view :deep(.surface-chip) {
+  background: var(--bg-surface);
+  color: var(--text-body);
+  box-shadow: var(--shadow-pressed);
+}
+
 .new-task-layout {
   display: grid;
   gap: 1rem;
@@ -990,7 +1029,7 @@ onUnmounted(() => {
 .submit-status {
   margin: 0;
   font-size: 0.9rem;
-  color: #475569;
+  color: var(--text-body);
 }
 
 .panel-head {
@@ -1002,20 +1041,14 @@ onUnmounted(() => {
 }
 
 .panel-eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #5f7895;
+  color: var(--text-muted);
 }
 
 .panel-head h3 {
   margin: 0.2rem 0 0;
-  font-family: "Sora", "PingFang SC", sans-serif;
   font-size: 1.08rem;
   font-weight: 720;
-  color: #0f2744;
+  color: var(--text-strong);
 }
 
 .summary-grid {
@@ -1029,14 +1062,14 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 0.8rem;
   border-radius: 0.8rem;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--bg-surface);
   padding: 0.58rem 0.72rem;
+  box-shadow: var(--shadow-pressed);
 }
 
 .summary-item span {
   font-size: 0.76rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .summary-item strong {
@@ -1045,7 +1078,7 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.8rem;
-  color: #1f334b;
+  color: var(--text-strong);
 }
 
 .trace-list {
@@ -1060,9 +1093,9 @@ onUnmounted(() => {
 
 .trace-item {
   border-radius: 0.8rem;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--bg-surface);
   padding: 0.6rem 0.7rem;
+  box-shadow: var(--shadow-pressed);
 }
 
 .trace-main {
@@ -1070,33 +1103,47 @@ onUnmounted(() => {
   display: grid;
   gap: 0.25rem;
   font-size: 0.82rem;
-  color: #334155;
+  color: var(--text-strong);
 }
 
 .trace-stage {
   display: inline-flex;
   width: fit-content;
   border-radius: 999px;
-  border: 1px solid rgba(37, 99, 235, 0.24);
-  background: rgba(219, 234, 254, 0.72);
-  color: #1d4ed8;
+  background: var(--bg-surface);
+  color: var(--accent-strong);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 0.14rem 0.42rem;
+  box-shadow: var(--shadow-pressed);
 }
 
 .trace-meta {
   margin: 0.35rem 0 0;
   font-size: 0.72rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .trace-empty {
   margin: 0;
   font-size: 0.86rem;
-  color: #64748b;
+  color: var(--text-body);
+}
+
+.seed-source-card {
+  border: 0;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-raise-soft);
+}
+
+.seed-source-card:hover {
+  transform: translateY(-1px);
+}
+
+.seed-source-card:active {
+  box-shadow: var(--shadow-pressed);
 }
 
 @media (min-width: 1200px) {

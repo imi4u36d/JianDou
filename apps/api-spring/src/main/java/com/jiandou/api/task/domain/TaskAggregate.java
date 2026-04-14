@@ -11,7 +11,6 @@ public record TaskAggregate(
     String taskType,
     String title,
     String description,
-    String platform,
     String aspectRatio,
     int minDurationSeconds,
     int maxDurationSeconds,

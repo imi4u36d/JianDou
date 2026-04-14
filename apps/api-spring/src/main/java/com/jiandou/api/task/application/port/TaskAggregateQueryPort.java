@@ -10,7 +10,7 @@ public interface TaskAggregateQueryPort {
 
     TaskRow loadTask(String taskId);
 
-    List<TaskRow> listTasks(String query, String status, String platform);
+    List<TaskRow> listTasks(String query, String status);
 
     List<TaskAttemptRow> listAttempts(String taskId, int limit);
 

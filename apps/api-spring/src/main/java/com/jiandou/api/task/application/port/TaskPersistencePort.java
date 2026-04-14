@@ -1,6 +1,7 @@
 package com.jiandou.api.task.application.port;
 
 import com.jiandou.api.task.TaskRecord;
+import com.jiandou.api.task.TaskPersistenceMutation;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -9,6 +10,8 @@ import java.util.Map;
 public interface TaskPersistencePort {
 
     void save(TaskRecord task);
+
+    void saveMutation(TaskPersistenceMutation mutation);
 
     void saveAttempt(String taskId, Map<String, Object> attempt);
 

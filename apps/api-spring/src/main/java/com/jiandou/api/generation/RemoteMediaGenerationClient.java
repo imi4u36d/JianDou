@@ -48,21 +48,15 @@ public class RemoteMediaGenerationClient {
         String requestedModel,
         String prompt,
         int width,
-        int height
+        int height,
+        Integer seed
     ) {
         if (!profile.ready()) {
             throw new GenerationConfigurationException("image provider config missing api key or base url");
         }
         String modelName = normalizeSeedreamModelName(blankTo(profile.modelName(), requestedModel));
-        String size = width > 1024 || height > 1024 ? "2K" : "1K";
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", modelName);
-        body.put("prompt", prompt);
-        body.put("sequential_image_generation", "disabled");
-        body.put("response_format", "url");
-        body.put("size", size);
-        body.put("stream", false);
-        body.put("watermark", true);
+        String size = seedreamSize(modelName, width, height);
+        Map<String, Object> body = buildSeedreamImageRequestBody(modelName, prompt, size, seed);
         HttpResponse<String> response = sendJson(
             profile.baseUrl(),
             profile.apiKey(),
@@ -104,7 +98,22 @@ public class RemoteMediaGenerationClient {
         );
     }
 
-    public RemoteVideoGenerationResult generateDashscopeVideo(
+    Map<String, Object> buildSeedreamImageRequestBody(String modelName, String prompt, String size, Integer seed) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", modelName);
+        body.put("prompt", prompt);
+        body.put("sequential_image_generation", "disabled");
+        body.put("response_format", "url");
+        body.put("size", size);
+        body.put("stream", false);
+        body.put("watermark", false);
+        if (seed != null) {
+            body.put("seed", seed);
+        }
+        return body;
+    }
+
+    public RemoteVideoTaskSubmission submitDashscopeVideoTask(
         MediaProviderProfile profile,
         String requestedModel,
         String prompt,
@@ -117,18 +126,7 @@ public class RemoteMediaGenerationClient {
             throw new GenerationConfigurationException("video provider config missing endpoint, task endpoint or api key");
         }
         String providerModel = blankTo(profile.modelName(), requestedModel);
-        String normalizedSize = width + "*" + height;
-        Map<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("size", normalizedSize);
-        parameters.put("prompt_extend", profile.promptExtend());
-        parameters.put("duration", durationSeconds);
-        if (seed != null) {
-            parameters.put("seed", seed);
-        }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", providerModel);
-        body.put("input", Map.of("prompt", prompt));
-        body.put("parameters", parameters);
+        Map<String, Object> body = buildDashscopeVideoRequestBody(providerModel, prompt, width, height, durationSeconds, profile.promptExtend(), seed);
         HttpResponse<String> submitResponse = sendJson(
             profile.baseUrl(),
             profile.apiKey(),
@@ -141,42 +139,47 @@ public class RemoteMediaGenerationClient {
         if (taskId.isBlank()) {
             throw new GenerationProviderException("dashscope video task response missing task id");
         }
-        Map<String, Object> resultPayload = pollDashscopeTask(profile, taskId);
-        String videoUrl = extractVideoUrl(resultPayload);
-        if (videoUrl.isBlank()) {
-            throw new GenerationProviderException("dashscope video task completed without video url");
-        }
-        DownloadedBinary binary = downloadBinary(videoUrl, Math.max(profile.timeoutSeconds(), 300));
-        Map<String, Object> output = mapValue(resultPayload.get("output"));
-        String actualPrompt = firstNonBlank(
-            stringValue(output.get("orig_prompt")),
-            stringValue(output.get("actual_prompt"))
-        );
-        return new RemoteVideoGenerationResult(
-            binary.data(),
-            binary.mimeType().isBlank() ? "video/mp4" : binary.mimeType(),
-            videoUrl,
+        return new RemoteVideoTaskSubmission(
             profile.provider(),
-            providerModel,
+            requestedModel,
             providerModel,
             profile.endpointHost(),
             profile.taskEndpointHost(),
             taskId,
-            width,
-            height,
-            durationSeconds,
-            true,
-            "",
             "",
             "",
             false,
             true,
-            actualPrompt,
+            prompt,
             0
         );
     }
 
-    public RemoteVideoGenerationResult generateSeedanceVideo(
+    Map<String, Object> buildDashscopeVideoRequestBody(
+        String providerModel,
+        String prompt,
+        int width,
+        int height,
+        int durationSeconds,
+        boolean promptExtend,
+        Integer seed
+    ) {
+        String normalizedSize = width + "*" + height;
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("size", normalizedSize);
+        parameters.put("prompt_extend", promptExtend);
+        parameters.put("duration", durationSeconds);
+        if (seed != null) {
+            parameters.put("seed", seed);
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", providerModel);
+        body.put("input", Map.of("prompt", prompt));
+        body.put("parameters", parameters);
+        return body;
+    }
+
+    public RemoteVideoTaskSubmission submitSeedanceVideoTask(
         MediaProviderProfile profile,
         String requestedModel,
         String prompt,
@@ -185,6 +188,9 @@ public class RemoteMediaGenerationClient {
         int durationSeconds,
         String firstFrameUrl,
         String lastFrameUrl,
+        Integer seed,
+        boolean cameraFixed,
+        boolean watermark,
         boolean returnLastFrame,
         boolean generateAudio
     ) {
@@ -195,6 +201,62 @@ public class RemoteMediaGenerationClient {
             throw new GenerationProviderException("seedance video requires firstFrameUrl");
         }
         String providerModel = normalizeSeedanceModelName(blankTo(profile.modelName(), requestedModel));
+        Map<String, Object> body = buildSeedanceVideoRequestBody(
+            providerModel,
+            prompt,
+            width,
+            height,
+            durationSeconds,
+            firstFrameUrl,
+            lastFrameUrl,
+            seed,
+            cameraFixed,
+            watermark,
+            returnLastFrame,
+            generateAudio
+        );
+        HttpResponse<String> submitResponse = sendJson(
+            profile.baseUrl(),
+            profile.apiKey(),
+            body,
+            profile.timeoutSeconds(),
+            Map.of("X-Api-Key", profile.apiKey())
+        );
+        Map<String, Object> submitPayload = decode(submitResponse.body());
+        String taskId = extractTaskId(submitPayload);
+        if (taskId.isBlank()) {
+            throw new GenerationProviderException("seedance task response missing task id");
+        }
+        return new RemoteVideoTaskSubmission(
+            profile.provider(),
+            requestedModel,
+            providerModel,
+            profile.endpointHost(),
+            profile.taskEndpointHost(),
+            taskId,
+            firstFrameUrl,
+            lastFrameUrl == null ? "" : lastFrameUrl,
+            returnLastFrame,
+            generateAudio,
+            prompt,
+            0
+        );
+    }
+
+    Map<String, Object> buildSeedanceVideoRequestBody(
+        String providerModel,
+        String prompt,
+        int width,
+        int height,
+        int durationSeconds,
+        String firstFrameUrl,
+        String lastFrameUrl,
+        Integer seed,
+        boolean cameraFixed,
+        boolean watermark,
+        boolean returnLastFrame,
+        boolean generateAudio
+    ) {
         List<Map<String, Object>> content = new ArrayList<>();
         content.add(Map.of("type", "text", "text", prompt));
         content.add(Map.of(
@@ -215,21 +277,101 @@ public class RemoteMediaGenerationClient {
         body.put("ratio", aspectRatio(width, height));
         body.put("resolution", seedanceResolution(width, height));
         body.put("duration", durationSeconds);
+        if (seed != null) {
+            body.put("seed", seed);
+        }
+        body.put("camera_fixed", cameraFixed);
+        body.put("watermark", watermark);
         body.put("return_last_frame", returnLastFrame);
         body.put("generate_audio", generateAudio);
-        HttpResponse<String> submitResponse = sendJson(
-            profile.baseUrl(),
-            profile.apiKey(),
-            body,
-            profile.timeoutSeconds(),
-            Map.of("X-Api-Key", profile.apiKey())
+        return body;
+    }
+
+    public RemoteVideoGenerationResult generateDashscopeVideo(
+        MediaProviderProfile profile,
+        String requestedModel,
+        String prompt,
+        int width,
+        int height,
+        int durationSeconds,
+        Integer seed
+    ) {
+        RemoteVideoTaskSubmission submission = submitDashscopeVideoTask(
+            profile,
+            requestedModel,
+            prompt,
+            width,
+            height,
+            durationSeconds,
+            seed
         );
-        Map<String, Object> submitPayload = decode(submitResponse.body());
-        String taskId = extractTaskId(submitPayload);
-        if (taskId.isBlank()) {
-            throw new GenerationProviderException("seedance task response missing task id");
+        Map<String, Object> resultPayload = waitForDashscopeTask(profile, submission.taskId());
+        String videoUrl = extractVideoUrl(resultPayload);
+        if (videoUrl.isBlank()) {
+            throw new GenerationProviderException("dashscope video task completed without video url");
         }
-        Map<String, Object> resultPayload = pollSeedanceTask(profile, taskId);
+        DownloadedBinary binary = downloadBinary(videoUrl, Math.max(profile.timeoutSeconds(), 300));
+        Map<String, Object> output = mapValue(resultPayload.get("output"));
+        String actualPrompt = firstNonBlank(
+            stringValue(output.get("orig_prompt")),
+            stringValue(output.get("actual_prompt")),
+            submission.actualPrompt()
+        );
+        return new RemoteVideoGenerationResult(
+            binary.data(),
+            binary.mimeType().isBlank() ? "video/mp4" : binary.mimeType(),
+            videoUrl,
+            submission.provider(),
+            submission.providerModel(),
+            submission.providerModel(),
+            submission.endpointHost(),
+            submission.taskEndpointHost(),
+            submission.taskId(),
+            width,
+            height,
+            durationSeconds,
+            true,
+            "",
+            "",
+            "",
+            false,
+            true,
+            actualPrompt,
+            submission.submitLatencyMs()
+        );
+    }
+
+    public RemoteVideoGenerationResult generateSeedanceVideo(
+        MediaProviderProfile profile,
+        String requestedModel,
+        String prompt,
+        int width,
+        int height,
+        int durationSeconds,
+        String firstFrameUrl,
+        String lastFrameUrl,
+        Integer seed,
+        boolean cameraFixed,
+        boolean watermark,
+        boolean returnLastFrame,
+        boolean generateAudio
+    ) {
+        RemoteVideoTaskSubmission submission = submitSeedanceVideoTask(
+            profile,
+            requestedModel,
+            prompt,
+            width,
+            height,
+            durationSeconds,
+            firstFrameUrl,
+            lastFrameUrl,
+            seed,
+            cameraFixed,
+            watermark,
+            returnLastFrame,
+            generateAudio
+        );
+        Map<String, Object> resultPayload = waitForSeedanceTask(profile, submission.taskId());
         String videoUrl = extractVideoUrl(resultPayload);
         if (videoUrl.isBlank()) {
             throw new GenerationProviderException("seedance task completed without video url");
@@ -240,23 +382,49 @@ public class RemoteMediaGenerationClient {
             binary.data(),
             binary.mimeType().isBlank() ? "video/mp4" : binary.mimeType(),
             videoUrl,
-            profile.provider(),
-            requestedModel,
-            providerModel,
-            profile.endpointHost(),
-            profile.taskEndpointHost(),
-            taskId,
+            submission.provider(),
+            submission.requestedModel(),
+            submission.providerModel(),
+            submission.endpointHost(),
+            submission.taskEndpointHost(),
+            submission.taskId(),
             width,
             height,
             durationSeconds,
-            generateAudio,
-            firstFrameUrl,
-            lastFrameUrl == null ? "" : lastFrameUrl,
+            submission.generateAudio(),
+            submission.firstFrameUrl(),
+            submission.requestedLastFrameUrl(),
             resolvedLastFrameUrl,
-            returnLastFrame,
-            generateAudio,
-            prompt,
-            0
+            submission.returnLastFrame(),
+            submission.generateAudio(),
+            submission.actualPrompt(),
+            submission.submitLatencyMs()
+        );
+    }
+
+    public RemoteTaskQueryResult queryDashscopeTask(MediaProviderProfile profile, String remoteTaskId) {
+        String normalizedTaskId = stringValue(remoteTaskId);
+        if (normalizedTaskId.isBlank()) {
+            throw new GenerationProviderException("dashscope task id is required");
+        }
+        if (!profile.ready() || profile.taskBaseUrl() == null || profile.taskBaseUrl().isBlank()) {
+            throw new GenerationConfigurationException("dashscope config missing task endpoint or api key");
+        }
+        String pollUrl = profile.taskBaseUrl().replaceAll("/+$", "") + "/" + encodePathSegment(normalizedTaskId);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(pollUrl))
+            .header("Authorization", "Bearer " + profile.apiKey())
+            .header("Accept", "application/json")
+            .timeout(Duration.ofSeconds(Math.max(15, profile.timeoutSeconds())))
+            .GET()
+            .build();
+        HttpResponse<String> response = send(request, "dashscope task query failed");
+        Map<String, Object> payload = decode(response.body());
+        return new RemoteTaskQueryResult(
+            firstNonBlank(extractTaskId(payload), normalizedTaskId),
+            extractTaskStatus(payload),
+            extractVideoUrl(payload),
+            extractTaskMessage(payload),
+            payload
         );
     }
 
@@ -306,53 +474,48 @@ public class RemoteMediaGenerationClient {
         return send(builder.build(), "provider request failed");
     }
 
-    private Map<String, Object> pollDashscopeTask(MediaProviderProfile profile, String taskId) {
+    private Map<String, Object> waitForDashscopeTask(MediaProviderProfile profile, String taskId) {
         long deadline = System.currentTimeMillis() + Math.max(30, profile.pollTimeoutSeconds()) * 1000L;
-        String pollUrl = profile.taskBaseUrl().replaceAll("/+$", "") + "/" + taskId;
         while (System.currentTimeMillis() < deadline) {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(pollUrl))
-                .header("Authorization", "Bearer " + profile.apiKey())
-                .timeout(Duration.ofSeconds(Math.max(15, profile.timeoutSeconds())))
-                .GET()
-                .build();
-            HttpResponse<String> response = send(request, "dashscope task poll failed");
-            Map<String, Object> payload = decode(response.body());
-            Map<String, Object> output = mapValue(payload.get("output"));
-            String status = stringValue(output.get("task_status")).toUpperCase(Locale.ROOT);
-            if ("SUCCEEDED".equals(status)) {
-                return payload;
+            RemoteTaskQueryResult result = queryDashscopeTask(profile, taskId);
+            String status = normalizeStatus(result.status());
+            if (isSuccessStatus(status)) {
+                return result.payload();
             }
-            if ("FAILED".equals(status) || "CANCELED".equals(status) || "CANCELLED".equals(status)) {
-                throw new GenerationProviderException(firstNonBlank(stringValue(output.get("message")), "dashscope task failed"));
+            if (isFailureStatus(status)) {
+                throw new GenerationProviderException(firstNonBlank(result.message(), "dashscope task failed"));
             }
             sleepSeconds(profile.pollIntervalSeconds());
         }
         throw new GenerationProviderException("dashscope task poll timeout");
     }
 
-    private Map<String, Object> pollSeedanceTask(MediaProviderProfile profile, String taskId) {
+    private Map<String, Object> waitForSeedanceTask(MediaProviderProfile profile, String taskId) {
         long deadline = System.currentTimeMillis() + Math.max(30, profile.pollTimeoutSeconds()) * 1000L;
-        String pollUrl = profile.taskBaseUrl().replaceAll("/+$", "") + "/" + taskId;
         while (System.currentTimeMillis() < deadline) {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(pollUrl))
-                .header("Authorization", "Bearer " + profile.apiKey())
-                .header("X-Api-Key", profile.apiKey())
-                .header("Accept", "application/json")
-                .timeout(Duration.ofSeconds(Math.max(15, profile.timeoutSeconds())))
-                .GET()
-                .build();
-            HttpResponse<String> response = send(request, "seedance task poll failed");
-            Map<String, Object> payload = decode(response.body());
-            String status = extractTaskStatus(payload);
-            if (List.of("SUCCEEDED", "SUCCESS", "DONE", "COMPLETED", "FINISHED").contains(status)) {
-                return payload;
+            RemoteTaskQueryResult result = querySeedanceTask(profile, taskId);
+            String status = normalizeStatus(result.status());
+            if (isSuccessStatus(status)) {
+                return result.payload();
             }
-            if (List.of("FAILED", "FAIL", "CANCELED", "CANCELLED").contains(status)) {
-                throw new GenerationProviderException(firstNonBlank(extractTaskMessage(payload), "seedance task failed"));
+            if (isFailureStatus(status)) {
+                throw new GenerationProviderException(firstNonBlank(result.message(), "seedance task failed"));
             }
             sleepSeconds(profile.pollIntervalSeconds());
         }
         throw new GenerationProviderException("seedance task poll timeout");
+    }
+
+    private boolean isSuccessStatus(String status) {
+        return List.of("SUCCEEDED", "SUCCESS", "DONE", "COMPLETED", "FINISHED").contains(normalizeStatus(status));
+    }
+
+    private boolean isFailureStatus(String status) {
+        return List.of("FAILED", "FAIL", "CANCELED", "CANCELLED", "ERROR").contains(normalizeStatus(status));
+    }
+
+    private String normalizeStatus(String status) {
+        return stringValue(status).toUpperCase(Locale.ROOT);
     }
 
     private DownloadedBinary downloadBinary(String url, int timeoutSeconds) {
@@ -519,6 +682,14 @@ public class RemoteMediaGenerationClient {
             return "720p";
         }
         return "480p";
+    }
+
+    String seedreamSize(String modelName, int width, int height) {
+        String normalizedModel = normalizeSeedreamModelName(modelName);
+        if ("doubao-seedream-4-5-251128".equals(normalizedModel)) {
+            return "2K";
+        }
+        return "1K";
     }
 
     private void sleepSeconds(int seconds) {

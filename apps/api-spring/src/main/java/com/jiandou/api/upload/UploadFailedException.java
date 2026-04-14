@@ -1,8 +1,11 @@
 package com.jiandou.api.upload;
 
-public final class UploadFailedException extends RuntimeException {
+import com.jiandou.api.common.exception.ApiException;
+import org.springframework.http.HttpStatus;
+
+public final class UploadFailedException extends ApiException {
 
     public UploadFailedException(String message, Throwable cause) {
-        super(message, cause);
+        super(HttpStatus.INTERNAL_SERVER_ERROR, "UPLOAD_SAVE_FAILED", message, cause);
     }
 }

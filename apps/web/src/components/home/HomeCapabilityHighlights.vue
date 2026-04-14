@@ -55,11 +55,8 @@ const items = [
 .highlights {
   border-radius: 26px;
   padding: clamp(1rem, 2.6vw, 1.6rem);
-  border: 1px solid rgba(185, 203, 233, 0.58);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(246, 250, 255, 0.72)),
-    radial-gradient(circle at 12% 16%, rgba(104, 169, 255, 0.16), transparent 34%);
-  box-shadow: 0 16px 38px rgba(37, 60, 96, 0.11);
+  background-color: #E0E5EC;
+  box-shadow: 18px 18px 45px rgba(145, 164, 186, 0.45), -14px -14px 32px rgba(255, 255, 255, 0.9);
 }
 
 .section-head {
@@ -72,14 +69,14 @@ const items = [
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #5f7597;
+  color: #5f6573;
 }
 
 .section-title {
   margin: 0.48rem 0 0;
-  font-family: "Sora", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-family: "Inter", "PingFang SC", "Noto Sans SC", sans-serif;
   font-size: clamp(1.2rem, 3vw, 1.7rem);
-  color: #132f56;
+  color: #1f242c;
 }
 
 .highlight-grid {
@@ -90,26 +87,20 @@ const items = [
 
 .highlight-card {
   border-radius: 18px;
-  border: 1px solid rgba(199, 215, 241, 0.72);
-  background:
-    radial-gradient(circle at 6% 10%, rgba(124, 210, 255, 0.14), transparent 40%),
-    rgba(255, 255, 255, 0.82);
   padding: 1rem;
+  background-color: #E0E5EC;
+  box-shadow: 12px 12px 28px rgba(145, 164, 186, 0.35), -8px -8px 20px rgba(255, 255, 255, 0.9);
 }
 
 .highlight-card-featured {
   grid-column: 1 / -1;
   padding: 1.2rem;
-  background:
-    radial-gradient(circle at 86% 22%, rgba(90, 167, 255, 0.24), transparent 34%),
-    linear-gradient(135deg, rgba(13, 46, 93, 0.96), rgba(16, 63, 122, 0.94));
-  border: 1px solid rgba(112, 158, 226, 0.56);
+  background-color: #d7dce6;
+  box-shadow: 14px 14px 32px rgba(145, 164, 186, 0.45), -10px -10px 26px rgba(255, 255, 255, 0.9);
 }
 
 .highlight-card-warm {
-  background:
-    radial-gradient(circle at 84% 20%, rgba(255, 178, 119, 0.26), transparent 36%),
-    linear-gradient(160deg, rgba(255, 248, 236, 0.95), rgba(255, 251, 245, 0.86));
+  background-color: #E0E5EC;
 }
 
 .card-tag {
@@ -123,29 +114,29 @@ const items = [
 
 .card-title {
   margin: 0.38rem 0 0;
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: #153358;
+  color: #1f242c;
 }
 
 .card-description {
   margin: 0.55rem 0 0;
   font-size: 0.9rem;
   line-height: 1.68;
-  color: #4b6384;
+  color: #4c5262;
 }
 
 .highlight-card-featured .card-tag {
-  color: rgba(190, 216, 255, 0.9);
+  color: #4c5262;
 }
 
 .highlight-card-featured .card-title {
-  color: #eef4ff;
+  color: #1f242c;
   font-size: 1.1rem;
 }
 
 .highlight-card-featured .card-description {
-  color: rgba(205, 222, 245, 0.9);
+  color: #4c5262;
 }
 
 @media (max-width: 1024px) {

@@ -129,16 +129,16 @@ watch(
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.85rem;
-  border: 1px solid rgba(125, 151, 187, 0.16);
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.66);
+  background: var(--bg-surface);
   padding: 0.9rem;
+  box-shadow: var(--shadow-pressed);
 }
 
 .developer-toggle strong,
 .developer-option strong {
   display: block;
-  color: #18324d;
+  color: var(--text-strong);
   font-size: 0.88rem;
 }
 
@@ -146,15 +146,15 @@ watch(
 .developer-option small {
   display: block;
   margin-top: 0.22rem;
-  color: #6b7f94;
+  color: var(--text-body);
   line-height: 1.5;
 }
 
 .developer-toggle__input,
 .developer-option input {
   margin-top: 0.2rem;
-  width: 1rem;
-  height: 1rem;
-  accent-color: #1d4ed8;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent-strong);
 }
 </style>

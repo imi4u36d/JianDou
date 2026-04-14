@@ -1,10 +1,9 @@
 package com.jiandou.api.admin;
 
-import com.jiandou.api.task.TaskNotFoundException;
 import com.jiandou.api.task.application.TaskApplicationService;
+import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
 import java.util.List;
 import java.util.Map;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,8 +11,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * 管理端接口聚合任务运营视图、诊断和批量控制能力。
+ */
 @RestController
 @RequestMapping("/api/v2/admin")
 public class AdminController {
@@ -33,20 +34,19 @@ public class AdminController {
     public List<Map<String, Object>> listTasks(
         @RequestParam(value = "q", required = false) String q,
         @RequestParam(value = "status", required = false) String status,
-        @RequestParam(value = "platform", required = false) String platform,
         @RequestParam(value = "sort", required = false) String sort
     ) {
-        return taskService.listTasks(q, status, platform, sort);
+        return taskService.listTasks(q, status, sort);
     }
 
     @GetMapping("/tasks/{taskId}")
     public Map<String, Object> getTask(@PathVariable String taskId) {
-        return invoke(() -> taskService.getTask(taskId));
+        return taskService.getTask(taskId);
     }
 
     @GetMapping("/tasks/{taskId}/trace")
     public List<Map<String, Object>> getTaskTrace(@PathVariable String taskId, @RequestParam(value = "limit", required = false) Integer limit) {
-        return invoke(() -> taskService.getTrace(taskId, limit == null ? 500 : limit));
+        return taskService.getTrace(taskId, limit == null ? 500 : limit);
     }
 
     @GetMapping("/traces")
@@ -67,7 +67,7 @@ public class AdminController {
 
     @GetMapping("/workers/{workerInstanceId}")
     public Map<String, Object> getWorker(@PathVariable String workerInstanceId) {
-        return invoke(() -> taskService.adminWorker(workerInstanceId));
+        return taskService.adminWorker(workerInstanceId);
     }
 
     @GetMapping("/queue")
@@ -88,35 +88,35 @@ public class AdminController {
         @PathVariable String taskId,
         @RequestParam(value = "limit", required = false) Integer limit
     ) {
-        return invoke(() -> taskService.adminQueueEvents(taskId, limit == null ? 200 : limit));
+        return taskService.adminQueueEvents(taskId, limit == null ? 200 : limit);
     }
 
     @GetMapping("/tasks/{taskId}/diagnosis")
     public Map<String, Object> getTaskDiagnosis(@PathVariable String taskId) {
-        return invoke(() -> taskService.adminTaskDiagnosis(taskId));
+        return taskService.adminTaskDiagnosis(taskId);
     }
 
     @PostMapping("/tasks/{taskId}/retry")
     public Map<String, Object> retry(@PathVariable String taskId) {
-        return invoke(() -> taskService.retryTask(taskId));
+        return taskService.retryTask(taskId);
     }
 
     @PostMapping("/tasks/{taskId}/terminate")
     public Map<String, Object> terminate(@PathVariable String taskId) {
-        return invoke(() -> taskService.terminateTask(taskId));
+        return taskService.terminateTask(taskId);
     }
 
     @PostMapping("/tasks/{taskId}/effect-rating")
     public Map<String, Object> rateEffect(
         @PathVariable String taskId,
-        @org.springframework.web.bind.annotation.RequestBody com.jiandou.api.task.TaskController.RateTaskEffectRequest request
+        @org.springframework.web.bind.annotation.RequestBody RateTaskEffectRequest request
     ) {
-        return invoke(() -> taskService.rateTaskEffect(taskId, request));
+        return taskService.rateTaskEffect(taskId, request);
     }
 
     @DeleteMapping("/tasks/{taskId}")
     public Map<String, Object> delete(@PathVariable String taskId) {
-        return invoke(() -> taskService.deleteTask(taskId));
+        return taskService.deleteTask(taskId);
     }
 
     @PostMapping("/tasks/bulk-delete")
@@ -141,21 +141,6 @@ public class AdminController {
             "succeededTaskIds", taskIds,
             "failed", List.of()
         );
-    }
-
-    private <T> T invoke(Callback<T> callback) {
-        try {
-            return callback.call();
-        } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
-        } catch (TaskNotFoundException ex) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found", ex);
-        }
-    }
-
-    @FunctionalInterface
-    private interface Callback<T> {
-        T call();
     }
 
     public record TaskIdsRequest(List<String> taskIds) {}

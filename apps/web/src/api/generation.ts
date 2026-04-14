@@ -15,6 +15,8 @@ const CATALOG_ENDPOINT = "/api/v2/generation/catalog";
 const RUNS_ENDPOINT = "/api/v2/generation/runs";
 const RUN_DETAILS_ENDPOINT = (runId: string) => `/api/v2/generation/runs/${encodeURIComponent(runId)}`;
 const USAGE_ENDPOINT = "/api/v2/generation/usage";
+const RUN_POLL_INTERVAL_MS = 1200;
+const RUN_POLL_TIMEOUT_MS = 120000;
 
 function asRecord(value: unknown): UnknownRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -42,7 +44,7 @@ function asNumber(value: unknown): number | null {
 
 function parseImageSize(size: string | undefined): { width: number; height: number } {
   const normalized = (size ?? "").trim();
-  const match = normalized.match(/^(\d+)\s*[xX]\s*(\d+)$/);
+  const match = normalized.match(/^(\d+)\s*[xX*]\s*(\d+)$/);
   if (!match) {
     return { width: 1024, height: 1024 };
   }
@@ -89,7 +91,6 @@ function normalizeOptions(raw: unknown): GenerationOptionsResponse {
   return {
     aspectRatios: Array.isArray(record.aspectRatios) ? (record.aspectRatios as GenerationOptionsResponse["aspectRatios"]) : [],
     defaultAspectRatio: asString(record.defaultAspectRatio) || null,
-    defaultPlatform: asString(record.defaultPlatform) || null,
     stylePresets: Array.isArray(record.stylePresets) ? (record.stylePresets as GenerationOptionsResponse["stylePresets"]) : [],
     imageSizes: Array.isArray(record.imageSizes) ? (record.imageSizes as GenerationOptionsResponse["imageSizes"]) : [],
     textAnalysisModels: Array.isArray(record.textAnalysisModels)
@@ -192,6 +193,52 @@ function normalizeMediaRunResult(rawRun: unknown, requestPayload: GenerateMediaR
   };
 }
 
+function hasTerminalRunResult(rawRun: unknown): boolean {
+  const run = asRecord(rawRun) ?? {};
+  const resultRecord =
+    asRecord(run.result) ??
+    asRecord(run.resultImage) ??
+    asRecord(run.resultVideo) ??
+    {};
+  const metadata = asRecord(resultRecord.metadata) ?? {};
+  return Boolean(
+    asString(resultRecord.outputUrl) ||
+    asString(resultRecord.thumbnailUrl) ||
+    asString(metadata.outputUrl) ||
+    asString(metadata.fileUrl),
+  );
+}
+
+function runStatus(rawRun: unknown): string {
+  const run = asRecord(rawRun) ?? {};
+  return asString(run.status).toLowerCase();
+}
+
+async function delay(ms: number) {
+  await new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitForRunResult(runId: string, initialRun?: unknown) {
+  const startedAt = Date.now();
+  let latestRun = initialRun;
+  while (Date.now() - startedAt < RUN_POLL_TIMEOUT_MS) {
+    if (latestRun && hasTerminalRunResult(latestRun)) {
+      return latestRun;
+    }
+    if (latestRun) {
+      const status = runStatus(latestRun);
+      if (status === "failed" || status === "cancelled" || status === "canceled") {
+        return latestRun;
+      }
+    }
+    await delay(RUN_POLL_INTERVAL_MS);
+    latestRun = await getJson<unknown>(RUN_DETAILS_ENDPOINT(runId));
+  }
+  throw new Error("生成任务等待超时，请稍后在任务列表中查看结果");
+}
+
 export async function fetchGenerationOptions() {
   const raw = await getJson<unknown>(CATALOG_ENDPOINT);
   return normalizeOptions(raw);
@@ -203,7 +250,7 @@ export async function generateMediaFromText(payload: GenerateMediaRequest) {
   const runRecord = asRecord(run) ?? {};
   const status = asString(runRecord.status).toLowerCase();
   if ((status === "accepted" || status === "running") && asString(runRecord.id)) {
-    run = await getJson<unknown>(RUN_DETAILS_ENDPOINT(asString(runRecord.id)));
+    run = await waitForRunResult(asString(runRecord.id), run);
   }
   return normalizeMediaRunResult(run, payload);
 }

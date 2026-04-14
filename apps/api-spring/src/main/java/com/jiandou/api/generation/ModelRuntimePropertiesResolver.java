@@ -1,18 +1,16 @@
 package com.jiandou.api.generation;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.YamlMapFactoryBean;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
@@ -21,14 +19,23 @@ import org.springframework.stereotype.Service;
 @Service
 public class ModelRuntimePropertiesResolver {
 
-    private static final Pattern SECTION_PATTERN = Pattern.compile("^\\[(.+)]$");
-    private static final Pattern ASSIGN_PATTERN = Pattern.compile("^([A-Za-z0-9_.\\-\"']+)\\s*=\\s*(.+)$");
+    private static final Logger log = LoggerFactory.getLogger(ModelRuntimePropertiesResolver.class);
 
     private final Environment environment;
-    private volatile ConfigSnapshot snapshot;
+    private final GenerationConfigPathLocator configPathLocator;
+    private final long cacheTtlMillis;
+    private final boolean failFastOnConfigError;
+    private volatile CachedSnapshot cachedSnapshot;
 
     public ModelRuntimePropertiesResolver(Environment environment) {
+        this(environment, new GenerationConfigPathLocator(environment));
+    }
+
+    public ModelRuntimePropertiesResolver(Environment environment, GenerationConfigPathLocator configPathLocator) {
         this.environment = environment;
+        this.configPathLocator = configPathLocator;
+        this.cacheTtlMillis = resolveCacheTtlMillis();
+        this.failFastOnConfigError = resolveConfigFailFast();
     }
 
     public ModelRuntimeProfile resolveTextProfile(String requestedModel) {
@@ -121,6 +128,16 @@ public class ModelRuntimePropertiesResolver {
         return snapshot().source();
     }
 
+    public List<String> configErrors() {
+        return snapshot().errors();
+    }
+
+    public void refresh() {
+        synchronized (this) {
+            cachedSnapshot = null;
+        }
+    }
+
     public String value(String section, String key, String fallback) {
         return firstNonBlank(snapshot().value(section, key), fallback);
     }
@@ -195,6 +212,8 @@ public class ModelRuntimePropertiesResolver {
                 5,
                 120,
                 false,
+                false,
+                true,
                 current.source()
             );
         }
@@ -211,6 +230,8 @@ public class ModelRuntimePropertiesResolver {
             5,
             120,
             false,
+            false,
+            true,
             current.source()
         );
     }
@@ -229,6 +250,8 @@ public class ModelRuntimePropertiesResolver {
                 intValue(firstNonBlank(current.value("model.providers.seedance.extras", "poll_interval_seconds"), "8"), 8),
                 intValue(firstNonBlank(current.value("model.providers.seedance.extras", "poll_timeout_seconds"), "600"), 600),
                 false,
+                false,
+                true,
                 current.source()
             );
         }
@@ -250,64 +273,86 @@ public class ModelRuntimePropertiesResolver {
             intValue(firstNonBlank(current.value(providerSection + ".extras", "poll_interval_seconds"), "8"), 8),
             intValue(firstNonBlank(current.value(providerSection + ".extras", "poll_timeout_seconds"), "600"), 600),
             boolValue(current.value(providerSection + ".extras", "prompt_extend")),
+            boolValue(current.value(providerSection + ".extras", "camera_fixed")),
+            !current.value(providerSection + ".extras", "watermark").isBlank()
+                ? boolValue(current.value(providerSection + ".extras", "watermark"))
+                : true,
             current.source()
         );
     }
 
     private ConfigSnapshot snapshot() {
-        ConfigSnapshot current = snapshot;
-        if (current != null) {
-            return current;
+        long now = System.currentTimeMillis();
+        CachedSnapshot current = cachedSnapshot;
+        if (cacheStillValid(current, now)) {
+            return current.snapshot();
         }
         synchronized (this) {
-            if (snapshot == null) {
-                snapshot = loadSnapshot();
+            CachedSnapshot latest = cachedSnapshot;
+            if (cacheStillValid(latest, now)) {
+                return latest.snapshot();
             }
-            return snapshot;
+            GenerationConfigPathLocator.LocatedConfig locatedConfig = configPathLocator.locateAppConfig();
+            ConfigFileState fileState = ConfigFileState.from(locatedConfig.configFile());
+            // Cache invalidates on TTL expiry, config path change, or file fingerprint change.
+            if (cacheEnabled() && latest != null && latest.matches(fileState, locatedConfig.configFile())) {
+                cachedSnapshot = latest.refresh(now);
+                return latest.snapshot();
+            }
+            ConfigSnapshot loaded = loadSnapshot(locatedConfig);
+            cachedSnapshot = new CachedSnapshot(loaded, locatedConfig.configFile(), fileState, now);
+            return loaded;
         }
     }
 
-    private ConfigSnapshot loadSnapshot() {
-        Path configPath = locateConfigFile();
+    private ConfigSnapshot loadSnapshot(GenerationConfigPathLocator.LocatedConfig locatedConfig) {
+        Path configPath = locatedConfig.configFile();
         if (configPath == null || !Files.exists(configPath)) {
-            return new ConfigSnapshot(Map.of(), "");
+            String message = "Generation config file missing: " + locatedConfig.detail();
+            log.warn(message);
+            return failOrSnapshot(Map.of(), locatedConfig.source(), message, null);
         }
         try {
             return new ConfigSnapshot(
                 loadConfigTree(configPath),
-                configPath.toAbsolutePath().normalize().toString()
+                "file:" + configPath.toAbsolutePath().normalize(),
+                List.of()
             );
-        } catch (IOException ignored) {
-            return new ConfigSnapshot(Map.of(), "");
+        } catch (RuntimeException ex) {
+            String message = "Failed to load generation config from " + configPath.toAbsolutePath().normalize() + ": " + ex.getMessage();
+            log.error(message, ex);
+            return failOrSnapshot(Map.of(), "error:" + configPath.toAbsolutePath().normalize(), message, ex);
         }
     }
 
-    private Map<String, Object> loadConfigTree(Path configPath) throws IOException {
-        String lowerCaseName = configPath.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (lowerCaseName.endsWith(".yml") || lowerCaseName.endsWith(".yaml")) {
-            return loadYamlTree(configPath);
+    private ConfigSnapshot failOrSnapshot(
+        Map<String, Object> root,
+        String source,
+        String message,
+        RuntimeException cause
+    ) {
+        if (failFastOnConfigError) {
+            if (cause == null) {
+                throw new GenerationConfigurationException(message);
+            }
+            throw new GenerationConfigurationException(message + " (cause=" + cause.getClass().getSimpleName() + ")");
         }
-        return loadTomlTree(configPath);
+        return new ConfigSnapshot(root, source, List.of(message));
     }
 
-    private Path locateConfigFile() {
-        Path current = Paths.get("").toAbsolutePath().normalize();
-        for (int depth = 0; depth < 6 && current != null; depth++) {
-            Path yaml = current.resolve("config").resolve("app.yml");
-            if (Files.exists(yaml)) {
-                return yaml;
-            }
-            Path yml = current.resolve("config").resolve("app.yaml");
-            if (Files.exists(yml)) {
-                return yml;
-            }
-            Path toml = current.resolve("config").resolve("app.toml");
-            if (Files.exists(toml)) {
-                return toml;
-            }
-            current = current.getParent();
+    private boolean cacheStillValid(CachedSnapshot cached, long now) {
+        if (!cacheEnabled() || cached == null) {
+            return false;
         }
-        return null;
+        return now - cached.loadedAtMillis() < cacheTtlMillis;
+    }
+
+    private boolean cacheEnabled() {
+        return cacheTtlMillis > 0L;
+    }
+
+    private Map<String, Object> loadConfigTree(Path configPath) {
+        return loadYamlTree(configPath);
     }
 
     private Map<String, Object> loadYamlTree(Path configPath) {
@@ -316,61 +361,6 @@ public class ModelRuntimePropertiesResolver {
         factory.afterPropertiesSet();
         Map<String, Object> loaded = factory.getObject();
         return loaded == null ? Map.of() : normalizeMap(loaded);
-    }
-
-    private Map<String, Object> loadTomlTree(Path configPath) throws IOException {
-        Map<String, Object> root = new LinkedHashMap<>();
-        String currentSection = "";
-        List<String> lines = Files.readAllLines(configPath, StandardCharsets.UTF_8);
-        for (String rawLine : lines) {
-            String line = stripInlineComment(rawLine).trim();
-            if (line.isEmpty()) {
-                continue;
-            }
-            Matcher sectionMatcher = SECTION_PATTERN.matcher(line);
-            if (sectionMatcher.matches()) {
-                currentSection = sectionMatcher.group(1).trim();
-                continue;
-            }
-            Matcher assignMatcher = ASSIGN_PATTERN.matcher(line);
-            if (!assignMatcher.matches()) {
-                continue;
-            }
-            String key = unquote(assignMatcher.group(1).trim());
-            String value = parseTomlValue(assignMatcher.group(2).trim());
-            List<String> path = new ArrayList<>(parsePath(currentSection));
-            path.add(key);
-            putPathValue(root, path, value);
-        }
-        return root;
-    }
-
-    private String stripInlineComment(String rawLine) {
-        boolean inDoubleQuotes = false;
-        boolean inSingleQuotes = false;
-        StringBuilder builder = new StringBuilder();
-        for (int index = 0; index < rawLine.length(); index++) {
-            char current = rawLine.charAt(index);
-            if (current == '"' && !inSingleQuotes) {
-                inDoubleQuotes = !inDoubleQuotes;
-            } else if (current == '\'' && !inDoubleQuotes) {
-                inSingleQuotes = !inDoubleQuotes;
-            } else if (current == '#' && !inDoubleQuotes && !inSingleQuotes) {
-                break;
-            }
-            builder.append(current);
-        }
-        return builder.toString();
-    }
-
-    private String parseTomlValue(String value) {
-        String trimmed = value.trim();
-        if (trimmed.length() >= 2) {
-            if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-                return trimmed.substring(1, trimmed.length() - 1);
-            }
-        }
-        return trimmed;
     }
 
     private String property(String key) {
@@ -453,6 +443,41 @@ public class ModelRuntimePropertiesResolver {
         return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
     }
 
+    private long resolveCacheTtlMillis() {
+        int seconds = intValue(
+            firstNonBlank(
+                property("JIANDOU_CONFIG_CACHE_TTL_SECONDS"),
+                property("jiandou.config.cache-ttl-seconds"),
+                property("JIANDOU_CONFIG_REFRESH_SECONDS"),
+                property("jiandou.config.refresh-seconds"),
+                "5"
+            ),
+            5
+        );
+        if (seconds < 0) {
+            seconds = 0;
+        }
+        if (seconds > 3600) {
+            seconds = 3600;
+        }
+        return seconds * 1000L;
+    }
+
+    private boolean resolveConfigFailFast() {
+        String modelLevel = firstNonBlank(
+            property("JIANDOU_MODEL_CONFIG_FAIL_FAST"),
+            property("jiandou.model.config.fail-fast")
+        );
+        if (!modelLevel.isBlank()) {
+            return boolValue(modelLevel);
+        }
+        return boolValue(firstNonBlank(
+            property("JIANDOU_CONFIG_FAIL_FAST"),
+            property("jiandou.config.fail-fast"),
+            "false"
+        ));
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> normalizeMap(Map<?, ?> source) {
         Map<String, Object> normalized = new LinkedHashMap<>();
@@ -475,42 +500,6 @@ public class ModelRuntimePropertiesResolver {
             return normalized;
         }
         return value;
-    }
-
-    private static void putPathValue(Map<String, Object> root, List<String> path, Object value) {
-        if (path.isEmpty()) {
-            return;
-        }
-        Map<String, Object> current = root;
-        for (int index = 0; index < path.size() - 1; index++) {
-            String segment = path.get(index);
-            Object child = current.get(segment);
-            if (!(child instanceof Map<?, ?> childMap)) {
-                Map<String, Object> created = new LinkedHashMap<>();
-                current.put(segment, created);
-                current = created;
-                continue;
-            }
-            current = normalizeMap(childMap);
-            rootPathAssign(root, path.subList(0, index + 1), current);
-        }
-        current.put(path.get(path.size() - 1), value);
-    }
-
-    private static void rootPathAssign(Map<String, Object> root, List<String> path, Map<String, Object> value) {
-        Map<String, Object> current = root;
-        for (int index = 0; index < path.size() - 1; index++) {
-            current = castMap(current.get(path.get(index)));
-        }
-        current.put(path.get(path.size() - 1), value);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> castMap(Object value) {
-        if (value instanceof Map<?, ?> mapValue) {
-            return (Map<String, Object>) mapValue;
-        }
-        return new LinkedHashMap<>();
     }
 
     private static List<String> parsePath(String rawPath) {
@@ -549,15 +538,6 @@ public class ModelRuntimePropertiesResolver {
         }
     }
 
-    private static String unquote(String raw) {
-        String normalized = raw == null ? "" : raw.trim();
-        if (normalized.length() >= 2
-            && ((normalized.startsWith("\"") && normalized.endsWith("\"")) || (normalized.startsWith("'") && normalized.endsWith("'")))) {
-            return normalized.substring(1, normalized.length() - 1).trim();
-        }
-        return normalized;
-    }
-
     private static String stringValue(Object value) {
         if (value == null) {
             return "";
@@ -571,7 +551,7 @@ public class ModelRuntimePropertiesResolver {
         return String.valueOf(value).trim();
     }
 
-    private record ConfigSnapshot(Map<String, Object> root, String source) {
+    private record ConfigSnapshot(Map<String, Object> root, String source, List<String> errors) {
 
         private String value(String sectionName, String key) {
             Object value = pathValue(sectionName + "." + key);
@@ -632,6 +612,39 @@ public class ModelRuntimePropertiesResolver {
         }
     }
 
-    public record ConfigSection(String name, Map<String, String> values) {
+    private record CachedSnapshot(
+        ConfigSnapshot snapshot,
+        Path configPath,
+        ConfigFileState fileState,
+        long loadedAtMillis
+    ) {
+
+        private CachedSnapshot refresh(long now) {
+            return new CachedSnapshot(snapshot, configPath, fileState, now);
+        }
+
+        private boolean matches(ConfigFileState latestFileState, Path latestPath) {
+            return Objects.equals(configPath, latestPath) && Objects.equals(fileState, latestFileState);
+        }
     }
+
+    private record ConfigFileState(boolean exists, long modifiedTime, long size) {
+
+        private static ConfigFileState from(Path path) {
+            if (path == null || !Files.exists(path)) {
+                return new ConfigFileState(false, -1L, -1L);
+            }
+            try {
+                return new ConfigFileState(
+                    true,
+                    Files.getLastModifiedTime(path).toMillis(),
+                    Files.size(path)
+                );
+            } catch (Exception ex) {
+                return new ConfigFileState(true, -1L, -1L);
+            }
+        }
+    }
+
+    public record ConfigSection(String name, Map<String, String> values) {}
 }

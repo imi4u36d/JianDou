@@ -247,6 +247,22 @@ public class LocalMediaArtifactService {
         }
     }
 
+    public StoredArtifact writeBinary(String relativeDir, String fileName, byte[] data) {
+        try {
+            Path dir = ensureDirectory(relativeDir);
+            Path target = dir.resolve(fileName).toAbsolutePath().normalize();
+            Files.write(target, data == null ? new byte[0] : data);
+            return new StoredArtifact(
+                fileName,
+                target.toString(),
+                buildPublicUrl(relativeDir, fileName),
+                Files.size(target)
+            );
+        } catch (IOException ex) {
+            throw new IllegalStateException("artifact binary write failed: " + ex.getMessage(), ex);
+        }
+    }
+
     public StoredArtifact concatVideos(String relativeDir, String fileName, List<String> sourcePublicUrls) {
         if (sourcePublicUrls == null || sourcePublicUrls.size() < 2) {
             throw new IllegalArgumentException("at least two source videos are required");

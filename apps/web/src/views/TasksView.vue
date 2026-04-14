@@ -92,7 +92,7 @@
       </div>
     </div>
 
-    <div v-if="errorMessage" class="surface-tile border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-700">
+    <div v-if="errorMessage" class="surface-tile tasks-alert p-4 text-sm text-rose-700">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p>{{ errorMessage }}</p>
         <button class="btn-secondary btn-sm" type="button" @click="loadTasks">
@@ -101,12 +101,12 @@
       </div>
     </div>
 
-    <div v-if="loading" class="surface-tile p-10 text-center text-slate-600">
+    <div v-if="loading" class="surface-tile tasks-loading p-10 text-center text-slate-600">
       正在加载任务列表...
     </div>
 
     <template v-else>
-      <div v-if="filteredTasks.length === 0" class="surface-panel p-10 text-center">
+      <div v-if="filteredTasks.length === 0" class="surface-panel tasks-empty p-10 text-center">
         <h3 class="text-lg font-semibold text-slate-900">没有匹配的任务</h3>
         <p class="mt-2 text-sm text-slate-600">尝试清空搜索和筛选，或者直接新建一个任务。</p>
         <button class="btn-warning mt-5" type="button" @click="clearFilters">
@@ -227,7 +227,7 @@
             <div
               v-for="stage in selectedTaskStages"
               :key="stage.key"
-              class="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"
+              class="task-stage-row flex items-center justify-between rounded-xl px-3 py-2 text-sm"
               :class="stageStateClass(stage.state)"
             >
               <span>{{ stage.label }}</span>
@@ -281,7 +281,7 @@
               v-for="score in [5, 4, 3, 2, 1]"
               :key="score"
               class="btn-secondary btn-sm"
-              :class="selectedTaskRatingDraft === score ? 'ring-2 ring-slate-300' : ''"
+              :class="selectedTaskRatingDraft === score ? 'rating-button-active' : ''"
               type="button"
               :disabled="selectedTaskRatingSaving"
               @click="selectedTaskRatingDraft = score"
@@ -322,7 +322,7 @@
             <div
               v-for="item in selectedTaskArtifactRows"
               :key="item.label"
-              class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
+              class="detail-card rounded-xl px-3 py-3 text-sm"
             >
               <p class="text-xs text-slate-500">{{ item.label }}</p>
               <p class="mt-1 break-all font-semibold text-slate-900">{{ item.value }}</p>
@@ -339,17 +339,17 @@
             <div
               v-for="item in selectedTaskParameterRows"
               :key="item.label"
-              class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
+              class="detail-card rounded-xl px-3 py-3 text-sm"
             >
               <p class="text-xs text-slate-500">{{ item.label }}</p>
               <p class="mt-1 break-all font-semibold text-slate-900">{{ item.value }}</p>
             </div>
           </div>
-          <div v-if="selectedTaskDetail.creativePrompt" class="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-3">
+          <div v-if="selectedTaskDetail.creativePrompt" class="detail-panel mt-4 rounded-xl px-3 py-3">
             <p class="text-xs text-slate-500">创意提示词</p>
             <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ selectedTaskDetail.creativePrompt }}</p>
           </div>
-          <div v-if="selectedTaskTranscriptPreview" class="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-3">
+          <div v-if="selectedTaskTranscriptPreview" class="detail-panel mt-4 rounded-xl px-3 py-3">
             <p class="text-xs text-slate-500">文本输入摘要</p>
             <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ selectedTaskTranscriptPreview }}</p>
           </div>
@@ -362,13 +362,13 @@
           <span class="surface-chip">{{ selectedTaskTrace.length }} 条</span>
         </div>
         <ul class="mt-3 grid gap-2 text-sm text-slate-600">
-          <li v-if="selectedTaskTrace.length === 0" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-500">
+          <li v-if="selectedTaskTrace.length === 0" class="trace-log-card trace-log-card--empty rounded-xl px-3 py-2 text-slate-500">
             暂无日志，任务刚启动时可能需要等待几秒。
           </li>
           <li
             v-for="event in selectedTaskTrace.slice(0, 8)"
             :key="`${event.timestamp}-${event.event}-${event.stage}`"
-            class="rounded-xl border border-slate-200 bg-white px-3 py-2"
+            class="trace-log-card rounded-xl px-3 py-2"
           >
             <p class="text-xs text-slate-500">{{ formatDateTime(event.timestamp) }} · {{ event.stage }} · {{ event.level }}</p>
             <p class="mt-1 text-slate-800">{{ event.message }}</p>
@@ -510,14 +510,13 @@ const selectedTaskParameterRows = computed(() => {
     { label: "视觉模型", value: formatTaskModelValue(snapshot.visionModel) },
     { label: "关键帧模型", value: formatTaskModelValue(snapshot.imageModel) },
     { label: "视频模型", value: formatTaskModelValue(snapshot.videoModel) },
-    { label: "视频尺寸", value: formatTaskModelValue(snapshot.videoSize) },
+    { label: "清晰度 / 画幅", value: formatTaskModelValue(snapshot.videoSize) },
     { label: "输出数量", value: formatTaskOutputCount(snapshot) },
     { label: "请求时长", value: formatTaskRequestedDuration(snapshot) },
     { label: "生效时长", value: formatTaskResolvedDuration(task) },
     { label: "任务 Seed", value: selectedTaskSeedLabel.value },
     { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(snapshot) },
     { label: "文本输入", value: formatTaskTranscriptSummary(snapshot) },
-    { label: "创建平台", value: formatTaskModelValue(snapshot.platform || task.platform) },
     { label: "画幅比例", value: formatTaskModelValue(snapshot.aspectRatio || task.aspectRatio) },
   ];
 });
@@ -945,15 +944,15 @@ function formatMonitoringValue(value: unknown) {
 function stageStateClass(state: "pending" | "active" | "paused" | "done" | "failed") {
   switch (state) {
     case "done":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+      return "task-stage-row--done";
     case "active":
-      return "border-sky-200 bg-sky-50 text-sky-800";
+      return "task-stage-row--active";
     case "paused":
-      return "border-amber-200 bg-amber-50 text-amber-800";
+      return "task-stage-row--paused";
     case "failed":
-      return "border-rose-200 bg-rose-50 text-rose-700";
+      return "task-stage-row--failed";
     default:
-      return "border-slate-200 bg-white text-slate-600";
+      return "task-stage-row--pending";
   }
 }
 
@@ -989,45 +988,93 @@ onUnmounted(() => {
 
 <style scoped>
 .tasks-view {
-  --accent: #0891b2;
+  color: var(--text-strong);
 }
 
 .tasks-view :deep(.surface-panel) {
-  border: 1px solid #dbe4ee;
   border-radius: 1.5rem;
-  background: #ffffff;
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-raise-soft);
 }
 
 .tasks-view :deep(.surface-tile) {
-  border: 1px solid #dbe4ee;
   border-radius: 1rem;
-  background: #f8fafc;
-  box-shadow: none;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-raise-soft);
 }
 
 .tasks-view :deep(.surface-chip) {
-  border-color: #cfe8ef;
-  background: #ecfeff;
-  color: #0e7490;
+  background: var(--bg-surface);
+  color: var(--text-body);
+  box-shadow: var(--shadow-pressed);
 }
 
 .tasks-view :deep(.segmented-shell) {
-  border-color: #dbe4ee;
-  background: #f8fafc;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pressed);
 }
 
 .tasks-view :deep(.btn-segment-active) {
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  background: var(--bg-surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-pressed);
 }
 
 .tasks-view :deep(.btn-primary) {
-  background: linear-gradient(135deg, #0e7490, #0891b2);
+  background: linear-gradient(145deg, var(--bg-accent-soft), var(--bg-accent));
 }
 
 .tasks-view :deep(.btn-primary:hover:not(:disabled)) {
-  box-shadow: 0 10px 20px rgba(8, 145, 178, 0.24);
+  box-shadow: var(--shadow-accent);
+}
+
+.tasks-alert,
+.tasks-loading,
+.tasks-empty,
+.detail-card,
+.detail-panel,
+.trace-log-card,
+.task-stage-row {
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pressed);
+  border: 0;
+}
+
+.tasks-alert {
+  color: #a8707b;
+}
+
+.task-stage-row {
+  color: var(--text-body);
+}
+
+.task-stage-row--done {
+  color: #7e9d8d;
+}
+
+.task-stage-row--active {
+  color: var(--accent-strong);
+}
+
+.task-stage-row--paused {
+  color: #b79b79;
+}
+
+.task-stage-row--failed {
+  color: #b37d87;
+}
+
+.task-stage-row--pending {
+  color: var(--text-muted);
+}
+
+.detail-card,
+.detail-panel,
+.trace-log-card {
+  color: var(--text-strong);
+}
+
+.rating-button-active {
+  box-shadow: var(--shadow-pressed);
 }
 </style>

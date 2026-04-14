@@ -24,18 +24,30 @@ public class TaskExecutionCoordinator {
 
     public void enqueue(TaskRecord task, String stage, String event, String message) {
         String previousStatus = task.status;
-        dequeue(task);
+        taskQueuePort.remove(task.id);
         task.status = "PENDING";
         task.errorMessage = "";
         task.finishedAt = null;
         task.isQueued = true;
-        markActiveAttemptQueued(task);
+        Map<String, Object> attempt = markActiveAttemptQueuedInMemory(task);
         taskQueuePort.enqueue(task.id);
         touch(task);
-        recordTrace(task, stage, event, message, "INFO", Map.of("queue_mode", true));
-        recordStatusHistory(task, previousStatus, "PENDING", stage, event, message);
-        recordQueueEvent(task, "enqueued", Map.of("stage", stage, "event", event, "message", message));
-        taskRepository.save(task);
+
+        Map<String, Object> trace = newTraceRow(stage, event, message, "INFO", Map.of("queue_mode", true));
+        Map<String, Object> statusHistory = newStatusHistoryRow(task, previousStatus, "PENDING", stage, event, message);
+        Map<String, Object> queueEvent = newQueueEventRow(task, "enqueued", Map.of("stage", stage, "event", event, "message", message));
+        task.trace.add(trace);
+        task.statusHistory.add(statusHistory);
+
+        TaskPersistenceMutation mutation = new TaskPersistenceMutation()
+            .task(task)
+            .addTrace(trace)
+            .addStatusHistory(statusHistory)
+            .addQueueEvent(queueEvent);
+        if (attempt != null) {
+            mutation.addAttempt(attempt);
+        }
+        taskRepository.saveMutation(mutation);
     }
 
     public void dequeue(TaskRecord task) {
@@ -43,10 +55,12 @@ public class TaskExecutionCoordinator {
         taskQueuePort.remove(task.id);
         task.isQueued = false;
         task.queuePosition = null;
+        touch(task);
+        TaskPersistenceMutation mutation = new TaskPersistenceMutation().task(task);
         if (wasQueued) {
-            recordQueueEvent(task, "removed", Map.of("queue_mode", true));
+            mutation.addQueueEvent(newQueueEventRow(task, "removed", Map.of("queue_mode", true)));
         }
-        taskRepository.save(task);
+        taskRepository.saveMutation(mutation);
     }
 
     public void recomputeQueuePositions(Collection<TaskRecord> tasks) {
@@ -91,26 +105,16 @@ public class TaskExecutionCoordinator {
         row.put("payload", safePayload);
         task.attempts.add(0, row);
         touch(task);
-        taskRepository.save(task);
-        taskRepository.saveAttempt(task.id, row);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addAttempt(row));
         return row;
     }
 
     public void markActiveAttemptQueued(TaskRecord task) {
-        Map<String, Object> attempt = activeAttempt(task);
+        Map<String, Object> attempt = markActiveAttemptQueuedInMemory(task);
         if (attempt == null) {
             return;
         }
-        String now = nowIso();
-        attempt.put("status", "QUEUED");
-        attempt.put("queueEnteredAt", now);
-        attempt.put("queueLeftAt", null);
-        attempt.put("claimedAt", null);
-        attempt.put("startedAt", null);
-        attempt.put("workerInstanceId", "");
-        attempt.put("finishedAt", null);
-        attempt.put("failureMessage", "");
-        taskRepository.saveAttempt(task.id, attempt);
+        taskRepository.saveMutation(new TaskPersistenceMutation().taskId(task.id).addAttempt(attempt));
     }
 
     public void markActiveAttemptRunning(TaskRecord task, String workerInstanceId) {
@@ -124,8 +128,11 @@ public class TaskExecutionCoordinator {
         attempt.put("claimedAt", now);
         attempt.put("queueLeftAt", now);
         attempt.put("startedAt", now);
-        taskRepository.saveAttempt(task.id, attempt);
-        recordQueueEvent(task, "claimed", Map.of("workerInstanceId", workerInstanceId == null ? "" : workerInstanceId));
+        Map<String, Object> queueEvent = newQueueEventRow(task, "claimed", Map.of("workerInstanceId", workerInstanceId == null ? "" : workerInstanceId));
+        taskRepository.saveMutation(new TaskPersistenceMutation()
+            .taskId(task.id)
+            .addAttempt(attempt)
+            .addQueueEvent(queueEvent));
     }
 
     public void markActiveAttemptFinished(TaskRecord task, String status, String errorMessage) {
@@ -139,86 +146,57 @@ public class TaskExecutionCoordinator {
         if (errorMessage != null && !errorMessage.isBlank()) {
             attempt.put("failureMessage", errorMessage);
         }
-        taskRepository.saveAttempt(task.id, attempt);
-        recordQueueEvent(task, status == null ? "finished" : status.toLowerCase(), Map.of(
+        Map<String, Object> queueEvent = newQueueEventRow(task, status == null ? "finished" : status.toLowerCase(), Map.of(
             "status", status == null ? "" : status,
             "errorMessage", errorMessage == null ? "" : errorMessage
         ));
+        taskRepository.saveMutation(new TaskPersistenceMutation()
+            .taskId(task.id)
+            .addAttempt(attempt)
+            .addQueueEvent(queueEvent));
     }
 
     public void recordTrace(TaskRecord task, String stage, String event, String message, String level, Map<String, Object> payload) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("traceId", "trace_" + java.util.UUID.randomUUID().toString().replace("-", ""));
-        row.put("timestamp", nowIso());
-        row.put("level", level);
-        row.put("stage", stage);
-        row.put("event", event);
-        row.put("message", message);
-        row.put("payload", payload);
+        Map<String, Object> row = newTraceRow(stage, event, message, level, payload);
         task.trace.add(row);
-        taskRepository.saveTrace(task.id, row);
         touch(task);
-        taskRepository.save(task);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addTrace(row));
     }
 
     public void recordStatusHistory(TaskRecord task, String previousStatus, String nextStatus, String stage, String event, String reason) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("statusHistoryId", "sthis_" + java.util.UUID.randomUUID().toString().replace("-", ""));
-        row.put("taskId", task.id);
-        row.put("previousStatus", previousStatus);
-        row.put("nextStatus", nextStatus);
-        row.put("progress", task.progress);
-        row.put("stage", stage);
-        row.put("event", event);
-        row.put("reason", reason);
-        row.put("operator", "system");
-        row.put("changedAt", nowIso());
-        row.put("payload", Map.of());
+        Map<String, Object> row = newStatusHistoryRow(task, previousStatus, nextStatus, stage, event, reason);
         task.statusHistory.add(row);
-        taskRepository.saveStatusHistory(task.id, row);
-        taskRepository.save(task);
+        touch(task);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addStatusHistory(row));
     }
 
     public void recordStageRun(TaskRecord task, Map<String, Object> stageRun) {
         task.stageRuns.add(stageRun);
-        taskRepository.saveStageRun(task.id, stageRun);
         touch(task);
-        taskRepository.save(task);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addStageRun(stageRun));
     }
 
     public void recordModelCall(TaskRecord task, Map<String, Object> modelCall) {
         task.modelCalls.add(modelCall);
-        taskRepository.saveModelCall(task.id, modelCall);
         touch(task);
-        taskRepository.save(task);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addModelCall(modelCall));
     }
 
     public void recordMaterial(TaskRecord task, Map<String, Object> material) {
         task.materials.add(material);
-        taskRepository.saveMaterial(task.id, material);
         touch(task);
-        taskRepository.save(task);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addMaterial(material));
     }
 
     public void recordResult(TaskRecord task, Map<String, Object> result) {
         task.outputs.add(result);
-        taskRepository.saveResult(task.id, result);
         touch(task);
-        taskRepository.save(task);
+        taskRepository.saveMutation(new TaskPersistenceMutation().task(task).addResult(result));
     }
 
     public void recordQueueEvent(TaskRecord task, String eventType, Map<String, Object> payload) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("taskQueueEventId", "queueevt_" + java.util.UUID.randomUUID().toString().replace("-", ""));
-        row.put("taskId", task.id);
-        row.put("attemptId", task.activeAttemptId == null ? "" : task.activeAttemptId);
-        row.put("queueName", "default");
-        row.put("eventType", eventType);
-        row.put("workerInstanceId", activeAttemptWorkerId(task));
-        row.put("queuePositionHint", task.queuePosition == null ? 0 : task.queuePosition);
-        row.put("payload", payload == null ? Map.of() : payload);
-        row.put("eventTime", nowIso());
-        taskRepository.saveQueueEvent(task.id, row);
+        Map<String, Object> row = newQueueEventRow(task, eventType, payload);
+        taskRepository.saveMutation(new TaskPersistenceMutation().taskId(task.id).addQueueEvent(row));
     }
 
     public void upsertWorkerInstance(String workerInstanceId, String workerType, String status, Map<String, Object> metadata) {
@@ -234,7 +212,7 @@ public class TaskExecutionCoordinator {
         row.put("lastHeartbeatAt", now);
         row.put("stoppedAt", "");
         row.put("metadata", metadata == null ? Map.of() : metadata);
-        taskRepository.saveWorkerInstance(row);
+        taskRepository.saveMutation(new TaskPersistenceMutation().addWorkerInstance(row));
     }
 
     public void touchWorkerInstance(String workerInstanceId, String workerType, String status, Map<String, Object> metadata) {
@@ -251,7 +229,7 @@ public class TaskExecutionCoordinator {
         row.put("lastHeartbeatAt", nowIso());
         row.put("stoppedAt", "STOPPED".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status) ? nowIso() : "");
         row.put("metadata", metadata == null ? (existing == null ? Map.of() : existing.getOrDefault("metadata", Map.of())) : metadata);
-        taskRepository.saveWorkerInstance(row);
+        taskRepository.saveMutation(new TaskPersistenceMutation().addWorkerInstance(row));
     }
 
     public int recoverStaleClaims(OffsetDateTime staleBefore, int limit) {
@@ -284,17 +262,38 @@ public class TaskExecutionCoordinator {
                 task.executionContext.put("recoveredFromWorkerInstanceId", staleWorkerInstanceId);
                 task.executionContext.remove("workerInstanceId");
             }
-            markActiveAttemptQueued(task);
-            recordQueueEvent(task, "retry_enqueued", Map.of(
+            Map<String, Object> queuedAttempt = markActiveAttemptQueuedInMemory(task);
+            Map<String, Object> queueEvent = newQueueEventRow(task, "retry_enqueued", Map.of(
                 "reason", "stale_claim_recovered",
                 "staleWorkerInstanceId", staleWorkerInstanceId
             ));
-            recordTrace(task, "dispatch", "task.recovered_from_stale_claim", "检测到失效 worker，任务已重新入队。", "WARN", Map.of(
-                "staleWorkerInstanceId", staleWorkerInstanceId
-            ));
-            recordStatusHistory(task, previousStatus, "PENDING", "dispatch", "task.recovered_from_stale_claim", "检测到失效 worker，任务已重新入队。");
+            Map<String, Object> trace = newTraceRow(
+                "dispatch",
+                "task.recovered_from_stale_claim",
+                "检测到失效 worker，任务已重新入队。",
+                "WARN",
+                Map.of("staleWorkerInstanceId", staleWorkerInstanceId)
+            );
+            Map<String, Object> statusHistory = newStatusHistoryRow(
+                task,
+                previousStatus,
+                "PENDING",
+                "dispatch",
+                "task.recovered_from_stale_claim",
+                "检测到失效 worker，任务已重新入队。"
+            );
+            task.trace.add(trace);
+            task.statusHistory.add(statusHistory);
             touch(task);
-            taskRepository.save(task);
+            TaskPersistenceMutation mutation = new TaskPersistenceMutation()
+                .task(task)
+                .addTrace(trace)
+                .addStatusHistory(statusHistory)
+                .addQueueEvent(queueEvent);
+            if (queuedAttempt != null) {
+                mutation.addAttempt(queuedAttempt);
+            }
+            taskRepository.saveMutation(mutation);
             recovered += 1;
         }
         return recovered;
@@ -360,6 +359,72 @@ public class TaskExecutionCoordinator {
         Map<String, Object> row = new LinkedHashMap<>(existing);
         row.put("status", "STALE");
         row.put("stoppedAt", nowIso());
-        taskRepository.saveWorkerInstance(row);
+        taskRepository.saveMutation(new TaskPersistenceMutation().addWorkerInstance(row));
+    }
+
+    private Map<String, Object> markActiveAttemptQueuedInMemory(TaskRecord task) {
+        Map<String, Object> attempt = activeAttempt(task);
+        if (attempt == null) {
+            return null;
+        }
+        String now = nowIso();
+        attempt.put("status", "QUEUED");
+        attempt.put("queueEnteredAt", now);
+        attempt.put("queueLeftAt", null);
+        attempt.put("claimedAt", null);
+        attempt.put("startedAt", null);
+        attempt.put("workerInstanceId", "");
+        attempt.put("finishedAt", null);
+        attempt.put("failureMessage", "");
+        return attempt;
+    }
+
+    private Map<String, Object> newTraceRow(String stage, String event, String message, String level, Map<String, Object> payload) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("traceId", "trace_" + UUID.randomUUID().toString().replace("-", ""));
+        row.put("timestamp", nowIso());
+        row.put("level", level);
+        row.put("stage", stage);
+        row.put("event", event);
+        row.put("message", message);
+        row.put("payload", payload == null ? Map.of() : payload);
+        return row;
+    }
+
+    private Map<String, Object> newStatusHistoryRow(
+        TaskRecord task,
+        String previousStatus,
+        String nextStatus,
+        String stage,
+        String event,
+        String reason
+    ) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("statusHistoryId", "sthis_" + UUID.randomUUID().toString().replace("-", ""));
+        row.put("taskId", task.id);
+        row.put("previousStatus", previousStatus);
+        row.put("nextStatus", nextStatus);
+        row.put("progress", task.progress);
+        row.put("stage", stage);
+        row.put("event", event);
+        row.put("reason", reason);
+        row.put("operator", "system");
+        row.put("changedAt", nowIso());
+        row.put("payload", Map.of());
+        return row;
+    }
+
+    private Map<String, Object> newQueueEventRow(TaskRecord task, String eventType, Map<String, Object> payload) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("taskQueueEventId", "queueevt_" + UUID.randomUUID().toString().replace("-", ""));
+        row.put("taskId", task.id);
+        row.put("attemptId", task.activeAttemptId == null ? "" : task.activeAttemptId);
+        row.put("queueName", "default");
+        row.put("eventType", eventType);
+        row.put("workerInstanceId", activeAttemptWorkerId(task));
+        row.put("queuePositionHint", task.queuePosition == null ? 0 : task.queuePosition);
+        row.put("payload", payload == null ? Map.of() : payload);
+        row.put("eventTime", nowIso());
+        return row;
     }
 }

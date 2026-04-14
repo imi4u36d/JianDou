@@ -30,11 +30,7 @@ final class TaskArtifactNaming {
     private static String taskArtifactBaseRelativeDir(TaskRecord task) {
         LocalDate date = resolveTaskDate(task);
         return "gen/"
-            + date.getYear()
-            + "/"
-            + twoDigit(date.getMonthValue())
-            + "/"
-            + twoDigit(date.getDayOfMonth())
+            + date.getYear() + "-" + twoDigit(date.getMonthValue()) + "-" + twoDigit(date.getDayOfMonth())
             + "/"
             + safeTaskDirectory(task == null ? null : task.id);
     }

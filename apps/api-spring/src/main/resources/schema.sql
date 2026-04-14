@@ -249,5 +249,8 @@ ALTER TABLE `biz_tasks`
   ADD COLUMN `effect_rating_note` varchar(1000) NOT NULL DEFAULT '' COMMENT '效果评分备注',
   ADD COLUMN `rated_at` datetime DEFAULT NULL COMMENT '评分时间';
 
+ALTER TABLE `biz_tasks`
+  DROP COLUMN `platform`;
+
 CREATE INDEX `idx_biz_tasks_effect_rating`
 ON `biz_tasks` (`effect_rating`, `create_time`);

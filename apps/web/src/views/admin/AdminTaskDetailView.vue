@@ -90,6 +90,39 @@
             </div>
           </div>
 
+          <div v-if="durationDiagnostics.length" class="border-t border-slate-200/80 px-5 py-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-semibold text-slate-900">镜头时长诊断</h4>
+              <span class="admin-chip">{{ durationDiagnostics.length }} 镜</span>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>镜头</th>
+                    <th>脚本时长</th>
+                    <th>规划时长</th>
+                    <th>模型请求</th>
+                    <th>模型落档</th>
+                    <th>实际输出</th>
+                    <th>来源 / 状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in durationDiagnostics" :key="item.clipIndex">
+                    <td>#{{ item.clipIndex }}</td>
+                    <td>{{ formatSecondsRange(item.scriptMinDurationSeconds, item.scriptMaxDurationSeconds) }}</td>
+                    <td>{{ formatSecondsRange(item.plannedMinDurationSeconds, item.plannedMaxDurationSeconds, item.plannedTargetDurationSeconds) }}</td>
+                    <td>{{ formatSecondsValue(item.requestedDurationSeconds) }}</td>
+                    <td>{{ formatSecondsValue(item.appliedDurationSeconds) }}</td>
+                    <td>{{ formatSecondsValue(item.actualDurationSeconds) }}</td>
+                    <td>{{ durationSourceLabel(item) }} / {{ durationStatusLabel(item.status) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div v-if="artifactRows.length" class="border-t border-slate-200/80 px-5 py-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h4 class="text-sm font-semibold text-slate-900">产物目录</h4>
@@ -305,7 +338,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { deleteAdminTask, fetchAdminTask, fetchAdminTaskDiagnosis, fetchAdminTaskTrace, rateAdminTaskEffect, retryAdminTask } from "@/api/admin";
-import type { AdminTaskDiagnosis, TaskDetail, TaskTraceEvent } from "@/types";
+import type { AdminTaskDiagnosis, TaskDetail, TaskDurationDiagnosticClip, TaskTraceEvent } from "@/types";
 import {
   formatTaskDurationMode,
   formatTaskEffectRating,
@@ -378,14 +411,13 @@ const requestRows = computed(() => {
     { label: "视觉模型", value: formatTaskModelValue(requestSnapshot.value.visionModel) },
     { label: "关键帧模型", value: formatTaskModelValue(requestSnapshot.value.imageModel) },
     { label: "视频模型", value: formatTaskModelValue(requestSnapshot.value.videoModel) },
-    { label: "视频尺寸", value: formatTaskModelValue(requestSnapshot.value.videoSize) },
+    { label: "清晰度 / 画幅", value: formatTaskModelValue(requestSnapshot.value.videoSize) },
     { label: "输出数量", value: formatTaskOutputCount(requestSnapshot.value) },
     { label: "请求时长", value: formatTaskRequestedDuration(requestSnapshot.value) },
     { label: "生效时长", value: formatTaskResolvedDuration(task.value) },
     { label: "任务 Seed", value: taskSeedLabel.value },
     { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(requestSnapshot.value) },
     { label: "文本输入", value: formatTaskTranscriptSummary(requestSnapshot.value) },
-    { label: "创建平台", value: formatTaskModelValue(requestSnapshot.value.platform || task.value.platform) },
   ];
 });
 
@@ -402,6 +434,7 @@ const monitoringStageLabel = computed(() => formatMonitoringValue(task.value?.mo
 const monitoringWorkerLabel = computed(() => formatMonitoringValue(task.value?.monitoring?.activeWorkerInstanceId));
 const artifactDirectories = computed(() => task.value?.artifactDirectories ?? task.value?.monitoring?.artifactDirectories ?? null);
 const artifactDirectoryHint = computed(() => formatMonitoringValue(artifactDirectories.value?.baseRelativeDir));
+const durationDiagnostics = computed(() => task.value?.durationDiagnostics ?? []);
 
 const monitoringRows = computed(() => {
   const monitoring = task.value?.monitoring;
@@ -517,6 +550,49 @@ function diagnosisFindingClass(severity: string) {
       return "border border-sky-200 bg-sky-50";
     default:
       return "";
+  }
+}
+
+function formatSecondsValue(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "暂无";
+  }
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}s`;
+}
+
+function formatSecondsRange(minValue: number | null | undefined, maxValue: number | null | undefined, targetValue?: number | null) {
+  const min = typeof minValue === "number" && Number.isFinite(minValue) && minValue > 0 ? minValue : null;
+  const max = typeof maxValue === "number" && Number.isFinite(maxValue) && maxValue > 0 ? maxValue : null;
+  const target = typeof targetValue === "number" && Number.isFinite(targetValue) && targetValue > 0 ? targetValue : null;
+  if (min == null && max == null) {
+    return "暂无";
+  }
+  if (min != null && max != null && min === max) {
+    return formatSecondsValue(target ?? min);
+  }
+  const range = `${formatSecondsValue(min)} - ${formatSecondsValue(max)}`;
+  return target != null ? `${range} (目标 ${formatSecondsValue(target)})` : range;
+}
+
+function durationSourceLabel(item: TaskDurationDiagnosticClip) {
+  switch (item.durationSource) {
+    case "storyboard":
+      return "分镜";
+    case "task_average":
+      return "任务均分";
+    default:
+      return "未知";
+  }
+}
+
+function durationStatusLabel(status: TaskDurationDiagnosticClip["status"]) {
+  switch (status) {
+    case "rendered":
+      return "已生成";
+    case "pending":
+      return "待生成";
+    default:
+      return "未知";
   }
 }
 

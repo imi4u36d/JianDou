@@ -1,5 +1,5 @@
 <template>
-  <section class="surface-panel progress-card p-6">
+  <section class="progress-card p-6">
     <div class="progress-orb progress-orb-cyan" aria-hidden="true"></div>
     <div class="progress-orb progress-orb-emerald" aria-hidden="true"></div>
 
@@ -13,7 +13,7 @@
       </span>
     </div>
 
-    <div class="surface-tile progress-shell p-4">
+    <div class="progress-shell">
       <div class="progress-top">
         <strong>{{ props.state.stage }}</strong>
         <span>{{ props.state.progress }}%</span>
@@ -30,7 +30,7 @@
       </p>
     </div>
 
-    <div v-if="props.outputUrl" class="surface-tile result-shell p-4">
+    <div v-if="props.outputUrl" class="result-shell">
       <p class="result-title">{{ props.resultTitle || "生成结果" }}</p>
       <video
         :src="props.outputUrl"
@@ -45,7 +45,7 @@
       </div>
     </div>
 
-    <div v-else class="surface-tile empty-shell p-6">
+    <div v-else class="empty-shell">
       任务执行后，这里会显示实时进度和生成成品预览。
     </div>
   </section>
@@ -79,34 +79,37 @@ const statusLabel = computed(() => {
   position: relative;
   display: grid;
   gap: 1rem;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 249, 255, 0.78)),
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 28%);
+  padding: 1.5rem;
+  border-radius: 32px;
+  background: #E0E5EC;
+  color: #1f2a37;
+  box-shadow:
+    20px 20px 40px rgba(138, 148, 164, 0.45),
+    -20px -20px 40px rgba(255, 255, 255, 0.95);
 }
 
 .progress-orb {
   position: absolute;
-  border-radius: 999px;
-  filter: blur(22px);
-  opacity: 0.42;
+  border-radius: 50%;
+  filter: blur(28px);
+  opacity: 0.35;
   pointer-events: none;
 }
 
 .progress-orb-cyan {
-  top: -3rem;
-  right: -2rem;
-  width: 11rem;
-  height: 11rem;
-  background: rgba(56, 189, 248, 0.16);
+  top: -2rem;
+  right: -1.5rem;
+  width: 10rem;
+  height: 10rem;
+  background: rgba(255, 156, 156, 0.24);
 }
 
 .progress-orb-emerald {
-  bottom: -2.4rem;
-  left: -1.8rem;
+  bottom: -2.5rem;
+  left: -2rem;
   width: 9rem;
   height: 9rem;
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(255, 156, 156, 0.18);
 }
 
 .card-head {
@@ -115,7 +118,7 @@ const statusLabel = computed(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .eyebrow {
@@ -124,58 +127,62 @@ const statusLabel = computed(() => {
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #5f7895;
+  color: #5f6b7c;
 }
 
 .card-head h2 {
   margin: 0.25rem 0 0;
-  font-family: "Sora", "PingFang SC", sans-serif;
   font-size: 1.25rem;
-  font-weight: 750;
-  color: #0f2744;
+  font-weight: 700;
+  color: #1f2a37;
 }
 
 .status-pill {
+  --status-color: #8b97a8;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 0.28rem 0.65rem;
+  padding: 0.32rem 0.8rem;
+  background: #E7EBF2;
+  color: var(--status-color);
+  box-shadow:
+    2px 2px 6px rgba(138, 148, 164, 0.3),
+    -2px -2px 6px rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .status-idle {
-  background: #e2e8f0;
-  color: #334155;
+  --status-color: #8b97a8;
 }
 
 .status-running {
-  background: #dbeafe;
-  color: #1d4ed8;
+  --status-color: #c9878e;
 }
 
 .status-paused {
-  background: #fef3c7;
-  color: #b45309;
+  --status-color: #b79b79;
 }
 
 .status-completed {
-  background: #dcfce7;
-  color: #15803d;
+  --status-color: #7e9d8d;
 }
 
 .status-failed {
-  background: #fee2e2;
-  color: #b91c1c;
+  --status-color: #b37d87;
 }
 
 .progress-shell {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 0.6rem;
-  border: 1px solid rgba(109, 139, 177, 0.12);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(245, 249, 255, 0.72)),
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 30%);
+  gap: 0.4rem;
+  padding: 1rem;
+  border-radius: 26px;
+  background: #E7EBF2;
+  box-shadow:
+    inset 6px 6px 14px rgba(138, 148, 164, 0.35),
+    inset -6px -6px 14px rgba(255, 255, 255, 0.8);
 }
 
 .progress-top {
@@ -183,38 +190,40 @@ const statusLabel = computed(() => {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  color: #1f334b;
-  font-size: 0.9rem;
+  color: #1f2a37;
+  font-size: 0.92rem;
 }
 
 .progress-track {
   width: 100%;
-  height: 9px;
-  background: rgba(148, 163, 184, 0.22);
+  height: 10px;
   border-radius: 999px;
-  overflow: hidden;
+  background: #E0E5EC;
+  box-shadow:
+    inset 2px 2px 6px rgba(138, 148, 164, 0.25),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.9);
 }
 
 .progress-bar {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #3166ff, #5bc7d9);
+  background: linear-gradient(90deg, rgba(255, 156, 156, 0.4), #ffd3d3);
   transition: width 240ms ease;
 }
 
 .progress-message {
   margin: 0;
-  color: #43546a;
+  color: #5c6774;
   font-size: 0.85rem;
 }
 
 .progress-meta {
   margin: 0;
-  color: #718198;
+  color: #5a6370;
   font-size: 0.75rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.7rem;
+  gap: 0.6rem;
 }
 
 .result-shell {
@@ -222,22 +231,29 @@ const statusLabel = computed(() => {
   z-index: 1;
   display: grid;
   gap: 0.6rem;
-  border: 1px solid rgba(109, 139, 177, 0.12);
+  padding: 1rem;
+  border-radius: 26px;
+  background: #E7EBF2;
+  box-shadow:
+    inset 6px 6px 14px rgba(138, 148, 164, 0.25),
+    inset -6px -6px 14px rgba(255, 255, 255, 0.9);
 }
 
 .result-title {
   margin: 0;
-  color: #334155;
-  font-size: 0.84rem;
+  color: #1f2a37;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
 .result-video {
   width: 100%;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  background: #020617;
+  border-radius: 18px;
+  background: #01040a;
   max-height: 360px;
+  box-shadow:
+    6px 6px 16px rgba(15, 23, 42, 0.25),
+    -6px -6px 16px rgba(255, 255, 255, 0.2);
 }
 
 .result-meta {
@@ -248,19 +264,23 @@ const statusLabel = computed(() => {
 
 .result-meta span {
   border-radius: 999px;
-  padding: 0.22rem 0.55rem;
+  padding: 0.28rem 0.6rem;
   font-size: 0.73rem;
   color: #3b4f68;
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  background: rgba(255, 255, 255, 0.68);
+  background: #E0E5EC;
+  box-shadow:
+    inset 2px 2px 6px rgba(255, 255, 255, 0.9),
+    inset -2px -2px 6px rgba(138, 148, 164, 0.2);
 }
 
 .empty-shell {
-  position: relative;
-  z-index: 1;
-  font-size: 0.86rem;
-  color: #64748b;
+  padding: 1.1rem;
+  border-radius: 26px;
+  color: #5c6774;
   text-align: center;
-  border: 1px dashed rgba(109, 139, 177, 0.22);
+  background: #E0E5EC;
+  box-shadow:
+    inset 6px 6px 14px rgba(138, 148, 164, 0.25),
+    inset -6px -6px 14px rgba(255, 255, 255, 0.9);
 }
 </style>

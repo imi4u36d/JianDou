@@ -1,0 +1,6 @@
+model:
+  models:
+    "seedance-1.5-pro":
+      kind: video
+      provider: seedance
+      supported_durations: "4,6,8,10"

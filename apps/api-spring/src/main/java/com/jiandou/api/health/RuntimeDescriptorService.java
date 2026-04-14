@@ -1,16 +1,19 @@
 package com.jiandou.api.health;
 
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import com.jiandou.api.generation.MediaProviderProfile;
 import com.jiandou.api.generation.ModelRuntimeProfile;
 import com.jiandou.api.generation.ModelRuntimePropertiesResolver;
-import org.springframework.stereotype.Service;
+import com.jiandou.api.health.dto.RuntimeDescriptorResponse;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
+/**
+ * 汇总当前运行环境、模型目录和规划能力，用于健康检查与管理端展示。
+ */
 @Service
 public class RuntimeDescriptorService {
 
@@ -34,11 +37,11 @@ public class RuntimeDescriptorService {
         this.storageRoot = storageRoot;
     }
 
-    public Map<String, Object> describeRuntime() {
-        List<Map<String, Object>> textModels = modelResolver.listModelsByKind("text");
-        List<Map<String, Object>> visionModels = modelResolver.listModelsByKind("vision");
-        List<Map<String, Object>> imageModels = modelResolver.listModelsByKind("image");
-        List<Map<String, Object>> videoModels = modelResolver.listModelsByKind("video");
+    public RuntimeDescriptorResponse describeRuntime() {
+        List<ModelCatalogItem> textModels = toCatalogItems(modelResolver.listModelsByKind("text"));
+        List<ModelCatalogItem> visionModels = toCatalogItems(modelResolver.listModelsByKind("vision"));
+        List<ModelCatalogItem> imageModels = toCatalogItems(modelResolver.listModelsByKind("image"));
+        List<ModelCatalogItem> videoModels = toCatalogItems(modelResolver.listModelsByKind("video"));
         List<String> configErrors = new ArrayList<>();
         appendCatalogErrors(configErrors, textModels, "文本");
         appendCatalogErrors(configErrors, visionModels, "视觉");
@@ -53,59 +56,66 @@ public class RuntimeDescriptorService {
             && hasReadyVisionModel
             && hasReadyImageModel
             && hasReadyVideoModel;
-        Map<String, Object> model = new LinkedHashMap<>();
-        model.put("provider", "");
-        model.put("primary_model", "");
-        model.put("fallback_model", "");
-        model.put("text_analysis_provider", "");
-        model.put("text_analysis_model", "");
-        model.put("vision_model", "");
-        model.put("vision_fallback_model", "");
-        model.put("endpoint_host", "");
-        model.put("api_key_present", hasReadyTextModel || hasReadyVisionModel || hasReadyImageModel || hasReadyVideoModel);
-        model.put("ready", ready);
-        model.put("temperature", doubleValue(modelResolver.value("model", "temperature", "0.15"), 0.15));
-        model.put("max_tokens", intValue(modelResolver.value("model", "max_tokens", "2000"), 2000));
-        model.put("config_source", modelResolver.configSource());
-        model.put("config_errors", configErrors.toArray(String[]::new));
 
-        Map<String, Object> planning = new LinkedHashMap<>();
-        planning.put("timed_transcript_supported", true);
-        planning.put("transcript_semantic_planning", true);
-        planning.put("visual_content_analysis", true);
-        planning.put("visual_event_reasoning", true);
-        planning.put("subtitle_visual_fusion", true);
-        planning.put("audio_peak_signal", true);
-        planning.put("scene_boundary_signal", true);
-        planning.put("fusion_timeline_planning", true);
-        planning.put("fallback_heuristic_enabled", false);
+        RuntimeDescriptorResponse.ModelInfo model = new RuntimeDescriptorResponse.ModelInfo(
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            hasReadyTextModel || hasReadyVisionModel || hasReadyImageModel || hasReadyVideoModel,
+            ready,
+            doubleValue(modelResolver.value("model", "temperature", "0.15"), 0.15),
+            intValue(modelResolver.value("model", "max_tokens", "2000"), 2000),
+            modelResolver.configSource(),
+            configErrors
+        );
 
-        Map<String, Object> runtime = new LinkedHashMap<>();
-        runtime.put("name", appName);
-        runtime.put("env", appEnv);
-        runtime.put("execution_mode", executionMode);
-        runtime.put("database_url", property("JIANDOU_DATABASE_URL", "jdbc:mysql://127.0.0.1:3306/ai_cut"));
-        runtime.put("model_provider", "");
-        runtime.put("storage_root", Paths.get(storageRoot).toAbsolutePath().normalize().toString());
-        runtime.put("model", model);
-        runtime.put("planning_capabilities", planning);
+        RuntimeDescriptorResponse.PlanningCapabilities planning = new RuntimeDescriptorResponse.PlanningCapabilities(
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            false
+        );
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("ok", true);
-        payload.put("runtime", runtime);
-        return payload;
+        RuntimeDescriptorResponse.RuntimeInfo runtime = new RuntimeDescriptorResponse.RuntimeInfo(
+            appName,
+            appEnv,
+            executionMode,
+            property("JIANDOU_DATABASE_URL", "jdbc:mysql://127.0.0.1:3306/ai_cut"),
+            "",
+            Paths.get(storageRoot).toAbsolutePath().normalize().toString(),
+            model,
+            planning
+        );
+
+        return new RuntimeDescriptorResponse(true, runtime);
     }
 
-    private void appendCatalogErrors(List<String> errors, List<Map<String, Object>> models, String label) {
+    /**
+     * 如果某类模型一个都没有，就直接记录配置缺口，避免前端误判为“未加载完成”。
+     */
+    private void appendCatalogErrors(List<String> errors, List<ModelCatalogItem> models, String label) {
         if (models.isEmpty()) {
             errors.add("未配置可用" + label + "模型");
         }
     }
 
-    private boolean hasReadyTextModel(List<Map<String, Object>> textModels, List<String> errors) {
+    /**
+     * 文本和视觉模型都走文本配置解析，因此共用这套就绪校验逻辑。
+     */
+    private boolean hasReadyTextModel(List<ModelCatalogItem> textModels, List<String> errors) {
         boolean ready = false;
-        for (Map<String, Object> model : textModels) {
-            String modelName = String.valueOf(model.getOrDefault("value", "")).trim();
+        for (ModelCatalogItem model : textModels) {
+            String modelName = model.value();
             if (modelName.isBlank()) {
                 continue;
             }
@@ -119,10 +129,10 @@ public class RuntimeDescriptorService {
         return ready;
     }
 
-    private boolean hasReadyImageModel(List<Map<String, Object>> imageModels, List<String> errors) {
+    private boolean hasReadyImageModel(List<ModelCatalogItem> imageModels, List<String> errors) {
         boolean ready = false;
-        for (Map<String, Object> model : imageModels) {
-            String modelName = String.valueOf(model.getOrDefault("value", "")).trim();
+        for (ModelCatalogItem model : imageModels) {
+            String modelName = model.value();
             if (modelName.isBlank()) {
                 continue;
             }
@@ -136,10 +146,10 @@ public class RuntimeDescriptorService {
         return ready;
     }
 
-    private boolean hasReadyVideoModel(List<Map<String, Object>> videoModels, List<String> errors) {
+    private boolean hasReadyVideoModel(List<ModelCatalogItem> videoModels, List<String> errors) {
         boolean ready = false;
-        for (Map<String, Object> model : videoModels) {
-            String modelName = String.valueOf(model.getOrDefault("value", "")).trim();
+        for (ModelCatalogItem model : videoModels) {
+            String modelName = model.value();
             if (modelName.isBlank()) {
                 continue;
             }
@@ -173,5 +183,58 @@ public class RuntimeDescriptorService {
     private String property(String key, String defaultValue) {
         String value = System.getenv(key);
         return value == null ? defaultValue : value.trim();
+    }
+
+    private List<ModelCatalogItem> toCatalogItems(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<ModelCatalogItem> items = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            items.add(ModelCatalogItem.from(row));
+        }
+        return List.copyOf(items);
+    }
+
+    /**
+     * 把目录接口里的弱类型配置行转换成内部强类型记录，方便后续统一校验。
+     */
+    private record ModelCatalogItem(
+        String value,
+        String label,
+        String provider,
+        String family,
+        String description,
+        String kind,
+        String fallbackModel,
+        boolean supportsSeed
+    ) {
+
+        private static ModelCatalogItem from(Map<String, Object> row) {
+            if (row == null || row.isEmpty()) {
+                return new ModelCatalogItem("", "", "", "", "", "", "", false);
+            }
+            return new ModelCatalogItem(
+                stringValue(row.get("value")),
+                stringValue(row.get("label")),
+                stringValue(row.get("provider")),
+                stringValue(row.get("family")),
+                stringValue(row.get("description")),
+                stringValue(row.get("kind")),
+                stringValue(row.get("fallbackModel")),
+                booleanValue(row.get("supportsSeed"))
+            );
+        }
+
+        private static String stringValue(Object raw) {
+            return raw == null ? "" : String.valueOf(raw).trim();
+        }
+
+        private static boolean booleanValue(Object raw) {
+            if (raw instanceof Boolean value) {
+                return value;
+            }
+            return Boolean.parseBoolean(stringValue(raw));
+        }
     }
 }

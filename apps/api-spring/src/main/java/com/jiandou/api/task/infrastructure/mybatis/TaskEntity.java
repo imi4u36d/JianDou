@@ -16,8 +16,6 @@ public class TaskEntity {
     private String title;
     @TableField
     private String description;
-    @TableField
-    private String platform;
     @TableField("aspect_ratio")
     private String aspectRatio;
     @TableField("min_duration_seconds")
@@ -113,14 +111,6 @@ public class TaskEntity {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getPlatform() {
-        return platform;
-    }
-
-    public void setPlatform(String platform) {
-        this.platform = platform;
     }
 
     public String getAspectRatio() {

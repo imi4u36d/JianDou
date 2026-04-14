@@ -1,11 +1,14 @@
 package com.jiandou.api.upload.application;
 
-import java.util.Map;
+import com.jiandou.api.upload.application.dto.UploadAssetResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * 上传应用服务边界。
+ */
 public interface UploadApplicationService {
 
-    Map<String, Object> uploadText(MultipartFile file);
+    UploadAssetResponse uploadText(MultipartFile file);
 
-    Map<String, Object> uploadVideo(MultipartFile file);
+    UploadAssetResponse uploadVideo(MultipartFile file);
 }

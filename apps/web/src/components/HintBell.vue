@@ -114,25 +114,27 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #475569;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  background: #E0E5EC;
+  color: #1f2a37;
+  box-shadow:
+    6px 6px 16px rgba(138, 148, 164, 0.4),
+    -6px -6px 16px rgba(255, 255, 255, 0.95);
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease,
-    color 180ms ease;
+    box-shadow 180ms ease;
 }
 
 .hint-bell:hover {
   transform: translateY(-1px);
-  color: #0f172a;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  box-shadow:
+    6px 6px 20px rgba(138, 148, 164, 0.45),
+    -6px -6px 20px rgba(255, 255, 255, 0.95);
 }
 
 .hint-bell-active {
-  color: #0f172a;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
+  box-shadow:
+    inset 4px 4px 10px rgba(138, 148, 164, 0.35),
+    inset -4px -4px 10px rgba(255, 255, 255, 0.95);
 }
 
 .hint-bell svg {
@@ -147,8 +149,10 @@ onBeforeUnmount(() => {
   height: 0.32rem;
   width: 0.32rem;
   border-radius: 9999px;
-  background: #0891b2;
-  box-shadow: 0 0 0 2px #f8fafc;
+  background: #ffd3d3;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.15),
+    0 0 0 2px #E0E5EC;
 }
 
 .hint-popover {
@@ -157,11 +161,12 @@ onBeforeUnmount(() => {
   z-index: 30;
   width: min(18rem, calc(100vw - 3rem));
   border-radius: 1rem;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
+  background: #E7EBF2;
   padding: 0.95rem 1rem;
   color: #0f172a;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+  box-shadow:
+    15px 15px 40px rgba(138, 148, 164, 0.3),
+    -15px -15px 40px rgba(255, 255, 255, 0.9);
 }
 
 .hint-title {

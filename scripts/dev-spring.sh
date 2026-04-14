@@ -41,9 +41,90 @@ collect_listen_pids() {
   fi
 }
 
+collect_managed_parent_pids() {
+  local pid="$1"
+  shift
+  local current="$pid"
+
+  while true; do
+    local parent=""
+    parent="$(ps -o ppid= -p "$current" 2>/dev/null | tr -d ' ')"
+    if [[ -z "$parent" || "$parent" -le 1 || "$parent" == "$$" ]]; then
+      break
+    fi
+
+    local command_line=""
+    command_line="$(ps -o command= -p "$parent" 2>/dev/null || true)"
+    if [[ -z "$command_line" ]]; then
+      break
+    fi
+
+    local matched="false"
+    local pattern=""
+    for pattern in "$@"; do
+      if [[ "$command_line" == *"$pattern"* ]]; then
+        matched="true"
+        break
+      fi
+    done
+
+    if [[ "$matched" != "true" ]]; then
+      break
+    fi
+
+    echo "$parent"
+    current="$parent"
+  done
+}
+
+terminate_pids() {
+  local pids=("$@")
+  local pid=""
+
+  for pid in "${pids[@]}"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+
+  local deadline=$((SECONDS + 8))
+  while (( SECONDS < deadline )); do
+    local remaining="false"
+    for pid in "${pids[@]}"; do
+      if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        remaining="true"
+        break
+      fi
+    done
+    if [[ "$remaining" != "true" ]]; then
+      return
+    fi
+    sleep 0.2
+  done
+
+  for pid in "${pids[@]}"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+wait_for_port_release() {
+  local port="$1"
+  local deadline=$((SECONDS + 10))
+
+  while (( SECONDS < deadline )); do
+    if [[ -z "$(collect_listen_pids "$port")" ]]; then
+      return
+    fi
+    sleep 0.2
+  done
+}
+
 stop_service_if_running() {
   local service_name="$1"
   local port="$2"
+  shift 2
   local pids=""
   pids="$(collect_listen_pids "$port" | tr '\n' ' ')"
 
@@ -51,12 +132,31 @@ stop_service_if_running() {
     return
   fi
 
-  echo "检测到 ${service_name} 端口 ${port} 已被占用，尝试关闭旧进程: ${pids}"
+  local all_pids=()
+  local pid=""
   for pid in $pids; do
-    if [[ "$pid" != "$$" ]] && kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
+    if [[ "$pid" == "$$" ]]; then
+      continue
     fi
+    all_pids+=("$pid")
+    while IFS= read -r parent_pid; do
+      [[ -n "$parent_pid" ]] && all_pids+=("$parent_pid")
+    done < <(collect_managed_parent_pids "$pid" "$@")
   done
+
+  local unique_pids=()
+  local seen=""
+  for pid in "${all_pids[@]}"; do
+    if [[ -z "$pid" || " $seen " == *" $pid "* ]]; then
+      continue
+    fi
+    unique_pids+=("$pid")
+    seen+=" $pid"
+  done
+
+  echo "检测到 ${service_name} 端口 ${port} 已被占用，尝试关闭旧进程: ${unique_pids[*]}"
+  terminate_pids "${unique_pids[@]}"
+  wait_for_port_release "$port"
 }
 
 require_command npm
@@ -67,8 +167,8 @@ if [[ ! -d "$WEB_DIR/node_modules" ]]; then
   exit 1
 fi
 
-stop_service_if_running "后端" "$API_PORT"
-stop_service_if_running "前端" "$WEB_PORT"
+stop_service_if_running "后端" "$API_PORT" "spring-boot:run" "JianDouSpringApiApplication"
+stop_service_if_running "前端" "$WEB_PORT" "npm --prefix" "vite"
 
 trap cleanup EXIT INT TERM
 

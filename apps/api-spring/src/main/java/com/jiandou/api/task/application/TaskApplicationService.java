@@ -1,16 +1,22 @@
 package com.jiandou.api.task.application;
 
-import com.jiandou.api.task.TaskController;
+import com.jiandou.api.task.web.dto.CreateGenerationTaskRequest;
+import com.jiandou.api.task.web.dto.GenerateCreativePromptRequest;
+import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 任务模块应用服务接口。
+ * 该接口对外暴露任务创建、查询、控制和管理相关用例。
+ */
 public interface TaskApplicationService {
 
-    Map<String, Object> createGenerationTask(TaskController.CreateGenerationTaskRequest request);
+    Map<String, Object> createGenerationTask(CreateGenerationTaskRequest request);
 
-    Map<String, Object> generateCreativePrompt(TaskController.GenerateCreativePromptRequest request);
+    Map<String, Object> generateCreativePrompt(GenerateCreativePromptRequest request);
 
-    List<Map<String, Object>> listTasks(String q, String status, String platform, String sort);
+    List<Map<String, Object>> listTasks(String q, String status, String sort);
 
     Map<String, Object> getTask(String taskId);
 
@@ -36,7 +42,7 @@ public interface TaskApplicationService {
 
     Map<String, Object> terminateTask(String taskId);
 
-    Map<String, Object> rateTaskEffect(String taskId, TaskController.RateTaskEffectRequest request);
+    Map<String, Object> rateTaskEffect(String taskId, RateTaskEffectRequest request);
 
     Map<String, Object> deleteTask(String taskId);
 

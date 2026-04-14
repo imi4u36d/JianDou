@@ -6,7 +6,9 @@ services:
   mysql:
     image: mysql:8.4
     container_name: jiandou-mysql
+    command: ["mysqld", "--default-time-zone=+08:00"]
     environment:
+      TZ: Asia/Shanghai
       # 仅供本地开发容器使用的 root 密码。
       MYSQL_ROOT_PASSWORD: root
       # 首次启动时自动创建的数据库名。

@@ -219,7 +219,6 @@ export interface GenerationVideoDurationOption {
 export interface GenerationOptionsResponse {
   aspectRatios?: GenerationAspectRatioOption[];
   defaultAspectRatio?: string | null;
-  defaultPlatform?: string | null;
   stylePresets: GenerationStylePresetOption[];
   imageSizes: GenerationImageSizeOption[];
   videoModels: GenerationVideoModelInfo[];
@@ -360,7 +359,6 @@ export interface TaskListItem {
   id: string;
   title: string;
   status: TaskStatus;
-  platform: string;
   progress: number;
   createdAt: string;
   updatedAt: string;
@@ -416,6 +414,20 @@ export interface TaskMonitoringSummary {
   artifactDirectories?: TaskArtifactDirectories;
 }
 
+export interface TaskDurationDiagnosticClip {
+  clipIndex: number;
+  durationSource?: string | null;
+  scriptMinDurationSeconds?: number | null;
+  scriptMaxDurationSeconds?: number | null;
+  plannedTargetDurationSeconds?: number | null;
+  plannedMinDurationSeconds?: number | null;
+  plannedMaxDurationSeconds?: number | null;
+  requestedDurationSeconds?: number | null;
+  appliedDurationSeconds?: number | null;
+  actualDurationSeconds?: number | null;
+  status?: "pending" | "rendered" | string | null;
+}
+
 export interface TaskArtifactDirectories {
   storageRoot?: string | null;
   baseRelativeDir?: string | null;
@@ -457,7 +469,6 @@ export interface TaskRequestSnapshot {
   taskType?: string | null;
   title?: string | null;
   creativePrompt?: string | null;
-  platform?: string | null;
   aspectRatio?: string | null;
   stylePreset?: string | null;
   textAnalysisModel?: string | null;
@@ -501,6 +512,7 @@ export interface TaskDetail extends TaskListItem {
   artifactDirectories?: TaskArtifactDirectories;
   executionContext?: Record<string, unknown>;
   requestSnapshot?: TaskRequestSnapshot;
+  durationDiagnostics?: TaskDurationDiagnosticClip[];
   plan?: TaskPlanClip[];
   monitoring?: TaskMonitoringSummary;
   outputs: TaskOutput[];

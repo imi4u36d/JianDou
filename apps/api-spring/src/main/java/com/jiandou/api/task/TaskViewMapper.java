@@ -1,15 +1,19 @@
 package com.jiandou.api.task;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
+/**
+ * 负责把任务聚合对象转换为接口返回结构。
+ * 当前阶段优先保持前端字段兼容，但内部已经开始收敛为更明确的视图对象。
+ */
 @Component
 class TaskViewMapper {
 
@@ -20,13 +24,12 @@ class TaskViewMapper {
     }
 
     Map<String, Object> toListItem(TaskRecord task) {
-        Map<String, Object> monitoring = monitoringSummary(task, false);
-        Map<String, Object> diagnosis = diagnosisSummary(task, monitoring);
+        TaskMonitoringSnapshot monitoring = monitoringSummary(task);
+        TaskDiagnosisSummary diagnosis = diagnosisSummary(task, monitoring);
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", task.id);
         row.put("title", task.title);
         row.put("status", task.status);
-        row.put("platform", task.platform);
         row.put("progress", task.progress);
         row.put("createdAt", task.createdAt);
         row.put("updatedAt", task.updatedAt);
@@ -48,20 +51,24 @@ class TaskViewMapper {
         row.put("editingMode", task.editingMode);
         row.put("isQueued", task.isQueued);
         row.put("queuePosition", task.queuePosition);
-        row.put("currentStage", monitoring.get("currentStage"));
-        row.put("activeWorkerInstanceId", monitoring.get("activeWorkerInstanceId"));
-        row.put("plannedClipCount", monitoring.get("plannedClipCount"));
-        row.put("renderedClipCount", monitoring.get("renderedClipCount"));
-        row.put("diagnosisSeverity", diagnosis.get("severity"));
-        row.put("diagnosisCode", diagnosis.get("code"));
-        row.put("diagnosisHint", diagnosis.get("hint"));
-        row.put("recommendedAction", diagnosis.get("recommendedAction"));
+        row.put("currentStage", monitoring.currentStage());
+        row.put("activeWorkerInstanceId", monitoring.activeWorkerInstanceId());
+        row.put("plannedClipCount", monitoring.plannedClipCount());
+        row.put("renderedClipCount", monitoring.renderedClipCount());
+        row.put("diagnosisSeverity", diagnosis.severity());
+        row.put("diagnosisCode", diagnosis.code());
+        row.put("diagnosisHint", diagnosis.hint());
+        row.put("recommendedAction", diagnosis.recommendedAction());
         return row;
     }
 
+    /**
+     * 详情视图在列表字段基础上补充上下文、素材和运行信息。
+     */
     Map<String, Object> toDetail(TaskRecord task) {
+        TaskMonitoringSnapshot monitoring = monitoringSummary(task);
         Map<String, Object> row = new LinkedHashMap<>(toListItem(task));
-        row.put("artifactDirectories", artifactDirectories(task));
+        row.put("artifactDirectories", monitoring.artifactDirectories().toMap());
         row.put("introTemplate", task.introTemplate);
         row.put("outroTemplate", task.outroTemplate);
         row.put("creativePrompt", task.creativePrompt);
@@ -77,7 +84,8 @@ class TaskViewMapper {
         row.put("storyboardScript", task.storyboardScript);
         row.put("materials", task.materials);
         row.put("executionContext", task.executionContext);
-        row.put("requestSnapshot", task.requestSnapshot);
+        row.put("requestSnapshot", task.requestSnapshot == null ? Map.of() : task.requestSnapshot.toMap());
+        row.put("durationDiagnostics", durationDiagnostics(task));
         row.put("sourceAssetIds", List.of());
         row.put("sourceFileNames", List.of());
         row.put("plan", List.of());
@@ -85,15 +93,15 @@ class TaskViewMapper {
         row.put("attempts", task.attempts);
         row.put("stageRuns", task.stageRuns);
         row.put("outputs", task.outputs);
-        row.put("monitoring", monitoringSummary(task, true));
+        row.put("monitoring", monitoring.toMap(true));
         return row;
     }
 
-    private Map<String, Object> diagnosisSummary(TaskRecord task, Map<String, Object> monitoring) {
-        int plannedClipCount = intValue(monitoring.get("plannedClipCount"), 0);
-        int renderedClipCount = intValue(monitoring.get("renderedClipCount"), 0);
-        int contiguousRenderedClipCount = intValue(monitoring.get("contiguousRenderedClipCount"), 0);
-        int joinClipIndex = intValue(monitoring.get("latestJoinClipIndex"), 0);
+    private TaskDiagnosisSummary diagnosisSummary(TaskRecord task, TaskMonitoringSnapshot monitoring) {
+        int plannedClipCount = monitoring.plannedClipCount();
+        int renderedClipCount = monitoring.renderedClipCount();
+        int contiguousRenderedClipCount = monitoring.contiguousRenderedClipCount();
+        int joinClipIndex = monitoring.latestJoinClipIndex();
         boolean hasAudioClip = task.outputsView().stream()
             .filter(item -> "video".equalsIgnoreCase(stringValue(item.get("resultType"))))
             .anyMatch(item -> boolValue(mapValue(item.get("extra")).get("hasAudio")));
@@ -120,16 +128,14 @@ class TaskViewMapper {
         return diagnosis("info", "healthy", "当前未发现明显阻塞。", "继续观察");
     }
 
-    private Map<String, Object> diagnosis(String severity, String code, String hint, String recommendedAction) {
-        Map<String, Object> diagnosis = new LinkedHashMap<>();
-        diagnosis.put("severity", severity);
-        diagnosis.put("code", code);
-        diagnosis.put("hint", hint);
-        diagnosis.put("recommendedAction", recommendedAction);
-        return diagnosis;
+    private TaskDiagnosisSummary diagnosis(String severity, String code, String hint, String recommendedAction) {
+        return new TaskDiagnosisSummary(severity, code, hint, recommendedAction);
     }
 
-    private Map<String, Object> monitoringSummary(TaskRecord task, boolean includeVerbose) {
+    /**
+     * 监控快照内部先转成强类型对象，再在出参边界回写为 Map，减少字符串键名散落。
+     */
+    private TaskMonitoringSnapshot monitoringSummary(TaskRecord task) {
         Map<String, Object> activeAttempt = activeAttempt(task);
         Map<String, Object> latestTrace = latestByTimestamp(task.traceView(), "timestamp");
         Map<String, Object> latestStageRun = latestByTimestamp(task.stageRunsView(), "finishedAt");
@@ -137,100 +143,91 @@ class TaskViewMapper {
         Map<String, Object> latestJoinOutput = latestJoinOutput(task);
         int plannedClipCount = intValue(task.executionContext.get("plannedClipCount"), 0);
         List<Integer> renderedClipIndices = renderedClipIndices(task);
-        Map<String, Object> monitoring = new LinkedHashMap<>();
-        monitoring.put("currentStage", currentStage(task, latestStageRun, latestTrace));
-        monitoring.put("activeAttemptStatus", stringValue(activeAttempt.get("status")));
-        monitoring.put("activeWorkerInstanceId", stringValue(activeAttempt.get("workerInstanceId")));
-        monitoring.put("resumeFromStage", stringValue(activeAttempt.get("resumeFromStage")));
-        monitoring.put("resumeFromClipIndex", intValue(activeAttempt.get("resumeFromClipIndex"), 0));
-        monitoring.put("plannedClipCount", plannedClipCount);
-        monitoring.put("renderedClipCount", renderedClipIndices.size());
-        monitoring.put("contiguousRenderedClipCount", contiguousClipCount(renderedClipIndices));
-        monitoring.put("latestRenderedClipIndex", renderedClipIndices.isEmpty() ? 0 : renderedClipIndices.get(renderedClipIndices.size() - 1));
-        monitoring.put("latestVideoOutputUrl", firstNonBlank(stringValue(latestVideoOutput.get("downloadUrl")), stringValue(latestVideoOutput.get("previewUrl"))));
-        monitoring.put("latestJoinName", firstNonBlank(stringValue(task.executionContext.get("latestJoinName")), stringValue(mapValue(latestJoinOutput.get("extra")).get("joinName"))));
-        monitoring.put("latestJoinOutputUrl", firstNonBlank(stringValue(task.executionContext.get("latestJoinOutputUrl")), stringValue(latestJoinOutput.get("downloadUrl"))));
-        monitoring.put("latestJoinClipIndex", intValue(task.executionContext.get("latestJoinClipIndex"), intValue(latestJoinOutput.get("clipIndex"), 0)));
-        monitoring.put("latestJoinClipIndices", listValue(task.executionContext.get("latestJoinClipIndices")));
-        monitoring.put("storyboardFileUrl", stringValue(task.executionContext.get("storyboardFileUrl")));
-        monitoring.put("artifactDirectories", artifactDirectories(task));
-        if (includeVerbose) {
-            monitoring.put("latestTrace", latestTrace);
-            monitoring.put("latestStageRun", latestStageRun);
-            monitoring.put("latestVideoOutput", latestVideoOutput);
-            monitoring.put("latestJoinOutput", latestJoinOutput);
-            monitoring.put("activeAttempt", activeAttempt);
-        }
-        return monitoring;
+        return new TaskMonitoringSnapshot(
+            currentStage(task, latestStageRun, latestTrace),
+            stringValue(activeAttempt.get("status")),
+            stringValue(activeAttempt.get("workerInstanceId")),
+            stringValue(activeAttempt.get("resumeFromStage")),
+            intValue(activeAttempt.get("resumeFromClipIndex"), 0),
+            plannedClipCount,
+            renderedClipIndices.size(),
+            contiguousClipCount(renderedClipIndices),
+            renderedClipIndices.isEmpty() ? 0 : renderedClipIndices.get(renderedClipIndices.size() - 1),
+            firstNonBlank(stringValue(latestVideoOutput.get("downloadUrl")), stringValue(latestVideoOutput.get("previewUrl"))),
+            firstNonBlank(stringValue(task.executionContext.get("latestJoinName")), stringValue(mapValue(latestJoinOutput.get("extra")).get("joinName"))),
+            firstNonBlank(stringValue(task.executionContext.get("latestJoinOutputUrl")), stringValue(latestJoinOutput.get("downloadUrl"))),
+            intValue(task.executionContext.get("latestJoinClipIndex"), intValue(latestJoinOutput.get("clipIndex"), 0)),
+            listValue(task.executionContext.get("latestJoinClipIndices")),
+            stringValue(task.executionContext.get("storyboardFileUrl")),
+            artifactDirectories(task),
+            latestTrace,
+            latestStageRun,
+            latestVideoOutput,
+            latestJoinOutput,
+            renderedClipIndices
+        );
     }
 
-    private Map<String, Object> artifactDirectories(TaskRecord task) {
-        String baseRelativeDir = TaskArtifactNaming.taskBaseRelativeDir(task);
-        String runningRelativeDir = TaskArtifactNaming.taskRunningRelativeDir(task);
-        String joinedRelativeDir = TaskArtifactNaming.taskJoinedRelativeDir(task);
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("storageRoot", storageRoot.toString());
-        row.put("baseRelativeDir", baseRelativeDir);
-        row.put("baseAbsoluteDir", storageRoot.resolve(baseRelativeDir).normalize().toString());
-        row.put("runningRelativeDir", runningRelativeDir);
-        row.put("runningAbsoluteDir", storageRoot.resolve(runningRelativeDir).normalize().toString());
-        row.put("joinedRelativeDir", joinedRelativeDir);
-        row.put("joinedAbsoluteDir", storageRoot.resolve(joinedRelativeDir).normalize().toString());
-        row.put("runningPublicBaseUrl", storagePublicBaseUrl(runningRelativeDir));
-        row.put("joinedPublicBaseUrl", storagePublicBaseUrl(joinedRelativeDir));
-        row.put("storyboardFileName", TaskArtifactNaming.storyboardFileName(task, "md"));
-        row.put("firstFramePattern", "clip{n}-first.<ext>");
-        row.put("lastFramePattern", "clip{n}-last.<ext>");
-        row.put("clipPattern", "clip{n}.<ext>");
-        row.put("joinPattern", "join-1-2[-3...].mp4");
-        return row;
-    }
-
-    private String storagePublicBaseUrl(String relativeDir) {
-        return "/storage/" + relativeDir.replace('\\', '/') + "/";
+    private TaskArtifactDirectories artifactDirectories(TaskRecord task) {
+        return new TaskArtifactDirectories(
+            storageRoot.resolve(TaskArtifactNaming.taskBaseRelativeDir(task)).toString(),
+            storageRoot.resolve(TaskArtifactNaming.taskRunningRelativeDir(task)).toString(),
+            storageRoot.resolve(TaskArtifactNaming.taskJoinedRelativeDir(task)).toString()
+        );
     }
 
     private Map<String, Object> activeAttempt(TaskRecord task) {
         if (task.activeAttemptId == null || task.activeAttemptId.isBlank()) {
             return Map.of();
         }
-        for (Map<String, Object> attempt : task.attemptsView()) {
-            if (task.activeAttemptId.equals(stringValue(attempt.get("attemptId")))) {
-                return attempt;
+        for (Map<String, Object> item : task.attemptsView()) {
+            if (task.activeAttemptId.equals(stringValue(item.get("attemptId")))) {
+                return item;
             }
         }
         return Map.of();
     }
 
+    private Map<String, Object> latestByTimestamp(List<Map<String, Object>> rows, String fieldName) {
+        return rows.stream()
+            .max(Comparator.comparing(item -> stringValue(item.get(fieldName))))
+            .orElse(Map.of());
+    }
+
     private Map<String, Object> latestVideoOutput(TaskRecord task) {
-        List<Map<String, Object>> videos = task.outputsView().stream()
+        return task.outputsView().stream()
             .filter(item -> "video".equalsIgnoreCase(stringValue(item.get("resultType"))))
-            .sorted(Comparator.comparingInt(item -> intValue(item.get("clipIndex"), 0)))
-            .toList();
-        return videos.isEmpty() ? Map.of() : videos.get(videos.size() - 1);
+            .max(Comparator.comparingInt(item -> intValue(item.get("clipIndex"), 0)))
+            .orElse(Map.of());
     }
 
     private Map<String, Object> latestJoinOutput(TaskRecord task) {
-        List<Map<String, Object>> joins = task.outputsView().stream()
+        return task.outputsView().stream()
             .filter(item -> "video_join".equalsIgnoreCase(stringValue(item.get("resultType"))))
-            .sorted(Comparator.comparingInt(item -> intValue(item.get("clipIndex"), 0)))
-            .toList();
-        return joins.isEmpty() ? Map.of() : joins.get(joins.size() - 1);
+            .max(Comparator.comparingInt(item -> intValue(item.get("clipIndex"), 0)))
+            .orElse(Map.of());
+    }
+
+    private String currentStage(TaskRecord task, Map<String, Object> latestStageRun, Map<String, Object> latestTrace) {
+        String stage = firstNonBlank(stringValue(latestStageRun.get("stageName")), stringValue(latestTrace.get("stage")));
+        if (!stage.isBlank()) {
+            return stage;
+        }
+        return switch (task.status) {
+            case "ANALYZING" -> "analysis";
+            case "PLANNING" -> "planning";
+            case "RENDERING" -> "render";
+            default -> "";
+        };
     }
 
     private List<Integer> renderedClipIndices(TaskRecord task) {
-        List<Integer> indices = new ArrayList<>();
-        for (Map<String, Object> output : task.outputsView()) {
-            if (!"video".equalsIgnoreCase(stringValue(output.get("resultType")))) {
-                continue;
-            }
-            int clipIndex = intValue(output.get("clipIndex"), 0);
-            if (clipIndex > 0) {
-                indices.add(clipIndex);
-            }
-        }
-        indices.sort(Integer::compareTo);
-        return indices;
+        return task.outputsView().stream()
+            .filter(item -> "video".equalsIgnoreCase(stringValue(item.get("resultType"))))
+            .map(item -> intValue(item.get("clipIndex"), 0))
+            .filter(item -> item > 0)
+            .sorted()
+            .toList();
     }
 
     private int contiguousClipCount(List<Integer> clipIndices) {
@@ -244,30 +241,67 @@ class TaskViewMapper {
         return expected - 1;
     }
 
-    private String currentStage(TaskRecord task, Map<String, Object> latestStageRun, Map<String, Object> latestTrace) {
-        String stageName = stringValue(latestStageRun.get("stageName"));
-        if (!stageName.isBlank()) {
-            return stageName;
+    private List<Map<String, Object>> durationDiagnostics(TaskRecord task) {
+        List<Map<String, Object>> planRows = listMapValue(task.executionContext.get("clipDurationPlan"));
+        List<Map<String, Object>> diagnostics = new ArrayList<>();
+        Map<Integer, Map<String, Object>> outputsByClip = new LinkedHashMap<>();
+        for (Map<String, Object> output : task.outputsView()) {
+            if (!"video".equalsIgnoreCase(stringValue(output.get("resultType")))) {
+                continue;
+            }
+            int clipIndex = intValue(output.get("clipIndex"), 0);
+            if (clipIndex > 0) {
+                outputsByClip.put(clipIndex, output);
+            }
         }
-        String traceStage = stringValue(latestTrace.get("stage"));
-        if (!traceStage.isBlank()) {
-            return traceStage;
+        for (Map<String, Object> planRow : planRows) {
+            int clipIndex = intValue(planRow.get("clipIndex"), diagnostics.size() + 1);
+            Map<String, Object> output = outputsByClip.remove(clipIndex);
+            if (output == null) {
+                output = Map.of();
+            }
+            Map<String, Object> outputExtra = mapValue(output.get("extra"));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("clipIndex", clipIndex);
+            row.put("durationSource", stringValue(planRow.get("durationSource")));
+            row.put("scriptMinDurationSeconds", nullableInt(planRow.get("scriptMinDurationSeconds")));
+            row.put("scriptMaxDurationSeconds", nullableInt(planRow.get("scriptMaxDurationSeconds")));
+            row.put("plannedTargetDurationSeconds", intValue(planRow.get("targetDurationSeconds"), 0));
+            row.put("plannedMinDurationSeconds", intValue(planRow.get("minDurationSeconds"), 0));
+            row.put("plannedMaxDurationSeconds", intValue(planRow.get("maxDurationSeconds"), 0));
+            row.put("requestedDurationSeconds", nullableDouble(outputExtra.get("requestedDurationSeconds")));
+            row.put("appliedDurationSeconds", nullableDouble(outputExtra.get("appliedDurationSeconds")));
+            row.put("actualDurationSeconds", output.isEmpty() ? null : nullableDouble(output.get("durationSeconds")));
+            row.put("status", output.isEmpty() ? "pending" : "rendered");
+            diagnostics.add(row);
         }
-        return switch (task.status) {
-            case "ANALYZING" -> "analysis";
-            case "PLANNING" -> "planning";
-            case "RENDERING" -> "render";
-            case "COMPLETED", "FAILED", "PAUSED" -> "pipeline";
-            default -> "dispatch";
-        };
+        for (Map.Entry<Integer, Map<String, Object>> entry : outputsByClip.entrySet()) {
+            Map<String, Object> output = entry.getValue();
+            Map<String, Object> outputExtra = mapValue(output.get("extra"));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("clipIndex", entry.getKey());
+            row.put("durationSource", "");
+            row.put("scriptMinDurationSeconds", null);
+            row.put("scriptMaxDurationSeconds", null);
+            row.put("plannedTargetDurationSeconds", nullableInt(outputExtra.get("plannedTargetDurationSeconds")));
+            row.put("plannedMinDurationSeconds", nullableInt(outputExtra.get("plannedMinDurationSeconds")));
+            row.put("plannedMaxDurationSeconds", nullableInt(outputExtra.get("plannedMaxDurationSeconds")));
+            row.put("requestedDurationSeconds", nullableDouble(outputExtra.get("requestedDurationSeconds")));
+            row.put("appliedDurationSeconds", nullableDouble(outputExtra.get("appliedDurationSeconds")));
+            row.put("actualDurationSeconds", nullableDouble(output.get("durationSeconds")));
+            row.put("status", "rendered");
+            diagnostics.add(row);
+        }
+        diagnostics.sort(Comparator.comparingInt(item -> intValue(item.get("clipIndex"), Integer.MAX_VALUE)));
+        return diagnostics;
     }
 
-    private Map<String, Object> latestByTimestamp(List<Map<String, Object>> rows, String timestampKey) {
-        List<Map<String, Object>> ordered = rows.stream()
-            .filter(item -> !stringValue(item.get(timestampKey)).isBlank())
-            .sorted((left, right) -> stringValue(right.get(timestampKey)).compareTo(stringValue(left.get(timestampKey))))
-            .toList();
-        return ordered.isEmpty() ? Map.of() : ordered.get(0);
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mapValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return Map.of();
     }
 
     @SuppressWarnings("unchecked")
@@ -279,11 +313,17 @@ class TaskViewMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> mapValue(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            return (Map<String, Object>) map;
+    private List<Map<String, Object>> listMapValue(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
         }
-        return Map.of();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                rows.add((Map<String, Object>) map);
+            }
+        }
+        return rows;
     }
 
     private String firstNonBlank(String... values) {
@@ -295,8 +335,11 @@ class TaskViewMapper {
         return "";
     }
 
-    private String stringValue(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
+    private boolean boolValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return value != null && Boolean.parseBoolean(String.valueOf(value));
     }
 
     private int intValue(Object value, int fallback) {
@@ -312,13 +355,93 @@ class TaskViewMapper {
         return fallback;
     }
 
-    private boolean boolValue(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
+    private Integer nullableInt(Object value) {
+        if (value == null) {
+            return null;
         }
+        return intValue(value, 0);
+    }
+
+    private Double nullableDouble(Object value) {
         if (value instanceof Number number) {
-            return number.intValue() != 0;
+            return number.doubleValue();
         }
-        return "true".equalsIgnoreCase(stringValue(value));
+        if (value != null) {
+            try {
+                return Double.parseDouble(String.valueOf(value).trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private record TaskDiagnosisSummary(String severity, String code, String hint, String recommendedAction) {}
+
+    private record TaskArtifactDirectories(String baseDir, String runningDir, String joinedDir) {
+
+        Map<String, Object> toMap() {
+            return Map.of(
+                "baseDir", baseDir,
+                "runningDir", runningDir,
+                "joinedDir", joinedDir
+            );
+        }
+    }
+
+    private record TaskMonitoringSnapshot(
+        String currentStage,
+        String activeAttemptStatus,
+        String activeWorkerInstanceId,
+        String resumeFromStage,
+        int resumeFromClipIndex,
+        int plannedClipCount,
+        int renderedClipCount,
+        int contiguousRenderedClipCount,
+        int latestRenderedClipIndex,
+        String latestVideoOutputUrl,
+        String latestJoinName,
+        String latestJoinOutputUrl,
+        int latestJoinClipIndex,
+        List<Object> latestJoinClipIndices,
+        String storyboardFileUrl,
+        TaskArtifactDirectories artifactDirectories,
+        Map<String, Object> latestTrace,
+        Map<String, Object> latestStageRun,
+        Map<String, Object> latestVideoOutput,
+        Map<String, Object> latestJoinOutput,
+        List<Integer> renderedClipIndices
+    ) {
+
+        Map<String, Object> toMap(boolean includeVerbose) {
+            Map<String, Object> monitoring = new LinkedHashMap<>();
+            monitoring.put("currentStage", currentStage);
+            monitoring.put("activeAttemptStatus", activeAttemptStatus);
+            monitoring.put("activeWorkerInstanceId", activeWorkerInstanceId);
+            monitoring.put("resumeFromStage", resumeFromStage);
+            monitoring.put("resumeFromClipIndex", resumeFromClipIndex);
+            monitoring.put("plannedClipCount", plannedClipCount);
+            monitoring.put("renderedClipCount", renderedClipCount);
+            monitoring.put("contiguousRenderedClipCount", contiguousRenderedClipCount);
+            monitoring.put("latestRenderedClipIndex", latestRenderedClipIndex);
+            monitoring.put("latestVideoOutputUrl", latestVideoOutputUrl);
+            monitoring.put("latestJoinName", latestJoinName);
+            monitoring.put("latestJoinOutputUrl", latestJoinOutputUrl);
+            monitoring.put("latestJoinClipIndex", latestJoinClipIndex);
+            monitoring.put("latestJoinClipIndices", latestJoinClipIndices);
+            monitoring.put("storyboardFileUrl", storyboardFileUrl);
+            monitoring.put("artifactDirectories", artifactDirectories.toMap());
+            if (includeVerbose) {
+                monitoring.put("latestTrace", latestTrace);
+                monitoring.put("latestStageRun", latestStageRun);
+                monitoring.put("latestVideoOutput", latestVideoOutput);
+                monitoring.put("latestJoinOutput", latestJoinOutput);
+                monitoring.put("renderedClipIndices", renderedClipIndices);
+            }
+            return monitoring;
+        }
     }
 }

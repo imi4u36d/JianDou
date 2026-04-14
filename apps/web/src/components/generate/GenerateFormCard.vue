@@ -54,11 +54,11 @@
 
     <div class="field-grid">
       <label class="field">
-        <span class="field-label">分辨率</span>
+        <span class="field-label">清晰度 / 画幅</span>
         <select v-model="props.form.videoSize" class="field-select">
           <option v-for="item in props.videoSizes" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
-        <p class="field-hint">按当前视频模型过滤可用分辨率。</p>
+        <p class="field-hint">按当前视频模型过滤可用清晰度和画幅组合。</p>
       </label>
     </div>
 
@@ -92,7 +92,7 @@
     <div class="model-inline">
       <span>{{ props.selectedVideoModel?.label || props.form.providerModel }}</span>
       <span v-if="props.selectedVideoModel?.provider">{{ props.selectedVideoModel.provider }}</span>
-      <span>{{ props.form.videoSize || "未选分辨率" }}</span>
+      <span>{{ props.form.videoSize || "未选清晰度" }}</span>
       <span>{{ durationHint }}</span>
     </div>
 
