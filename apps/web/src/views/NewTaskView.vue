@@ -78,7 +78,10 @@
                   </div>
                   <div class="grid gap-4 sm:grid-cols-2">
                     <label class="grid gap-2 text-sm text-slate-700">
-                      Seed
+                      <span class="field-label-inline">
+                        <span>Seed</span>
+                        <HintBell class="seed-hint-bell" title="Seed 使用说明" :text="seedCapabilityHint" align="left" />
+                      </span>
                       <input
                         v-model="seedInput"
                         class="field-input"
@@ -87,7 +90,6 @@
                         step="1"
                         placeholder="留空则不指定"
                       />
-                      <span class="text-xs text-slate-500">{{ seedCapabilityHint }}</span>
                     </label>
                     <label class="grid gap-2 text-sm text-slate-700">
                       清晰度 / 画幅
@@ -283,6 +285,7 @@ import { fetchGenerationOptions } from "@/api/generation";
 import { createGenerationTask, fetchTasks, generateCreativePrompt, uploadText } from "@/api/tasks";
 import TaskProgressCard from "@/components/generate/TaskProgressCard.vue";
 import { useTaskProgress } from "@/components/generate/useTaskProgress";
+import HintBell from "@/components/HintBell.vue";
 import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";
 import type {
   CreateGenerationTaskRequest,
@@ -1083,6 +1086,40 @@ onUnmounted(() => {
   color: var(--text-strong);
   font-size: 0.98rem;
   letter-spacing: -0.02em;
+}
+
+.field-label-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.seed-hint-bell {
+  display: inline-flex;
+}
+
+.seed-hint-bell :deep(.hint-bell) {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  color: var(--text-muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.seed-hint-bell :deep(.hint-bell:hover) {
+  transform: none;
+  box-shadow: none;
+  color: var(--text-body);
+}
+
+.seed-hint-bell :deep(.hint-bell svg) {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.seed-hint-bell :deep(.hint-bell-dot) {
+  display: none;
 }
 
 .creative-grid {
