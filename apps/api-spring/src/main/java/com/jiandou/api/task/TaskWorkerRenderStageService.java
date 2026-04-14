@@ -6,10 +6,14 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 final class TaskWorkerRenderStageService {
+
+    private static final long DEFAULT_VIDEO_RUN_POLL_INTERVAL_MILLIS = 1000L;
+    private static final int DEFAULT_VIDEO_RUN_MAX_POLLS = 240;
 
     private final TaskRepository taskRepository;
     private final TaskExecutionCoordinator executionCoordinator;
@@ -18,7 +22,10 @@ final class TaskWorkerRenderStageService {
     private final TaskExecutionArtifactAssembler artifactAssembler;
     private final TaskWorkerStatusStageService statusStageService;
     private final TaskWorkerJoinStageService joinStageService;
+    private final long videoRunPollIntervalMillis;
+    private final int videoRunMaxPolls;
 
+    @Autowired
     TaskWorkerRenderStageService(
         TaskRepository taskRepository,
         TaskExecutionCoordinator executionCoordinator,
@@ -28,6 +35,30 @@ final class TaskWorkerRenderStageService {
         TaskWorkerStatusStageService statusStageService,
         TaskWorkerJoinStageService joinStageService
     ) {
+        this(
+            taskRepository,
+            executionCoordinator,
+            generationApplicationService,
+            runtimeSupport,
+            artifactAssembler,
+            statusStageService,
+            joinStageService,
+            DEFAULT_VIDEO_RUN_POLL_INTERVAL_MILLIS,
+            DEFAULT_VIDEO_RUN_MAX_POLLS
+        );
+    }
+
+    TaskWorkerRenderStageService(
+        TaskRepository taskRepository,
+        TaskExecutionCoordinator executionCoordinator,
+        GenerationApplicationService generationApplicationService,
+        TaskExecutionRuntimeSupport runtimeSupport,
+        TaskExecutionArtifactAssembler artifactAssembler,
+        TaskWorkerStatusStageService statusStageService,
+        TaskWorkerJoinStageService joinStageService,
+        long videoRunPollIntervalMillis,
+        int videoRunMaxPolls
+    ) {
         this.taskRepository = taskRepository;
         this.executionCoordinator = executionCoordinator;
         this.generationApplicationService = generationApplicationService;
@@ -35,6 +66,8 @@ final class TaskWorkerRenderStageService {
         this.artifactAssembler = artifactAssembler;
         this.statusStageService = statusStageService;
         this.joinStageService = joinStageService;
+        this.videoRunPollIntervalMillis = Math.max(0L, videoRunPollIntervalMillis);
+        this.videoRunMaxPolls = Math.max(1, videoRunMaxPolls);
     }
 
     RenderStageResult render(TaskRecord task, TaskWorkerExecutionContext runContext, RenderStageRequest request) {
@@ -134,6 +167,7 @@ final class TaskWorkerRenderStageService {
                 firstFrameUrl
             );
             Map<String, Object> videoRun = generationApplicationService.createRun(videoRequest);
+            videoRun = awaitCompletedVideoRun(videoRun);
             runtimeSupport.assertTaskStillActive(task);
             Map<String, Object> videoResult = resultMap(videoRun);
             Map<String, Object> videoMetadata = mapValue(videoResult.get("metadata"));
@@ -217,6 +251,31 @@ final class TaskWorkerRenderStageService {
         putExecutionContext(task, "attemptResumeFromClipIndex", null);
         taskRepository.save(task);
         return new RenderStageResult(imageRunIds, videoRunIds, latestVideoOutputUrl, request.clipPrompts().size());
+    }
+
+    Map<String, Object> awaitCompletedVideoRun(Map<String, Object> initialRun) {
+        String currentStatus = normalizedRunStatus(initialRun);
+        if (!isVideoRunActive(currentStatus)) {
+            assertVideoRunSucceeded(initialRun, currentStatus);
+            return initialRun;
+        }
+        String runId = stringValue(initialRun.get("id"));
+        if (runId.isBlank()) {
+            throw new IllegalStateException("video run is active but missing run id");
+        }
+        Map<String, Object> currentRun = initialRun;
+        for (int poll = 0; poll < videoRunMaxPolls; poll++) {
+            currentRun = generationApplicationService.getRun(runId);
+            currentStatus = normalizedRunStatus(currentRun);
+            if (!isVideoRunActive(currentStatus)) {
+                assertVideoRunSucceeded(currentRun, currentStatus);
+                return currentRun;
+            }
+            sleepBeforeNextVideoPoll();
+        }
+        throw new IllegalStateException(
+            "video run wait timeout: runId=" + runId + ", status=" + currentStatus + ", maxPolls=" + videoRunMaxPolls
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -341,6 +400,47 @@ final class TaskWorkerRenderStageService {
             }
         }
         return defaultValue;
+    }
+
+    private String normalizedRunStatus(Map<String, Object> run) {
+        return stringValue(run == null ? null : run.get("status")).toLowerCase();
+    }
+
+    private boolean isVideoRunActive(String status) {
+        return "accepted".equals(status)
+            || "queued".equals(status)
+            || "submitted".equals(status)
+            || "running".equals(status);
+    }
+
+    private void assertVideoRunSucceeded(Map<String, Object> run, String status) {
+        if ("succeeded".equals(status) || "completed".equals(status) || "success".equals(status)) {
+            return;
+        }
+        Map<String, Object> result = resultMap(run);
+        Map<String, Object> metadata = mapValue(result.get("metadata"));
+        String message = firstNonBlank(
+            stringValue(result.get("error")),
+            stringValue(metadata.get("taskMessage")),
+            stringValue(metadata.get("message"))
+        );
+        throw new IllegalStateException(
+            "video run did not complete successfully: runId=" + stringValue(run == null ? null : run.get("id"))
+                + ", status=" + status
+                + (message.isBlank() ? "" : ", error=" + message)
+        );
+    }
+
+    private void sleepBeforeNextVideoPoll() {
+        if (videoRunPollIntervalMillis <= 0L) {
+            return;
+        }
+        try {
+            Thread.sleep(videoRunPollIntervalMillis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("video run wait interrupted", ex);
+        }
     }
 
     record RenderStageRequest(

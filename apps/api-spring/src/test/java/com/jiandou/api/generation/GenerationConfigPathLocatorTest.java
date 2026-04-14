@@ -71,6 +71,30 @@ class GenerationConfigPathLocatorTest {
         assertTrue(located.detail().contains("checked config candidates"));
     }
 
+    @Test
+    void parentDirectoryConfigIsUsedWhenStartedFromModuleDir() throws IOException {
+        Path repoRoot = tempDir.resolve("repo");
+        Path configFile = writeConfig(repoRoot.resolve("config").resolve("app.yml"));
+        Path moduleDir = repoRoot.resolve("apps").resolve("api-spring");
+        Files.createDirectories(moduleDir);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", moduleDir.toString());
+        try {
+            GenerationConfigPathLocator locator = new GenerationConfigPathLocator(new MockEnvironment());
+            GenerationConfigPathLocator.LocatedConfig located = locator.locateAppConfig();
+
+            assertEquals(configFile.toAbsolutePath().normalize(), located.configFile());
+            assertEquals("parent-default", located.detail());
+        } finally {
+            if (originalUserDir == null) {
+                System.clearProperty("user.dir");
+            } else {
+                System.setProperty("user.dir", originalUserDir);
+            }
+        }
+    }
+
     private Path writeConfig(Path path) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, "prompt:\n  file: \"prompts\"\n");

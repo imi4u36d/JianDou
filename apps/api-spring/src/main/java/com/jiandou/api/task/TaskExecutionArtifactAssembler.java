@@ -96,8 +96,13 @@ final class TaskExecutionArtifactAssembler {
         int clipIndex,
         int fallbackDurationSeconds
     ) {
-        String outputUrl = stringValue(result.get("outputUrl"));
         Map<String, Object> metadata = mapValue(result.get("metadata"));
+        String outputUrl = firstNonBlank(
+            stringValue(result.get("outputUrl")),
+            stringValue(metadata.get("outputUrl")),
+            stringValue(metadata.get("fileUrl")),
+            stringValue(metadata.get("remoteSourceUrl"))
+        );
         LocalMediaArtifactService.StoredArtifact artifact = normalizeTaskArtifact(
             task,
             outputUrl,

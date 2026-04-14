@@ -26,6 +26,10 @@ public class GenerationConfigPathLocator {
 
     public LocatedConfig locateAppConfig() {
         List<Path> checkedCandidates = new ArrayList<>();
+        boolean explicitConfigRequested = hasConfiguredValue("JIANDOU_CONFIG_FILE", "jiandou.config.file", "JIANDOU_CONFIG_PATH", "jiandou.config.path")
+            || hasConfiguredValue("JIANDOU_CONFIG_DIR", "jiandou.config.dir")
+            || hasConfiguredValue("spring.config.additional-location", "SPRING_CONFIG_ADDITIONAL_LOCATION")
+            || hasConfiguredValue("spring.config.location", "SPRING_CONFIG_LOCATION");
         Path explicitFile = resolveExplicitConfigFile(checkedCandidates);
         if (explicitFile != null) {
             return buildLocatedConfig(explicitFile, "explicit-file");
@@ -54,6 +58,14 @@ public class GenerationConfigPathLocator {
             checkedCandidates.add(candidate);
             if (isRegularFile(candidate)) {
                 return buildLocatedConfig(candidate, "spring-default");
+            }
+        }
+        if (!explicitConfigRequested) {
+            for (Path candidate : ancestorExternalCandidates()) {
+                checkedCandidates.add(candidate);
+                if (isRegularFile(candidate)) {
+                    return buildLocatedConfig(candidate, "parent-default");
+                }
             }
         }
         String detail = describeCheckedCandidates(checkedCandidates);
@@ -152,10 +164,25 @@ public class GenerationConfigPathLocator {
     }
 
     private List<Path> springDefaultExternalCandidates() {
-        Path cwd = Paths.get("").toAbsolutePath().normalize();
+        Path cwd = currentWorkingDirectory();
         List<Path> candidates = new ArrayList<>(configFileCandidates(cwd.resolve("config")));
         candidates.addAll(configFileCandidates(cwd));
         return candidates.stream().distinct().toList();
+    }
+
+    private List<Path> ancestorExternalCandidates() {
+        List<Path> candidates = new ArrayList<>();
+        Path current = currentWorkingDirectory().getParent();
+        while (current != null) {
+            candidates.addAll(configFileCandidates(current.resolve("config")));
+            candidates.addAll(configFileCandidates(current));
+            current = current.getParent();
+        }
+        return candidates.stream().distinct().toList();
+    }
+
+    private Path currentWorkingDirectory() {
+        return Paths.get(firstNonBlank(System.getProperty("user.dir"), ".")).toAbsolutePath().normalize();
     }
 
     private List<Path> configFileCandidates(Path directory) {
@@ -219,6 +246,15 @@ public class GenerationConfigPathLocator {
     private String property(String key) {
         String value = environment.getProperty(key);
         return value == null ? "" : value.trim();
+    }
+
+    private boolean hasConfiguredValue(String... keys) {
+        for (String key : keys) {
+            if (!property(key).isBlank()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String firstNonBlank(String... values) {

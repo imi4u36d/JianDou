@@ -4,9 +4,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEB_DIR="$ROOT_DIR/apps/web"
-API_HOST="${API_HOST:-0.0.0.0}"
+API_HOST="${API_HOST:-127.0.0.1}"
 API_PORT="${API_PORT:-8000}"
-WEB_HOST="${WEB_HOST:-0.0.0.0}"
+WEB_HOST="${WEB_HOST:-127.0.0.1}"
 WEB_PORT="${WEB_PORT:-5173}"
 
 API_PID=""
@@ -32,6 +32,15 @@ require_command() {
     echo "缺少命令: $1"
     exit 1
   fi
+}
+
+display_host() {
+  local host="$1"
+  if [[ "$host" == "0.0.0.0" ]]; then
+    echo "127.0.0.1"
+    return
+  fi
+  echo "$host"
 }
 
 collect_listen_pids() {
@@ -172,14 +181,14 @@ stop_service_if_running "前端" "$WEB_PORT" "npm --prefix" "vite"
 
 trap cleanup EXIT INT TERM
 
-echo "启动 Spring Boot 后端: http://127.0.0.1:${API_PORT}"
+echo "启动 Spring Boot 后端: http://$(display_host "$API_HOST"):${API_PORT}"
 (
   cd "$ROOT_DIR/apps/api-spring"
-  exec env SERVER_PORT="$API_PORT" mvn spring-boot:run
+  exec env SERVER_ADDRESS="$API_HOST" SERVER_PORT="$API_PORT" mvn spring-boot:run
 ) &
 API_PID=$!
 
-echo "启动前端: http://localhost:${WEB_PORT}"
+echo "启动前端: http://$(display_host "$WEB_HOST"):${WEB_PORT}"
 (
   cd "$ROOT_DIR"
   exec npm --prefix apps/web run dev -- --host "$WEB_HOST" --port "$WEB_PORT"
