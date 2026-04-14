@@ -3,6 +3,7 @@ import type {
   CreateGenerationTaskRequest,
   GenerateCreativePromptRequest,
   GenerateCreativePromptResponse,
+  RateTaskEffectRequest,
   TaskDeleteResult,
   TaskDetail,
   TaskFilters,
@@ -34,6 +35,9 @@ export function fetchTasks(filters?: TaskFilters) {
   if (filters?.status && filters.status !== "all") {
     params.set("status", filters.status);
   }
+  if (filters?.sort?.trim()) {
+    params.set("sort", filters.sort.trim());
+  }
   const query = params.toString();
   return getJson<TaskListItem[]>(query ? `/tasks?${query}` : "/tasks");
 }
@@ -64,6 +68,10 @@ export function continueTask(taskId: string) {
 
 export function terminateTask(taskId: string) {
   return postJson<TaskDetail>(`/tasks/${taskId}/terminate`, {});
+}
+
+export function rateTaskEffect(taskId: string, payload: RateTaskEffectRequest) {
+  return postJson<TaskDetail>(`/tasks/${taskId}/effect-rating`, payload);
 }
 
 export function deleteTask(taskId: string) {

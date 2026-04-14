@@ -17,6 +17,10 @@
         <p class="card-tag">{{ item.tag }}</p>
         <p class="card-title">{{ item.title }}</p>
         <p class="card-description">{{ item.description }}</p>
+        <div v-if="item.variant === 'featured'" class="card-meta">
+          <span>Prompt to Params</span>
+          <span>Traceable Delivery</span>
+        </div>
       </article>
     </div>
   </section>
@@ -55,11 +59,11 @@ const items = [
 .highlights {
   border-radius: 26px;
   padding: clamp(1rem, 2.6vw, 1.6rem);
-  border: 1px solid rgba(185, 203, 233, 0.58);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(246, 250, 255, 0.72)),
-    radial-gradient(circle at 12% 16%, rgba(104, 169, 255, 0.16), transparent 34%);
-  box-shadow: 0 16px 38px rgba(37, 60, 96, 0.11);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.38)),
+    var(--bg-surface);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-raise);
 }
 
 .section-head {
@@ -72,14 +76,14 @@ const items = [
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #5f7597;
+  color: var(--text-muted);
 }
 
 .section-title {
   margin: 0.48rem 0 0;
-  font-family: "Sora", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-family: "Inter", "PingFang SC", "Noto Sans SC", sans-serif;
   font-size: clamp(1.2rem, 3vw, 1.7rem);
-  color: #132f56;
+  color: var(--text-strong);
 }
 
 .highlight-grid {
@@ -89,27 +93,30 @@ const items = [
 }
 
 .highlight-card {
+  position: relative;
+  overflow: hidden;
   border-radius: 18px;
-  border: 1px solid rgba(199, 215, 241, 0.72);
-  background:
-    radial-gradient(circle at 6% 10%, rgba(124, 210, 255, 0.14), transparent 40%),
-    rgba(255, 255, 255, 0.82);
   padding: 1rem;
+  border: 1px solid var(--surface-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.36)),
+    var(--bg-surface);
+  box-shadow: var(--shadow-raise-soft);
 }
 
 .highlight-card-featured {
   grid-column: 1 / -1;
   padding: 1.2rem;
+  border-color: rgba(197, 108, 115, 0.18);
   background:
-    radial-gradient(circle at 86% 22%, rgba(90, 167, 255, 0.24), transparent 34%),
-    linear-gradient(135deg, rgba(13, 46, 93, 0.96), rgba(16, 63, 122, 0.94));
-  border: 1px solid rgba(112, 158, 226, 0.56);
+    radial-gradient(circle at top right, rgba(255, 183, 174, 0.2), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.48)),
+    var(--bg-surface);
+  box-shadow: var(--shadow-raise);
 }
 
 .highlight-card-warm {
-  background:
-    radial-gradient(circle at 84% 20%, rgba(255, 178, 119, 0.26), transparent 36%),
-    linear-gradient(160deg, rgba(255, 248, 236, 0.95), rgba(255, 251, 245, 0.86));
+  border-color: rgba(197, 108, 115, 0.16);
 }
 
 .card-tag {
@@ -117,35 +124,56 @@ const items = [
   font-size: 0.66rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #6983a6;
+  color: #7b8ba4;
   font-weight: 700;
 }
 
 .card-title {
   margin: 0.38rem 0 0;
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: #153358;
+  color: var(--text-strong);
 }
 
 .card-description {
   margin: 0.55rem 0 0;
   font-size: 0.9rem;
   line-height: 1.68;
-  color: #4b6384;
+  color: var(--text-body);
 }
 
 .highlight-card-featured .card-tag {
-  color: rgba(190, 216, 255, 0.9);
+  color: #8d5660;
 }
 
 .highlight-card-featured .card-title {
-  color: #eef4ff;
+  color: var(--text-strong);
   font-size: 1.1rem;
 }
 
 .highlight-card-featured .card-description {
-  color: rgba(205, 222, 245, 0.9);
+  color: var(--text-body);
+}
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.card-meta span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8d5660;
+  border: 1px solid rgba(197, 108, 115, 0.16);
+  background: rgba(255, 247, 245, 0.74);
 }
 
 @media (max-width: 1024px) {

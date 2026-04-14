@@ -32,6 +32,16 @@ export function formatTaskRequestedDuration(snapshot: TaskRequestSnapshot | null
   return "未设置";
 }
 
+export function formatTaskOutputCount(snapshot: TaskRequestSnapshot | null | undefined) {
+  if (snapshot?.outputCount === "auto") {
+    return "自动";
+  }
+  if (typeof snapshot?.outputCount === "number" && Number.isFinite(snapshot.outputCount)) {
+    return `${Math.trunc(snapshot.outputCount)} 条`;
+  }
+  return "自动";
+}
+
 export function formatTaskResolvedDuration(task: Pick<TaskDetail, "minDurationSeconds" | "maxDurationSeconds"> | null | undefined) {
   const minDuration = task?.minDurationSeconds;
   const maxDuration = task?.maxDurationSeconds;
@@ -64,4 +74,13 @@ export function previewTaskTranscript(snapshot: TaskRequestSnapshot | null | und
 
 export function formatTaskStopBeforeVideoGeneration(snapshot: TaskRequestSnapshot | null | undefined) {
   return snapshot?.stopBeforeVideoGeneration ? "是" : "否";
+}
+
+export function formatTaskSeed(snapshot: TaskRequestSnapshot | null | undefined) {
+  const seed = snapshot?.seed;
+  return typeof seed === "number" && Number.isFinite(seed) ? String(Math.trunc(seed)) : "未设置";
+}
+
+export function formatTaskEffectRating(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? `${Math.trunc(value)}/5` : "未评分";
 }

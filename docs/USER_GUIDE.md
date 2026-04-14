@@ -2,20 +2,21 @@
 
 ## 1. 环境准备
 
-- Python `>=3.11`
+- JDK `17`
+- Maven `3.9+`
 - Node.js `>=18`
 - Docker / Docker Compose（推荐）
-- MySQL 8.x、Redis 7.x（本地直跑时需要）
+- MySQL 8.x（本地直跑时需要）
 
 ## 2. 配置说明
 
 1. 使用示例配置：
 
 ```bash
-cp config/app.example.toml config/app.toml
+cp config/app.example.yml config/app.yml
 ```
 
-2. 打开 `config/app.toml`，替换所有模型相关 Key。  
+2. 打开 `config/app.yml`，替换所有模型相关 Key。  
 3. 如需覆盖配置，可使用 `JIANDOU_*` 环境变量（例如 `JIANDOU_DATABASE_URL`）。
 
 ## 3. Docker 一键启动（推荐）
@@ -29,7 +30,11 @@ docker compose up --build
 - 前端：`http://127.0.0.1:5173`
 - 后端：`http://127.0.0.1:8000`
 - MySQL：`127.0.0.1:3306`
-- Redis：`127.0.0.1:6379`
+
+说明：
+
+- 项目默认后端为 `apps/api-spring`
+- `apps/api/app/**` 下的 FastAPI API 入口已移除，不再作为启动方式
 
 停止服务：
 
@@ -51,23 +56,21 @@ docker compose down -v
 npm --prefix apps/web install
 ```
 
-### 4.2 创建 Python 虚拟环境并安装后端依赖
+### 4.2 准备 Spring Boot 后端依赖
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -e packages/shared -e packages/db -e packages/storage -e packages/media -e packages/ai -e packages/pipeline -e packages/backend_core -e apps/api -e apps/worker
+/opt/homebrew/opt/maven@3.9/bin/mvn -f apps/api-spring/pom.xml -DskipTests compile
 ```
 
-### 4.3 同时启动 API、worker 和前端
+### 4.3 同时启动 Spring API 和前端
 
 ```bash
 npm run dev
 ```
 
-该命令会调用 `scripts/dev.sh`，自动启动：
+该命令会调用 `scripts/dev-spring.sh`，自动启动：
 
-- FastAPI：`http://127.0.0.1:8000`
-- Worker：消费 Redis 队列中的生成任务
+- Spring Boot API：`http://127.0.0.1:8000`
 - Vite：`http://127.0.0.1:5173`
 
 ## 5. 典型使用流程
@@ -82,7 +85,7 @@ npm run dev
 
 ### 6.1 启动时报 Key 或模型错误
 
-- 检查 `config/app.toml` 中 Key 是否已替换
+- 检查 `config/app.yml` 中 Key 是否已替换
 - 检查模型 endpoint 与 provider 是否匹配
 
 ### 6.2 前端请求失败
@@ -93,4 +96,6 @@ npm run dev
 ### 6.3 任务长时间停留在 `PENDING`
 
 - 当前默认模式为 `queue`
-- 请确认 `scripts/dev.sh` 启动的 worker 仍在运行，或 Docker 中的 `jiandou-worker` 容器正常
+- 请确认 Spring 进程正常运行，且未被旧进程占用 `8000` 端口
+- 当前 Spring worker 已内嵌在 API 进程内，不需要再单独启动 Python worker
+- `apps/api/app/**` 下的 FastAPI API 入口已移除，如仍有旧脚本引用请切换到 `apps/api-spring`

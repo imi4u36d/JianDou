@@ -3,6 +3,8 @@ import type { GenerateScriptRequest, GenerateScriptResponse } from "@/types";
 
 const RUNS_ENDPOINT = "/api/v2/generation/runs";
 const RUN_DETAILS_ENDPOINT = (runId: string) => `/api/v2/generation/runs/${encodeURIComponent(runId)}`;
+const RUN_POLL_INTERVAL_MS = 1200;
+const RUN_POLL_TIMEOUT_MS = 120000;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -62,6 +64,40 @@ function simplifyGenerationRun(raw: UnknownRecord | null | undefined, payload: G
   };
 }
 
+function hasScriptResult(raw: UnknownRecord | null | undefined) {
+  const run = raw ?? {};
+  const scriptResult = asRecord(run.resultScript ?? run.result ?? {}) ?? {};
+  const metadata = asRecord(scriptResult.metadata) ?? {};
+  return Boolean(
+    asString(scriptResult.scriptMarkdown) ||
+    asString(scriptResult.markdownUrl) ||
+    asString(metadata.scriptMarkdown),
+  );
+}
+
+async function delay(ms: number) {
+  await new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitForScriptRun(runId: string, initialRun?: UnknownRecord | null) {
+  const startedAt = Date.now();
+  let latest = initialRun;
+  while (Date.now() - startedAt < RUN_POLL_TIMEOUT_MS) {
+    if (hasScriptResult(latest)) {
+      return latest;
+    }
+    const status = asString(latest?.status).toLowerCase();
+    if (status === "failed" || status === "cancelled" || status === "canceled") {
+      return latest;
+    }
+    await delay(RUN_POLL_INTERVAL_MS);
+    latest = asRecord(await getJson<unknown>(RUN_DETAILS_ENDPOINT(runId)));
+  }
+  throw new Error("脚本生成等待超时，请稍后重试");
+}
+
 export async function generateScriptFromText(payload: GenerateScriptRequest) {
   const runPayload = {
     kind: "script",
@@ -81,7 +117,7 @@ export async function generateScriptFromText(payload: GenerateScriptRequest) {
   const status = asString(run.status).toLowerCase();
   const runId = asString(run.id);
   if ((status === "accepted" || status === "running") && runId) {
-    raw = await getJson<unknown>(RUN_DETAILS_ENDPOINT(runId));
+    raw = await waitForScriptRun(runId, run);
   }
   const simplified = simplifyGenerationRun(asRecord(raw), payload);
   return normalizeResponse(simplified, payload);

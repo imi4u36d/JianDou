@@ -1,4 +1,4 @@
-# 本地开发所需的数据库、缓存、API 和前端服务编排。
+# 本地开发所需的数据库、Spring API 和前端服务编排。
 name: jiandou
 
 services:
@@ -6,7 +6,9 @@ services:
   mysql:
     image: mysql:8.4
     container_name: jiandou-mysql
+    command: ["mysqld", "--default-time-zone=+08:00"]
     environment:
+      TZ: Asia/Shanghai
       # 仅供本地开发容器使用的 root 密码。
       MYSQL_ROOT_PASSWORD: root
       # 首次启动时自动创建的数据库名。
@@ -23,99 +25,35 @@ services:
       retries: 20
       start_period: 10s
 
-  # Redis 为后端提供缓存和轻量协调能力。
-  redis:
-    image: redis:7.4
-    container_name: jiandou-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      # 持久化 Redis 数据，方便本地调试。
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  # FastAPI 后端服务，挂载源码以支持热更新。
+  # Spring Boot 后端服务，已内嵌 queue worker，挂载源码以支持热更新。
   api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: apps/api-spring/Dockerfile
     container_name: jiandou-api
-    working_dir: /app/apps/api
+    working_dir: /app/apps/api-spring
     environment:
-      # 通过 compose 内部服务名连接 MySQL。
-      JIANDOU_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/jiandou?charset=utf8mb4
-      # 通过 compose 内部服务名连接 Redis。
-      JIANDOU_REDIS_URL: redis://redis:6379/0
-      # API 仅负责入队与查询，任务实际由 worker 消费。
+      # Spring 端改用 JDBC 连接 MySQL。
+      JIANDOU_DATABASE_URL: jdbc:mysql://mysql:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
       JIANDOU_EXECUTION_MODE: queue
-      # 后端 CORS 和回调场景使用的前端来源地址。
       JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173
-      # 生成资源经由 API 服务对外暴露时使用的公共前缀。
-      JIANDOU_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
+      SERVER_PORT: 8000
     command:
       [
-        "uvicorn",
-        "app.main:app",
-        "--reload",
-        "--reload-dir",
-        "/app/apps/api",
-        "--reload-dir",
-        "/app/packages",
-        "--reload-dir",
-        "/app/config",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
+        "mvn",
+        "spring-boot:run",
+        "-Dspring-boot.run.jvmArguments=-Dserver.port=8000",
       ]
     ports:
       - "8000:8000"
     volumes:
-      # 挂载源码和配置文件，开发时改动无需重建镜像。
-      - ./apps/api:/app/apps/api
-      - ./apps/worker:/app/apps/worker
-      - ./packages:/app/packages
-      - ./config:/app/config
-      # 将上传文件、生成结果和临时文件持久化到宿主机。
-      - ./storage/uploads:/app/storage/uploads
-      - ./storage/outputs:/app/storage/outputs
-      - ./storage/temp:/app/storage/temp
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # 独立 worker 负责消费 Redis 队列并执行生成任务。
-  worker:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    container_name: jiandou-worker
-    working_dir: /app/apps/worker
-    environment:
-      JIANDOU_DATABASE_URL: mysql+pymysql://root:root@mysql:3306/jiandou?charset=utf8mb4
-      JIANDOU_REDIS_URL: redis://redis:6379/0
-      JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173
-      JIANDOU_PUBLIC_BASE_URL: http://127.0.0.1:8000/storage
-      JIANDOU_EXECUTION_MODE: queue
-    command: ["python", "app/main.py"]
-    volumes:
-      - ./apps/api:/app/apps/api
-      - ./apps/worker:/app/apps/worker
-      - ./packages:/app/packages
+      - ./apps/api-spring:/app/apps/api-spring
       - ./config:/app/config
       - ./storage/uploads:/app/storage/uploads
       - ./storage/outputs:/app/storage/outputs
       - ./storage/temp:/app/storage/temp
     depends_on:
       mysql:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   # Vue 前端的 Vite 开发服务器。
@@ -128,7 +66,6 @@ services:
     environment:
       # 使用轮询方式监听文件，提升 Docker 挂载目录下的热更新稳定性。
       CHOKIDAR_USEPOLLING: "true"
-      # 开发期将接口代理到后端容器，而不是本机 localhost。
       VITE_API_PROXY_TARGET: http://api:8000
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
     ports:
@@ -144,5 +81,4 @@ services:
 # 命名卷用于保留本地状态，同时避免污染仓库目录。
 volumes:
   mysql_data:
-  redis_data:
   web_node_modules:

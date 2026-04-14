@@ -53,6 +53,22 @@
               <p class="text-xs uppercase tracking-wide text-slate-500">源文件</p>
               <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ task.sourceFileName }}</p>
             </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">当前阶段</p>
+              <p class="mt-1 text-sm font-medium text-slate-900">{{ monitoringStageLabel }}</p>
+            </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">当前 Worker</p>
+              <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ monitoringWorkerLabel }}</p>
+            </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">任务 Seed</p>
+              <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ taskSeedLabel }}</p>
+            </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">效果评分</p>
+              <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ effectRatingLabel }}</p>
+            </article>
           </div>
 
           <div class="border-t border-slate-200/80 px-5 py-4">
@@ -61,11 +77,70 @@
             <p class="mt-1 text-xs text-slate-500">{{ planningSummary.detail }}</p>
           </div>
 
-          <div class="border-t border-slate-200/80 px-5 py-4">
+          <div v-if="monitoringRows.length" class="border-t border-slate-200/80 px-5 py-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h4 class="text-sm font-semibold text-slate-900">创建参数</h4>
-              <span class="admin-chip">时长模式 {{ requestDurationMode }}</span>
+              <h4 class="text-sm font-semibold text-slate-900">执行监控</h4>
+              <span class="admin-chip">{{ monitoringStageLabel }}</span>
             </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <article v-for="item in monitoringRows" :key="item.label" class="admin-panel-soft p-4">
+                <p class="text-xs uppercase tracking-wide text-slate-500">{{ item.label }}</p>
+                <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ item.value }}</p>
+              </article>
+            </div>
+          </div>
+
+          <div v-if="durationDiagnostics.length" class="border-t border-slate-200/80 px-5 py-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-semibold text-slate-900">镜头时长诊断</h4>
+              <span class="admin-chip">{{ durationDiagnostics.length }} 镜</span>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>镜头</th>
+                    <th>脚本时长</th>
+                    <th>规划时长</th>
+                    <th>模型请求</th>
+                    <th>模型落档</th>
+                    <th>实际输出</th>
+                    <th>来源 / 状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in durationDiagnostics" :key="item.clipIndex">
+                    <td>#{{ item.clipIndex }}</td>
+                    <td>{{ formatSecondsRange(item.scriptMinDurationSeconds, item.scriptMaxDurationSeconds) }}</td>
+                    <td>{{ formatSecondsRange(item.plannedMinDurationSeconds, item.plannedMaxDurationSeconds, item.plannedTargetDurationSeconds) }}</td>
+                    <td>{{ formatSecondsValue(item.requestedDurationSeconds) }}</td>
+                    <td>{{ formatSecondsValue(item.appliedDurationSeconds) }}</td>
+                    <td>{{ formatSecondsValue(item.actualDurationSeconds) }}</td>
+                    <td>{{ durationSourceLabel(item) }} / {{ durationStatusLabel(item.status) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div v-if="artifactRows.length" class="border-t border-slate-200/80 px-5 py-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-semibold text-slate-900">产物目录</h4>
+              <span class="admin-chip">{{ artifactDirectoryHint }}</span>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <article v-for="item in artifactRows" :key="item.label" class="admin-panel-soft p-4">
+                <p class="text-xs uppercase tracking-wide text-slate-500">{{ item.label }}</p>
+                <p class="mt-1 break-all text-sm font-medium text-slate-900">{{ item.value }}</p>
+              </article>
+            </div>
+          </div>
+
+	          <div class="border-t border-slate-200/80 px-5 py-4">
+	            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+	              <h4 class="text-sm font-semibold text-slate-900">创建参数</h4>
+	              <span class="admin-chip">时长模式 {{ requestDurationMode }}</span>
+	            </div>
             <div class="grid gap-3 sm:grid-cols-2">
               <article v-for="item in requestRows" :key="item.label" class="admin-panel-soft p-4">
                 <p class="text-xs uppercase tracking-wide text-slate-500">{{ item.label }}</p>
@@ -76,16 +151,55 @@
               <p class="text-xs uppercase tracking-wide text-slate-500">创意提示词</p>
               <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ task.creativePrompt }}</p>
             </article>
-            <article v-if="requestTranscriptPreview" class="admin-panel-soft mt-3 p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-500">文本输入摘要</p>
-              <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ requestTranscriptPreview }}</p>
-            </article>
+	            <article v-if="requestTranscriptPreview" class="admin-panel-soft mt-3 p-4">
+	              <p class="text-xs uppercase tracking-wide text-slate-500">文本输入摘要</p>
+	              <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{{ requestTranscriptPreview }}</p>
+	            </article>
+	          </div>
+
+          <div class="border-t border-slate-200/80 px-5 py-4">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-semibold text-slate-900">效果评分</h4>
+              <span class="admin-chip">{{ effectRatingLabel }}</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="score in [5, 4, 3, 2, 1]"
+                :key="score"
+                class="admin-btn-secondary admin-btn-sm"
+                :class="ratingDraft === score ? 'ring-2 ring-slate-300' : ''"
+                type="button"
+                :disabled="actionLoading || ratingSaving"
+                @click="ratingDraft = score"
+              >
+                {{ score }}/5
+              </button>
+            </div>
+            <textarea
+              v-model="ratingNote"
+              class="admin-field mt-3 min-h-[96px]"
+              rows="4"
+              placeholder="记录当前 seed 或画面效果表现，例如稳定性、人物一致性、动作完成度。"
+            ></textarea>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                :class="warningButtonClass"
+                type="button"
+                :disabled="actionLoading || ratingSaving || !ratingDraft"
+                @click="saveEffectRating"
+              >
+                {{ ratingSaving ? "保存中..." : "保存评分" }}
+              </button>
+              <span class="text-xs text-slate-500">
+                {{ task.ratedAt ? `最近评分时间 ${formatTime(task.ratedAt)}` : "当前还没有保存过评分" }}
+              </span>
+            </div>
           </div>
 
-          <div v-if="task.errorMessage" class="border-t border-slate-200/80 px-5 py-4">
-            <div class="admin-alert-error">
-              {{ task.errorMessage }}
-            </div>
+	          <div v-if="task.errorMessage" class="border-t border-slate-200/80 px-5 py-4">
+	            <div class="admin-alert-error">
+	              {{ task.errorMessage }}
+	            </div>
           </div>
 
           <div v-if="task.plan?.length" class="border-t border-slate-200/80 p-5">
@@ -172,6 +286,50 @@
           </div>
         </section>
       </div>
+
+      <section v-if="diagnosis" class="admin-panel mt-4 overflow-hidden">
+        <div class="admin-panel-header">
+          <div>
+            <h3 class="text-base font-semibold text-slate-900">任务诊断</h3>
+            <p class="mt-1 text-sm text-slate-600">{{ diagnosis.summary }}</p>
+          </div>
+          <span class="admin-chip">{{ diagnosisSeverityLabel }}</span>
+        </div>
+        <div class="grid gap-4 p-5 xl:grid-cols-[1.2fr_0.8fr]">
+          <div class="space-y-3">
+            <article
+              v-for="finding in diagnosis.findings"
+              :key="finding.code"
+              class="admin-panel-soft p-4"
+              :class="diagnosisFindingClass(finding.severity)"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-900">{{ finding.title }}</p>
+                <span class="admin-chip">{{ diagnosisSeverityText(finding.severity) }}</span>
+              </div>
+              <p class="mt-2 text-sm leading-6 text-slate-700">{{ finding.detail }}</p>
+            </article>
+          </div>
+          <div class="space-y-3">
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">推荐动作</p>
+              <p class="mt-2 text-sm leading-6 text-slate-900">{{ diagnosisRecoveryAction }}</p>
+            </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">恢复起点</p>
+              <p class="mt-2 text-sm leading-6 text-slate-900">{{ diagnosisRecoveryStart }}</p>
+            </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">连续性摘要</p>
+              <p class="mt-2 text-sm leading-6 text-slate-900">{{ diagnosisContinuitySummary }}</p>
+            </article>
+            <article class="admin-panel-soft p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-500">队列状态</p>
+              <p class="mt-2 text-sm leading-6 text-slate-900">{{ diagnosisQueueSummary }}</p>
+            </article>
+          </div>
+        </div>
+      </section>
     </template>
   </section>
 </template>
@@ -179,13 +337,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { deleteAdminTask, fetchAdminTask, fetchAdminTaskTrace, retryAdminTask } from "@/api/admin";
-import type { TaskDetail, TaskTraceEvent } from "@/types";
+import { deleteAdminTask, fetchAdminTask, fetchAdminTaskDiagnosis, fetchAdminTaskTrace, rateAdminTaskEffect, retryAdminTask } from "@/api/admin";
+import type { AdminTaskDiagnosis, TaskDetail, TaskDurationDiagnosticClip, TaskTraceEvent } from "@/types";
 import {
   formatTaskDurationMode,
+  formatTaskEffectRating,
   formatTaskModelValue,
+  formatTaskOutputCount,
   formatTaskRequestedDuration,
   formatTaskResolvedDuration,
+  formatTaskSeed,
   formatTaskStopBeforeVideoGeneration,
   formatTaskTranscriptSummary,
   getTaskRequestSnapshot,
@@ -196,10 +357,14 @@ const route = useRoute();
 const router = useRouter();
 const task = ref<TaskDetail | null>(null);
 const traceEvents = ref<TaskTraceEvent[]>([]);
+const diagnosis = ref<AdminTaskDiagnosis | null>(null);
 const loading = ref(true);
 const actionLoading = ref(false);
 const errorMessage = ref("");
 const traceExpanded = ref(false);
+const ratingDraft = ref<number | null>(null);
+const ratingNote = ref("");
+const ratingSaving = ref(false);
 
 const ghostButtonClass = "admin-btn-ghost";
 const secondaryButtonClass = "admin-btn-secondary";
@@ -243,19 +408,92 @@ const requestRows = computed(() => {
   }
   return [
     { label: "文本模型", value: formatTaskModelValue(requestSnapshot.value.textAnalysisModel) },
+    { label: "视觉模型", value: formatTaskModelValue(requestSnapshot.value.visionModel) },
+    { label: "关键帧模型", value: formatTaskModelValue(requestSnapshot.value.imageModel) },
     { label: "视频模型", value: formatTaskModelValue(requestSnapshot.value.videoModel) },
-    { label: "视频尺寸", value: formatTaskModelValue(requestSnapshot.value.videoSize) },
+    { label: "清晰度 / 画幅", value: formatTaskModelValue(requestSnapshot.value.videoSize) },
+    { label: "输出数量", value: formatTaskOutputCount(requestSnapshot.value) },
     { label: "请求时长", value: formatTaskRequestedDuration(requestSnapshot.value) },
     { label: "生效时长", value: formatTaskResolvedDuration(task.value) },
+    { label: "任务 Seed", value: taskSeedLabel.value },
     { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(requestSnapshot.value) },
     { label: "文本输入", value: formatTaskTranscriptSummary(requestSnapshot.value) },
-    { label: "创建平台", value: formatTaskModelValue(requestSnapshot.value.platform || task.value.platform) },
   ];
+});
+
+const effectRatingLabel = computed(() => formatTaskEffectRating(task.value?.effectRating));
+const taskSeedLabel = computed(() => {
+  const topLevelSeed = task.value?.taskSeed;
+  if (typeof topLevelSeed === "number" && Number.isFinite(topLevelSeed)) {
+    return String(Math.trunc(topLevelSeed));
+  }
+  return formatTaskSeed(requestSnapshot.value);
+});
+
+const monitoringStageLabel = computed(() => formatMonitoringValue(task.value?.monitoring?.currentStage));
+const monitoringWorkerLabel = computed(() => formatMonitoringValue(task.value?.monitoring?.activeWorkerInstanceId));
+const artifactDirectories = computed(() => task.value?.artifactDirectories ?? task.value?.monitoring?.artifactDirectories ?? null);
+const artifactDirectoryHint = computed(() => formatMonitoringValue(artifactDirectories.value?.baseRelativeDir));
+const durationDiagnostics = computed(() => task.value?.durationDiagnostics ?? []);
+
+const monitoringRows = computed(() => {
+  const monitoring = task.value?.monitoring;
+  if (!monitoring) {
+    return [];
+  }
+  return [
+    { label: "Attempt 状态", value: formatMonitoringValue(monitoring.activeAttemptStatus) },
+    { label: "恢复阶段", value: formatMonitoringValue(monitoring.resumeFromStage) },
+    { label: "恢复镜头", value: formatMonitoringValue(monitoring.resumeFromClipIndex) },
+    { label: "计划镜头数", value: formatMonitoringValue(monitoring.plannedClipCount) },
+    { label: "已生成镜头数", value: formatMonitoringValue(monitoring.renderedClipCount) },
+    { label: "连续完成镜头", value: formatMonitoringValue(monitoring.contiguousRenderedClipCount) },
+    { label: "最新片段", value: formatMonitoringValue(monitoring.latestRenderedClipIndex) },
+    { label: "最新拼接", value: formatMonitoringValue(monitoring.latestJoinName) },
+  ].filter((item) => item.value !== "暂无");
+});
+
+const artifactRows = computed(() => {
+  const value = artifactDirectories.value;
+  if (!value) {
+    return [];
+  }
+  return [
+    { label: "Storage 根目录", value: formatMonitoringValue(value.storageRoot) },
+    { label: "任务基目录", value: formatMonitoringValue(value.baseAbsoluteDir || value.baseRelativeDir) },
+    { label: "运行目录", value: formatMonitoringValue(value.runningAbsoluteDir || value.runningRelativeDir) },
+    { label: "拼接目录", value: formatMonitoringValue(value.joinedAbsoluteDir || value.joinedRelativeDir) },
+    { label: "脚本文件", value: formatMonitoringValue(value.storyboardFileName) },
+    { label: "首帧命名", value: formatMonitoringValue(value.firstFramePattern) },
+    { label: "尾帧命名", value: formatMonitoringValue(value.lastFramePattern) },
+    { label: "片段命名", value: formatMonitoringValue(value.clipPattern) },
+    { label: "拼接命名", value: formatMonitoringValue(value.joinPattern) },
+  ].filter((item) => item.value !== "暂无");
 });
 
 const orderedTraceEvents = computed(() => [...traceEvents.value].reverse());
 const traceFocus = computed(() => orderedTraceEvents.value[0] ?? null);
 const tracePreview = computed(() => orderedTraceEvents.value.slice(0, 5));
+const diagnosisSeverityLabel = computed(() => diagnosisSeverityText(diagnosis.value?.severity || "info"));
+const diagnosisRecoveryAction = computed(() => formatDiagnosisValue(diagnosis.value?.recovery?.recommendedAction));
+const diagnosisRecoveryStart = computed(() => {
+  if (!diagnosis.value) {
+    return "暂无";
+  }
+  return `${formatDiagnosisValue(diagnosis.value.recovery?.resumeFromStage)} / 镜头 ${formatDiagnosisValue(diagnosis.value.recovery?.resumeFromClipIndex)}`;
+});
+const diagnosisContinuitySummary = computed(() => {
+  if (!diagnosis.value) {
+    return "暂无";
+  }
+  return `计划 ${formatDiagnosisValue(diagnosis.value.continuity?.plannedClipCount)}，连续完成 ${formatDiagnosisValue(diagnosis.value.continuity?.contiguousRenderedClipCount)}，缺失 ${formatDiagnosisValue((diagnosis.value.continuity?.missingClipIndices as unknown[] | undefined)?.join(", "))}`;
+});
+const diagnosisQueueSummary = computed(() => {
+  if (!diagnosis.value) {
+    return "暂无";
+  }
+  return `排队 ${formatDiagnosisValue(diagnosis.value.queue?.isQueued)}，位置 ${formatDiagnosisValue(diagnosis.value.queue?.queuePosition)}，Attempt ${formatDiagnosisValue(diagnosis.value.queue?.activeAttemptStatus)}`;
+});
 
 function logLevelClass(level: string) {
   if (level === "ERROR") {
@@ -271,6 +509,93 @@ function formatTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
+function formatMonitoringValue(value: unknown) {
+  if (value == null) {
+    return "暂无";
+  }
+  if (typeof value === "number") {
+    return value > 0 ? String(value) : "暂无";
+  }
+  const text = String(value).trim();
+  return text ? text : "暂无";
+}
+
+function formatDiagnosisValue(value: unknown) {
+  if (typeof value === "boolean") {
+    return value ? "是" : "否";
+  }
+  return formatMonitoringValue(value);
+}
+
+function diagnosisSeverityText(severity: string) {
+  switch (severity) {
+    case "high":
+      return "高风险";
+    case "medium":
+      return "中风险";
+    case "low":
+      return "低风险";
+    default:
+      return "正常";
+  }
+}
+
+function diagnosisFindingClass(severity: string) {
+  switch (severity) {
+    case "high":
+      return "border border-rose-200 bg-rose-50";
+    case "medium":
+      return "border border-amber-200 bg-amber-50";
+    case "low":
+      return "border border-sky-200 bg-sky-50";
+    default:
+      return "";
+  }
+}
+
+function formatSecondsValue(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "暂无";
+  }
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}s`;
+}
+
+function formatSecondsRange(minValue: number | null | undefined, maxValue: number | null | undefined, targetValue?: number | null) {
+  const min = typeof minValue === "number" && Number.isFinite(minValue) && minValue > 0 ? minValue : null;
+  const max = typeof maxValue === "number" && Number.isFinite(maxValue) && maxValue > 0 ? maxValue : null;
+  const target = typeof targetValue === "number" && Number.isFinite(targetValue) && targetValue > 0 ? targetValue : null;
+  if (min == null && max == null) {
+    return "暂无";
+  }
+  if (min != null && max != null && min === max) {
+    return formatSecondsValue(target ?? min);
+  }
+  const range = `${formatSecondsValue(min)} - ${formatSecondsValue(max)}`;
+  return target != null ? `${range} (目标 ${formatSecondsValue(target)})` : range;
+}
+
+function durationSourceLabel(item: TaskDurationDiagnosticClip) {
+  switch (item.durationSource) {
+    case "storyboard":
+      return "分镜";
+    case "task_average":
+      return "任务均分";
+    default:
+      return "未知";
+  }
+}
+
+function durationStatusLabel(status: TaskDurationDiagnosticClip["status"]) {
+  switch (status) {
+    case "rendered":
+      return "已生成";
+    case "pending":
+      return "待生成";
+    default:
+      return "未知";
+  }
+}
+
 async function loadTask() {
   task.value = await fetchAdminTask(taskId.value);
 }
@@ -279,15 +604,38 @@ async function loadTrace() {
   traceEvents.value = await fetchAdminTaskTrace(taskId.value, 500);
 }
 
+async function loadDiagnosis() {
+  diagnosis.value = await fetchAdminTaskDiagnosis(taskId.value);
+}
+
 async function refresh() {
   loading.value = true;
   errorMessage.value = "";
   try {
-    await Promise.all([loadTask(), loadTrace()]);
+    await Promise.all([loadTask(), loadTrace(), loadDiagnosis()]);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "读取任务详情失败";
   } finally {
     loading.value = false;
+  }
+}
+
+async function saveEffectRating() {
+  if (!taskId.value || !ratingDraft.value) {
+    return;
+  }
+  ratingSaving.value = true;
+  errorMessage.value = "";
+  try {
+    await rateAdminTaskEffect(taskId.value, {
+      effectRating: ratingDraft.value,
+      effectRatingNote: ratingNote.value.trim() || undefined,
+    });
+    await refresh();
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "保存评分失败";
+  } finally {
+    ratingSaving.value = false;
   }
 }
 
@@ -321,6 +669,11 @@ async function deleteTaskAction() {
 watch(taskId, () => {
   traceExpanded.value = false;
   void refresh();
+}, { immediate: true });
+
+watch(task, (value) => {
+  ratingDraft.value = typeof value?.effectRating === "number" && value.effectRating > 0 ? Math.trunc(value.effectRating) : null;
+  ratingNote.value = value?.effectRatingNote?.trim() || "";
 }, { immediate: true });
 </script>
 

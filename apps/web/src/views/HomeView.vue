@@ -26,6 +26,11 @@ import HomeVideoShowcase from "@/components/home/HomeVideoShowcase.vue";
   min-height: 100%;
   overflow: hidden;
   padding: clamp(1rem, 2.8vw, 2.1rem);
+  background:
+    radial-gradient(circle at top left, rgba(255, 214, 209, 0.52), transparent 26%),
+    radial-gradient(circle at 82% 16%, rgba(205, 219, 240, 0.48), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 30%);
+  color: #1f242c;
 }
 
 .home-container {
@@ -34,7 +39,7 @@ import HomeVideoShowcase from "@/components/home/HomeVideoShowcase.vue";
   max-width: 1180px;
   margin: 0 auto;
   display: grid;
-  gap: 1.1rem;
+  gap: 1.25rem;
   animation: fade-up 0.55s ease-out;
 }
 
@@ -49,12 +54,12 @@ import HomeVideoShowcase from "@/components/home/HomeVideoShowcase.vue";
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.3;
+  opacity: 0.34;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.28) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.24) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.24) 1px, transparent 1px);
   background-size: 72px 72px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 86%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 86%);
 }
 
 .home-glow {
@@ -63,20 +68,20 @@ import HomeVideoShowcase from "@/components/home/HomeVideoShowcase.vue";
   width: 360px;
   height: 360px;
   pointer-events: none;
-  filter: blur(12px);
-  opacity: 0.34;
+  filter: blur(26px);
+  opacity: 0.28;
 }
 
 .home-glow-left {
   top: -110px;
   left: -120px;
-  background: radial-gradient(circle, rgba(90, 175, 255, 0.86), transparent 62%);
+  background: radial-gradient(circle, rgba(255, 183, 174, 0.54), transparent 62%);
 }
 
 .home-glow-right {
   top: 120px;
   right: -120px;
-  background: radial-gradient(circle, rgba(255, 146, 101, 0.66), transparent 64%);
+  background: radial-gradient(circle, rgba(190, 206, 230, 0.62), transparent 64%);
 }
 
 .home-glow-center {
@@ -84,7 +89,7 @@ import HomeVideoShowcase from "@/components/home/HomeVideoShowcase.vue";
   left: 42%;
   width: 260px;
   height: 260px;
-  background: radial-gradient(circle, rgba(84, 205, 184, 0.48), transparent 66%);
+  background: radial-gradient(circle, rgba(255, 205, 194, 0.42), transparent 66%);
 }
 
 @keyframes fade-up {

@@ -65,9 +65,13 @@ export interface CreateGenerationTaskRequest {
   creativePrompt?: string | null;
   aspectRatio: "9:16" | "16:9";
   textAnalysisModel?: string | null;
+  visionModel?: string | null;
+  imageModel?: string | null;
   videoModel?: string | null;
   videoSize?: string | null;
+  seed?: number | null;
   videoDurationSeconds?: number | "auto" | null;
+  outputCount?: number | "auto" | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
   transcriptText?: string | null;
@@ -139,6 +143,7 @@ export interface GenerationVideoModelInfo {
   isDefault?: boolean;
   provider?: string | null;
   family?: string | null;
+  supportsSeed?: boolean;
   generationMode?: "t2v" | "i2v" | "vl" | null;
   supportedSizes?: string[];
   supportedDurations?: number[];
@@ -152,6 +157,7 @@ export interface GenerationTextAnalysisModelInfo {
   isDefault?: boolean;
   provider?: string | null;
   family?: string | null;
+  supportsSeed?: boolean;
   aliases?: string[];
 }
 
@@ -184,6 +190,11 @@ export interface GenerationStylePresetOption {
   mediaKinds?: GenerationMediaKind[];
 }
 
+export interface GenerationAspectRatioOption {
+  value: string;
+  label: string;
+}
+
 export interface GenerationImageSizeOption {
   value: string;
   label: string;
@@ -206,12 +217,17 @@ export interface GenerationVideoDurationOption {
 }
 
 export interface GenerationOptionsResponse {
+  aspectRatios?: GenerationAspectRatioOption[];
+  defaultAspectRatio?: string | null;
   stylePresets: GenerationStylePresetOption[];
   imageSizes: GenerationImageSizeOption[];
   videoModels: GenerationVideoModelInfo[];
   defaultVideoModel?: string | null;
   textAnalysisModels?: GenerationTextAnalysisModelInfo[];
   defaultTextAnalysisModel?: string | null;
+  visionModels?: GenerationTextAnalysisModelInfo[];
+  defaultVisionModel?: string | null;
+  imageModels?: GenerationTextAnalysisModelInfo[];
   videoSizes: GenerationVideoSizeOption[];
   videoDurations: GenerationVideoDurationOption[];
   defaultStylePreset?: string | null;
@@ -284,9 +300,15 @@ export interface TaskDeleteResult {
   deleted: boolean;
 }
 
+export interface RateTaskEffectRequest {
+  effectRating: number;
+  effectRatingNote?: string | null;
+}
+
 export interface TaskFilters {
   q?: string;
   status?: TaskStatus | "all";
+  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "effect_rating_desc";
 }
 
 export interface TaskOutput {
@@ -337,7 +359,6 @@ export interface TaskListItem {
   id: string;
   title: string;
   status: TaskStatus;
-  platform: string;
   progress: number;
   createdAt: string;
   updatedAt: string;
@@ -346,6 +367,10 @@ export interface TaskListItem {
   minDurationSeconds?: number;
   maxDurationSeconds?: number;
   retryCount?: number;
+  taskSeed?: number | null;
+  effectRating?: number | null;
+  effectRatingNote?: string | null;
+  ratedAt?: string | null;
   startedAt?: string | null;
   finishedAt?: string | null;
   completedOutputCount?: number;
@@ -353,18 +378,107 @@ export interface TaskListItem {
   hasTimedTranscript?: boolean;
   sourceAssetCount?: number;
   editingMode?: EditingMode;
+  isQueued?: boolean;
+  queuePosition?: number | null;
+  currentStage?: string | null;
+  activeWorkerInstanceId?: string | null;
+  plannedClipCount?: number;
+  renderedClipCount?: number;
+  diagnosisSeverity?: "info" | "low" | "medium" | "high";
+  diagnosisCode?: string | null;
+  diagnosisHint?: string | null;
+  recommendedAction?: string | null;
+}
+
+export interface TaskMonitoringSummary {
+  currentStage?: string | null;
+  activeAttemptStatus?: string | null;
+  activeWorkerInstanceId?: string | null;
+  resumeFromStage?: string | null;
+  resumeFromClipIndex?: number | null;
+  plannedClipCount?: number;
+  renderedClipCount?: number;
+  contiguousRenderedClipCount?: number;
+  latestRenderedClipIndex?: number;
+  latestVideoOutputUrl?: string | null;
+  latestJoinName?: string | null;
+  latestJoinOutputUrl?: string | null;
+  latestJoinClipIndex?: number | null;
+  latestJoinClipIndices?: unknown[];
+  latestTrace?: Record<string, unknown>;
+  latestStageRun?: Record<string, unknown>;
+  latestVideoOutput?: Record<string, unknown>;
+  latestJoinOutput?: Record<string, unknown>;
+  activeAttempt?: Record<string, unknown>;
+  storyboardFileUrl?: string | null;
+  artifactDirectories?: TaskArtifactDirectories;
+}
+
+export interface TaskDurationDiagnosticClip {
+  clipIndex: number;
+  durationSource?: string | null;
+  scriptMinDurationSeconds?: number | null;
+  scriptMaxDurationSeconds?: number | null;
+  plannedTargetDurationSeconds?: number | null;
+  plannedMinDurationSeconds?: number | null;
+  plannedMaxDurationSeconds?: number | null;
+  requestedDurationSeconds?: number | null;
+  appliedDurationSeconds?: number | null;
+  actualDurationSeconds?: number | null;
+  status?: "pending" | "rendered" | string | null;
+}
+
+export interface TaskArtifactDirectories {
+  storageRoot?: string | null;
+  baseRelativeDir?: string | null;
+  baseAbsoluteDir?: string | null;
+  runningRelativeDir?: string | null;
+  runningAbsoluteDir?: string | null;
+  joinedRelativeDir?: string | null;
+  joinedAbsoluteDir?: string | null;
+  runningPublicBaseUrl?: string | null;
+  joinedPublicBaseUrl?: string | null;
+  storyboardFileName?: string | null;
+  firstFramePattern?: string | null;
+  lastFramePattern?: string | null;
+  clipPattern?: string | null;
+  joinPattern?: string | null;
+}
+
+export interface AdminTaskDiagnosisFinding {
+  code: string;
+  severity: "info" | "low" | "medium" | "high";
+  title: string;
+  detail: string;
+}
+
+export interface AdminTaskDiagnosis {
+  taskId: string;
+  title: string;
+  status: TaskStatus;
+  severity: "info" | "low" | "medium" | "high";
+  summary: string;
+  findings: AdminTaskDiagnosisFinding[];
+  recovery: Record<string, unknown>;
+  continuity: Record<string, unknown>;
+  outputs: Record<string, unknown>;
+  queue: Record<string, unknown>;
 }
 
 export interface TaskRequestSnapshot {
   taskType?: string | null;
   title?: string | null;
   creativePrompt?: string | null;
-  platform?: string | null;
   aspectRatio?: string | null;
+  stylePreset?: string | null;
   textAnalysisModel?: string | null;
+  visionModel?: string | null;
+  imageModel?: string | null;
   videoModel?: string | null;
   videoSize?: string | null;
+  seed?: number | null;
   videoDurationSeconds?: number | "auto" | null;
+  outputCount?: number | "auto" | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
   transcriptText?: string | null;
@@ -395,14 +509,18 @@ export interface TaskDetail extends TaskListItem {
   sourceAssets?: TaskSourceAssetSummary[];
   storyboardScript?: string | null;
   materials?: TaskMaterial[];
+  artifactDirectories?: TaskArtifactDirectories;
+  executionContext?: Record<string, unknown>;
   requestSnapshot?: TaskRequestSnapshot;
+  durationDiagnostics?: TaskDurationDiagnosticClip[];
   plan?: TaskPlanClip[];
+  monitoring?: TaskMonitoringSummary;
   outputs: TaskOutput[];
 }
 
 export interface HealthModelSummary {
-  provider: string;
-  primary_model: string;
+  provider: string | null;
+  primary_model: string | null;
   fallback_model?: string | null;
   text_analysis_provider?: string | null;
   text_analysis_model?: string | null;
@@ -433,7 +551,7 @@ export interface HealthRuntimeSummary {
   env: string;
   execution_mode: string;
   database_url: string;
-  model_provider: string;
+  model_provider: string | null;
   storage_root: string;
   model: HealthModelSummary;
   planning_capabilities: HealthPlanningCapabilities;
@@ -450,6 +568,8 @@ export interface AdminOverviewCounts {
   queuedTasks: number;
   completedTasks: number;
   failedTasks: number;
+  highRiskTasks: number;
+  riskyTasks: number;
   semanticTasks: number;
   timedSemanticTasks: number;
   averageProgress: number;
@@ -459,7 +579,7 @@ export interface AdminOverview {
   generatedAt: string;
   counts: AdminOverviewCounts;
   modelReady: boolean;
-  primaryModel: string;
+  primaryModel: string | null;
   textModel?: string | null;
   visionModel?: string | null;
   recentTasks: TaskListItem[];
@@ -475,7 +595,7 @@ export interface AdminTraceEvent extends TaskTraceEvent {
 }
 
 export interface AdminTaskFilters extends TaskFilters {
-  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "status_desc";
+  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "status_desc" | "effect_rating_desc";
 }
 
 export interface AdminTaskBatchFailure {

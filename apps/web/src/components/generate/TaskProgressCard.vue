@@ -1,5 +1,5 @@
 <template>
-  <section class="surface-panel progress-card p-6">
+  <section class="progress-card p-6">
     <div class="progress-orb progress-orb-cyan" aria-hidden="true"></div>
     <div class="progress-orb progress-orb-emerald" aria-hidden="true"></div>
 
@@ -13,7 +13,7 @@
       </span>
     </div>
 
-    <div class="surface-tile progress-shell p-4">
+    <div class="progress-shell">
       <div class="progress-top">
         <strong>{{ props.state.stage }}</strong>
         <span>{{ props.state.progress }}%</span>
@@ -30,7 +30,7 @@
       </p>
     </div>
 
-    <div v-if="props.outputUrl" class="surface-tile result-shell p-4">
+    <div v-if="props.outputUrl" class="result-shell">
       <p class="result-title">{{ props.resultTitle || "生成结果" }}</p>
       <video
         :src="props.outputUrl"
@@ -45,7 +45,7 @@
       </div>
     </div>
 
-    <div v-else class="surface-tile empty-shell p-6">
+    <div v-else class="empty-shell">
       任务执行后，这里会显示实时进度和生成成品预览。
     </div>
   </section>
@@ -79,34 +79,39 @@ const statusLabel = computed(() => {
   position: relative;
   display: grid;
   gap: 1rem;
-  overflow: hidden;
+  padding: 1.5rem;
+  border-radius: 32px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 249, 255, 0.78)),
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 28%);
+    radial-gradient(circle at top right, rgba(255, 183, 174, 0.24), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.42)),
+    var(--bg-surface);
+  color: var(--text-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-raise);
 }
 
 .progress-orb {
   position: absolute;
-  border-radius: 999px;
-  filter: blur(22px);
-  opacity: 0.42;
+  border-radius: 50%;
+  filter: blur(28px);
+  opacity: 0.35;
   pointer-events: none;
 }
 
 .progress-orb-cyan {
-  top: -3rem;
-  right: -2rem;
-  width: 11rem;
-  height: 11rem;
-  background: rgba(56, 189, 248, 0.16);
+  top: -2rem;
+  right: -1.5rem;
+  width: 10rem;
+  height: 10rem;
+  background: rgba(255, 183, 174, 0.28);
 }
 
 .progress-orb-emerald {
-  bottom: -2.4rem;
-  left: -1.8rem;
+  bottom: -2.5rem;
+  left: -2rem;
   width: 9rem;
   height: 9rem;
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(194, 212, 235, 0.18);
 }
 
 .card-head {
@@ -115,7 +120,7 @@ const statusLabel = computed(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .eyebrow {
@@ -124,58 +129,62 @@ const statusLabel = computed(() => {
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #5f7895;
+  color: var(--text-muted);
 }
 
 .card-head h2 {
   margin: 0.25rem 0 0;
-  font-family: "Sora", "PingFang SC", sans-serif;
   font-size: 1.25rem;
-  font-weight: 750;
-  color: #0f2744;
+  font-weight: 700;
+  color: var(--text-strong);
 }
 
 .status-pill {
+  --status-color: #8b97a8;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 0.28rem 0.65rem;
+  padding: 0.32rem 0.8rem;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--status-color);
+  border: 1px solid var(--surface-border);
+  box-shadow: none;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .status-idle {
-  background: #e2e8f0;
-  color: #334155;
+  --status-color: #8b97a8;
 }
 
 .status-running {
-  background: #dbeafe;
-  color: #1d4ed8;
+  --status-color: #c9878e;
 }
 
 .status-paused {
-  background: #fef3c7;
-  color: #b45309;
+  --status-color: #b79b79;
 }
 
 .status-completed {
-  background: #dcfce7;
-  color: #15803d;
+  --status-color: #7e9d8d;
 }
 
 .status-failed {
-  background: #fee2e2;
-  color: #b91c1c;
+  --status-color: #b37d87;
 }
 
 .progress-shell {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 0.6rem;
-  border: 1px solid rgba(109, 139, 177, 0.12);
+  gap: 0.4rem;
+  padding: 1rem;
+  border-radius: 26px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(245, 249, 255, 0.72)),
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 30%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.34)),
+    var(--bg-surface);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-pressed);
 }
 
 .progress-top {
@@ -183,38 +192,38 @@ const statusLabel = computed(() => {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  color: #1f334b;
-  font-size: 0.9rem;
+  color: var(--text-strong);
+  font-size: 0.92rem;
 }
 
 .progress-track {
   width: 100%;
-  height: 9px;
-  background: rgba(148, 163, 184, 0.22);
+  height: 10px;
   border-radius: 999px;
-  overflow: hidden;
+  background: rgba(197, 208, 223, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(141, 157, 180, 0.08);
 }
 
 .progress-bar {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #3166ff, #5bc7d9);
+  background: linear-gradient(90deg, #c56c73, #ffb7ae);
   transition: width 240ms ease;
 }
 
 .progress-message {
   margin: 0;
-  color: #43546a;
+  color: var(--text-body);
   font-size: 0.85rem;
 }
 
 .progress-meta {
   margin: 0;
-  color: #718198;
+  color: var(--text-muted);
   font-size: 0.75rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.7rem;
+  gap: 0.6rem;
 }
 
 .result-shell {
@@ -222,22 +231,30 @@ const statusLabel = computed(() => {
   z-index: 1;
   display: grid;
   gap: 0.6rem;
-  border: 1px solid rgba(109, 139, 177, 0.12);
+  padding: 1rem;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.34)),
+    var(--bg-surface);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-pressed);
 }
 
 .result-title {
   margin: 0;
-  color: #334155;
-  font-size: 0.84rem;
+  color: var(--text-strong);
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
 .result-video {
   width: 100%;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  background: #020617;
+  border-radius: 18px;
+  background: #01040a;
   max-height: 360px;
+  box-shadow:
+    6px 6px 16px rgba(15, 23, 42, 0.25),
+    -6px -6px 16px rgba(255, 255, 255, 0.2);
 }
 
 .result-meta {
@@ -248,19 +265,23 @@ const statusLabel = computed(() => {
 
 .result-meta span {
   border-radius: 999px;
-  padding: 0.22rem 0.55rem;
+  padding: 0.28rem 0.6rem;
   font-size: 0.73rem;
-  color: #3b4f68;
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  background: rgba(255, 255, 255, 0.68);
+  color: var(--text-body);
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--surface-border);
+  box-shadow: none;
 }
 
 .empty-shell {
-  position: relative;
-  z-index: 1;
-  font-size: 0.86rem;
-  color: #64748b;
+  padding: 1.1rem;
+  border-radius: 26px;
+  color: var(--text-body);
   text-align: center;
-  border: 1px dashed rgba(109, 139, 177, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.26)),
+    var(--bg-surface);
+  border: 1px dashed var(--surface-border-strong);
+  box-shadow: var(--shadow-pressed);
 }
 </style>

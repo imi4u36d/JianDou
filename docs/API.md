@@ -5,6 +5,8 @@
 - Base URL（开发默认）：`http://127.0.0.1:8000`
 - API 前缀：`/api/v2`
 - 返回格式：JSON
+- 当前唯一 API 后端实现为 `apps/api-spring`
+- 旧 Python API 入口已移除
 
 ## 2. 健康检查
 
@@ -102,9 +104,15 @@
 
 任务日志（结构同 trace）。
 
-### `GET /api/v2/tasks/seeddance/{remote_task_id}`
+### `GET /api/v2/tasks/seedance/{remote_task_id}`
 
-查询远端 SeedDance 任务状态。
+查询远端 SeedDance 任务状态，直接返回上游任务的标准化结果：
+
+- `taskId`
+- `status`
+- `videoUrl`
+- `message`
+- `payload`
 
 ### `POST /api/v2/tasks/{task_id}/retry`
 
@@ -141,6 +149,12 @@
 - `script`
 - `probe`
 
+说明：
+
+- Spring 版已支持 `probe`、`script`、`image`、`video`
+- `image` 会先做提示词重写，再调用远端图片模型并回存本地
+- `video` 会先做提示词重写，再调用远端视频模型、轮询任务并回存本地
+
 视频请求示例：
 
 ```json
@@ -150,11 +164,13 @@
     "prompt": "雨夜街头追逐，电影感",
     "width": 720,
     "height": 1280,
-    "minDurationSeconds": 8,
-    "maxDurationSeconds": 12
+    "durationSeconds": 8,
+    "firstFrameUrl": "https://example.com/keyframe.jpg",
+    "generateAudio": true,
+    "returnLastFrame": true
   },
   "model": {
-    "providerModel": "wan2.6-i2v",
+    "providerModel": "seedance-1.5-pro",
     "textAnalysisModel": "gpt-5.4"
   },
   "options": {
@@ -179,6 +195,7 @@
 ### `GET /api/v2/admin/tasks`
 ### `GET /api/v2/admin/tasks/{task_id}`
 ### `GET /api/v2/admin/tasks/{task_id}/trace`
+### `GET /api/v2/admin/tasks/{task_id}/diagnosis`
 ### `GET /api/v2/admin/traces`
 ### `POST /api/v2/admin/tasks/{task_id}/retry`
 ### `POST /api/v2/admin/tasks/{task_id}/terminate`
@@ -194,4 +211,3 @@
 - `404`：资源不存在
 - `409`：状态冲突（如任务不可继续/不可暂停）
 - `502`：上游模型调用失败
-
