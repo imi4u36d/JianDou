@@ -16,3 +16,41 @@ logging:
   level:
     root: INFO
     com.jiandou.api: INFO
+
+jiandou:
+  app:
+    env: ${JIANDOU_APP_ENV:dev}
+    execution-mode: ${JIANDOU_EXECUTION_MODE:queue}
+    web-origin: ${JIANDOU_WEB_ORIGIN:http://127.0.0.1:5173,http://localhost:5173}
+  storage:
+    root-dir: ${JIANDOU_STORAGE_ROOT:../../storage}
+    uploads-dir: uploads
+    generation-runs-dir: gen/_runs
+  task:
+    defaults:
+      source-file-name: text_prompt
+      default-aspect-ratio: 9:16
+      default-duration-seconds: 8
+      editing-mode: drama
+      intro-template: none
+      outro-template: none
+      prompt-source: spring-default
+      seedance-query-model: seedance-1.5-pro
+    ops:
+      trace-limit: 500
+      log-limit: 500
+      status-history-limit: 500
+      model-call-limit: 500
+      admin-trace-limit: 200
+      admin-worker-limit: 100
+      admin-queue-limit: 200
+      admin-overview-queue-preview-limit: 50
+      admin-overview-worker-preview-limit: 20
+      worker-instance-scan-limit: 200
+      recent-trace-scan-limit: 1000
+      generation-run-list-limit: 100
+      worker-stale-timeout-seconds: ${JIANDOU_WORKER_STALE_TIMEOUT_SECONDS:30}
+      worker-poll-initial-delay-millis: 500
+      worker-poll-interval-millis: 1000
+      worker-maintenance-initial-delay-millis: 500
+      worker-maintenance-interval-millis: 2000

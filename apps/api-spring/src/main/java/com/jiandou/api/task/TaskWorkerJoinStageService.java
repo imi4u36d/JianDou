@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
  * 任务工作节点拼接阶段服务。
  */
 @Component
-final class TaskWorkerJoinStageService {
+class TaskWorkerJoinStageService {
 
     private final JoinOutputService joinOutputService;
 

@@ -1,5 +1,8 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.config.JiandouTaskOpsProperties;
+import com.jiandou.api.task.domain.TaskStatus;
+import com.jiandou.api.task.domain.WorkerStatus;
 import com.jiandou.api.task.exception.TaskNotFoundException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -8,7 +11,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,7 @@ public class TaskQueryService {
     private final TaskViewMapper taskViewMapper;
     private final TaskExecutionCoordinator executionCoordinator;
     private final TaskDiagnosisService taskDiagnosisService;
+    private final JiandouTaskOpsProperties taskOpsProperties;
 
     /**
      * 创建新的任务查询服务。
@@ -34,12 +37,14 @@ public class TaskQueryService {
         TaskRepository taskRepository,
         TaskViewMapper taskViewMapper,
         TaskExecutionCoordinator executionCoordinator,
-        TaskDiagnosisService taskDiagnosisService
+        TaskDiagnosisService taskDiagnosisService,
+        JiandouTaskOpsProperties taskOpsProperties
     ) {
         this.taskRepository = taskRepository;
         this.taskViewMapper = taskViewMapper;
         this.executionCoordinator = executionCoordinator;
         this.taskDiagnosisService = taskDiagnosisService;
+        this.taskOpsProperties = taskOpsProperties;
     }
 
     /**
@@ -144,7 +149,7 @@ public class TaskQueryService {
         List<Map<String, Object>> listItems = values.stream().map(taskViewMapper::toListItem).toList();
         List<Map<String, Object>> recentTasks = listItems.stream().limit(8).toList();
         List<Map<String, Object>> recentFailures = values.stream()
-            .filter(item -> "FAILED".equals(item.status))
+            .filter(item -> TaskStatus.FAILED.matches(item.status))
             .limit(6)
             .map(taskViewMapper::toListItem)
             .toList();
@@ -160,31 +165,26 @@ public class TaskQueryService {
             "totalTasks", total,
             "queuedTasks", queueSnapshot.size(),
             "runningTasks", values.stream().mapToInt(item -> isRunningStatus(item.status) ? 1 : 0).sum(),
-            "completedTasks", values.stream().mapToInt(item -> "COMPLETED".equals(item.status) ? 1 : 0).sum(),
-            "failedTasks", values.stream().mapToInt(item -> "FAILED".equals(item.status) ? 1 : 0).sum(),
+            "completedTasks", values.stream().mapToInt(item -> TaskStatus.COMPLETED.matches(item.status) ? 1 : 0).sum(),
+            "failedTasks", values.stream().mapToInt(item -> TaskStatus.FAILED.matches(item.status) ? 1 : 0).sum(),
             "highRiskTasks", listItems.stream().mapToInt(item -> "high".equals(String.valueOf(item.getOrDefault("diagnosisSeverity", ""))) ? 1 : 0).sum(),
             "riskyTasks", listItems.stream().mapToInt(item -> List.of("high", "medium").contains(String.valueOf(item.getOrDefault("diagnosisSeverity", ""))) ? 1 : 0).sum(),
             "semanticTasks", values.stream().mapToInt(item -> item.hasTranscript ? 1 : 0).sum(),
             "timedSemanticTasks", values.stream().mapToInt(item -> item.hasTimedTranscript ? 1 : 0).sum(),
             "averageProgress", total == 0 ? 0 : values.stream().mapToInt(item -> item.progress).sum() / total
         ));
-        payload.put("queue", adminQueueOverview(50));
+        payload.put("queue", adminQueueOverview(taskOpsProperties.getAdminOverviewQueuePreviewLimit()));
         payload.put("workers", Map.of(
-            /**
-             * 处理管理Workers。
-             * @param 20 20值
-             * @return 处理结果
-             */
-            "items", adminWorkers(20),
-            "onlineCount", taskRepository.listWorkerInstances(200).stream()
+            "items", adminWorkers(taskOpsProperties.getAdminOverviewWorkerPreviewLimit()),
+            "onlineCount", taskRepository.listWorkerInstances(taskOpsProperties.getWorkerInstanceScanLimit()).stream()
                 .map(item -> String.valueOf(item.getOrDefault("status", "")))
-                .filter(statusValue -> "RUNNING".equalsIgnoreCase(statusValue))
+                .filter(WorkerStatus.RUNNING::matches)
                 .count()
         ));
         payload.put("recentTasks", recentTasks);
         payload.put("recentFailures", recentFailures);
         payload.put("recentRunningTasks", recentRunning);
-        payload.put("recentTraceCount", taskRepository.listTraces(null, null, null, null, 1000).size());
+        payload.put("recentTraceCount", taskRepository.listTraces(null, null, null, null, taskOpsProperties.getRecentTraceScanLimit()).size());
         return payload;
     }
 
@@ -255,10 +255,10 @@ public class TaskQueryService {
         int resolvedLimit = Math.max(1, limit);
         List<String> snapshot = executionCoordinator.queueSnapshot();
         List<Map<String, Object>> events = taskRepository.listQueueEvents(null, resolvedLimit);
-        List<Map<String, Object>> workers = taskRepository.listWorkerInstances(200);
+        List<Map<String, Object>> workers = taskRepository.listWorkerInstances(taskOpsProperties.getWorkerInstanceScanLimit());
         long runningWorkers = workers.stream()
             .map(item -> String.valueOf(item.getOrDefault("status", "")))
-            .filter(statusValue -> "RUNNING".equalsIgnoreCase(statusValue))
+            .filter(WorkerStatus.RUNNING::matches)
             .count();
         String oldestQueuedTaskId = snapshot.isEmpty() ? "" : snapshot.get(0);
         TaskRecord oldestQueuedTask = oldestQueuedTaskId.isBlank() ? null : taskRepository.findById(oldestQueuedTaskId);
@@ -367,17 +367,7 @@ public class TaskQueryService {
      * @return 是否满足条件
      */
     private boolean matchesStatus(TaskRecord task, String statusFilter) {
-        String normalizedFilter = normalizeStatus(statusFilter);
-        if (normalizedFilter.isBlank()) {
-            return true;
-        }
-        if ("RUNNING".equals(normalizedFilter)) {
-            return isRunningStatus(task.status);
-        }
-        if ("QUEUED".equals(normalizedFilter)) {
-            return task.isQueued;
-        }
-        return Objects.equals(normalizeStatus(task.status), normalizedFilter);
+        return TaskStatus.matchesFilter(task.status, task.isQueued, statusFilter);
     }
 
     /**
@@ -386,10 +376,7 @@ public class TaskQueryService {
      * @return 是否满足条件
      */
     private boolean isRunningStatus(String status) {
-        return switch (normalizeStatus(status)) {
-            case "ANALYZING", "PLANNING", "RENDERING", "RUNNING", "DISPATCHING", "PROCESSING", "JOINING" -> true;
-            default -> false;
-        };
+        return TaskStatus.isRunningLike(status);
     }
 
     /**
@@ -398,10 +385,7 @@ public class TaskQueryService {
      * @return 处理结果
      */
     private String normalizeStatus(String status) {
-        if (status == null) {
-            return "";
-        }
-        return status.trim().toUpperCase();
+        return TaskStatus.normalize(status);
     }
 
     /**

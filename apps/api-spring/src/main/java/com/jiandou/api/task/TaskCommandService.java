@@ -1,18 +1,21 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.config.JiandouStorageProperties;
+import com.jiandou.api.config.JiandouTaskDefaultsProperties;
 import com.jiandou.api.generation.ModelRuntimePropertiesResolver;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
+import com.jiandou.api.task.domain.TraceLevel;
 import com.jiandou.api.task.web.dto.CreateGenerationTaskRequest;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,6 +29,7 @@ public class TaskCommandService {
     private final TaskExecutionCoordinator executionCoordinator;
     private final ModelRuntimePropertiesResolver modelResolver;
     private final TaskRequestSnapshotFactory requestSnapshotFactory;
+    private final JiandouTaskDefaultsProperties taskDefaultsProperties;
     private final Path storageRoot;
 
     /**
@@ -36,13 +40,15 @@ public class TaskCommandService {
         TaskExecutionCoordinator executionCoordinator,
         ModelRuntimePropertiesResolver modelResolver,
         TaskRequestSnapshotFactory requestSnapshotFactory,
-        @Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot
+        JiandouTaskDefaultsProperties taskDefaultsProperties,
+        JiandouStorageProperties storageProperties
     ) {
         this.taskRepository = taskRepository;
         this.executionCoordinator = executionCoordinator;
         this.modelResolver = modelResolver;
         this.requestSnapshotFactory = requestSnapshotFactory;
-        this.storageRoot = Paths.get(storageRoot).toAbsolutePath().normalize();
+        this.taskDefaultsProperties = taskDefaultsProperties;
+        this.storageRoot = storageProperties.resolveRootDir();
     }
 
     /**
@@ -55,20 +61,20 @@ public class TaskCommandService {
         int defaultDurationSeconds = modelResolver.intValue(
             "catalog.defaults",
             "video_duration_seconds",
-            8
+            taskDefaultsProperties.getDefaultDurationSeconds()
         );
 
         TaskRecord task = new TaskRecord();
         task.id = "task_" + UUID.randomUUID().toString().replace("-", "");
         task.title = trimmed(request.title(), "未命名任务");
-        task.status = "PENDING";
+        task.status = TaskStatus.PENDING.value();
         task.progress = 0;
         task.createdAt = task.nowIso();
         task.updatedAt = task.createdAt;
-        task.sourceFileName = "text_prompt";
+        task.sourceFileName = taskDefaultsProperties.getSourceFileName();
         task.aspectRatio = trimmed(
             request.aspectRatio(),
-            modelResolver.value("pipeline", "default_aspect_ratio", "9:16")
+            modelResolver.value("pipeline", "default_aspect_ratio", taskDefaultsProperties.getDefaultAspectRatio())
         );
         task.minDurationSeconds = request.minDurationSeconds() != null ? request.minDurationSeconds() : defaultDurationSeconds;
         task.maxDurationSeconds = request.maxDurationSeconds() != null ? request.maxDurationSeconds() : defaultDurationSeconds;
@@ -77,9 +83,9 @@ public class TaskCommandService {
         task.hasTranscript = request.transcriptText() != null && !request.transcriptText().isBlank();
         task.hasTimedTranscript = false;
         task.sourceAssetCount = 0;
-        task.editingMode = "drama";
-        task.introTemplate = "none";
-        task.outroTemplate = "none";
+        task.editingMode = taskDefaultsProperties.getEditingMode();
+        task.introTemplate = taskDefaultsProperties.getIntroTemplate();
+        task.outroTemplate = taskDefaultsProperties.getOutroTemplate();
         task.creativePrompt = trimmed(request.creativePrompt(), "");
         task.taskSeed = normalizeOptionalSeed(request.seed());
         task.effectRating = null;
@@ -127,7 +133,7 @@ public class TaskCommandService {
              */
             "visionModel", trimmed(request.visionModel(), "")
         ));
-        executionCoordinator.recordTrace(task, "api", "task.created", "生成任务已创建。", "INFO", Map.of(
+        executionCoordinator.recordTrace(task, TaskStage.API.code(), "task.created", "生成任务已创建。", TraceLevel.INFO.value(), Map.of(
             "task_type", "generation",
             "taskSeed", task.taskSeed == null ? "" : task.taskSeed,
             "outputCount", task.requestSnapshot.outputCount().toValue(),
@@ -136,7 +142,7 @@ public class TaskCommandService {
             "artifactJoinedRelativeDir", TaskArtifactNaming.taskJoinedRelativeDir(task),
             "storyboardFileName", TaskArtifactNaming.storyboardFileName(task, "md")
         ));
-        executionCoordinator.enqueue(task, "dispatch", "task.enqueued", "任务已进入队列，等待 Spring 后端任务执行器接管。");
+        executionCoordinator.enqueue(task, TaskStage.DISPATCH.code(), "task.enqueued", "任务已进入队列，等待 Spring 后端任务执行器接管。");
         executionCoordinator.recomputeQueuePositions(taskRepository.findAll());
         return task;
     }
@@ -150,7 +156,7 @@ public class TaskCommandService {
         task.retryCount += 1;
         task.errorMessage = "";
         executionCoordinator.createAttempt(task, "retry", buildRetryPayload(task, "retry"));
-        executionCoordinator.enqueue(task, "dispatch", "task.retry_requested", "任务已重新加入队列。");
+        executionCoordinator.enqueue(task, TaskStage.DISPATCH.code(), "task.retry_requested", "任务已重新加入队列。");
         executionCoordinator.recomputeQueuePositions(taskRepository.findAll());
         return task;
     }
@@ -167,13 +173,13 @@ public class TaskCommandService {
         executionCoordinator.transitionTask(
             task,
             TaskStateTransition.info(
-                "PAUSED",
+                TaskStatus.PAUSED.value(),
                 task.progress,
-                "api",
+                TaskStage.API.code(),
                 "task.paused",
                 "任务已暂停。",
                 Map.of("reason", "manual")
-            ).withAttempt("PAUSED", "")
+            ).withAttempt(TaskStatus.PAUSED.value(), "")
         );
         executionCoordinator.recomputeQueuePositions(taskRepository.findAll());
         return task;
@@ -186,7 +192,7 @@ public class TaskCommandService {
      */
     public TaskRecord resume(TaskRecord task) {
         executionCoordinator.createAttempt(task, "continue", buildRetryPayload(task, "continue"));
-        executionCoordinator.enqueue(task, "dispatch", "task.continue_requested", "任务已继续执行。");
+        executionCoordinator.enqueue(task, TaskStage.DISPATCH.code(), "task.continue_requested", "任务已继续执行。");
         executionCoordinator.recomputeQueuePositions(taskRepository.findAll());
         return task;
     }
@@ -204,9 +210,9 @@ public class TaskCommandService {
         executionCoordinator.transitionTask(
             task,
             TaskStateTransition.warn(
-                "FAILED",
+                TaskStatus.FAILED.value(),
                 task.progress,
-                "api",
+                TaskStage.API.code(),
                 "task.terminated",
                 "任务已终止。",
                 Map.of("reason", "manual")
@@ -239,7 +245,7 @@ public class TaskCommandService {
         task.executionContext.put("effectRatingNote", effectRatingNote);
         task.executionContext.put("ratedAt", task.ratedAt);
         taskRepository.save(task);
-        executionCoordinator.recordTrace(task, "feedback", "task.effect_rated", "任务效果评分已更新。", "INFO", Map.of(
+        executionCoordinator.recordTrace(task, TaskStage.FEEDBACK.code(), "task.effect_rated", "任务效果评分已更新。", "INFO", Map.of(
             "effectRating", effectRating,
             "effectRatingNote", effectRatingNote,
             "taskSeed", task.taskSeed == null ? "" : task.taskSeed
@@ -284,7 +290,7 @@ public class TaskCommandService {
         int completedClipCount = lastContiguousCompletedClipIndex(clipIndices);
         if (task.storyboardScript != null && !task.storyboardScript.isBlank()) {
             // 已经有分镜脚本时优先复用规划结果；只有至少完成一镜时才直接从 render 阶段继续。
-            payload.put("resumeFromStage", completedClipCount > 0 ? "render" : "planning");
+            payload.put("resumeFromStage", completedClipCount > 0 ? TaskStage.RENDER.code() : TaskStage.PLANNING.code());
             payload.put("resumeFromClipIndex", Math.max(1, completedClipCount + 1));
             payload.put("completedClipCount", completedClipCount);
             payload.put("existingClipIndices", clipIndices);

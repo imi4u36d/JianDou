@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * 任务执行产物Assembler。
  */
 @Component
-final class TaskExecutionArtifactAssembler {
+class TaskExecutionArtifactAssembler {
 
     private static final Logger log = LoggerFactory.getLogger(TaskExecutionArtifactAssembler.class);
 

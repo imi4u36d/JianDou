@@ -3,6 +3,7 @@ package com.jiandou.api.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class TaskViewMapperTest {
             )
         );
 
-        TaskViewMapper mapper = new TaskViewMapper("../../storage");
+        TaskViewMapper mapper = new TaskViewMapper(storageProperties("../../storage"));
         Map<String, Object> detail = mapper.toDetail(task);
 
         Object diagnosticsValue = detail.get("durationDiagnostics");
@@ -69,7 +70,7 @@ class TaskViewMapperTest {
             )
         ));
 
-        TaskViewMapper mapper = new TaskViewMapper("../../storage");
+        TaskViewMapper mapper = new TaskViewMapper(storageProperties("../../storage"));
         Map<String, Object> detail = mapper.toDetail(task);
 
         List<?> diagnostics = assertInstanceOf(List.class, detail.get("durationDiagnostics"));
@@ -95,10 +96,16 @@ class TaskViewMapperTest {
         task.executionContext.put("workerInstanceId", "worker_1");
         task.executionContext.put("currentStage", "render");
 
-        TaskViewMapper mapper = new TaskViewMapper("../../storage");
+        TaskViewMapper mapper = new TaskViewMapper(storageProperties("../../storage"));
         Map<String, Object> row = mapper.toListItem(task);
 
         assertEquals("worker_1", row.get("activeWorkerInstanceId"));
         assertEquals("render", row.get("currentStage"));
+    }
+
+    private JiandouStorageProperties storageProperties(String rootDir) {
+        JiandouStorageProperties properties = new JiandouStorageProperties();
+        properties.setRootDir(rootDir);
+        return properties;
     }
 }

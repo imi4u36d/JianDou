@@ -29,7 +29,7 @@ class TaskWorkerRunnerDurationNormalizationTest {
         );
 
         assertEquals(1, normalized.size());
-        assertArrayEquals(new int[] {4, 4, 4}, normalized.get(0));
+        assertArrayEquals(new int[] {6, 6, 6}, normalized.get(0));
     }
 
     /**

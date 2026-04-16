@@ -1,13 +1,14 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.config.JiandouStorageProperties;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,8 +20,8 @@ class TaskViewMapper {
 
     private final Path storageRoot;
 
-    TaskViewMapper(@Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot) {
-        this.storageRoot = Paths.get(storageRoot).toAbsolutePath().normalize();
+    TaskViewMapper(JiandouStorageProperties storageProperties) {
+        this.storageRoot = storageProperties.resolveRootDir();
     }
 
     /**
@@ -116,15 +117,15 @@ class TaskViewMapper {
         boolean hasAudioClip = task.outputsView().stream()
             .filter(item -> isVideoResultType(item.get("resultType")))
             .anyMatch(item -> boolValue(mapValue(item.get("extra")).get("hasAudio")));
-        if ("FAILED".equals(task.status)) {
+        if (TaskStatus.FAILED.matches(task.status)) {
             return diagnosis("high", "task_failed", "任务已失败，建议查看诊断并执行恢复重试。", contiguousRenderedClipCount > 0
                 ? "从失败镜头继续 retry"
                 : "从分析阶段重新 retry");
         }
-        if ("PENDING".equals(task.status) && !task.isQueued) {
+        if (TaskStatus.PENDING.matches(task.status) && !task.isQueued) {
             return diagnosis("high", "pending_not_queued", "任务处于 PENDING，但当前未在队列中。", "重新 enqueue 或 retry");
         }
-        if ("COMPLETED".equals(task.status) && plannedClipCount > 0 && renderedClipCount < plannedClipCount) {
+        if (TaskStatus.COMPLETED.matches(task.status) && plannedClipCount > 0 && renderedClipCount < plannedClipCount) {
             return diagnosis("high", "completed_but_incomplete", "任务标记完成，但镜头产物数量不完整。", "核对丢失镜头并执行恢复");
         }
         if (plannedClipCount > 0 && contiguousRenderedClipCount < plannedClipCount) {
@@ -340,13 +341,13 @@ class TaskViewMapper {
         if (!stage.isBlank()) {
             return stage;
         }
-        return switch (stringValue(task.status).toUpperCase()) {
-            case "ANALYZING" -> "analysis";
-            case "PLANNING" -> "planning";
-            case "RENDERING" -> "render";
-            case "RUNNING" -> "dispatch";
-            case "PAUSED" -> "paused";
-            case "PENDING" -> task.isQueued ? "dispatch" : "";
+        return switch (TaskStatus.normalize(task.status)) {
+            case "ANALYZING" -> TaskStage.ANALYSIS.code();
+            case "PLANNING" -> TaskStage.PLANNING.code();
+            case "RENDERING" -> TaskStage.RENDER.code();
+            case "RUNNING" -> TaskStage.DISPATCH.code();
+            case "PAUSED" -> TaskStage.PAUSED.code();
+            case "PENDING" -> task.isQueued ? TaskStage.DISPATCH.code() : "";
             default -> "";
         };
     }

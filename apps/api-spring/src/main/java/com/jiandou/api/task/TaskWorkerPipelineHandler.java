@@ -2,6 +2,8 @@ package com.jiandou.api.task;
 
 import com.jiandou.api.generation.application.GenerationApplicationService;
 import com.jiandou.api.task.application.port.TaskQueuePort;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -84,7 +86,7 @@ public class TaskWorkerPipelineHandler {
             taskQueuePort.remove(taskId);
             return;
         }
-        if (!"PENDING".equals(task.status)) {
+        if (!TaskStatus.PENDING.matches(task.status)) {
             taskQueuePort.remove(taskId);
             return;
         }
@@ -122,14 +124,14 @@ public class TaskWorkerPipelineHandler {
             String storyboardMarkdown;
             if (reuseStoryboard && task.storyboardScript != null && !task.storyboardScript.isBlank()) {
                 storyboardMarkdown = task.storyboardScript;
-                executionCoordinator.recordTrace(task, "analysis", "analysis.reused", "检测到已有分镜脚本，跳过分析并继续后续镜头。", "INFO", Map.of(
+                executionCoordinator.recordTrace(task, TaskStage.ANALYSIS.code(), "analysis.reused", "检测到已有分镜脚本，跳过分析并继续后续镜头。", "INFO", Map.of(
                     "completedClipCount", completedClipCount,
                     "renderStartIndex", renderStartIndex,
                     "resumeFromStage", requestedResumeStage,
                     "resumeFromClipIndex", requestedResumeClipIndex
                 ));
             } else {
-                statusStageService.updateStatus(task, runContext, "ANALYZING", 10, "analysis", "task.analyzing", "任务开始分析文本与镜头约束。");
+                statusStageService.updateStatus(task, runContext, TaskStatus.ANALYZING.value(), 10, TaskStage.ANALYSIS.code(), "task.analyzing", "任务开始分析文本与镜头约束。");
 
                 Map<String, Object> scriptRequest = runtimeSupport.buildScriptRunRequest(task);
                 scriptRun = generationApplicationService.createRun(scriptRequest);
@@ -149,14 +151,14 @@ public class TaskWorkerPipelineHandler {
                     task,
                     runContext,
                     1,
-                    "analysis",
+                    TaskStage.ANALYSIS.code(),
                     1,
                     Map.of("title", task.title, "aspectRatio", task.aspectRatio),
                     Map.of("summary", "文本分析完成", "scriptRunId", stringValue(scriptRun.get("id")))
                 );
-                Map<String, Object> analysisModelCall = statusStageService.createModelCall(task, "analysis", "generation.script", scriptRequest, scriptRun, scriptResult, 1, "script");
+                Map<String, Object> analysisModelCall = statusStageService.createModelCall(task, TaskStage.ANALYSIS.code(), "generation.script", scriptRequest, scriptRun, scriptResult, 1, "script");
                 executionCoordinator.recordModelCall(task, analysisModelCall);
-                statusStageService.recordRunCallChain(task, "analysis", scriptRun, scriptResult);
+                statusStageService.recordRunCallChain(task, TaskStage.ANALYSIS.code(), scriptRun, scriptResult);
                 Map<String, Object> scriptMaterial = artifactAssembler.createTextMaterial(task, scriptRun, scriptResult);
                 executionCoordinator.recordMaterial(task, scriptMaterial);
                 putExecutionContext(task, "storyboardFileUrl", stringValue(scriptMaterial.get("fileUrl")));
@@ -179,7 +181,7 @@ public class TaskWorkerPipelineHandler {
             putExecutionContext(task, "clipPrompts", clipPrompts);
             putExecutionContext(task, "clipDurationPlan", storyboardPlanner.buildClipDurationPlanContext(clipDurationPlan, storyboardDurationRanges));
             taskRepository.save(task);
-            executionCoordinator.recordTrace(task, "planning", "planning.shots_resolved", "已完成分镜数量解析，按镜头顺序生成。", "INFO", Map.of(
+            executionCoordinator.recordTrace(task, TaskStage.PLANNING.code(), "planning.shots_resolved", "已完成分镜数量解析，按镜头顺序生成。", "INFO", Map.of(
                 "clipCount", clipPrompts.size(),
                 "storyboardClipCount", storyboardClipCount,
                 "requestedOutputCount", storyboardPlanner.requestSnapshotOutputCount(task),
@@ -188,7 +190,7 @@ public class TaskWorkerPipelineHandler {
                 "durationPlan", storyboardPlanner.buildClipDurationPlanContext(clipDurationPlan, storyboardDurationRanges)
             ));
 
-            statusStageService.updateStatus(task, runContext, "PLANNING", 35, "planning", "task.planning", "任务开始按分镜生成关键画面。");
+            statusStageService.updateStatus(task, runContext, TaskStatus.PLANNING.value(), 35, TaskStage.PLANNING.code(), "task.planning", "任务开始按分镜生成关键画面。");
             TaskWorkerRenderStageService.RenderStageResult renderResult = renderStageService.render(
                 task,
                 runContext,

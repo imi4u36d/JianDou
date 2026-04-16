@@ -3,6 +3,8 @@ package com.jiandou.api.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import com.jiandou.api.config.JiandouStorageProperties;
+import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.task.application.port.TaskQueuePort;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -29,9 +31,9 @@ class TaskQueryServiceTest {
     void setUp() {
         taskRepository = new FakeTaskRepository();
         executionCoordinator = new RecordingTaskExecutionCoordinator(taskRepository);
-        TaskViewMapper taskViewMapper = new TaskViewMapper("../../storage");
+        TaskViewMapper taskViewMapper = new TaskViewMapper(storageProperties("../../storage"));
         TaskDiagnosisService diagnosisService = new TaskDiagnosisService(taskViewMapper);
-        service = new TaskQueryService(taskRepository, taskViewMapper, executionCoordinator, diagnosisService);
+        service = new TaskQueryService(taskRepository, taskViewMapper, executionCoordinator, diagnosisService, new JiandouTaskOpsProperties());
     }
 
     /**
@@ -110,6 +112,12 @@ class TaskQueryServiceTest {
         task.executionContext = new LinkedHashMap<>();
         taskRepository.tasksById.put(id, task);
         return task;
+    }
+
+    private JiandouStorageProperties storageProperties(String rootDir) {
+        JiandouStorageProperties properties = new JiandouStorageProperties();
+        properties.setRootDir(rootDir);
+        return properties;
     }
 
     private static final class RecordingTaskExecutionCoordinator extends TaskExecutionCoordinator {

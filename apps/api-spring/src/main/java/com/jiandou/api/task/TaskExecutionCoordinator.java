@@ -1,6 +1,9 @@
 package com.jiandou.api.task;
 
 import com.jiandou.api.task.application.port.TaskQueuePort;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
+import com.jiandou.api.task.domain.WorkerStatus;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -41,7 +44,7 @@ public class TaskExecutionCoordinator {
     public void enqueue(TaskRecord task, String stage, String event, String message) {
         String previousStatus = task.status;
         taskQueuePort.remove(task.id);
-        task.status = "PENDING";
+        task.status = TaskStatus.PENDING.value();
         task.errorMessage = "";
         task.finishedAt = null;
         task.isQueued = true;
@@ -50,7 +53,7 @@ public class TaskExecutionCoordinator {
         touch(task);
 
         Map<String, Object> trace = newTraceRow(stage, event, message, "INFO", Map.of("queue_mode", true));
-        Map<String, Object> statusHistory = newStatusHistoryRow(task, previousStatus, "PENDING", stage, event, message);
+        Map<String, Object> statusHistory = newStatusHistoryRow(task, previousStatus, TaskStatus.PENDING.value(), stage, event, message);
         Map<String, Object> queueEvent = newQueueEventRow(task, "enqueued", Map.of("stage", stage, "event", event, "message", message));
         task.trace.add(trace);
         task.statusHistory.add(statusHistory);
@@ -125,7 +128,7 @@ public class TaskExecutionCoordinator {
         row.put("taskId", task.id);
         row.put("attemptNo", task.currentAttemptNo);
         row.put("triggerType", triggerType);
-        row.put("status", "PENDING");
+        row.put("status", TaskStatus.PENDING.value());
         row.put("queueName", "default");
         row.put("workerInstanceId", "");
         row.put("queueEnteredAt", null);
@@ -167,7 +170,7 @@ public class TaskExecutionCoordinator {
             return;
         }
         String now = nowIso();
-        attempt.put("status", "RUNNING");
+        attempt.put("status", WorkerStatus.RUNNING.value());
         attempt.put("workerInstanceId", workerInstanceId == null ? "" : workerInstanceId);
         attempt.put("claimedAt", now);
         attempt.put("queueLeftAt", now);
@@ -397,7 +400,7 @@ public class TaskExecutionCoordinator {
         row.put("status", status);
         row.put("startedAt", startedAt);
         row.put("lastHeartbeatAt", nowIso());
-        row.put("stoppedAt", "STOPPED".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status) ? nowIso() : "");
+        row.put("stoppedAt", WorkerStatus.STOPPED.matches(status) || WorkerStatus.FAILED.matches(status) ? nowIso() : "");
         row.put("metadata", metadata == null ? (existing == null ? Map.of() : existing.getOrDefault("metadata", Map.of())) : metadata);
         taskRepository.saveMutation(new TaskPersistenceMutation().addWorkerInstance(row));
     }
@@ -423,12 +426,12 @@ public class TaskExecutionCoordinator {
                 continue;
             }
             Map<String, Object> attempt = activeAttempt(task);
-            if (attempt == null || !"RUNNING".equals(String.valueOf(attempt.getOrDefault("status", "")))) {
+            if (attempt == null || !WorkerStatus.RUNNING.matches(String.valueOf(attempt.getOrDefault("status", "")))) {
                 continue;
             }
             String staleWorkerInstanceId = String.valueOf(claim.getOrDefault("workerInstanceId", ""));
             String previousStatus = task.status;
-            task.status = "PENDING";
+            task.status = TaskStatus.PENDING.value();
             task.progress = 0;
             task.errorMessage = "";
             task.finishedAt = null;
@@ -444,7 +447,7 @@ public class TaskExecutionCoordinator {
                 "staleWorkerInstanceId", staleWorkerInstanceId
             ));
             Map<String, Object> trace = newTraceRow(
-                "dispatch",
+                TaskStage.DISPATCH.code(),
                 "task.recovered_from_stale_claim",
                 "检测到失效 worker，任务已重新入队。",
                 "WARN",
@@ -453,8 +456,8 @@ public class TaskExecutionCoordinator {
             Map<String, Object> statusHistory = newStatusHistoryRow(
                 task,
                 previousStatus,
-                "PENDING",
-                "dispatch",
+                TaskStatus.PENDING.value(),
+                TaskStage.DISPATCH.code(),
                 "task.recovered_from_stale_claim",
                 "检测到失效 worker，任务已重新入队。"
             );
@@ -562,11 +565,11 @@ public class TaskExecutionCoordinator {
         if (existing == null || existing.isEmpty()) {
             return;
         }
-        if (!"RUNNING".equalsIgnoreCase(String.valueOf(existing.getOrDefault("status", "")))) {
+        if (!WorkerStatus.RUNNING.matches(String.valueOf(existing.getOrDefault("status", "")))) {
             return;
         }
         Map<String, Object> row = new LinkedHashMap<>(existing);
-        row.put("status", "STALE");
+        row.put("status", WorkerStatus.STALE.value());
         row.put("stoppedAt", nowIso());
         taskRepository.saveMutation(new TaskPersistenceMutation().addWorkerInstance(row));
     }
@@ -620,7 +623,7 @@ public class TaskExecutionCoordinator {
             attempt.put("failureMessage", "");
             return attempt;
         }
-        if ("RUNNING".equalsIgnoreCase(status)) {
+        if (WorkerStatus.RUNNING.matches(status)) {
             attempt.put("queueLeftAt", now);
             attempt.put("claimedAt", now);
             attempt.put("startedAt", now);

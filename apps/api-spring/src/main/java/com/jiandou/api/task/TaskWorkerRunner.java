@@ -1,6 +1,9 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.config.JiandouAppProperties;
+import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.task.application.port.TaskQueuePort;
+import com.jiandou.api.task.domain.WorkerStatus;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -8,7 +11,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
@@ -25,6 +27,7 @@ public class TaskWorkerRunner implements SmartLifecycle {
     private final TaskQueuePort taskQueuePort;
     private final TaskExecutionCoordinator executionCoordinator;
     private final TaskWorkerPipelineHandler pipelineHandler;
+    private final JiandouTaskOpsProperties taskOpsProperties;
     private final String executionMode;
     private final int staleWorkerTimeoutSeconds;
     private final String workerInstanceId = "spring_worker_" + UUID.randomUUID().toString().replace("-", "");
@@ -40,14 +43,15 @@ public class TaskWorkerRunner implements SmartLifecycle {
         TaskQueuePort taskQueuePort,
         TaskExecutionCoordinator executionCoordinator,
         TaskWorkerPipelineHandler pipelineHandler,
-        @Value("${JIANDOU_EXECUTION_MODE:queue}") String executionMode,
-        @Value("${JIANDOU_WORKER_STALE_TIMEOUT_SECONDS:30}") int staleWorkerTimeoutSeconds
+        JiandouAppProperties appProperties,
+        JiandouTaskOpsProperties taskOpsProperties
     ) {
         this.taskQueuePort = taskQueuePort;
         this.executionCoordinator = executionCoordinator;
         this.pipelineHandler = pipelineHandler;
-        this.executionMode = executionMode == null ? "queue" : executionMode.trim().toLowerCase();
-        this.staleWorkerTimeoutSeconds = Math.max(10, staleWorkerTimeoutSeconds);
+        this.taskOpsProperties = taskOpsProperties;
+        this.executionMode = appProperties.getExecutionMode() == null ? "queue" : appProperties.getExecutionMode().trim().toLowerCase();
+        this.staleWorkerTimeoutSeconds = taskOpsProperties.getWorkerStaleTimeoutSeconds();
     }
 
     /**
@@ -59,7 +63,7 @@ public class TaskWorkerRunner implements SmartLifecycle {
             return;
         }
         running = true;
-        executionCoordinator.upsertWorkerInstance(workerInstanceId, workerType, "RUNNING", Map.of("executionMode", executionMode));
+        executionCoordinator.upsertWorkerInstance(workerInstanceId, workerType, WorkerStatus.RUNNING.value(), Map.of("executionMode", executionMode));
         pollExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread thread = new Thread(r, "jiandou-spring-worker");
             thread.setDaemon(true);
@@ -70,8 +74,18 @@ public class TaskWorkerRunner implements SmartLifecycle {
             thread.setDaemon(true);
             return thread;
         });
-        pollExecutor.scheduleWithFixedDelay(this::pollOnce, 500, 1000, TimeUnit.MILLISECONDS);
-        maintenanceExecutor.scheduleWithFixedDelay(this::maintenanceTick, 500, 2000, TimeUnit.MILLISECONDS);
+        pollExecutor.scheduleWithFixedDelay(
+            this::pollOnce,
+            taskOpsProperties.getWorkerPollInitialDelayMillis(),
+            taskOpsProperties.getWorkerPollIntervalMillis(),
+            TimeUnit.MILLISECONDS
+        );
+        maintenanceExecutor.scheduleWithFixedDelay(
+            this::maintenanceTick,
+            taskOpsProperties.getWorkerMaintenanceInitialDelayMillis(),
+            taskOpsProperties.getWorkerMaintenanceIntervalMillis(),
+            TimeUnit.MILLISECONDS
+        );
     }
 
     /**
@@ -80,7 +94,7 @@ public class TaskWorkerRunner implements SmartLifecycle {
     @Override
     public void stop() {
         running = false;
-        executionCoordinator.touchWorkerInstance(workerInstanceId, workerType, "STOPPED", Map.of("executionMode", executionMode));
+        executionCoordinator.touchWorkerInstance(workerInstanceId, workerType, WorkerStatus.STOPPED.value(), Map.of("executionMode", executionMode));
         if (pollExecutor != null) {
             pollExecutor.shutdownNow();
             pollExecutor = null;
@@ -138,7 +152,7 @@ public class TaskWorkerRunner implements SmartLifecycle {
      */
     private void maintenanceTick() {
         try {
-            executionCoordinator.touchWorkerInstance(workerInstanceId, workerType, "RUNNING", Map.of("executionMode", executionMode));
+            executionCoordinator.touchWorkerInstance(workerInstanceId, workerType, WorkerStatus.RUNNING.value(), Map.of("executionMode", executionMode));
             executionCoordinator.recoverStaleClaims(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusSeconds(staleWorkerTimeoutSeconds), 20);
         } catch (Exception ex) {
             log.warn("worker maintenance failed: workerInstanceId={}", workerInstanceId, ex);

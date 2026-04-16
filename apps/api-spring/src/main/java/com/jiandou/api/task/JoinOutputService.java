@@ -1,6 +1,8 @@
 package com.jiandou.api.task;
 
 import com.jiandou.api.media.LocalMediaArtifactService;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
 import jakarta.annotation.PreDestroy;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -98,7 +100,7 @@ public class JoinOutputService {
                     if (task != null) {
                         executionCoordinator.recordTrace(
                             task,
-                            "render",
+                            TaskStage.RENDER.code(),
                             "render.join_failed",
                             "Spring join worker 拼接输出失败。",
                             "WARN",
@@ -167,7 +169,7 @@ public class JoinOutputService {
         executionCoordinator.recordResult(task, result);
 
         executionCoordinator.recordStageRun(task, createJoinStageRun(task, joinName, joinClipIndex, clipIndices, segmentUrls, artifact.publicUrl(), material, result));
-        executionCoordinator.recordTrace(task, "render", "render.join_completed", "Spring join worker 已完成拼接输出。", "INFO", Map.of(
+        executionCoordinator.recordTrace(task, TaskStage.RENDER.code(), "render.join_completed", "Spring join worker 已完成拼接输出。", "INFO", Map.of(
             "joinName", joinName,
             "clipIndex", joinClipIndex,
             "targetClipIndex", endClipIndex,
@@ -195,7 +197,7 @@ public class JoinOutputService {
         if (task == null) {
             return false;
         }
-        return "RENDERING".equals(task.status) || "COMPLETED".equals(task.status);
+        return TaskStatus.RENDERING.matches(task.status) || TaskStatus.COMPLETED.matches(task.status);
     }
 
     /**

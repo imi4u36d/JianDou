@@ -1,10 +1,11 @@
 package com.jiandou.api.health;
 
+import com.jiandou.api.config.JiandouAppProperties;
+import com.jiandou.api.config.JiandouStorageProperties;
 import com.jiandou.api.generation.MediaProviderProfile;
 import com.jiandou.api.generation.ModelRuntimeProfile;
 import com.jiandou.api.generation.ModelRuntimePropertiesResolver;
 import com.jiandou.api.health.dto.RuntimeDescriptorResponse;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +20,8 @@ public class RuntimeDescriptorService {
 
     private final ModelRuntimePropertiesResolver modelResolver;
     private final String appName;
-    private final String appEnv;
-    private final String executionMode;
-    private final String storageRoot;
+    private final JiandouAppProperties appProperties;
+    private final JiandouStorageProperties storageProperties;
 
     /**
      * 创建新的运行时描述服务。
@@ -29,15 +29,13 @@ public class RuntimeDescriptorService {
     public RuntimeDescriptorService(
         ModelRuntimePropertiesResolver modelResolver,
         @Value("${spring.application.name:JianDou Spring API}") String appName,
-        @Value("${JIANDOU_APP_ENV:dev}") String appEnv,
-        @Value("${JIANDOU_EXECUTION_MODE:queue}") String executionMode,
-        @Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot
+        JiandouAppProperties appProperties,
+        JiandouStorageProperties storageProperties
     ) {
         this.modelResolver = modelResolver;
         this.appName = appName;
-        this.appEnv = appEnv;
-        this.executionMode = executionMode;
-        this.storageRoot = storageRoot;
+        this.appProperties = appProperties;
+        this.storageProperties = storageProperties;
     }
 
     /**
@@ -95,11 +93,11 @@ public class RuntimeDescriptorService {
 
         RuntimeDescriptorResponse.RuntimeInfo runtime = new RuntimeDescriptorResponse.RuntimeInfo(
             appName,
-            appEnv,
-            executionMode,
-            property("JIANDOU_DATABASE_URL", "jdbc:mysql://127.0.0.1:3306/ai_cut"),
+            appProperties.getEnv(),
+            appProperties.getExecutionMode(),
+            property("JIANDOU_DATABASE_URL", "jdbc:mysql://127.0.0.1:3306/jiandou"),
             "",
-            Paths.get(storageRoot).toAbsolutePath().normalize().toString(),
+            storageProperties.resolveRootDir().toString(),
             model,
             planning
         );

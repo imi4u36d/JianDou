@@ -1,6 +1,7 @@
 package com.jiandou.api.task;
 
 import com.jiandou.api.generation.ModelRuntimePropertiesResolver;
+import com.jiandou.api.task.domain.TaskStatus;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component;
  * 任务执行运行时支持。
  */
 @Component
-final class TaskExecutionRuntimeSupport {
+class TaskExecutionRuntimeSupport {
 
     private final TaskRepository taskRepository;
     private final ModelRuntimePropertiesResolver modelResolver;
@@ -280,10 +281,7 @@ final class TaskExecutionRuntimeSupport {
      * @return 是否满足条件
      */
     private boolean isTaskExecutionActive(String status) {
-        return "PENDING".equals(status)
-            || "ANALYZING".equals(status)
-            || "PLANNING".equals(status)
-            || "RENDERING".equals(status);
+        return TaskStatus.isExecutionActive(status);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.jiandou.api.generation;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import java.nio.file.Path;
@@ -178,7 +179,7 @@ class GenerationRunFactoryScriptPromptTest {
                 return SCRIPT_SYSTEM_PROMPT;
             }
         };
-        LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(tempDir.toString(), "ffmpeg");
+        LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(storageProperties(tempDir), "ffmpeg");
         GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelClient);
         return new GenerationRunFactory(
             modelResolver,
@@ -187,5 +188,11 @@ class GenerationRunFactoryScriptPromptTest {
             new RemoteMediaGenerationClient(new ObjectMapper()),
             support
         );
+    }
+
+    private JiandouStorageProperties storageProperties(Path rootDir) {
+        JiandouStorageProperties properties = new JiandouStorageProperties();
+        properties.setRootDir(rootDir.toString());
+        return properties;
     }
 }

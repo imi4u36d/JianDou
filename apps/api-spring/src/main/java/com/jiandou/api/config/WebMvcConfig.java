@@ -2,10 +2,8 @@ package com.jiandou.api.config;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -17,18 +15,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    private final String webOrigin;
-    private final String storageRoot;
+    private final JiandouAppProperties appProperties;
+    private final JiandouStorageProperties storageProperties;
 
     /**
      * 创建新的WebMvc配置。
      */
-    public WebMvcConfig(
-        @Value("${JIANDOU_WEB_ORIGIN:http://127.0.0.1:5173,http://localhost:5173}") String webOrigin,
-        @Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot
-    ) {
-        this.webOrigin = webOrigin;
-        this.storageRoot = storageRoot;
+    public WebMvcConfig(JiandouAppProperties appProperties, JiandouStorageProperties storageProperties) {
+        this.appProperties = appProperties;
+        this.storageProperties = storageProperties;
     }
 
     /**
@@ -37,12 +32,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/v2/**")
+        registry.addMapping(ApiPathConstants.API_V2_PATTERN)
             .allowedOrigins(resolveAllowedOrigins().toArray(String[]::new))
             .allowedMethods("*")
             .allowedHeaders("*")
             .allowCredentials(true);
-        registry.addMapping("/storage/**")
+        registry.addMapping(ApiPathConstants.STORAGE_PATTERN)
             .allowedOrigins(resolveAllowedOrigins().toArray(String[]::new))
             .allowedMethods("*")
             .allowedHeaders("*")
@@ -55,12 +50,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        Path root = Paths.get(storageRoot).toAbsolutePath().normalize();
+        Path root = storageProperties.resolveRootDir();
         try {
             Files.createDirectories(root);
         } catch (Exception ignored) {
         }
-        registry.addResourceHandler("/storage/**")
+        registry.addResourceHandler(ApiPathConstants.STORAGE_PATTERN)
             .addResourceLocations(root.toUri().toString() + "/");
     }
 
@@ -69,7 +64,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
      * @return 处理结果
      */
     private List<String> resolveAllowedOrigins() {
-        String[] rawValues = webOrigin.split(",");
+        String[] rawValues = appProperties.getWebOrigin().split(",");
         List<String> values = new ArrayList<>();
         for (String rawValue : rawValues) {
             String value = rawValue == null ? "" : rawValue.trim();

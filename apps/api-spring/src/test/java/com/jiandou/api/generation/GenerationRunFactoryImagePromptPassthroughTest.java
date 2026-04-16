@@ -3,6 +3,7 @@ package com.jiandou.api.generation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import java.nio.file.Path;
@@ -154,7 +155,7 @@ class GenerationRunFactoryImagePromptPassthroughTest {
                 throw new AssertionError("vision analysis should not be called");
             }
         };
-        LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(tempDir.toString(), "ffmpeg");
+        LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(storageProperties(tempDir), "ffmpeg");
         final String[] submittedPrompt = new String[1];
         RemoteMediaGenerationClient remoteMediaGenerationClient = new RemoteMediaGenerationClient(new ObjectMapper()) {
             /**
@@ -228,5 +229,11 @@ class GenerationRunFactoryImagePromptPassthroughTest {
         Map<String, Object> metadata = (Map<String, Object>) result.get("metadata");
         assertEquals(true, metadata.get("visionAnalysisSkipped"));
         assertTrue(String.valueOf(result.get("outputUrl")).startsWith("/storage/"));
+    }
+
+    private JiandouStorageProperties storageProperties(Path rootDir) {
+        JiandouStorageProperties properties = new JiandouStorageProperties();
+        properties.setRootDir(rootDir.toString());
+        return properties;
     }
 }

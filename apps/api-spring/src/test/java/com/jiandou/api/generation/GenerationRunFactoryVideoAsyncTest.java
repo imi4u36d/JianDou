@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import com.jiandou.api.media.LocalMediaArtifactService.StoredArtifact;
@@ -193,7 +194,7 @@ class GenerationRunFactoryVideoAsyncTest {
                 );
             }
         };
-        LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(tempDir.toString(), "ffmpeg");
+        LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(storageProperties(tempDir), "ffmpeg");
         StoredArtifact remoteLocal = localMediaArtifactService.writeBinary("gen/_runs/source", "remote.mp4", new byte[] {1, 2, 3});
         RemoteMediaGenerationClient remoteMediaGenerationClient = new RemoteMediaGenerationClient(new ObjectMapper()) {
             /**
@@ -309,5 +310,11 @@ class GenerationRunFactoryVideoAsyncTest {
         assertEquals("https://example.com/generated-last-frame.png", refreshedMetadata.get("last_frame_url"));
         assertNotNull(refreshedMetadata.get("providerPayload"));
         assertNotNull(refreshedResult.get("callChain"));
+    }
+
+    private JiandouStorageProperties storageProperties(Path rootDir) {
+        JiandouStorageProperties properties = new JiandouStorageProperties();
+        properties.setRootDir(rootDir.toString());
+        return properties;
     }
 }

@@ -1,16 +1,15 @@
 package com.jiandou.api.generation;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,10 +27,10 @@ public final class LocalGenerationRunStore {
      * 创建新的本地生成运行存储。
      */
     public LocalGenerationRunStore(
-        @Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot,
+        JiandouStorageProperties storageProperties,
         ObjectMapper objectMapper
     ) {
-        this.generationRunsDir = Paths.get(storageRoot).toAbsolutePath().normalize().resolve("gen").resolve("_runs");
+        this.generationRunsDir = storageProperties.resolveGenerationRunsDir();
         this.objectMapper = objectMapper;
     }
 

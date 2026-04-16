@@ -1,5 +1,7 @@
 package com.jiandou.api.admin;
 
+import com.jiandou.api.config.ApiPathConstants;
+import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.task.application.TaskApplicationService;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
 import java.util.List;
@@ -16,17 +18,19 @@ import org.springframework.web.bind.annotation.RestController;
  * 管理端接口聚合任务运营视图、诊断和批量控制能力。
  */
 @RestController
-@RequestMapping("/api/v2/admin")
+@RequestMapping(ApiPathConstants.ADMIN)
 public class AdminController {
 
     private final TaskApplicationService taskService;
+    private final JiandouTaskOpsProperties taskOpsProperties;
 
     /**
      * 创建新的管理控制器。
      * @param taskService 任务服务值
      */
-    public AdminController(TaskApplicationService taskService) {
+    public AdminController(TaskApplicationService taskService, JiandouTaskOpsProperties taskOpsProperties) {
         this.taskService = taskService;
+        this.taskOpsProperties = taskOpsProperties;
     }
 
     /**
@@ -59,7 +63,7 @@ public class AdminController {
 
     @GetMapping("/tasks/{taskId}/trace")
     public List<Map<String, Object>> getTaskTrace(@PathVariable String taskId, @RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.getTrace(taskId, limit == null ? 500 : limit);
+        return taskService.getTrace(taskId, limit == null ? taskOpsProperties.getTraceLimit() : limit);
     }
 
     @GetMapping("/traces")
@@ -70,12 +74,12 @@ public class AdminController {
         @RequestParam(value = "q", required = false) String q,
         @RequestParam(value = "limit", required = false) Integer limit
     ) {
-        return taskService.adminTraces(taskId, stage, level, q, limit == null ? 200 : limit);
+        return taskService.adminTraces(taskId, stage, level, q, limit == null ? taskOpsProperties.getAdminTraceLimit() : limit);
     }
 
     @GetMapping("/workers")
     public List<Map<String, Object>> listWorkers(@RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.adminWorkers(limit == null ? 100 : limit);
+        return taskService.adminWorkers(limit == null ? taskOpsProperties.getAdminWorkerLimit() : limit);
     }
 
     /**
@@ -90,7 +94,7 @@ public class AdminController {
 
     @GetMapping("/queue")
     public Map<String, Object> queueOverview(@RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.adminQueueOverview(limit == null ? 200 : limit);
+        return taskService.adminQueueOverview(limit == null ? taskOpsProperties.getAdminQueueLimit() : limit);
     }
 
     @GetMapping("/queue/events")
@@ -98,7 +102,7 @@ public class AdminController {
         @RequestParam(value = "task_id", required = false) String taskId,
         @RequestParam(value = "limit", required = false) Integer limit
     ) {
-        return taskService.adminQueueEvents(taskId, limit == null ? 200 : limit);
+        return taskService.adminQueueEvents(taskId, limit == null ? taskOpsProperties.getAdminQueueLimit() : limit);
     }
 
     @GetMapping("/tasks/{taskId}/queue-events")
@@ -106,7 +110,7 @@ public class AdminController {
         @PathVariable String taskId,
         @RequestParam(value = "limit", required = false) Integer limit
     ) {
-        return taskService.adminQueueEvents(taskId, limit == null ? 200 : limit);
+        return taskService.adminQueueEvents(taskId, limit == null ? taskOpsProperties.getAdminQueueLimit() : limit);
     }
 
     /**

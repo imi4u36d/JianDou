@@ -1,5 +1,6 @@
 package com.jiandou.api.upload;
 
+import com.jiandou.api.config.ApiPathConstants;
 import com.jiandou.api.upload.application.UploadApplicationService;
 import com.jiandou.api.upload.application.dto.UploadAssetResponse;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 上传模块 Web 入口。
  */
 @RestController
-@RequestMapping("/api/v2/uploads")
+@RequestMapping(ApiPathConstants.UPLOADS)
 public class UploadController {
 
     private final UploadApplicationService uploadService;

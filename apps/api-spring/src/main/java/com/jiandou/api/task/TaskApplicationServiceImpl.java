@@ -1,5 +1,6 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.config.JiandouTaskDefaultsProperties;
 import com.jiandou.api.generation.ModelRuntimePropertiesResolver;
 import com.jiandou.api.generation.RemoteMediaGenerationClient;
 import com.jiandou.api.generation.RemoteTaskQueryResult;
@@ -23,6 +24,7 @@ public class TaskApplicationServiceImpl implements TaskApplicationService {
     private final TaskCommandService taskCommandService;
     private final ModelRuntimePropertiesResolver modelResolver;
     private final RemoteMediaGenerationClient remoteMediaGenerationClient;
+    private final JiandouTaskDefaultsProperties taskDefaultsProperties;
 
     /**
      * 创建新的任务应用服务Impl。
@@ -35,12 +37,14 @@ public class TaskApplicationServiceImpl implements TaskApplicationService {
         TaskQueryService taskQueryService,
         TaskCommandService taskCommandService,
         ModelRuntimePropertiesResolver modelResolver,
-        RemoteMediaGenerationClient remoteMediaGenerationClient
+        RemoteMediaGenerationClient remoteMediaGenerationClient,
+        JiandouTaskDefaultsProperties taskDefaultsProperties
     ) {
         this.taskQueryService = taskQueryService;
         this.taskCommandService = taskCommandService;
         this.modelResolver = modelResolver;
         this.remoteMediaGenerationClient = remoteMediaGenerationClient;
+        this.taskDefaultsProperties = taskDefaultsProperties;
     }
 
     /**
@@ -64,7 +68,7 @@ public class TaskApplicationServiceImpl implements TaskApplicationService {
         String prompt = "短剧风格，情绪递进，人物表情贴合语境，镜头写实，台词和配音语气符合剧情：" + title;
         return Map.of(
             "prompt", prompt,
-            "source", "spring-default"
+            "source", taskDefaultsProperties.getPromptSource()
         );
     }
 
@@ -162,7 +166,7 @@ public class TaskApplicationServiceImpl implements TaskApplicationService {
     @Override
     public Map<String, Object> getSeedanceTaskResult(String remoteTaskId) {
         RemoteTaskQueryResult queryResult = remoteMediaGenerationClient.querySeedanceTask(
-            modelResolver.resolveVideoProfile("seedance-1.5-pro"),
+            modelResolver.resolveVideoProfile(taskDefaultsProperties.getSeedanceQueryModel()),
             remoteTaskId
         );
         Map<String, Object> row = new LinkedHashMap<>();

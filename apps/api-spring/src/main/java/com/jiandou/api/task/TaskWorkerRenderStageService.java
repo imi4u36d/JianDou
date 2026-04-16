@@ -1,6 +1,8 @@
 package com.jiandou.api.task;
 
 import com.jiandou.api.generation.application.GenerationApplicationService;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -86,7 +88,7 @@ final class TaskWorkerRenderStageService {
         String previousClipLastFrameUrl = request.previousClipLastFrameUrl();
         String latestVideoOutputUrl = "";
         if (request.reuseStoryboard() && request.renderStartIndex() > 1) {
-            executionCoordinator.recordTrace(task, "planning", "planning.keyframe_reused_for_resume", "检测到已有进度，跳过已完成镜头并从失败镜头继续。", "INFO", Map.of(
+            executionCoordinator.recordTrace(task, TaskStage.PLANNING.code(), "planning.keyframe_reused_for_resume", "检测到已有进度，跳过已完成镜头并从失败镜头继续。", "INFO", Map.of(
                 "completedClipCount", request.completedClipCount(),
                 "renderStartIndex", request.renderStartIndex(),
                 "existingClipIndices", request.existingVideoClipIndices(),
@@ -129,7 +131,7 @@ final class TaskWorkerRenderStageService {
                     previousClipLastFrameUrl,
                     stringValue(imageMaterial.get("fileUrl"))
                 );
-                executionCoordinator.recordTrace(task, "planning", "planning.keyframe_reused_from_last_frame", "复用上一镜尾帧作为当前镜头首帧。", "INFO", Map.of(
+                executionCoordinator.recordTrace(task, TaskStage.PLANNING.code(), "planning.keyframe_reused_from_last_frame", "复用上一镜尾帧作为当前镜头首帧。", "INFO", Map.of(
                     "clipIndex", clipIndex,
                     "firstFrameUrl", firstFrameUrl,
                     "sourceLastFrameUrl", previousClipLastFrameUrl
@@ -138,7 +140,7 @@ final class TaskWorkerRenderStageService {
                     task,
                     runContext,
                     100 + clipIndex,
-                    "planning",
+                    TaskStage.PLANNING.code(),
                     clipIndex,
                     Map.of(
                         "aspectRatio", task.aspectRatio,
@@ -186,9 +188,9 @@ final class TaskWorkerRenderStageService {
                 putExecutionContext(task, "keyframeOutputUrl", stringValue(imageResult.get("outputUrl")));
                 putExecutionContext(task, "keyframeRemoteSourceUrl", keyframeSourceUrl);
                 taskRepository.save(task);
-                Map<String, Object> imageModelCall = statusStageService.createModelCall(task, "planning", "generation.image", imageRequest, imageRun, imageResult, clipIndex, "image");
+                Map<String, Object> imageModelCall = statusStageService.createModelCall(task, TaskStage.PLANNING.code(), "generation.image", imageRequest, imageRun, imageResult, clipIndex, "image");
                 executionCoordinator.recordModelCall(task, imageModelCall);
-                statusStageService.recordRunCallChain(task, "planning", imageRun, imageResult);
+                statusStageService.recordRunCallChain(task, TaskStage.PLANNING.code(), imageRun, imageResult);
                 imageMaterial = artifactAssembler.createImageMaterial(task, imageRun, imageResult, clipIndex, "first");
                 executionCoordinator.recordMaterial(task, imageMaterial);
                 putExecutionContext(task, "keyframeOutputUrl", stringValue(imageMaterial.get("fileUrl")));
@@ -204,7 +206,7 @@ final class TaskWorkerRenderStageService {
                     task,
                     runContext,
                     100 + clipIndex,
-                    "planning",
+                    TaskStage.PLANNING.code(),
                     clipIndex,
                     Map.of(
                         "aspectRatio", task.aspectRatio,
@@ -236,7 +238,7 @@ final class TaskWorkerRenderStageService {
                 );
             }
             if (index == Math.max(0, request.renderStartIndex() - 1)) {
-                statusStageService.updateStatus(task, runContext, "RENDERING", 55, "render", "task.rendering", "任务开始按分镜生成视频输出。");
+                statusStageService.updateStatus(task, runContext, TaskStatus.RENDERING.value(), 55, TaskStage.RENDER.code(), "task.rendering", "任务开始按分镜生成视频输出。");
             } else {
                 task.progress = Math.min(94, 55 + (int) Math.round(35.0 * index / Math.max(1, request.shotPlans().size())));
                 taskRepository.save(task);
@@ -274,9 +276,9 @@ final class TaskWorkerRenderStageService {
             putExecutionContext(task, "videoRemoteTaskId", stringValue(videoMetadata.get("taskId")));
             putExecutionContext(task, "videoRemoteSourceUrl", stringValue(videoMetadata.get("remoteSourceUrl")));
             taskRepository.save(task);
-            Map<String, Object> videoModelCall = statusStageService.createModelCall(task, "render", "generation.video", videoRequest, videoRun, videoResult, clipIndex, "video");
+            Map<String, Object> videoModelCall = statusStageService.createModelCall(task, TaskStage.RENDER.code(), "generation.video", videoRequest, videoRun, videoResult, clipIndex, "video");
             executionCoordinator.recordModelCall(task, videoModelCall);
-            statusStageService.recordRunCallChain(task, "render", videoRun, videoResult);
+            statusStageService.recordRunCallChain(task, TaskStage.RENDER.code(), videoRun, videoResult);
             Map<String, Object> videoMaterial = artifactAssembler.createVideoMaterial(task, videoRun, videoResult, clipIndex, clipDurationSeconds);
             executionCoordinator.recordMaterial(task, videoMaterial);
             putExecutionContext(task, "videoOutputUrl", stringValue(videoMaterial.get("fileUrl")));
@@ -301,7 +303,7 @@ final class TaskWorkerRenderStageService {
                 task,
                 runContext,
                 200 + clipIndex,
-                "render",
+                TaskStage.RENDER.code(),
                 clipIndex,
                 Map.of(
                     /**
@@ -340,7 +342,7 @@ final class TaskWorkerRenderStageService {
                     "lastFrameUrl", resolvedLastFrameUrl
                 )
             );
-            executionCoordinator.recordTrace(task, "render", "render.clip_completed", "当前分镜片段已生成完成。", "INFO", Map.of(
+            executionCoordinator.recordTrace(task, TaskStage.RENDER.code(), "render.clip_completed", "当前分镜片段已生成完成。", "INFO", Map.of(
                 "clipIndex", clipIndex,
                 "clipCount", request.shotPlans().size(),
                 /**

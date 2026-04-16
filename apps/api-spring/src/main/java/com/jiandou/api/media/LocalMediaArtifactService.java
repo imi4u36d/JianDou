@@ -1,5 +1,6 @@
 package com.jiandou.api.media;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GradientPaint;
@@ -14,7 +15,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class LocalMediaArtifactService {
 
+    private final JiandouStorageProperties storageProperties;
     private final Path storageRoot;
     private final String ffmpegBin;
     private final HttpClient httpClient;
@@ -36,10 +37,11 @@ public class LocalMediaArtifactService {
      * 创建新的本地媒体产物服务。
      */
     public LocalMediaArtifactService(
-        @Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot,
+        JiandouStorageProperties storageProperties,
         @Value("${JIANDOU_FFMPEG_BIN:ffmpeg}") String ffmpegBin
     ) {
-        this.storageRoot = Paths.get(storageRoot).toAbsolutePath().normalize();
+        this.storageProperties = storageProperties;
+        this.storageRoot = storageProperties.resolveRootDir();
         this.ffmpegBin = ffmpegBin == null || ffmpegBin.isBlank() ? "ffmpeg" : ffmpegBin.trim();
         this.httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
     }
@@ -224,8 +226,8 @@ public class LocalMediaArtifactService {
      * @return 处理结果
      */
     private String buildPublicUrl(String relativeDir, String fileName) {
-        String normalizedDir = relativeDir.replace('\\', '/');
-        return "/storage/" + normalizedDir + "/" + fileName;
+        String normalizedDir = relativeDir == null ? "" : relativeDir.replace('\\', '/');
+        return storageProperties.buildPublicUrl(normalizedDir + "/" + fileName);
     }
 
     /**
@@ -234,12 +236,8 @@ public class LocalMediaArtifactService {
      * @return 处理结果
      */
     public String resolveAbsolutePath(String publicUrl) {
-        String normalized = publicUrl == null ? "" : publicUrl.trim();
-        if (!normalized.startsWith("/storage/")) {
-            return "";
-        }
-        String relative = normalized.substring("/storage/".length());
-        return storageRoot.resolve(relative).normalize().toAbsolutePath().toString();
+        Path resolved = storageProperties.resolvePublicUrl(publicUrl);
+        return resolved == null ? "" : resolved.toAbsolutePath().toString();
     }
 
     /**

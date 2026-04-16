@@ -1,5 +1,6 @@
 package com.jiandou.api.task;
 
+import com.jiandou.api.task.domain.TaskStatus;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -49,7 +50,7 @@ public class TaskDiagnosisService {
             .anyMatch(item -> boolValue(mapValue(item.get("extra")).get("hasAudio")));
 
         List<TaskFinding> findings = new ArrayList<>();
-        if ("FAILED".equals(task.status)) {
+        if (TaskStatus.FAILED.matches(task.status)) {
             findings.add(new TaskFinding(
                 "task_failed",
                 "high",
@@ -57,7 +58,7 @@ public class TaskDiagnosisService {
                 firstNonBlank(task.errorMessage, "请检查最近一条 trace 和模型调用记录。")
             ));
         }
-        if ("PENDING".equals(task.status) && !task.isQueued) {
+        if (TaskStatus.PENDING.matches(task.status) && !task.isQueued) {
             findings.add(new TaskFinding(
                 "pending_not_queued",
                 "high",
@@ -89,7 +90,7 @@ public class TaskDiagnosisService {
                 "请检查远端视频模型返回以及 generateAudio 参数。"
             ));
         }
-        if ("COMPLETED".equals(task.status) && plannedClipCount > 0 && videoClipCount < plannedClipCount) {
+        if (TaskStatus.COMPLETED.matches(task.status) && plannedClipCount > 0 && videoClipCount < plannedClipCount) {
             findings.add(new TaskFinding(
                 "completed_but_incomplete",
                 "high",
@@ -108,7 +109,7 @@ public class TaskDiagnosisService {
 
         String recommendedAction = recommendedAction(task, findings, contiguousRenderedClipCount, plannedClipCount);
         Map<String, Object> recovery = new LinkedHashMap<>();
-        recovery.put("canRetry", !"RENDERING".equals(task.status) && !"ANALYZING".equals(task.status) && !"PLANNING".equals(task.status));
+        recovery.put("canRetry", !TaskStatus.RENDERING.matches(task.status) && !TaskStatus.ANALYZING.matches(task.status) && !TaskStatus.PLANNING.matches(task.status));
         recovery.put("recommendedAction", recommendedAction);
         recovery.put("resumeFromStage", monitoring.get("resumeFromStage"));
         recovery.put("resumeFromClipIndex", intValue(monitoring.get("resumeFromClipIndex"), Math.max(1, contiguousRenderedClipCount + 1)));
@@ -236,16 +237,16 @@ public class TaskDiagnosisService {
      * @return 处理结果
      */
     private String recommendedAction(TaskRecord task, List<TaskFinding> findings, int contiguousRenderedClipCount, int plannedClipCount) {
-        if ("FAILED".equals(task.status)) {
+        if (TaskStatus.FAILED.matches(task.status)) {
             return contiguousRenderedClipCount > 0 ? "执行 retry，按已有分镜从失败镜头继续恢复。" : "执行 retry，重新从分析阶段开始。";
         }
-        if ("PAUSED".equals(task.status)) {
+        if (TaskStatus.PAUSED.matches(task.status)) {
             return "执行 continue，保持当前分镜进度继续生成。";
         }
         if (plannedClipCount > 1 && findings.stream().anyMatch(item -> "join_missing".equals(item.code()))) {
             return "检查 join worker trace，确认片段已连续落盘后重新触发 join。";
         }
-        if ("PENDING".equals(task.status) && !task.isQueued) {
+        if (TaskStatus.PENDING.matches(task.status) && !task.isQueued) {
             return "重新 enqueue 当前任务，必要时直接 retry 创建新的 attempt。";
         }
         return "继续观察最新 trace 与 stage run，如长时间无进展再执行 retry。";
@@ -257,7 +258,7 @@ public class TaskDiagnosisService {
      * @return 处理结果
      */
     private String contiguousSeverity(String taskStatus) {
-        return "COMPLETED".equals(taskStatus) || "FAILED".equals(taskStatus) ? "high" : "medium";
+        return TaskStatus.isTerminal(taskStatus) ? "high" : "medium";
     }
 
     /**

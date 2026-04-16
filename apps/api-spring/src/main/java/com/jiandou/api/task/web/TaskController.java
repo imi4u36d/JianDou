@@ -1,5 +1,7 @@
 package com.jiandou.api.task.web;
 
+import com.jiandou.api.config.ApiPathConstants;
+import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.task.application.TaskApplicationService;
 import com.jiandou.api.task.web.dto.CreateGenerationTaskRequest;
 import com.jiandou.api.task.web.dto.GenerateCreativePromptRequest;
@@ -20,17 +22,19 @@ import org.springframework.web.bind.annotation.RestController;
  * 控制器只负责参数接收与路由分发，业务逻辑下沉到应用服务。
  */
 @RestController
-@RequestMapping("/api/v2/tasks")
+@RequestMapping(ApiPathConstants.TASKS)
 public class TaskController {
 
     private final TaskApplicationService taskService;
+    private final JiandouTaskOpsProperties taskOpsProperties;
 
     /**
      * 创建新的任务控制器。
      * @param taskService 任务服务值
      */
-    public TaskController(TaskApplicationService taskService) {
+    public TaskController(TaskApplicationService taskService, JiandouTaskOpsProperties taskOpsProperties) {
         this.taskService = taskService;
+        this.taskOpsProperties = taskOpsProperties;
     }
 
     /**
@@ -74,22 +78,22 @@ public class TaskController {
 
     @GetMapping("/{taskId}/trace")
     public List<Map<String, Object>> getTrace(@PathVariable String taskId, @RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.getTrace(taskId, limit == null ? 500 : limit);
+        return taskService.getTrace(taskId, limit == null ? taskOpsProperties.getTraceLimit() : limit);
     }
 
     @GetMapping("/{taskId}/logs")
     public List<Map<String, Object>> getLogs(@PathVariable String taskId, @RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.getLogs(taskId, limit == null ? 500 : limit);
+        return taskService.getLogs(taskId, limit == null ? taskOpsProperties.getLogLimit() : limit);
     }
 
     @GetMapping("/{taskId}/status-history")
     public List<Map<String, Object>> getStatusHistory(@PathVariable String taskId, @RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.getStatusHistory(taskId, limit == null ? 500 : limit);
+        return taskService.getStatusHistory(taskId, limit == null ? taskOpsProperties.getStatusHistoryLimit() : limit);
     }
 
     @GetMapping("/{taskId}/model-calls")
     public List<Map<String, Object>> getModelCalls(@PathVariable String taskId, @RequestParam(value = "limit", required = false) Integer limit) {
-        return taskService.getModelCalls(taskId, limit == null ? 500 : limit);
+        return taskService.getModelCalls(taskId, limit == null ? taskOpsProperties.getModelCallLimit() : limit);
     }
 
     /**

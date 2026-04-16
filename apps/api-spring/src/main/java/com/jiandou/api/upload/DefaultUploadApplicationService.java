@@ -1,13 +1,12 @@
 package com.jiandou.api.upload;
 
+import com.jiandou.api.config.JiandouStorageProperties;
 import com.jiandou.api.upload.application.UploadApplicationService;
 import com.jiandou.api.upload.application.dto.UploadAssetResponse;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,14 +18,16 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class DefaultUploadApplicationService implements UploadApplicationService {
 
+    private final JiandouStorageProperties storageProperties;
     private final Path uploadsDir;
 
     /**
      * 创建新的默认上传应用服务。
      * @param storageRoot storageRoot值
      */
-    public DefaultUploadApplicationService(@Value("${JIANDOU_STORAGE_ROOT:../../storage}") String storageRoot) {
-        this.uploadsDir = Paths.get(storageRoot).toAbsolutePath().normalize().resolve("uploads");
+    public DefaultUploadApplicationService(JiandouStorageProperties storageProperties) {
+        this.storageProperties = storageProperties;
+        this.uploadsDir = storageProperties.resolveUploadsDir();
     }
 
     /**
@@ -63,7 +64,7 @@ public class DefaultUploadApplicationService implements UploadApplicationService
             return new UploadAssetResponse(
                 assetId,
                 originalName,
-                "/storage/uploads/" + storedName,
+                storageProperties.buildPublicUrl(storageProperties.getUploadsDir() + "/" + storedName),
                 Files.size(target)
             );
         } catch (IOException ex) {

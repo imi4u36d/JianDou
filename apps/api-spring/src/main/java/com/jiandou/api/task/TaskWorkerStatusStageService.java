@@ -1,6 +1,9 @@
 package com.jiandou.api.task;
 
 import com.jiandou.api.task.application.port.TaskQueuePort;
+import com.jiandou.api.task.domain.TaskStage;
+import com.jiandou.api.task.domain.TaskStatus;
+import com.jiandou.api.task.domain.WorkerStatus;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -14,7 +17,7 @@ import org.springframework.stereotype.Component;
  * 任务工作节点状态阶段服务。
  */
 @Component
-final class TaskWorkerStatusStageService {
+class TaskWorkerStatusStageService {
 
     private final TaskRepository taskRepository;
     private final TaskQueuePort taskQueuePort;
@@ -88,7 +91,7 @@ final class TaskWorkerStatusStageService {
         row.put("stageName", stageName);
         row.put("stageSeq", seq);
         row.put("clipIndex", clipIndex);
-        row.put("status", "COMPLETED");
+        row.put("status", TaskStatus.COMPLETED.value());
         row.put("workerInstanceId", runContext.workerInstanceId());
         row.put("startedAt", now);
         row.put("finishedAt", now);
@@ -219,9 +222,9 @@ final class TaskWorkerStatusStageService {
         executionCoordinator.transitionTask(
             task,
             TaskStateTransition.info(
-                "COMPLETED",
+                TaskStatus.COMPLETED.value(),
                 100,
-                "pipeline",
+                TaskStage.PIPELINE.code(),
                 "task.completed",
                 "Spring worker 已通过 generation 服务完成分镜视频生成。",
                 Map.of(
@@ -231,14 +234,14 @@ final class TaskWorkerStatusStageService {
                     "clipCount", clipCount,
                     "outputUrl", latestVideoOutputUrl
                 )
-            ).withAttempt("COMPLETED", ""),
+            ).withAttempt(TaskStatus.COMPLETED.value(), ""),
             currentTask -> currentTask.finishedAt = nowIso()
         );
         executionCoordinator.touchWorkerInstance(
             runContext.workerInstanceId(),
             runContext.workerType(),
-            "RUNNING",
-            Map.of("lastTaskId", task.id, "lastTaskStatus", "COMPLETED")
+            WorkerStatus.RUNNING.value(),
+            Map.of("lastTaskId", task.id, "lastTaskStatus", TaskStatus.COMPLETED.value())
         );
         executionCoordinator.recomputeQueuePositions(taskRepository.findAll());
     }
@@ -253,7 +256,7 @@ final class TaskWorkerStatusStageService {
         executionCoordinator.touchWorkerInstance(
             runContext.workerInstanceId(),
             runContext.workerType(),
-            "RUNNING",
+            WorkerStatus.RUNNING.value(),
             Map.of("lastTaskId", task.id, "lastTaskStatus", taskStatus)
         );
     }
@@ -273,13 +276,13 @@ final class TaskWorkerStatusStageService {
             executionCoordinator.transitionTask(
                 task,
                 TaskStateTransition.error(
-                    "FAILED",
+                    TaskStatus.FAILED.value(),
                     task.progress,
-                    "pipeline",
+                    TaskStage.PIPELINE.code(),
                     "task.failed",
                     "Spring worker 执行失败。",
                     Map.of("error", errorMessage)
-                ).withAttempt("FAILED", errorMessage),
+                ).withAttempt(TaskStatus.FAILED.value(), errorMessage),
                 currentTask -> {
                     currentTask.errorMessage = errorMessage;
                     currentTask.finishedAt = nowIso();
@@ -288,14 +291,14 @@ final class TaskWorkerStatusStageService {
             executionCoordinator.touchWorkerInstance(
                 runContext.workerInstanceId(),
                 runContext.workerType(),
-                "RUNNING",
-                Map.of("lastTaskId", task.id, "lastTaskStatus", "FAILED")
+                WorkerStatus.RUNNING.value(),
+                Map.of("lastTaskId", task.id, "lastTaskStatus", TaskStatus.FAILED.value())
             );
         } catch (Exception ignored) {
             executionCoordinator.touchWorkerInstance(
                 runContext.workerInstanceId(),
                 runContext.workerType(),
-                "FAILED",
+                WorkerStatus.FAILED.value(),
                 Map.of("executionMode", runContext.executionMode())
             );
         }

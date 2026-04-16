@@ -1,5 +1,7 @@
 package com.jiandou.api.generation;
 
+import com.jiandou.api.config.ApiPathConstants;
+import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.generation.application.GenerationApplicationService;
 import java.util.List;
 import java.util.Map;
@@ -16,17 +18,19 @@ import org.springframework.web.server.ResponseStatusException;
  * 生成控制器。
  */
 @RestController
-@RequestMapping("/api/v2/generation")
+@RequestMapping(ApiPathConstants.GENERATION)
 public class GenerationController {
 
     private final GenerationApplicationService generationService;
+    private final JiandouTaskOpsProperties taskOpsProperties;
 
     /**
      * 创建新的生成控制器。
      * @param generationService 生成服务值
      */
-    public GenerationController(GenerationApplicationService generationService) {
+    public GenerationController(GenerationApplicationService generationService, JiandouTaskOpsProperties taskOpsProperties) {
         this.generationService = generationService;
+        this.taskOpsProperties = taskOpsProperties;
     }
 
     /**
@@ -66,7 +70,7 @@ public class GenerationController {
      */
     @GetMapping("/runs")
     public List<Map<String, Object>> listRuns() {
-        return generationService.listRuns(100);
+        return generationService.listRuns(taskOpsProperties.getGenerationRunListLimit());
     }
 
     /**
