@@ -1,6 +1,8 @@
 package com.jiandou.api.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.jiandou.api.task.view.TaskViewMapper;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import com.jiandou.api.config.JiandouStorageProperties;

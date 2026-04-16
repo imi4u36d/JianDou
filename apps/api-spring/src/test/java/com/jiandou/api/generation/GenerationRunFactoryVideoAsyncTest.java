@@ -7,6 +7,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiandou.api.generation.image.ImageModelProviderRegistry;
+import com.jiandou.api.generation.orchestration.GenerationRunFactory;
+import com.jiandou.api.generation.orchestration.GenerationRunSupport;
+import com.jiandou.api.generation.runtime.GenerationConfigPathLocator;
+import com.jiandou.api.generation.runtime.MediaProviderCapabilities;
+import com.jiandou.api.generation.runtime.MediaProviderConfig;
+import com.jiandou.api.generation.runtime.MediaProviderProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
+import com.jiandou.api.generation.runtime.PromptTemplateResolver;
+import com.jiandou.api.generation.text.TextCompletionInvocation;
+import com.jiandou.api.generation.text.TextModelInvocation;
+import com.jiandou.api.generation.text.TextModelProvider;
+import com.jiandou.api.generation.text.TextModelProviderRegistry;
+import com.jiandou.api.generation.text.VisionCompletionInvocation;
+import com.jiandou.api.generation.video.VideoGenerationRequest;
+import com.jiandou.api.generation.video.VideoModelProvider;
+import com.jiandou.api.generation.video.VideoModelProviderRegistry;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import com.jiandou.api.media.LocalMediaArtifactService.StoredArtifact;
 import java.nio.file.Files;
@@ -53,18 +71,18 @@ class GenerationRunFactoryVideoAsyncTest {
             "test"
         );
         MediaProviderProfile videoProfile = new MediaProviderProfile(
-            "wan",
-            "wan2.2-i2v-plus",
-            "k",
-            "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
-            "https://dashscope.aliyuncs.com/api/v1/tasks",
-            60,
-            1,
-            120,
-            true,
-            false,
-            false,
-            "test"
+            new MediaProviderConfig(
+                "video",
+                "wan2.2-i2v-plus",
+                "wan",
+                "wan2.2-i2v-plus",
+                "k",
+                "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+                "https://dashscope.aliyuncs.com/api/v1/tasks",
+                60,
+                "test"
+            ),
+            new MediaProviderCapabilities(false, true, false, false, 1, 120, "i2v", java.util.List.of(), java.util.List.of(6, 8, 10))
         );
         ModelRuntimePropertiesResolver modelResolver = new ModelRuntimePropertiesResolver(new MockEnvironment()) {
             /**
@@ -93,18 +111,8 @@ class GenerationRunFactoryVideoAsyncTest {
              * @return 处理结果
              */
             @Override
-            public MediaProviderProfile resolveVideoProfile(String requestedModel) {
+            public MediaProviderProfile resolveMediaProfile(String requestedModel, String expectedKind) {
                 return videoProfile;
-            }
-
-            /**
-             * 处理section。
-             * @param sectionName sectionName值
-             * @return 处理结果
-             */
-            @Override
-            public Map<String, String> section(String sectionName) {
-                return Map.of("supported_durations", "6,8,10");
             }
 
             /**
@@ -135,26 +143,41 @@ class GenerationRunFactoryVideoAsyncTest {
                 return "";
             }
         };
-        CompatibleTextModelClient textModelClient = new CompatibleTextModelClient(new ObjectMapper(), java.util.List.of()) {
+        TextModelProviderRegistry textModelProviderRegistry = new TextModelProviderRegistry(java.util.List.of(new TextModelProvider() {
             /**
-             * 生成文本。
+             * 检查是否supports。
              * @param profile profile值
-             * @param systemPrompt 系统提示词值
-             * @param userPrompt user提示词值
-             * @param temperature temperature值
-             * @param maxTokens 最大Tokens值
+             * @return 是否满足条件
+             */
+            @Override
+            public boolean supports(ModelRuntimeProfile profile) {
+                return true;
+            }
+
+            /**
+             * 处理generate。
+             * @param profile profile值
+             * @param invocation 调用值
              * @return 处理结果
              */
             @Override
-            public TextModelResponse generateText(
+            public TextModelResponse generate(
                 ModelRuntimeProfile profile,
-                String systemPrompt,
-                String userPrompt,
-                double temperature,
-                int maxTokens
+                TextModelInvocation invocation
             ) {
+                if (invocation instanceof VisionCompletionInvocation) {
+                    return new TextModelResponse(
+                        "vision notes",
+                        "https://api.example.com/v1/responses",
+                        "api.example.com",
+                        10,
+                        true,
+                        "resp_2"
+                    );
+                }
+                TextCompletionInvocation textInvocation = (TextCompletionInvocation) invocation;
                 return new TextModelResponse(
-                    "rewritten prompt",
+                    textInvocation.userPrompt(),
                     "https://api.example.com/v1/responses",
                     "api.example.com",
                     10,
@@ -162,66 +185,21 @@ class GenerationRunFactoryVideoAsyncTest {
                     "resp_1"
                 );
             }
-
-            /**
-             * 生成视觉文本。
-             * @param profile profile值
-             * @param systemPrompt 系统提示词值
-             * @param userPrompt user提示词值
-             * @param imageUrls 图像Urls值
-             * @param temperature temperature值
-             * @param maxTokens 最大Tokens值
-             * @param seed 种子值
-             * @return 处理结果
-             */
-            @Override
-            public TextModelResponse generateVisionText(
-                ModelRuntimeProfile profile,
-                String systemPrompt,
-                String userPrompt,
-                java.util.List<String> imageUrls,
-                double temperature,
-                int maxTokens,
-                Integer seed
-            ) {
-                return new TextModelResponse(
-                    "vision notes",
-                    "https://api.example.com/v1/responses",
-                    "api.example.com",
-                    10,
-                    true,
-                    "resp_2"
-                );
-            }
-        };
+        }));
         LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(storageProperties(tempDir), "ffmpeg");
         StoredArtifact remoteLocal = localMediaArtifactService.writeBinary("gen/_runs/source", "remote.mp4", new byte[] {1, 2, 3});
-        RemoteMediaGenerationClient remoteMediaGenerationClient = new RemoteMediaGenerationClient(new ObjectMapper()) {
-            /**
-             * 处理submitDashscope视频任务。
-             * @param profile profile值
-             * @param requestedModel requested模型值
-             * @param prompt 提示词值
-             * @param width width值
-             * @param height height值
-             * @param durationSeconds 时长Seconds值
-             * @param seed 种子值
-             * @return 处理结果
-             */
+        VideoModelProvider fakeVideoModelProvider = new VideoModelProvider() {
             @Override
-            public RemoteVideoTaskSubmission submitDashscopeVideoTask(
-                MediaProviderProfile profile,
-                String requestedModel,
-                String prompt,
-                int width,
-                int height,
-                int durationSeconds,
-                Integer seed
-            ) {
+            public boolean supports(MediaProviderProfile profile) {
+                return true;
+            }
+
+            @Override
+            public RemoteVideoTaskSubmission submit(MediaProviderProfile profile, VideoGenerationRequest request) {
                 return new RemoteVideoTaskSubmission(
                     "wan",
-                    "wan2.2-i2v-plus",
-                    "wan2.2-i2v-plus",
+                    request.requestedModel(),
+                    request.requestedModel(),
                     "dashscope.aliyuncs.com",
                     "dashscope.aliyuncs.com",
                     "task_123",
@@ -229,19 +207,13 @@ class GenerationRunFactoryVideoAsyncTest {
                     "",
                     false,
                     true,
-                    prompt,
+                    request.prompt(),
                     0
                 );
             }
 
-            /**
-             * 处理查询Dashscope任务。
-             * @param profile profile值
-             * @param taskId 任务标识
-             * @return 处理结果
-             */
             @Override
-            public RemoteTaskQueryResult queryDashscopeTask(MediaProviderProfile profile, String taskId) {
+            public RemoteTaskQueryResult query(MediaProviderProfile profile, String taskId) {
                 return new RemoteTaskQueryResult(
                     taskId,
                     "SUCCEEDED",
@@ -258,12 +230,17 @@ class GenerationRunFactoryVideoAsyncTest {
                 );
             }
         };
-        GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelClient);
+        GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelProviderRegistry);
+        ImageModelProviderRegistry imageModelProviderRegistry = new ImageModelProviderRegistry(java.util.List.of());
+        VideoModelProviderRegistry videoModelProviderRegistry = new VideoModelProviderRegistry(java.util.List.of(
+            fakeVideoModelProvider
+        ));
         GenerationRunFactory factory = new GenerationRunFactory(
             modelResolver,
             promptTemplateResolver,
-            textModelClient,
-            remoteMediaGenerationClient,
+            textModelProviderRegistry,
+            imageModelProviderRegistry,
+            videoModelProviderRegistry,
             support
         );
 

@@ -5,7 +5,7 @@
 
     <div class="card-head">
       <div>
-        <p class="eyebrow">Task Progress</p>
+        <p class="eyebrow">任务进度</p>
         <h2>实时进度</h2>
       </div>
       <span :class="['status-pill', `status-${props.state.status}`]">

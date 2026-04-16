@@ -3,6 +3,9 @@
  */
 import { deleteJson, getJson, postJson } from "./client";
 import type {
+  AdminModelConfigKeyUpdateRequest,
+  AdminModelConfigResponse,
+  AdminModelConfigValidationResponse,
   AdminOverview,
   AdminTaskDiagnosis,
   AdminTaskBatchResult,
@@ -17,6 +20,18 @@ import type {
 
 export async function fetchAdminOverview() {
   return getJson<AdminOverview>("/admin/overview");
+}
+
+export async function fetchAdminModelConfig() {
+  return getJson<AdminModelConfigResponse>("/admin/model-config");
+}
+
+export async function validateAdminModelConfig(payload: AdminModelConfigKeyUpdateRequest) {
+  return postJson<AdminModelConfigValidationResponse>("/admin/model-config/validate", payload);
+}
+
+export async function saveAdminModelConfigKeys(payload: AdminModelConfigKeyUpdateRequest) {
+  return postJson<AdminModelConfigResponse>("/admin/model-config/keys", payload);
 }
 
 /**

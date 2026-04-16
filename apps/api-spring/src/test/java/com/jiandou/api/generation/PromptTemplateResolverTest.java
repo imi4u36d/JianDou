@@ -5,6 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.jiandou.api.generation.exception.GenerationConfigurationException;
+import com.jiandou.api.generation.runtime.GenerationConfigPathLocator;
+import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
+import com.jiandou.api.generation.runtime.PromptTemplateResolver;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

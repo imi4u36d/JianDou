@@ -34,27 +34,30 @@ model:
   max_tokens: 2000
   vision_frame_count: 6
   providers:
+    # API Key 请通过环境变量注入，例如:
+    # JIANDOU_MODEL_OPENAI_API_KEY / JIANDOU_MODEL_QWEN_API_KEY / JIANDOU_MODEL_ARK_API_KEY
+    # JIANDOU_MODEL_WAN_API_KEY / JIANDOU_MODEL_SEEDREAM_API_KEY / JIANDOU_MODEL_SEEDANCE_API_KEY
     openai:
       provider: "openai"
-      api_key: "sk-d73debc1d49545b695bdedb6f8c50577"
+      api_key: ""
       base_url: "https://api.openai.com/v1"
     qwen:
       provider: "qwen"
-      api_key: "sk-fb6e80b3f3034d4ea58923af0ff7bc7e"
+      api_key: ""
       base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
       extras:
         use_responses_api: true
         timeout_seconds: 300
     ark:
       provider: "ark"
-      api_key: "63dc1334-4b8a-488c-bf0e-8ff5efbeef98"
+      api_key: ""
       base_url: "https://ark.cn-beijing.volces.com/api/v3"
       extras:
         use_responses_api: true
         timeout_seconds: 180
     wan:
       provider: "wan"
-      api_key: "sk-fb6e80b3f3034d4ea58923af0ff7bc7e"
+      api_key: ""
       base_url: "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
       extras:
         task_base_url: "https://dashscope.aliyuncs.com/api/v1/tasks"
@@ -63,11 +66,11 @@ model:
         prompt_extend: false
     seedream:
       provider: "seedream"
-      api_key: "63dc1334-4b8a-488c-bf0e-8ff5efbeef98"
+      api_key: ""
       base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
     seedance:
       provider: "seedance"
-      api_key: "63dc1334-4b8a-488c-bf0e-8ff5efbeef98"
+      api_key: ""
       base_url: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
       extras:
         task_base_url: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"

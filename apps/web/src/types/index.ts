@@ -312,6 +312,110 @@ export interface GenerationOptionsResponse {
 }
 
 /**
+ * 管理端模型配置汇总接口定义。
+ */
+export interface AdminModelConfigSummary {
+  providerCount: number;
+  modelCount: number;
+  readyModelCount: number;
+  readyTextModelCount: number;
+  readyVisionModelCount: number;
+  readyImageModelCount: number;
+  readyVideoModelCount: number;
+}
+
+/**
+ * 管理端模型配置默认值接口定义。
+ */
+export interface AdminModelConfigDefaults {
+  aspectRatio: string;
+  stylePreset: string;
+  imageSize: string;
+  videoSize: string;
+  videoDurationSeconds: number;
+  timeoutSeconds: number;
+  temperature: number;
+  maxTokens: number;
+}
+
+/**
+ * 管理端 provider 配置项接口定义。
+ */
+export interface AdminModelConfigProviderItem {
+  key: string;
+  provider: string;
+  kinds: string[];
+  baseUrl: string;
+  taskBaseUrl: string;
+  endpointHost: string;
+  taskEndpointHost: string;
+  apiKeyConfigured: boolean;
+  baseUrlConfigured: boolean;
+  taskBaseUrlConfigured: boolean;
+  extras: Record<string, string>;
+  modelNames: string[];
+}
+
+/**
+ * 管理端模型配置项接口定义。
+ */
+export interface AdminModelConfigModelItem {
+  name: string;
+  label: string;
+  kind: string;
+  provider: string;
+  family: string;
+  description: string;
+  fallbackModel: string;
+  supportsSeed: boolean;
+  supportsResponsesApi: boolean;
+  prefersChatCompletionsForVision: boolean;
+  generationMode: string;
+  supportedSizes: string[];
+  supportedDurations: number[];
+  ready: boolean;
+  configSource: string;
+  endpointHost: string;
+  taskEndpointHost: string;
+  issues: string[];
+}
+
+/**
+ * 管理端模型配置响应体接口定义。
+ */
+export interface AdminModelConfigResponse {
+  configSource: string;
+  summary: AdminModelConfigSummary;
+  defaults: AdminModelConfigDefaults;
+  providers: AdminModelConfigProviderItem[];
+  models: AdminModelConfigModelItem[];
+  configErrors: string[];
+}
+
+/**
+ * 管理端模型配置 key 输入项接口定义。
+ */
+export interface AdminModelConfigProviderKeyInput {
+  key: string;
+  apiKey: string;
+}
+
+/**
+ * 管理端模型配置 key 更新请求体接口定义。
+ */
+export interface AdminModelConfigKeyUpdateRequest {
+  providers: AdminModelConfigProviderKeyInput[];
+}
+
+/**
+ * 管理端模型配置校验响应体接口定义。
+ */
+export interface AdminModelConfigValidationResponse {
+  valid: boolean;
+  snapshot: AdminModelConfigResponse;
+}
+
+/**
  * Generate媒体请求体。
  */
 export interface GenerateMediaRequest {

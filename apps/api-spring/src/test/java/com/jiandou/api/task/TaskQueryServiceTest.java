@@ -5,7 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import com.jiandou.api.config.JiandouStorageProperties;
 import com.jiandou.api.config.JiandouTaskOpsProperties;
+import com.jiandou.api.task.application.TaskDiagnosisService;
+import com.jiandou.api.task.application.TaskExecutionCoordinator;
+import com.jiandou.api.task.application.TaskQueryService;
 import com.jiandou.api.task.application.port.TaskQueuePort;
+import com.jiandou.api.task.persistence.TaskPersistenceMutation;
+import com.jiandou.api.task.persistence.TaskRepository;
+import com.jiandou.api.task.view.TaskViewMapper;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,8 +66,8 @@ class TaskQueryServiceTest {
     @Test
     void listTasksSupportsQueuedAliasStatusFilter() {
         TaskRecord queued = task("task_queued", "PENDING", "2026-04-14T00:00:02Z");
-        queued.isQueued = true;
-        queued.queuePosition = 1;
+        queued.setQueued(true);
+        queued.setQueuePosition(1);
         TaskRecord pending = task("task_not_queued", "PENDING", "2026-04-14T00:00:01Z");
         taskRepository.tasks = List.of(queued, pending);
         executionCoordinator.snapshot = List.of("task_queued");
@@ -104,12 +110,12 @@ class TaskQueryServiceTest {
      */
     private TaskRecord task(String id, String status, String updatedAt) {
         TaskRecord task = new TaskRecord();
-        task.id = id;
-        task.title = id;
-        task.status = status;
-        task.createdAt = updatedAt;
-        task.updatedAt = updatedAt;
-        task.executionContext = new LinkedHashMap<>();
+        task.setId(id);
+        task.setTitle(id);
+        task.setStatus(status);
+        task.setCreatedAt(updatedAt);
+        task.setUpdatedAt(updatedAt);
+        task.setExecutionContext(new LinkedHashMap<>());
         taskRepository.tasksById.put(id, task);
         return task;
     }

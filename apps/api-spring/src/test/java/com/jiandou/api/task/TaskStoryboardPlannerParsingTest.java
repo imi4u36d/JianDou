@@ -3,9 +3,11 @@ package com.jiandou.api.task;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import com.jiandou.api.task.application.TaskStoryboardPlanner;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.jiandou.api.generation.ModelRuntimePropertiesResolver;
+import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;

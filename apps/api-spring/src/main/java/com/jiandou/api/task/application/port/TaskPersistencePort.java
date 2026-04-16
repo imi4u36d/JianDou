@@ -1,7 +1,7 @@
 package com.jiandou.api.task.application.port;
 
 import com.jiandou.api.task.TaskRecord;
-import com.jiandou.api.task.TaskPersistenceMutation;
+import com.jiandou.api.task.persistence.TaskPersistenceMutation;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;

@@ -5,6 +5,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiandou.api.generation.image.ImageModelProviderRegistry;
+import com.jiandou.api.generation.orchestration.GenerationRunFactory;
+import com.jiandou.api.generation.orchestration.GenerationRunSupport;
+import com.jiandou.api.generation.orchestration.LocalGenerationRunStore;
+import com.jiandou.api.generation.runtime.GenerationConfigPathLocator;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
+import com.jiandou.api.generation.runtime.PromptTemplateResolver;
+import com.jiandou.api.generation.text.TextCompletionInvocation;
+import com.jiandou.api.generation.text.TextModelInvocation;
+import com.jiandou.api.generation.text.TextModelProvider;
+import com.jiandou.api.generation.text.TextModelProviderRegistry;
+import com.jiandou.api.generation.video.DashscopeVideoModelProvider;
+import com.jiandou.api.generation.video.SeedanceVideoModelProvider;
+import com.jiandou.api.generation.video.VideoModelProviderRegistry;
+import com.jiandou.api.generation.video.VideoProviderTransport;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -46,26 +62,31 @@ class GenerationRunFactoryScriptPromptTest {
         );
         String[] capturedSystemPrompt = new String[1];
         String[] capturedUserPrompt = new String[1];
-        CompatibleTextModelClient textModelClient = new CompatibleTextModelClient(new ObjectMapper(), java.util.List.of()) {
+        TextModelProviderRegistry textModelProviderRegistry = registry(new TextModelProvider() {
             /**
-             * 生成文本。
+             * 检查是否supports。
              * @param profile profile值
-             * @param systemPrompt 系统提示词值
-             * @param userPrompt user提示词值
-             * @param temperature temperature值
-             * @param maxTokens 最大Tokens值
+             * @return 是否满足条件
+             */
+            @Override
+            public boolean supports(ModelRuntimeProfile profile) {
+                return true;
+            }
+
+            /**
+             * 处理generate。
+             * @param profile profile值
+             * @param invocation 调用值
              * @return 处理结果
              */
             @Override
-            public TextModelResponse generateText(
+            public TextModelResponse generate(
                 ModelRuntimeProfile profile,
-                String systemPrompt,
-                String userPrompt,
-                double temperature,
-                int maxTokens
+                TextModelInvocation invocation
             ) {
-                capturedSystemPrompt[0] = systemPrompt;
-                capturedUserPrompt[0] = userPrompt;
+                TextCompletionInvocation textInvocation = (TextCompletionInvocation) invocation;
+                capturedSystemPrompt[0] = textInvocation.systemPrompt();
+                capturedUserPrompt[0] = textInvocation.userPrompt();
                 return new TextModelResponse(
                     "# 分镜脚本\n\n| 镜号 | 场景 | 景别角度 | 运镜 | 人物外观 | 动作 | 情绪 | 光线 | 氛围 | 首帧提示词 | 尾帧提示词 | 统一提示词 | 动态与运镜 | 时长 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| 1 | 场景 | 中景 | static | 角色 | 抬头 | 警觉 | 夜间侧光 | 压迫 | 首帧 | 尾帧 | 统一画面 | 抬头并停住 | 10 |",
                     "https://api.example.com/v1/responses",
@@ -75,8 +96,8 @@ class GenerationRunFactoryScriptPromptTest {
                     "resp_script_1"
                 );
             }
-        };
-        GenerationRunFactory factory = createFactory(textModelClient);
+        });
+        GenerationRunFactory factory = createFactory(textModelProviderRegistry);
 
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("kind", "script");
@@ -97,8 +118,7 @@ class GenerationRunFactoryScriptPromptTest {
      */
     @Test
     void createScriptRunThrowsWhenInputMissingText() {
-        CompatibleTextModelClient textModelClient = new CompatibleTextModelClient(new ObjectMapper(), java.util.List.of());
-        GenerationRunFactory factory = createFactory(textModelClient);
+        GenerationRunFactory factory = createFactory(registry());
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("kind", "script");
         request.put("model", Map.of("textAnalysisModel", "gpt-text"));
@@ -112,8 +132,7 @@ class GenerationRunFactoryScriptPromptTest {
      */
     @Test
     void createScriptRunThrowsWhenInputTextBlank() {
-        CompatibleTextModelClient textModelClient = new CompatibleTextModelClient(new ObjectMapper(), java.util.List.of());
-        GenerationRunFactory factory = createFactory(textModelClient);
+        GenerationRunFactory factory = createFactory(registry());
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("kind", "script");
         request.put("input", Map.of("text", ""));
@@ -125,10 +144,10 @@ class GenerationRunFactoryScriptPromptTest {
 
     /**
      * 创建工厂。
-     * @param textModelClient 文本模型客户端值
+     * @param textModelProviderRegistry 文本模型 provider 注册表值
      * @return 处理结果
      */
-    private GenerationRunFactory createFactory(CompatibleTextModelClient textModelClient) {
+    private GenerationRunFactory createFactory(TextModelProviderRegistry textModelProviderRegistry) {
         ModelRuntimeProfile textProfile = new ModelRuntimeProfile(
             "openai",
             "gpt-text",
@@ -180,14 +199,25 @@ class GenerationRunFactoryScriptPromptTest {
             }
         };
         LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(storageProperties(tempDir), "ffmpeg");
-        GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelClient);
+        GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelProviderRegistry);
+        ImageModelProviderRegistry imageModelProviderRegistry = new ImageModelProviderRegistry(java.util.List.of());
+        VideoProviderTransport videoProviderTransport = new VideoProviderTransport(new ObjectMapper());
+        VideoModelProviderRegistry videoModelProviderRegistry = new VideoModelProviderRegistry(java.util.List.of(
+            new SeedanceVideoModelProvider(videoProviderTransport),
+            new DashscopeVideoModelProvider(videoProviderTransport)
+        ));
         return new GenerationRunFactory(
             modelResolver,
             promptTemplateResolver,
-            textModelClient,
-            new RemoteMediaGenerationClient(new ObjectMapper()),
+            textModelProviderRegistry,
+            imageModelProviderRegistry,
+            videoModelProviderRegistry,
             support
         );
+    }
+
+    private TextModelProviderRegistry registry(TextModelProvider... providers) {
+        return new TextModelProviderRegistry(java.util.Arrays.asList(providers));
     }
 
     private JiandouStorageProperties storageProperties(Path rootDir) {

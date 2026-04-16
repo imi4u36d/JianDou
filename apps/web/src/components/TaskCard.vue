@@ -29,7 +29,7 @@
       <span v-if="task.status === 'COMPLETED'" class="surface-chip">可查看结果</span>
       <span v-if="task.status === 'PAUSED'" class="surface-chip">可继续生成</span>
       <span v-if="task.effectRating" class="surface-chip">评分 {{ effectRatingLabel }}</span>
-      <span v-if="task.taskSeed !== null && task.taskSeed !== undefined" class="surface-chip">Seed {{ task.taskSeed }}</span>
+      <span v-if="task.taskSeed !== null && task.taskSeed !== undefined" class="surface-chip">种子 {{ task.taskSeed }}</span>
     </div>
 
     <div class="mt-4 neo-stat-grid">
@@ -50,7 +50,7 @@
         <strong>{{ effectRatingLabel }}</strong>
       </div>
       <div class="neo-stat-row">
-        <p>Seed</p>
+        <p>种子</p>
         <strong>{{ seedLabel }}</strong>
       </div>
     </div>
@@ -216,44 +216,41 @@ function handleSelect() {
 
 <style scoped>
 .neo-card {
-  background: #E0E5EC;
-  color: #1f2a37;
-  box-shadow:
-    18px 18px 30px rgba(138, 148, 164, 0.45),
-    -18px -18px 30px rgba(255, 255, 255, 0.95);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(14, 18, 26, 0.92);
+  color: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-panel);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 .neo-card:hover {
   transform: translateY(-2px);
-  box-shadow:
-    18px 18px 40px rgba(138, 148, 164, 0.45),
-    -18px -18px 40px rgba(255, 255, 255, 0.95);
+  border-color: rgba(145, 180, 255, 0.22);
+  box-shadow: var(--shadow-glow);
 }
 .neo-card-selected {
-  box-shadow:
-    inset 10px 10px 20px rgba(157, 166, 184, 0.35),
-    inset -10px -10px 20px rgba(255, 255, 255, 0.95);
+  border-color: rgba(145, 180, 255, 0.4);
+  box-shadow: var(--shadow-glow);
 }
 .task-card__rail {
   opacity: 0.9;
-  box-shadow:
-    inset 1px 1px 2px rgba(255, 255, 255, 0.65),
-    inset -1px -1px 2px rgba(94, 105, 122, 0.16);
+  box-shadow: 0 0 18px rgba(145, 180, 255, 0.24);
 }
 .task-card__rail--completed {
-  background: #7e9d8d;
+  background: #68e0b0;
 }
 .task-card__rail--failed {
-  background: #b37d87;
+  background: #ff8fa9;
 }
 .task-card__rail--paused {
-  background: #b79b79;
+  background: #ffce72;
 }
 .task-card__rail--running {
-  background: #c9878e;
+  background: #6ed5ff;
 }
 .task-card__rail--idle {
-  background: #9aa5b5;
+  background: rgba(255, 255, 255, 0.42);
 }
 .neo-card-busy {
   opacity: 0.9;
@@ -264,74 +261,69 @@ function handleSelect() {
   gap: 0.75rem;
   padding: 0.75rem;
   border-radius: 24px;
-  background: #E7EBF2;
-  box-shadow:
-    inset 6px 6px 12px rgba(147, 157, 174, 0.4),
-    inset -6px -6px 12px rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 .neo-stat-row {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  color: #5a6370;
+  color: rgba(255, 255, 255, 0.5);
   font-size: 0.8rem;
 }
 .neo-stat-row strong {
   font-size: 1rem;
-  color: #1f2933;
+  color: rgba(255, 255, 255, 0.9);
 }
 .neo-progress-track {
   height: 14px;
   border-radius: 999px;
-  background: #E7EBF2;
-  box-shadow:
-    inset 4px 4px 6px rgba(147, 157, 174, 0.4),
-    inset -4px -4px 6px rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
 }
 .neo-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 156, 156, 0.2), #efb9b9);
-  box-shadow:
-    inset 4px 4px 8px rgba(255, 255, 255, 0.75),
-    inset -4px -4px 8px rgba(255, 255, 255, 0.15);
+  background: linear-gradient(90deg, #b05cff 0%, #4edbff 100%);
+  box-shadow: 0 0 22px rgba(78, 219, 255, 0.24);
   transition: width 0.25s ease;
 }
 .neo-button {
   border-radius: 16px;
-  background: #E7EBF2;
-  color: #1f2a37;
-  box-shadow:
-    6px 6px 12px rgba(147, 157, 174, 0.25),
-    -6px -6px 12px rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-soft);
   transition: box-shadow 0.2s ease;
 }
 .neo-button:active {
-  box-shadow:
-    inset 5px 5px 10px rgba(147, 157, 174, 0.35),
-    inset -5px -5px 10px rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-glow);
 }
 .neo-button-accent {
-  color: #3f1a1a;
-  background: #ffd3d3;
+  color: #081018;
+  background: linear-gradient(90deg, #b05cff 0%, #4edbff 100%);
   box-shadow:
-    6px 6px 12px rgba(197, 163, 163, 0.35),
-    -6px -6px 12px rgba(255, 255, 255, 0.9);
+    0 14px 32px rgba(128, 99, 255, 0.28),
+    0 0 38px rgba(78, 219, 255, 0.14);
 }
 .neo-button-accent:active {
-  box-shadow:
-    inset 5px 5px 10px rgba(197, 163, 163, 0.4),
-    inset -5px -5px 10px rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-glow);
 }
 :deep(.surface-chip) {
-  border: none;
-  background: #E0E5EC;
-  color: #5a6370;
-  box-shadow:
-    inset -2px -2px 6px rgba(255, 255, 255, 0.9),
-    inset 2px 2px 6px rgba(147, 157, 174, 0.25);
+  border: 1px solid rgba(145, 180, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.68);
+  box-shadow: none;
   font-size: 0.65rem;
   letter-spacing: 0.1em;
   padding: 0.4rem 0.7rem;
+}
+
+.neo-card :deep(.text-slate-900) {
+  color: rgba(255, 255, 255, 0.94) !important;
+}
+
+.neo-card :deep(.text-slate-600),
+.neo-card :deep(.text-slate-500) {
+  color: rgba(255, 255, 255, 0.52) !important;
 }
 </style>

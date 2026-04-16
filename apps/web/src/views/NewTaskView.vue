@@ -1,280 +1,278 @@
 <template>
   <section class="new-task-view">
-    <div class="new-task-layout">
-      <div class="new-task-main surface-panel surface-panel-warm p-6">
-        <form class="grid gap-6" @submit.prevent="submitTask">
-          <div class="new-task-workspace">
-            <section class="composer-column composer-column-left">
-              <section class="composer-section">
-                <div class="composer-section__head">
-                  <div>
-                    <p class="composer-section__eyebrow">Parameters</p>
-                    <h3>模型、Seed 与输出设置</h3>
-                    <p>左侧只负责决定生成链路本身，包括模型组合、分辨率、数量和时长限制。</p>
-                  </div>
-                  <span class="surface-chip">{{ selectedModelCount }}/4 模型已选</span>
-                </div>
-
-                <div class="surface-tile parameter-cluster p-4">
-                  <div class="parameter-cluster__head">
-                    <p class="parameter-cluster__eyebrow">Task Frame</p>
-                    <strong>任务框架</strong>
-                  </div>
-                  <div class="grid gap-4 md:grid-cols-[2fr,1fr]">
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      任务标题
-                      <input v-model="form.title" class="field-input" required placeholder="例如：都市小说第 3 章视频预告" />
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      画幅比例
-                      <select v-model="form.aspectRatio" class="field-select">
-                        <option v-for="item in aspectRatioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="surface-tile parameter-cluster field-matrix p-4">
-                  <div class="parameter-cluster__head">
-                    <p class="parameter-cluster__eyebrow">Model Pipeline</p>
-                    <strong>模型链路</strong>
-                  </div>
-                  <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      文本模型
-                      <select v-model="form.textAnalysisModel" class="field-select">
-                        <option :value="null">请选择文本模型</option>
-                        <option v-for="item in textModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                      </select>
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      视觉模型
-                      <select v-model="form.visionModel" class="field-select">
-                        <option :value="null">请选择视觉模型</option>
-                        <option v-for="item in visionModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                      </select>
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      关键帧模型
-                      <select v-model="form.imageModel" class="field-select">
-                        <option :value="null">请选择关键帧模型</option>
-                        <option v-for="item in imageModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                      </select>
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      视频模型
-                      <select v-model="form.videoModel" class="field-select">
-                        <option :value="null">请选择视频模型</option>
-                        <option v-for="item in videoModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="surface-tile parameter-cluster p-4">
-                  <div class="parameter-cluster__head">
-                    <p class="parameter-cluster__eyebrow">Output Control</p>
-                    <strong>输出控制</strong>
-                  </div>
-                  <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      <span class="field-label-inline">
-                        <span>Seed</span>
-                        <HintBell class="seed-hint-bell" title="Seed 使用说明" :text="seedCapabilityHint" align="left" />
-                      </span>
-                      <input
-                        v-model="seedInput"
-                        class="field-input"
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="留空则不指定"
-                      />
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      清晰度 / 画幅
-                      <select v-model="form.videoSize" class="field-select">
-                        <option v-for="item in videoSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                      </select>
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      输出视频数量
-                      <select v-model="form.outputCount" class="field-select">
-                        <option value="auto">自动（按脚本分镜）</option>
-                        <option v-for="item in outputCountOptions" :key="item" :value="item">{{ item }} 条</option>
-                      </select>
-                    </label>
-                    <label class="grid gap-2 text-sm text-slate-700">
-                      视频总时长限制
-                      <select v-model="durationLimitMode" class="field-select">
-                        <option value="auto">自动</option>
-                        <option value="manual">手动输入最大时长</option>
-                      </select>
-                    </label>
-                    <label v-if="durationLimitMode === 'manual'" class="grid gap-2 text-sm text-slate-700">
-                      最大总时长（秒）
-                      <input
-                        v-model="manualMaxDurationSeconds"
-                        class="field-input"
-                        type="number"
-                        :min="minimumAllowedDurationSeconds ?? 1"
-                        max="120"
-                        step="1"
-                        :placeholder="manualDurationPlaceholder"
-                      />
-                      <span class="text-xs text-slate-500">{{ manualDurationHint }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="surface-tile p-4">
-                  <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p class="text-sm font-semibold text-slate-900">高分 Seed 复用</p>
-                      <p class="mt-1 text-xs text-slate-500">按任务效果评分倒序读取已验证过的 seed，点击即可回填当前表单。</p>
-                    </div>
-                    <button type="button" class="btn-ghost btn-sm" :disabled="loadingReusableSeeds" @click="loadReusableSeeds">
-                      {{ loadingReusableSeeds ? "刷新中..." : "刷新列表" }}
-                    </button>
-                  </div>
-                  <p v-if="reusableSeedError" class="mt-3 text-sm text-rose-600">{{ reusableSeedError }}</p>
-                  <div v-else-if="reusableSeedTasks.length" class="mt-4 grid gap-3">
-                    <button
-                      v-for="task in reusableSeedTasks"
-                      :key="task.id"
-                      type="button"
-                      class="seed-source-card rounded-2xl px-4 py-3 text-left transition"
-                      @click="applySeedFromTask(task)"
-                    >
-                      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span class="surface-chip">Seed {{ formatReusableSeed(task.taskSeed) }}</span>
-                        <span class="surface-chip">评分 {{ formatReusableRating(task.effectRating) }}</span>
-                        <span v-if="task.ratedAt">{{ formatReusableDate(task.ratedAt) }}</span>
-                      </div>
-                      <p class="mt-2 text-sm font-semibold text-slate-900">{{ task.title }}</p>
-                      <p class="mt-1 text-xs text-slate-500">
-                        {{ task.aspectRatio || "未知画幅" }} · {{ task.status }} · {{ task.id }}
-                      </p>
-                      <p v-if="task.effectRatingNote" class="mt-2 line-clamp-2 text-sm text-slate-600">{{ task.effectRatingNote }}</p>
-                      <p
-                        v-if="selectedSeedSourceTaskId === task.id"
-                        class="mt-2 text-xs font-medium text-emerald-700"
-                      >
-                        已回填到当前任务
-                      </p>
-                    </button>
-                  </div>
-                  <p v-else class="mt-3 text-sm text-slate-500">当前还没有可复用的高分 seed。</p>
-                  <p class="mt-3 text-xs text-slate-500">提示：seed 复用只会回填种子，不会自动改动你当前选择的模型组合。</p>
-                </div>
-              </section>
-            </section>
-
-            <section class="composer-column composer-column-right">
-              <section class="composer-section">
-                <div class="composer-section__head">
-                  <div>
-                    <p class="composer-section__eyebrow">Creative Input</p>
-                    <h3>提示词、正文输入与操作按钮</h3>
-                    <p>右侧负责实际创作内容，填写提示词、导入正文，并从这里直接发起生成。</p>
-                  </div>
-                  <span class="surface-chip">{{ transcriptCharacterCount > 0 ? `${transcriptCharacterCount} 字文本` : "等待正文输入" }}</span>
-                </div>
-
-                <div class="creative-grid">
-                  <div class="surface-tile p-4 creative-card">
-                    <div class="creative-card__header flex flex-wrap items-center justify-between gap-3">
-                      <p class="text-sm font-semibold text-slate-900">全局提示词</p>
-                      <div class="flex items-center gap-2">
-                        <button type="button" class="btn-primary btn-sm" :disabled="generatingPrompt" @click="handleGeneratePrompt">
-                          {{ generatingPrompt ? "生成中..." : "AI 生成提示词" }}
-                        </button>
-                        <button type="button" class="btn-ghost btn-sm" @click="form.creativePrompt = ''">清空</button>
-                      </div>
-                    </div>
-                    <textarea
-                      v-model="form.creativePrompt"
-                      rows="12"
-                      class="field-textarea mt-3 creative-card__textarea"
-                      placeholder="描述人物关系、冲突推进、镜头语气、情绪节奏；留空则使用系统默认提示词。"
-                    ></textarea>
-                    <p class="mt-2 text-xs text-slate-500 creative-card__meta">提示词来源：{{ promptSourceLabel }}</p>
-                  </div>
-
-                  <div class="surface-tile p-4 creative-card">
-                    <div class="creative-card__header flex flex-wrap items-center justify-between gap-3">
-                      <p class="text-sm font-semibold text-slate-900">小说 TXT 输入</p>
-                      <button type="button" class="btn-secondary btn-sm" :disabled="uploadingText" @click="textFileInput?.click()">
-                        {{ uploadingText ? "上传中..." : "上传 TXT" }}
-                      </button>
-                    </div>
-                    <input
-                      ref="textFileInput"
-                      type="file"
-                      accept=".txt,text/plain"
-                      class="hidden"
-                      @change="handleTextFileChange"
-                    />
-                    <p class="mt-2 text-xs text-slate-500">{{ uploadedTextLabel }}</p>
-                    <textarea
-                      v-model="form.transcriptText"
-                      rows="12"
-                      class="field-textarea mt-3 font-mono text-sm creative-card__textarea"
-                      placeholder="可直接粘贴小说正文或上传 TXT 后自动填充。"
-                    ></textarea>
-                  </div>
-                </div>
-
-                <div class="submit-row">
-                  <div class="submit-row__copy">
-                    <p class="submit-row__eyebrow">Ready Check</p>
-                    <strong>{{ submitLabel }}</strong>
-                    <p class="submit-status">{{ statusText }}</p>
-                  </div>
-                  <div class="submit-actions">
-                    <button class="btn-primary" type="submit" :disabled="submitting || !isFormReady">{{ submitLabel }}</button>
-                    <button class="btn-secondary" type="button" :disabled="submitting" @click="goToTasks">查看任务列表</button>
-                    <button class="btn-ghost" type="button" :disabled="!progressTaskId" @click="goToCurrentTask">查看当前任务</button>
-                  </div>
-                </div>
-              </section>
-            </section>
+    <form class="task-studio" @submit.prevent="submitTask">
+      <aside class="surface-panel studio-panel studio-panel-rail">
+        <div class="studio-panel__head">
+          <div>
+            <p class="studio-eyebrow">配置轨道</p>
+            <h2>模型链路</h2>
           </div>
-        </form>
-      </div>
+          <span class="surface-chip">已选 {{ selectedModelCount }}/4</span>
+        </div>
 
-      <section class="new-task-progress-area">
-        <div class="new-task-progress-card">
-          <TaskProgressCard
-            :state="progressState"
-            :task-id="progressTaskId"
-            :trace-count="progressTraceCount"
-            :elapsed-label="progressElapsedLabel"
-            :result-title="previewResultTitle"
-            :result-meta="previewResultMeta"
-            :output-url="previewOutputUrl"
-            :poster-url="previewPosterUrl"
+        <label class="studio-field">
+          <span>任务标题</span>
+          <input v-model="form.title" class="field-input" required placeholder="例如：悬疑短剧第 12 集预告" />
+        </label>
+
+        <div class="model-rail">
+          <div class="model-rail__line" aria-hidden="true"></div>
+
+          <label class="model-rail__item">
+            <span class="model-rail__dot"></span>
+            <span class="model-rail__label">文本模型</span>
+            <select v-model="form.textAnalysisModel" class="field-select">
+              <option :value="null">请选择文本模型</option>
+              <option v-for="item in textModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+
+          <label class="model-rail__item">
+            <span class="model-rail__dot"></span>
+            <span class="model-rail__label">视觉模型</span>
+            <select v-model="form.visionModel" class="field-select">
+              <option :value="null">请选择视觉模型</option>
+              <option v-for="item in visionModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+
+          <label class="model-rail__item">
+            <span class="model-rail__dot"></span>
+            <span class="model-rail__label">关键帧模型</span>
+            <select v-model="form.imageModel" class="field-select">
+              <option :value="null">请选择关键帧模型</option>
+              <option v-for="item in imageModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+
+          <label class="model-rail__item">
+            <span class="model-rail__dot"></span>
+            <span class="model-rail__label">视频模型</span>
+            <select v-model="form.videoModel" class="field-select">
+              <option :value="null">请选择视频模型</option>
+              <option v-for="item in videoModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="surface-tile control-card">
+          <div class="control-card__head">
+            <div>
+              <p class="studio-eyebrow">参数控制</p>
+              <h3>输出设置</h3>
+            </div>
+            <HintBell title="种子使用说明" :text="seedCapabilityHint" align="left" />
+          </div>
+
+          <div class="ratio-toggle">
+            <button
+              v-for="item in aspectRatioOptions"
+              :key="item.value"
+              type="button"
+              class="ratio-toggle__item"
+              :class="{ 'ratio-toggle__item-active': form.aspectRatio === item.value }"
+              @click="form.aspectRatio = item.value"
+            >
+              {{ item.value }}
+            </button>
+          </div>
+
+          <div class="control-grid">
+            <label class="studio-field">
+              <span>清晰度</span>
+              <select v-model="form.videoSize" class="field-select">
+                <option v-for="item in videoSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </label>
+
+            <label class="studio-field">
+              <span>输出数量</span>
+              <select v-model="form.outputCount" class="field-select">
+                <option value="auto">自动</option>
+                <option v-for="item in outputCountOptions" :key="item" :value="item">{{ item }}</option>
+              </select>
+            </label>
+
+            <label class="studio-field">
+              <span>时长模式</span>
+              <select v-model="durationLimitMode" class="field-select">
+                <option value="auto">自动</option>
+                <option value="manual">手动</option>
+              </select>
+            </label>
+
+            <label v-if="durationLimitMode === 'manual'" class="studio-field">
+              <span>最大时长</span>
+              <input
+                v-model="manualMaxDurationSeconds"
+                class="field-input"
+                type="number"
+                min="5"
+                max="12"
+                step="1"
+                :placeholder="manualDurationPlaceholder"
+              />
+            </label>
+          </div>
+
+          <p class="control-card__hint">
+            {{ durationLimitMode === "manual" ? manualDurationHint : "自动模式会跟随当前视频模型能力。" }}
+          </p>
+          <p v-if="durationLimitMode === 'manual' && manualDurationValidationMessage" class="control-card__error">
+            {{ manualDurationValidationMessage }}
+          </p>
+        </section>
+
+        <section class="surface-tile seed-library">
+          <div class="seed-library__head">
+            <div>
+              <p class="studio-eyebrow">种子库</p>
+              <h3>高分复用</h3>
+            </div>
+            <button type="button" class="btn-ghost btn-sm" :disabled="loadingReusableSeeds" @click="loadReusableSeeds">
+              {{ loadingReusableSeeds ? "加载中..." : "刷新" }}
+            </button>
+          </div>
+
+          <p v-if="reusableSeedError" class="control-card__error">{{ reusableSeedError }}</p>
+          <div v-else-if="reusableSeedTasks.length" class="seed-library__list">
+            <button
+              v-for="task in reusableSeedTasks"
+              :key="task.id"
+              type="button"
+              class="seed-library__item"
+              :class="{ 'seed-library__item-active': selectedSeedSourceTaskId === task.id }"
+              @click="applySeedFromTask(task)"
+            >
+              <div class="seed-library__chips">
+                <span class="surface-chip">种子 {{ formatReusableSeed(task.taskSeed) }}</span>
+                <span class="surface-chip">评分 {{ formatReusableRating(task.effectRating) }}</span>
+              </div>
+              <strong>{{ task.title }}</strong>
+              <small>{{ task.aspectRatio || "未知画幅" }} · {{ formatReusableDate(task.ratedAt) || task.status }}</small>
+            </button>
+          </div>
+          <p v-else class="seed-library__empty">当前还没有可复用的高分种子。</p>
+        </section>
+      </aside>
+
+      <section class="surface-panel studio-panel studio-panel-core">
+        <div class="studio-panel__head">
+          <div>
+            <p class="studio-eyebrow">创作核心</p>
+            <h2>提示词与正文内容</h2>
+          </div>
+          <span class="surface-chip">{{ transcriptCharacterCount > 0 ? `${transcriptCharacterCount} 字` : "等待正文输入" }}</span>
+        </div>
+
+        <div class="core-topbar">
+          <button type="button" class="btn-primary core-topbar__action" :disabled="generatingPrompt || loadingOptions" @click="handleGeneratePrompt">
+            {{ generatingPrompt ? "生成中..." : "智能生成提示词" }}
+          </button>
+          <button type="button" class="btn-secondary btn-sm" :disabled="uploadingText" @click="textFileInput?.click()">
+            {{ uploadingText ? "上传中..." : "上传文本" }}
+          </button>
+          <input
+            ref="textFileInput"
+            type="file"
+            accept=".txt,text/plain"
+            class="hidden"
+            @change="handleTextFileChange"
           />
         </div>
 
-        <section class="surface-panel p-5 new-task-trace-card">
-          <div class="panel-head">
-            <p class="panel-eyebrow">Trace Feed</p>
-            <h3>最近追踪</h3>
+        <p class="core-upload-label">{{ uploadedTextLabel }}</p>
+
+        <label class="studio-field">
+          <span>小说正文</span>
+          <textarea
+            v-model="form.transcriptText"
+            rows="12"
+            class="field-textarea core-textarea"
+            placeholder="可直接粘贴小说正文，或上传文本文件自动填充。"
+          ></textarea>
+        </label>
+
+        <label class="studio-field">
+          <span>全局创意提示词</span>
+          <textarea
+            v-model="form.creativePrompt"
+            rows="5"
+            class="field-textarea"
+            placeholder="填写全局创意提示词..."
+          ></textarea>
+        </label>
+
+        <div class="core-bottom-grid">
+          <label class="studio-field">
+            <span>种子</span>
+            <input
+              v-model="seedInput"
+              class="field-input"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="可选"
+            />
+          </label>
+
+          <div class="surface-tile core-status">
+            <p class="studio-eyebrow">提交检查</p>
+            <strong>{{ submitLabel }}</strong>
+            <p>{{ statusText }}</p>
+            <p class="core-status__meta">提示词来源：{{ promptSourceLabel }}</p>
           </div>
-          <ul v-if="recentTraceEvents.length" class="trace-list">
-            <li v-for="(item, index) in recentTraceEvents" :key="`${item.timestamp}-${item.event}-${index}`" class="trace-item">
-              <p class="trace-main">
-                <span class="trace-stage">{{ item.stage }}</span>
-                <span>{{ item.message }}</span>
-              </p>
-              <p class="trace-meta">{{ formatTraceTime(item.timestamp) }} · {{ item.level }}</p>
+        </div>
+
+        <div class="core-actions">
+          <button class="btn-primary" type="submit" :disabled="submitting || !isFormReady || loadingOptions">{{ submitLabel }}</button>
+          <button class="btn-secondary" type="button" :disabled="submitting" @click="goToTasks">查看任务</button>
+          <button class="btn-ghost" type="button" :disabled="!progressTaskId" @click="goToCurrentTask">打开当前任务</button>
+        </div>
+      </section>
+
+      <aside class="surface-panel studio-panel studio-panel-trace">
+        <div class="studio-panel__head">
+          <div>
+            <p class="studio-eyebrow">实时追踪</p>
+            <h2>执行监控</h2>
+          </div>
+          <span class="surface-chip">{{ progressState.status }}</span>
+        </div>
+
+        <div class="trace-ring-shell">
+          <div class="trace-ring" :style="{ '--progress': `${progressState.progress}%` }">
+            <div class="trace-ring__inner">
+              <p>{{ progressState.stage }}</p>
+              <strong>{{ progressState.progress }}%</strong>
+            </div>
+          </div>
+          <p class="trace-ring__meta">{{ progressElapsedLabel || "任务开始后会显示耗时。" }}</p>
+        </div>
+
+        <div v-if="previewOutputUrl" class="trace-preview">
+          <p class="trace-preview__title">{{ previewResultTitle }}</p>
+          <video :src="previewOutputUrl" controls playsinline preload="metadata"></video>
+          <div class="trace-preview__meta">
+            <span v-for="item in previewResultMeta" :key="item">{{ item }}</span>
+          </div>
+        </div>
+
+        <section class="trace-feed">
+          <div class="trace-feed__head">
+            <h3>最近追踪</h3>
+            <span class="surface-chip">{{ progressTraceCount }}</span>
+          </div>
+          <ul v-if="recentTraceEvents.length" class="trace-feed__list">
+            <li v-for="(item, index) in recentTraceEvents" :key="`${item.timestamp}-${item.event}-${index}`" class="trace-feed__item">
+              <p>[{{ formatTraceTime(item.timestamp) }}] {{ item.message }}</p>
+              <small>{{ item.stage }} · {{ item.level }}</small>
             </li>
           </ul>
-          <p v-else class="trace-empty">创建任务后会在这里显示实时追踪事件。</p>
+          <div v-else class="trace-feed__empty">创建任务后，这里会显示最近追踪记录。</div>
         </section>
-      </section>
-    </div>
+      </aside>
+    </form>
   </section>
 </template>
 
@@ -286,7 +284,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { fetchGenerationOptions } from "@/api/generation";
 import { createGenerationTask, fetchTasks, generateCreativePrompt, uploadText } from "@/api/tasks";
-import TaskProgressCard from "@/components/generate/TaskProgressCard.vue";
 import { useTaskProgress } from "@/components/generate/useTaskProgress";
 import HintBell from "@/components/HintBell.vue";
 import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";
@@ -315,6 +312,8 @@ const uploadedText = ref<UploadResponse | null>(null);
 const textFileInput = ref<HTMLInputElement | null>(null);
 const durationLimitMode = ref<"auto" | "manual">("auto");
 const manualMaxDurationSeconds = ref("");
+const MANUAL_DURATION_MIN_SECONDS = 5;
+const MANUAL_DURATION_MAX_SECONDS = 12;
 const seedInput = ref("");
 const reusableSeedTasks = ref<TaskListItem[]>([]);
 const loadingReusableSeeds = ref(false);
@@ -609,30 +608,22 @@ const durationOptions = computed<GenerationVideoDurationOption[]>(() => {
   });
   return [...filtered].sort((a, b) => a.value - b.value);
 });
-const minimumSupportedDurationSeconds = computed(() => {
-  const first = durationOptions.value.find((item) => Number.isFinite(item.value) && item.value > 0);
-  return first ? Math.trunc(first.value) : null;
-});
-const minimumAllowedDurationSeconds = computed(() => minimumSupportedDurationSeconds.value ?? 1);
 const normalizedManualMaxDurationSeconds = computed(() => parseDurationSeconds(manualMaxDurationSeconds.value));
 const manualDurationHint = computed(() => {
-  const minimum = minimumAllowedDurationSeconds.value;
-  return `当前视频模型要求时长至少 ${minimum} 秒，最大 120 秒。`;
+  return `手动模式下时长限制为 ${MANUAL_DURATION_MIN_SECONDS}-${MANUAL_DURATION_MAX_SECONDS} 秒。`;
 });
 const manualDurationPlaceholder = computed(() => {
-  const minimum = minimumAllowedDurationSeconds.value;
-  return `请输入 ${minimum}-120`;
+  return `请输入 ${MANUAL_DURATION_MIN_SECONDS}-${MANUAL_DURATION_MAX_SECONDS}`;
 });
 const manualDurationValidationMessage = computed(() => {
-  const minimum = minimumAllowedDurationSeconds.value;
   if (!manualMaxDurationSeconds.value.trim()) {
-    return `请先填写合法的最大总时长（${minimum}-120 秒）`;
+    return `请先填写合法的最大总时长（${MANUAL_DURATION_MIN_SECONDS}-${MANUAL_DURATION_MAX_SECONDS} 秒）`;
   }
   if (normalizedManualMaxDurationSeconds.value === null) {
-    return `请先填写合法的最大总时长（${minimum}-120 秒）`;
+    return `请先填写合法的最大总时长（${MANUAL_DURATION_MIN_SECONDS}-${MANUAL_DURATION_MAX_SECONDS} 秒）`;
   }
-  if (normalizedManualMaxDurationSeconds.value < minimum) {
-    return `当前视频模型要求最大总时长至少为 ${minimum} 秒`;
+  if (normalizedManualMaxDurationSeconds.value < MANUAL_DURATION_MIN_SECONDS || normalizedManualMaxDurationSeconds.value > MANUAL_DURATION_MAX_SECONDS) {
+    return `手动模式的最大总时长需在 ${MANUAL_DURATION_MIN_SECONDS}-${MANUAL_DURATION_MAX_SECONDS} 秒之间`;
   }
   return "";
 });
@@ -661,15 +652,15 @@ const seedCapabilityHint = computed(() => {
   const visionSupportsSeed = Boolean(selectedVisionModelOption.value?.supportsSeed);
   const videoSupportsSeed = Boolean(selectedVideoModelOption.value?.supportsSeed);
   if (visionSupportsSeed && videoSupportsSeed) {
-    return "当前视觉模型和视频模型都会使用该 seed。";
+    return "当前视觉模型和视频模型都会使用该种子。";
   }
   if (videoSupportsSeed) {
-    return "当前仅视频模型会使用该 seed。";
+    return "当前仅视频模型会使用该种子。";
   }
   if (visionSupportsSeed) {
-    return "当前仅视觉模型会使用该 seed。";
+    return "当前仅视觉模型会使用该种子。";
   }
-  return "当前所选模型未声明支持 seed，保存后仅做任务记录。";
+  return "当前所选模型未声明支持种子，保存后仅做任务记录。";
 });
 
 /**
@@ -741,7 +732,7 @@ const submitLabel = computed(() => {
 
 const uploadedTextLabel = computed(() => {
   if (!uploadedText.value) {
-    return "未上传 TXT 文件";
+    return "未上传文本文件";
   }
   const sizeKb = (uploadedText.value.sizeBytes / 1024).toFixed(1);
   return `已上传：${uploadedText.value.fileName}（${sizeKb} KB）`;
@@ -822,7 +813,7 @@ function readTextFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(reader.error ?? new Error("读取 TXT 失败"));
+    reader.onerror = () => reject(reader.error ?? new Error("读取文本文件失败"));
     reader.readAsText(file, "utf-8");
   });
 }
@@ -842,10 +833,11 @@ async function loadOptions() {
     if (!manualMaxDurationSeconds.value.trim()) {
       const fallbackDuration =
         parseDurationSeconds(result.defaultVideoDurationSeconds) ??
-        parseDurationSeconds(result.videoDurations[0]?.value);
-      if (fallbackDuration !== null) {
-        manualMaxDurationSeconds.value = String(fallbackDuration);
-      }
+        parseDurationSeconds(result.videoDurations[0]?.value) ??
+        MANUAL_DURATION_MIN_SECONDS;
+      manualMaxDurationSeconds.value = String(
+        Math.max(MANUAL_DURATION_MIN_SECONDS, Math.min(MANUAL_DURATION_MAX_SECONDS, fallbackDuration)),
+      );
     }
     statusText.value = "参数已加载，请先选择模型再创建任务";
   } catch (error) {
@@ -865,7 +857,7 @@ async function loadReusableSeeds() {
       .filter((task) => typeof task.effectRating === "number" && Number.isFinite(task.effectRating) && task.effectRating > 0)
       .slice(0, 8);
   } catch (error) {
-    reusableSeedError.value = error instanceof Error ? error.message : "读取高分 seed 失败";
+    reusableSeedError.value = error instanceof Error ? error.message : "读取高分种子失败";
   } finally {
     loadingReusableSeeds.value = false;
   }
@@ -882,7 +874,7 @@ function applySeedFromTask(task: TaskListItem) {
   }
   seedInput.value = String(Math.trunc(seed));
   selectedSeedSourceTaskId.value = task.id;
-  statusText.value = `已复用任务 ${task.id} 的高分 seed：${Math.trunc(seed)}`;
+  statusText.value = `已复用任务 ${task.id} 的高分种子：${Math.trunc(seed)}`;
 }
 
 watch(
@@ -909,7 +901,7 @@ async function handleTextFileChange(event: Event) {
     return;
   }
   uploadingText.value = true;
-  statusText.value = "正在上传 TXT...";
+  statusText.value = "正在上传文本文件...";
   try {
     const [uploaded, content] = await Promise.all([uploadText(file), readTextFile(file)]);
     uploadedText.value = uploaded;
@@ -919,9 +911,9 @@ async function handleTextFileChange(event: Event) {
         form.value.title = file.name.replace(/\.txt$/i, "") || "文本生成任务";
       }
     }
-    statusText.value = "TXT 已上传并填充文本";
+    statusText.value = "文本文件已上传并填充正文";
   } catch (error) {
-    statusText.value = error instanceof Error ? error.message : "TXT 上传失败";
+    statusText.value = error instanceof Error ? error.message : "文本文件上传失败";
   } finally {
     uploadingText.value = false;
     input.value = "";
@@ -954,7 +946,7 @@ async function handleGeneratePrompt() {
     });
     if (result.prompt?.trim()) {
       form.value.creativePrompt = result.prompt.trim();
-      promptSource.value = `AI（${result.source || "model"}）`;
+      promptSource.value = `智能生成（${result.source || "模型"}）`;
       statusText.value = "提示词生成成功";
     }
   } catch (error) {
@@ -982,11 +974,7 @@ async function submitTask() {
   let minDurationSeconds: number | null = null;
   let maxDurationSeconds: number | null = null;
   if (durationLimitMode.value === "manual" && manualMax !== null) {
-    const fallbackMin =
-      minimumSupportedDurationSeconds.value ??
-      parseDurationSeconds(options.value?.defaultVideoDurationSeconds) ??
-      1;
-    minDurationSeconds = Math.max(1, Math.min(manualMax, fallbackMin));
+    minDurationSeconds = MANUAL_DURATION_MIN_SECONDS;
     maxDurationSeconds = manualMax;
   }
 
@@ -1068,346 +1056,443 @@ onUnmounted(() => {
 
 <style scoped>
 .new-task-view {
-  display: grid;
-  gap: 1rem;
-}
-
-.new-task-view :deep(.surface-panel),
-.new-task-view :deep(.surface-tile) {
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-raise-soft);
-}
-
-.new-task-view :deep(.surface-chip) {
-  background: var(--bg-surface);
-  color: var(--text-body);
-  box-shadow: var(--shadow-pressed);
-}
-
-.new-task-layout {
-  display: grid;
-  gap: 1rem;
-  align-items: start;
-}
-
-.composer-section__eyebrow,
-.submit-row__eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.composer-section {
-  display: grid;
-  gap: 1rem;
-}
-
-.new-task-workspace {
-  display: grid;
-  gap: 1rem;
-  align-items: start;
-}
-
-.composer-column {
-  min-width: 0;
-}
-
-.composer-section__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  justify-content: space-between;
-  gap: 0.85rem;
-}
-
-.composer-section__head h3 {
-  margin: 0.35rem 0 0;
-  font-size: 1.15rem;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: var(--text-strong);
-}
-
-.composer-section__head p:last-child {
-  margin: 0.35rem 0 0;
-  max-width: 56ch;
-  line-height: 1.7;
-  color: var(--text-body);
-}
-
-.field-matrix {
-  position: relative;
-}
-
-.parameter-cluster {
-  display: grid;
-  gap: 0.95rem;
-}
-
-.parameter-cluster__head {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.parameter-cluster__eyebrow {
-  margin: 0;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.parameter-cluster__head strong {
-  color: var(--text-strong);
-  font-size: 0.98rem;
-  letter-spacing: -0.02em;
-}
-
-.field-label-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.38rem;
-}
-
-.seed-hint-bell {
-  display: inline-flex;
-}
-
-.seed-hint-bell :deep(.hint-bell) {
-  width: 1rem;
-  height: 1rem;
-  min-width: 1rem;
-  color: var(--text-muted);
-  background: transparent;
-  box-shadow: none;
-}
-
-.seed-hint-bell :deep(.hint-bell:hover) {
-  transform: none;
-  box-shadow: none;
-  color: var(--text-body);
-}
-
-.seed-hint-bell :deep(.hint-bell svg) {
-  width: 0.78rem;
-  height: 0.78rem;
-}
-
-.seed-hint-bell :deep(.hint-bell-dot) {
-  display: none;
-}
-
-.creative-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.creative-card {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-}
-
-.creative-card__header {
-  min-height: 2.5rem;
-}
-
-.creative-card__textarea {
-  flex: 1;
-}
-
-.creative-card__meta {
-  margin-top: 0.75rem;
-}
-
-.new-task-main {
-  min-width: 0;
-  position: relative;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
-.new-task-main::before {
-  content: "";
-  position: absolute;
-  inset: -20% auto auto -12%;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 183, 174, 0.18), transparent 70%);
-  pointer-events: none;
-}
-
-.new-task-progress-area {
+.task-studio {
   display: grid;
-  gap: 1rem;
+  gap: 22px;
+  align-items: start;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: minmax(280px, 0.88fr) minmax(420px, 1fr) minmax(300px, 0.82fr);
 }
 
-.new-task-progress-card,
-.new-task-trace-card {
+.studio-panel {
+  display: grid;
+  gap: 20px;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  padding: 18px;
+  overflow: auto;
 }
 
-.submit-row {
-  position: relative;
-  z-index: 1;
+.studio-panel__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  border-radius: 1.4rem;
-  border: 1px solid rgba(197, 108, 115, 0.16);
-  padding: 1rem 1.05rem;
-  background:
-    linear-gradient(180deg, rgba(255, 240, 236, 0.88), rgba(255, 255, 255, 0.48)),
-    var(--bg-surface);
-  box-shadow: var(--shadow-raise-soft);
+  gap: 12px;
 }
 
-.submit-row__copy {
-  min-width: 220px;
-}
-
-.submit-row__copy strong {
-  display: block;
-  margin-top: 0.3rem;
+.studio-panel__head h2,
+.control-card__head h3,
+.seed-library__head h3,
+.trace-feed__head h3 {
+  margin: 0.28rem 0 0;
   font-size: 1.05rem;
-  line-height: 1.2;
-  color: var(--text-strong);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: rgba(255, 255, 255, 0.95);
 }
 
-.submit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.submit-status {
-  margin: 0.35rem 0 0;
-  font-size: 0.9rem;
-  color: var(--text-body);
-}
-
-.panel-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.8rem;
-}
-
-.panel-eyebrow {
+.studio-eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
-.panel-head h3 {
-  margin: 0.2rem 0 0;
-  font-size: 1.08rem;
-  font-weight: 720;
-  color: var(--text-strong);
+.studio-field {
+  display: grid;
+  gap: 0.55rem;
 }
 
-.trace-list {
+.studio-field > span {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.model-rail {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  padding-left: 22px;
+}
+
+.model-rail__line {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 5px;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(176, 92, 255, 0.9), rgba(78, 219, 255, 0.88), rgba(176, 92, 255, 0.9));
+  box-shadow:
+    0 0 16px rgba(176, 92, 255, 0.24),
+    0 0 22px rgba(78, 219, 255, 0.2);
+}
+
+.model-rail__item {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.model-rail__dot {
+  position: absolute;
+  left: -22px;
+  top: 13px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #b05cff, #4edbff);
+  box-shadow:
+    0 0 0 3px rgba(8, 11, 18, 0.96),
+    0 0 18px rgba(120, 147, 255, 0.32);
+}
+
+.model-rail__label {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.control-card,
+.seed-library,
+.core-status {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.control-card__head,
+.seed-library__head,
+.trace-feed__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ratio-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ratio-toggle__item {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.74);
+  font-weight: 700;
+}
+
+.ratio-toggle__item-active {
+  border-color: rgba(145, 180, 255, 0.4);
+  background: linear-gradient(180deg, rgba(176, 92, 255, 0.18), rgba(78, 219, 255, 0.08));
+  color: #8fc6ff;
+  box-shadow: var(--shadow-glow);
+}
+
+.control-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.control-card__hint {
+  margin: -2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.control-card__error {
+  margin: 0;
+  color: #ff9eb3;
+  font-size: 0.78rem;
+}
+
+.seed-library__list {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+}
+
+.seed-library__item {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.seed-library__item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(145, 180, 255, 0.24);
+}
+
+.seed-library__item-active {
+  border-color: rgba(145, 180, 255, 0.4);
+  box-shadow: var(--shadow-glow);
+}
+
+.seed-library__item strong {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.88rem;
+}
+
+.seed-library__item small,
+.seed-library__empty,
+.core-upload-label {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.seed-library__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.core-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.core-topbar__action {
+  flex: 1 1 220px;
+}
+
+.core-textarea {
+  min-height: 300px;
+}
+
+.core-bottom-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  align-items: start;
+}
+
+.core-status strong {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.98rem;
+}
+
+.core-status p {
+  margin: 0;
+  color: var(--text-body);
+  line-height: 1.65;
+}
+
+.core-status__meta {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.core-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.studio-panel-trace {
+  align-self: stretch;
+  grid-template-rows: auto auto auto 1fr;
+}
+
+.trace-ring-shell {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 8px 0 2px;
+}
+
+.trace-ring {
+  --progress: 0%;
+  position: relative;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(10, 13, 20, 0.96) 56%, transparent 57%),
+    conic-gradient(from 220deg, rgba(255, 255, 255, 0.1) 0 25%, #b05cff 45%, #8f93ff 70%, #4edbff 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 20px 40px rgba(0, 0, 0, 0.24);
+}
+
+.trace-ring::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 220deg, rgba(255, 255, 255, 0.08) 0 var(--progress), rgba(255, 255, 255, 0.06) var(--progress) 100%);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 15px));
+}
+
+.trace-ring__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  width: 68%;
+  text-align: center;
+}
+
+.trace-ring__inner p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.45;
+}
+
+.trace-ring__inner strong {
+  font-size: 2.3rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.trace-ring__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.trace-preview {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.trace-preview__title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.trace-preview video {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.trace-preview__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trace-preview__meta span {
+  display: inline-flex;
+  padding: 0.25rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.trace-feed {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.trace-feed__list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.6rem;
-  max-height: 320px;
+  gap: 10px;
+  max-height: 420px;
   overflow: auto;
 }
 
-.trace-item {
-  border-radius: 0.95rem;
-  border: 1px solid var(--surface-border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.3)),
-    var(--bg-surface);
-  padding: 0.6rem 0.7rem;
-  box-shadow: var(--shadow-pressed);
+.trace-feed__item,
+.trace-feed__empty {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.trace-main {
+.trace-feed__item p,
+.trace-feed__item small {
   margin: 0;
-  display: grid;
-  gap: 0.25rem;
-  font-size: 0.82rem;
-  color: var(--text-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
-.trace-stage {
-  display: inline-flex;
-  width: fit-content;
-  border-radius: 999px;
-  background: var(--bg-surface);
-  color: var(--accent-strong);
+.trace-feed__item p {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.76rem;
+  line-height: 1.65;
+}
+
+.trace-feed__item small {
+  display: block;
+  margin-top: 0.38rem;
+  color: rgba(255, 255, 255, 0.38);
   font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 0.14rem 0.42rem;
-  box-shadow: var(--shadow-pressed);
 }
 
-.trace-meta {
-  margin: 0.35rem 0 0;
-  font-size: 0.72rem;
+.trace-feed__empty {
   color: var(--text-muted);
+  font-size: 0.82rem;
 }
 
-.trace-empty {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--text-body);
-  border-radius: 0.95rem;
-  border: 1px dashed var(--surface-border-strong);
-  padding: 0.85rem 0.95rem;
-  background: rgba(255, 255, 255, 0.44);
-}
-
-.seed-source-card {
-  border: 1px solid var(--surface-border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.34)),
-    var(--bg-surface);
-  box-shadow: var(--shadow-raise-soft);
-}
-
-.seed-source-card:hover {
-  transform: translateY(-1px);
-}
-
-.seed-source-card:active {
-  box-shadow: var(--shadow-pressed);
-}
-
-@media (min-width: 1200px) {
-  .new-task-workspace {
-    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  }
-
-  .creative-grid {
+@media (max-width: 1380px) {
+  .task-studio {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
+    overflow: auto;
   }
 
-  .creative-grid > * {
-    height: 100%;
+  .studio-panel-trace {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .task-studio {
+    grid-template-columns: 1fr;
+    overflow: auto;
   }
 
-  .new-task-progress-area {
-    grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
-    align-items: start;
+  .core-bottom-grid,
+  .control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .core-actions {
+    flex-direction: column;
   }
 }
 
 @media (max-width: 640px) {
-  .submit-row {
-    padding: 1rem;
+  .studio-panel {
+    padding: 14px;
+  }
+
+  .trace-ring {
+    width: min(200px, 100%);
   }
 }
 </style>

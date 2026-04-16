@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.jiandou.api.generation.exception.GenerationConfigurationException;
+import com.jiandou.api.generation.runtime.GenerationConfigPathLocator;
+import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,6 +73,48 @@ class ModelRuntimePropertiesResolverTest {
         assertEquals("0.15", resolver.value("model", "temperature", "0.15"));
         assertFalse(resolver.configErrors().isEmpty());
         assertTrue(resolver.configSource().contains("missing"));
+    }
+
+    /**
+     * 处理secrets覆盖ProvidesApiKey。
+     */
+    @Test
+    void secretsOverlayProvidesApiKey() throws Exception {
+        Path configFile = tempDir.resolve("config").resolve("app.yml");
+        Files.createDirectories(configFile.getParent());
+        Files.writeString(
+            configFile,
+            """
+                model:
+                  timeout_seconds: 120
+                  temperature: 0.20
+                  max_tokens: 2000
+                  providers:
+                    qwen:
+                      api_key: ""
+                      base_url: "https://example.com/v1"
+                  models:
+                    "qwen-plus":
+                      provider: "qwen"
+                      kind: "text"
+                """
+        );
+        Path secretsFile = configFile.getParent().resolve("app.secrets.yml");
+        Files.writeString(
+            secretsFile,
+            """
+                model:
+                  providers:
+                    qwen:
+                      api_key: "secret-key"
+                """
+        );
+
+        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_FILE", configFile.toString());
+        ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
+
+        assertEquals("secret-key", resolver.resolveTextProfile("qwen-plus").apiKey());
+        assertTrue(resolver.configSource().contains("app.secrets.yml"));
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.jiandou.api.config;
 
+import com.jiandou.api.task.domain.ExecutionMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -24,8 +25,12 @@ public class JiandouAppProperties {
         return executionMode;
     }
 
+    public ExecutionMode getExecutionModeEnum() {
+        return ExecutionMode.from(executionMode);
+    }
+
     public void setExecutionMode(String executionMode) {
-        this.executionMode = executionMode == null ? "queue" : executionMode.trim();
+        this.executionMode = executionMode == null ? ExecutionMode.QUEUE.value() : ExecutionMode.normalize(executionMode);
     }
 
     public String getWebOrigin() {

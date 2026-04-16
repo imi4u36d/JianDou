@@ -46,4 +46,8 @@ public record TaskAttemptSnapshot(
     public TaskAttemptSnapshot {
         payload = payload == null ? new LinkedHashMap<>() : new LinkedHashMap<>(payload);
     }
+
+    public AttemptTriggerType triggerTypeEnum() {
+        return AttemptTriggerType.from(triggerType);
+    }
 }

@@ -27,22 +27,32 @@ defineProps<{
 .page-header-surface {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top right, rgba(255, 183, 174, 0.28), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.42)),
-    var(--bg-surface);
-  padding: 1.35rem;
-  border-radius: 28px;
+  padding: 1.35rem 1.5rem;
+  border-radius: 24px;
   border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-raise);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    var(--bg-surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .page-header-surface::after {
   content: "";
   position: absolute;
-  inset: auto 1.25rem 0;
+  inset: auto 1.5rem 0;
   height: 1px;
-  background: linear-gradient(90deg, rgba(197, 108, 115, 0.24), rgba(197, 108, 115, 0));
+  background: linear-gradient(90deg, rgba(176, 92, 255, 0.34), rgba(78, 219, 255, 0.08), rgba(255, 255, 255, 0));
+}
+
+.page-header-surface::before {
+  content: "";
+  position: absolute;
+  inset: auto auto -3.4rem 70%;
+  width: 14rem;
+  height: 9rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(78, 219, 255, 0.16), transparent 70%);
+  filter: blur(20px);
 }
 
 .page-header-eyebrow {
@@ -50,14 +60,14 @@ defineProps<{
   font-size: 0.78rem;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: #6f7988;
+  color: var(--text-muted);
 }
 
 .page-header-title {
   margin: 0;
   font-size: clamp(1.5rem, 2.8vw, 2.4rem);
   color: var(--text-strong);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.05em;
 }
 
 .page-header-description {

@@ -1,6 +1,6 @@
 package com.jiandou.api.generation.text;
 
-import com.jiandou.api.generation.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
 
 /**
  * 文本模型调用策略接口。

@@ -1,16 +1,18 @@
 package com.jiandou.api.generation.text;
 
-import com.jiandou.api.generation.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
  * 为支持 Responses API 的模型构建请求体。
  */
 @Component
+@Order(0)
 public class ResponsesApiInvocationStrategy implements TextModelInvocationStrategy {
 
     /**

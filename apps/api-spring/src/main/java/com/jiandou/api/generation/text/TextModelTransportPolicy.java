@@ -1,6 +1,6 @@
 package com.jiandou.api.generation.text;
 
-import com.jiandou.api.generation.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
 
 /**
  * 文本模型传输Policy。
@@ -18,15 +18,7 @@ public final class TextModelTransportPolicy {
      * @return 是否满足条件
      */
     public static boolean supportsResponsesApi(ModelRuntimeProfile profile) {
-        String provider = normalized(profile.provider());
-        String baseUrl = normalized(profile.baseUrl());
-        return "openai".equals(provider)
-            || "qwen".equals(provider)
-            || provider.contains("ark")
-            || provider.contains("volc")
-            || baseUrl.contains("openai.com")
-            || baseUrl.contains("dashscope.aliyuncs.com")
-            || baseUrl.contains("volces.com/api/v3");
+        return profile != null && profile.supportsResponsesApi();
     }
 
     /**
@@ -35,12 +27,7 @@ public final class TextModelTransportPolicy {
      * @return 是否满足条件
      */
     public static boolean prefersChatCompletionsForVision(ModelRuntimeProfile profile) {
-        String provider = normalized(profile.provider());
-        String modelName = normalized(profile.modelName());
-        String baseUrl = normalized(profile.baseUrl());
-        return "qwen".equals(provider)
-            || modelName.contains("-vl-")
-            || baseUrl.contains("dashscope.aliyuncs.com");
+        return profile != null && profile.prefersChatCompletionsForVision();
     }
 
     /**
@@ -57,12 +44,4 @@ public final class TextModelTransportPolicy {
         return normalized.endsWith("/chat/completions") ? normalized : normalized + "/chat/completions";
     }
 
-    /**
-     * 处理normalized。
-     * @param value 待处理的值
-     * @return 处理结果
-     */
-    private static String normalized(String value) {
-        return value == null ? "" : value.trim().toLowerCase();
-    }
 }

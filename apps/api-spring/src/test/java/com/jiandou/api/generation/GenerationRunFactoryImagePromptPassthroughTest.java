@@ -5,6 +5,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.jiandou.api.config.JiandouStorageProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiandou.api.generation.image.ImageGenerationRequest;
+import com.jiandou.api.generation.image.ImageModelProvider;
+import com.jiandou.api.generation.image.ImageModelProviderRegistry;
+import com.jiandou.api.generation.orchestration.GenerationRunFactory;
+import com.jiandou.api.generation.orchestration.GenerationRunSupport;
+import com.jiandou.api.generation.runtime.GenerationConfigPathLocator;
+import com.jiandou.api.generation.runtime.MediaProviderCapabilities;
+import com.jiandou.api.generation.runtime.MediaProviderConfig;
+import com.jiandou.api.generation.runtime.MediaProviderProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
+import com.jiandou.api.generation.runtime.PromptTemplateResolver;
+import com.jiandou.api.generation.text.TextModelInvocation;
+import com.jiandou.api.generation.text.TextModelProvider;
+import com.jiandou.api.generation.text.TextModelProviderRegistry;
+import com.jiandou.api.generation.video.DashscopeVideoModelProvider;
+import com.jiandou.api.generation.video.SeedanceVideoModelProvider;
+import com.jiandou.api.generation.video.VideoModelProviderRegistry;
+import com.jiandou.api.generation.video.VideoProviderTransport;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -49,18 +68,18 @@ class GenerationRunFactoryImagePromptPassthroughTest {
             "test"
         );
         MediaProviderProfile imageProfile = new MediaProviderProfile(
-            "seedream",
-            "seedream-4.5",
-            "k",
-            "https://api.example.com/v1/images",
-            "",
-            60,
-            1,
-            120,
-            true,
-            false,
-            false,
-            "test"
+            new MediaProviderConfig(
+                "image",
+                "seedream-4.5",
+                "seedream",
+                "seedream-4.5",
+                "k",
+                "https://api.example.com/v1/images",
+                "",
+                60,
+                "test"
+            ),
+            new MediaProviderCapabilities(false, false, false, false, 5, 120, "", java.util.List.of(), java.util.List.of())
         );
         ModelRuntimePropertiesResolver modelResolver = new ModelRuntimePropertiesResolver(new MockEnvironment()) {
             /**
@@ -89,7 +108,7 @@ class GenerationRunFactoryImagePromptPassthroughTest {
              * @return 处理结果
              */
             @Override
-            public MediaProviderProfile resolveImageProfile(String requestedModel) {
+            public MediaProviderProfile resolveMediaProfile(String requestedModel, String expectedKind) {
                 return imageProfile;
             }
 
@@ -110,94 +129,74 @@ class GenerationRunFactoryImagePromptPassthroughTest {
             modelResolver,
             new GenerationConfigPathLocator(new MockEnvironment())
         );
-        CompatibleTextModelClient textModelClient = new CompatibleTextModelClient(new ObjectMapper(), java.util.List.of()) {
+        TextModelProviderRegistry textModelProviderRegistry = new TextModelProviderRegistry(java.util.List.of(new TextModelProvider() {
             /**
-             * 生成文本。
+             * 检查是否supports。
              * @param profile profile值
-             * @param systemPrompt 系统提示词值
-             * @param userPrompt user提示词值
-             * @param temperature temperature值
-             * @param maxTokens 最大Tokens值
-             * @return 处理结果
+             * @return 是否满足条件
              */
             @Override
-            public TextModelResponse generateText(
-                ModelRuntimeProfile profile,
-                String systemPrompt,
-                String userPrompt,
-                double temperature,
-                int maxTokens
-            ) {
-                throw new AssertionError("image prompt rewrite should not be called");
+            public boolean supports(ModelRuntimeProfile profile) {
+                return true;
             }
 
             /**
-             * 生成视觉文本。
+             * 处理generate。
              * @param profile profile值
-             * @param systemPrompt 系统提示词值
-             * @param userPrompt user提示词值
-             * @param imageUrls 图像Urls值
-             * @param temperature temperature值
-             * @param maxTokens 最大Tokens值
-             * @param seed 种子值
+             * @param invocation 调用值
              * @return 处理结果
              */
             @Override
-            public TextModelResponse generateVisionText(
+            public TextModelResponse generate(
                 ModelRuntimeProfile profile,
-                String systemPrompt,
-                String userPrompt,
-                java.util.List<String> imageUrls,
-                double temperature,
-                int maxTokens,
-                Integer seed
+                TextModelInvocation invocation
             ) {
-                throw new AssertionError("vision analysis should not be called");
+                throw new AssertionError("image prompt rewrite should not be called");
             }
-        };
+        }));
         LocalMediaArtifactService localMediaArtifactService = new LocalMediaArtifactService(storageProperties(tempDir), "ffmpeg");
         final String[] submittedPrompt = new String[1];
-        RemoteMediaGenerationClient remoteMediaGenerationClient = new RemoteMediaGenerationClient(new ObjectMapper()) {
-            /**
-             * 生成Seedream图像。
-             * @param profile profile值
-             * @param requestedModel requested模型值
-             * @param prompt 提示词值
-             * @param width width值
-             * @param height height值
-             * @param seed 种子值
-             * @return 处理结果
-             */
+        ImageModelProvider fakeImageModelProvider = new ImageModelProvider() {
             @Override
-            public RemoteImageGenerationResult generateSeedreamImage(
+            public boolean supports(MediaProviderProfile profile) {
+                return true;
+            }
+
+            @Override
+            public RemoteImageGenerationResult generate(
                 MediaProviderProfile profile,
-                String requestedModel,
-                String prompt,
-                int width,
-                int height,
-                Integer seed
+                ImageGenerationRequest request
             ) {
-                submittedPrompt[0] = prompt;
+                submittedPrompt[0] = request.prompt();
                 return new RemoteImageGenerationResult(
                     new byte[] {1, 2, 3},
                     "image/png",
                     "",
                     "seedream",
-                    requestedModel,
+                    request.requestedModel(),
                     "api.example.com",
-                    width,
-                    height,
-                    width + "x" + height,
+                    request.width(),
+                    request.height(),
+                    request.width() + "x" + request.height(),
                     0
                 );
             }
         };
-        GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelClient);
+        GenerationRunSupport support = new GenerationRunSupport(localMediaArtifactService, modelResolver, textModelProviderRegistry);
+        ImageModelProviderRegistry imageModelProviderRegistry = new ImageModelProviderRegistry(java.util.List.of(
+            fakeImageModelProvider
+        ));
+        VideoProviderTransport videoProviderTransport = new VideoProviderTransport(new ObjectMapper());
+        VideoModelProviderRegistry videoModelProviderRegistry = new VideoModelProviderRegistry(java.util.List.of(
+            new SeedanceVideoModelProvider(videoProviderTransport),
+            new DashscopeVideoModelProvider(videoProviderTransport)
+        ));
         GenerationRunFactory factory = new GenerationRunFactory(
             modelResolver,
             promptTemplateResolver,
-            textModelClient,
-            remoteMediaGenerationClient,
+            textModelProviderRegistry,
+            imageModelProviderRegistry,
+            videoModelProviderRegistry,
             support
         );
 

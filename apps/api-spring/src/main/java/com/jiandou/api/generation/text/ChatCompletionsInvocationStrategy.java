@@ -1,10 +1,12 @@
 package com.jiandou.api.generation.text;
 
-import com.jiandou.api.generation.ModelRuntimeProfile;
+import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Component;
  * 当模型或网关不支持 Responses API 时，统一回退到该协议。
  */
 @Component
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class ChatCompletionsInvocationStrategy implements TextModelInvocationStrategy {
 
     /**

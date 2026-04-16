@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.jiandou.api.generation.runtime.GenerationConfigPathLocator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

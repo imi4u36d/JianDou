@@ -1,6 +1,8 @@
 package com.jiandou.api.task.infrastructure.mybatis;
 
-import com.jiandou.api.task.TaskRecordAssembler;
+import com.jiandou.api.task.domain.ExecutionMode;
+import com.jiandou.api.task.domain.TaskResultTypes;
+import com.jiandou.api.task.persistence.TaskRecordAssembler;
 import java.util.Map;
 
 /**
@@ -39,7 +41,7 @@ final class TaskMybatisWriteMapper {
         entity.setEffectRatingNote(model.effectRatingNote());
         entity.setRatedAt(model.ratedAt());
         entity.setModelProvider("");
-        entity.setExecutionMode("queue");
+        entity.setExecutionMode(ExecutionMode.QUEUE.value());
         entity.setEditingMode(model.editingMode());
         entity.setStatus(model.status());
         entity.setProgress(model.progress());
@@ -301,7 +303,7 @@ final class TaskMybatisWriteMapper {
         TaskResultEntity entity = new TaskResultEntity();
         entity.setTaskResultId(TaskMybatisValueSupport.stringValue(result.get("id")));
         entity.setTaskId(taskId);
-        entity.setResultType(TaskMybatisValueSupport.stringValue(result.getOrDefault("resultType", "video")));
+        entity.setResultType(TaskMybatisValueSupport.stringValue(result.getOrDefault("resultType", TaskResultTypes.VIDEO)));
         entity.setClipIndex(TaskMybatisValueSupport.intValue(result.get("clipIndex"), 0));
         entity.setTitle(TaskMybatisValueSupport.stringValue(result.get("title")));
         entity.setReason(TaskMybatisValueSupport.stringValue(result.get("reason")));
