@@ -2,11 +2,11 @@ package com.jiandou.api.task.runtime;
 
 import com.jiandou.api.media.LocalMediaArtifactService;
 import com.jiandou.api.task.TaskRecord;
-import com.jiandou.api.task.application.TaskExecutionCoordinator;
 import com.jiandou.api.task.domain.TaskArtifactNaming;
 import com.jiandou.api.task.domain.TaskResultTypes;
 import com.jiandou.api.task.domain.TaskStage;
 import com.jiandou.api.task.domain.TaskStatus;
+import com.jiandou.api.task.persistence.TaskPersistenceMutation;
 import com.jiandou.api.task.persistence.TaskRepository;
 import jakarta.annotation.PreDestroy;
 import java.time.OffsetDateTime;
@@ -36,7 +36,6 @@ public class JoinOutputService {
     private static final int JOIN_OUTPUT_CLIP_INDEX_BASE = 10000;
 
     private final TaskRepository taskRepository;
-    private final TaskExecutionCoordinator executionCoordinator;
     private final LocalMediaArtifactService localMediaArtifactService;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "jiandou-join-worker");
@@ -50,16 +49,13 @@ public class JoinOutputService {
     /**
      * 创建新的拼接输出服务。
      * @param taskRepository 任务仓储值
-     * @param executionCoordinator 执行协调器值
      * @param localMediaArtifactService 本地媒体产物服务值
      */
     public JoinOutputService(
         TaskRepository taskRepository,
-        TaskExecutionCoordinator executionCoordinator,
         LocalMediaArtifactService localMediaArtifactService
     ) {
         this.taskRepository = taskRepository;
-        this.executionCoordinator = executionCoordinator;
         this.localMediaArtifactService = localMediaArtifactService;
     }
 
@@ -103,18 +99,19 @@ public class JoinOutputService {
                     log.warn("join output build failed: taskId={}, target={}", taskId, target, ex);
                     TaskRecord task = taskRepository.findById(taskId);
                     if (task != null) {
-                        executionCoordinator.recordTrace(
-                            task,
-                            TaskStage.RENDER.code(),
-                            "render.join_failed",
-                            "Spring join worker 拼接输出失败。",
-                            "WARN",
-                            Map.of(
-                                "targetClipIndex", target,
-                                "joinName", joinOutputName(target),
-                                "error", ex.getMessage() == null ? "" : ex.getMessage()
-                            )
-                        );
+                        taskRepository.saveMutation(new TaskPersistenceMutation()
+                            .taskId(task.id())
+                            .addTrace(createTraceRow(
+                                TaskStage.RENDER.code(),
+                                "render.join_failed",
+                                "Spring join worker 拼接输出失败。",
+                                "WARN",
+                                Map.of(
+                                    "targetClipIndex", target,
+                                    "joinName", joinOutputName(target),
+                                    "error", ex.getMessage() == null ? "" : ex.getMessage()
+                                )
+                            )));
                     }
                 }
             }
@@ -163,46 +160,32 @@ public class JoinOutputService {
         int width = intValue(clipResults.get(0).get("width"), 0);
         int height = intValue(clipResults.get(0).get("height"), 0);
         boolean hasAudio = clipResults.stream().anyMatch(item -> boolValue(mapValue(item.get("extra")).get("hasAudio")));
-        TaskRecord currentTask = requireTask(taskId);
-        Map<String, Object> modelCall = createJoinModelCall(currentTask, joinName, endClipIndex, clipIndices, segmentUrls, artifact.publicUrl());
-        executionCoordinator.recordModelCall(currentTask, modelCall);
-
-        currentTask = requireTask(taskId);
-        Map<String, Object> material = createJoinMaterial(currentTask, joinName, clipIndices, artifact, segmentUrls, durationSeconds, width, height, hasAudio);
-        executionCoordinator.recordMaterial(currentTask, material);
-
-        currentTask = requireTask(taskId);
-        Map<String, Object> result = createJoinResult(currentTask, joinName, joinClipIndex, modelCall, material, artifact, clipIndices, segmentUrls, durationSeconds, width, height, hasAudio);
-        executionCoordinator.recordResult(currentTask, result);
-
-        currentTask = requireTask(taskId);
-        executionCoordinator.recordStageRun(currentTask, createJoinStageRun(currentTask, joinName, joinClipIndex, clipIndices, segmentUrls, artifact.publicUrl(), material, result));
-
-        currentTask = requireTask(taskId);
-        executionCoordinator.recordTrace(currentTask, TaskStage.RENDER.code(), "render.join_completed", "Spring join worker 已完成拼接输出。", "INFO", Map.of(
-            "joinName", joinName,
-            "clipIndex", joinClipIndex,
-            "targetClipIndex", endClipIndex,
-            "clipIndices", clipIndices,
-            "durationSeconds", durationSeconds,
-            "hasAudio", hasAudio,
-            "outputUrl", artifact.publicUrl()
-        ));
-
-        currentTask = requireTask(taskId);
-        currentTask.mutableExecutionContext().put("latestJoinName", joinName);
-        currentTask.mutableExecutionContext().put("latestJoinOutputUrl", artifact.publicUrl());
-        currentTask.mutableExecutionContext().put("latestJoinClipIndex", joinClipIndex);
-        currentTask.mutableExecutionContext().put("latestJoinClipIndices", clipIndices);
-        taskRepository.save(currentTask);
-    }
-
-    private TaskRecord requireTask(String taskId) {
-        TaskRecord currentTask = taskRepository.findById(taskId);
-        if (currentTask == null) {
-            throw new IllegalStateException("task not found during join writeback: " + taskId);
-        }
-        return currentTask;
+        Map<String, Object> modelCall = createJoinModelCall(task, joinName, endClipIndex, clipIndices, segmentUrls, artifact.publicUrl());
+        Map<String, Object> material = createJoinMaterial(task, joinName, clipIndices, artifact, segmentUrls, durationSeconds, width, height, hasAudio);
+        Map<String, Object> result = createJoinResult(task, joinName, joinClipIndex, modelCall, material, artifact, clipIndices, segmentUrls, durationSeconds, width, height, hasAudio);
+        Map<String, Object> stageRun = createJoinStageRun(task, joinName, joinClipIndex, clipIndices, segmentUrls, artifact.publicUrl(), material, result);
+        Map<String, Object> trace = createTraceRow(
+            TaskStage.RENDER.code(),
+            "render.join_completed",
+            "Spring join worker 已完成拼接输出。",
+            "INFO",
+            Map.of(
+                "joinName", joinName,
+                "clipIndex", joinClipIndex,
+                "targetClipIndex", endClipIndex,
+                "clipIndices", clipIndices,
+                "durationSeconds", durationSeconds,
+                "hasAudio", hasAudio,
+                "outputUrl", artifact.publicUrl()
+            )
+        );
+        taskRepository.saveMutation(new TaskPersistenceMutation()
+            .taskId(task.id())
+            .addModelCall(modelCall)
+            .addMaterial(material)
+            .addResult(result)
+            .addStageRun(stageRun)
+            .addTrace(trace));
     }
 
     /**
@@ -215,6 +198,24 @@ public class JoinOutputService {
             return false;
         }
         return TaskStatus.RENDERING.matches(task.status()) || TaskStatus.COMPLETED.matches(task.status());
+    }
+
+    private Map<String, Object> createTraceRow(
+        String stage,
+        String event,
+        String message,
+        String level,
+        Map<String, Object> payload
+    ) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("traceId", "trace_" + UUID.randomUUID().toString().replace("-", ""));
+        row.put("timestamp", nowIso());
+        row.put("level", level);
+        row.put("stage", stage);
+        row.put("event", event);
+        row.put("message", message);
+        row.put("payload", payload == null ? Map.of() : payload);
+        return row;
     }
 
     /**

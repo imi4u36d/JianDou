@@ -4,14 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 import com.jiandou.api.media.LocalMediaArtifactService;
 import com.jiandou.api.task.TaskRecord;
-import com.jiandou.api.task.application.TaskExecutionCoordinator;
 import com.jiandou.api.task.domain.TaskResultTypes;
 import com.jiandou.api.task.persistence.TaskPersistenceMutation;
 import com.jiandou.api.task.persistence.TaskRepository;
@@ -24,7 +21,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class JoinOutputServiceTest {
 
@@ -40,9 +36,8 @@ class JoinOutputServiceTest {
     @Test
     void scheduleJoinIgnoresInvalidInputs() throws Exception {
         FakeTaskRepository repository = new FakeTaskRepository();
-        TaskExecutionCoordinator coordinator = mock(TaskExecutionCoordinator.class);
         LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
-        service = new JoinOutputService(repository, coordinator, mediaArtifactService);
+        service = new JoinOutputService(repository, mediaArtifactService);
 
         service.scheduleJoin(null, 2);
         service.scheduleJoin(" ", 2);
@@ -50,18 +45,17 @@ class JoinOutputServiceTest {
 
         Thread.sleep(150L);
 
-        verify(coordinator, never()).recordTrace(any(), any(), any(), any(), any(), any());
         assertEquals(0, repository.saveCalls);
+        assertEquals(0, repository.saveMutationCalls);
     }
 
     @Test
     void scheduleJoinBuildsJoinArtifactsAndPersistsTask() throws Exception {
         FakeTaskRepository repository = new FakeTaskRepository();
-        TaskExecutionCoordinator coordinator = mock(TaskExecutionCoordinator.class);
         LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
         TaskRecord task = renderableTask("task_join", List.of(1, 2));
         repository.tasks.put(task.id(), task);
-        repository.saveLatch = new CountDownLatch(1);
+        repository.saveMutationLatch = new CountDownLatch(1);
 
         LocalMediaArtifactService.StoredArtifact artifact = new LocalMediaArtifactService.StoredArtifact(
             "join.mp4",
@@ -70,31 +64,26 @@ class JoinOutputServiceTest {
             1234L
         );
         org.mockito.Mockito.when(mediaArtifactService.concatVideos(any(), any(), any())).thenReturn(artifact);
-        service = new JoinOutputService(repository, coordinator, mediaArtifactService);
+        service = new JoinOutputService(repository, mediaArtifactService);
 
         service.scheduleJoin(task.id(), 2);
 
-        assertTrue(repository.saveLatch.await(2, TimeUnit.SECONDS));
-        TaskRecord saved = repository.tasks.get(task.id());
-        assertEquals("join-1-2", saved.executionContext().get("latestJoinName"));
-        assertEquals("/storage/join.mp4", saved.executionContext().get("latestJoinOutputUrl"));
-        assertEquals(10002, saved.executionContext().get("latestJoinClipIndex"));
-        assertEquals(List.of(1, 2), saved.executionContext().get("latestJoinClipIndices"));
-        verify(coordinator).recordModelCall(any(), any());
-        verify(coordinator).recordMaterial(any(), any());
-        verify(coordinator).recordResult(any(), any());
-        verify(coordinator).recordStageRun(any(), any());
-        verify(coordinator).recordTrace(any(), org.mockito.ArgumentMatchers.eq("render"), org.mockito.ArgumentMatchers.eq("render.join_completed"), any(), org.mockito.ArgumentMatchers.eq("INFO"), any());
+        assertTrue(repository.saveMutationLatch.await(2, TimeUnit.SECONDS));
+        assertEquals(1, repository.modelCallRows.size());
+        assertEquals(1, repository.materialRows.size());
+        assertEquals(1, repository.resultRows.size());
+        assertEquals(1, repository.stageRunRows.size());
+        assertEquals(1, repository.traceRows.size());
+        assertEquals("join-1-2", repository.resultRows.get(0).get("title"));
     }
 
     @Test
     void scheduleJoinReloadsLatestTaskBeforeSaveToAvoidOverwritingCompletedStatus() throws Exception {
         FakeTaskRepository repository = new FakeTaskRepository();
-        TaskExecutionCoordinator coordinator = mock(TaskExecutionCoordinator.class);
         LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
         TaskRecord task = renderableTask("task_join_completed", List.of(1, 2));
         repository.tasks.put(task.id(), repository.copy(task));
-        repository.saveLatch = new CountDownLatch(1);
+        repository.saveMutationLatch = new CountDownLatch(1);
 
         LocalMediaArtifactService.StoredArtifact artifact = new LocalMediaArtifactService.StoredArtifact(
             "join.mp4",
@@ -109,41 +98,63 @@ class JoinOutputServiceTest {
             latest.setFinishedAt("2026-04-17T00:00:00Z");
             return artifact;
         }).when(mediaArtifactService).concatVideos(any(), any(), any());
-        service = new JoinOutputService(repository, coordinator, mediaArtifactService);
+        service = new JoinOutputService(repository, mediaArtifactService);
 
         service.scheduleJoin(task.id(), 2);
 
-        assertTrue(repository.saveLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(repository.saveMutationLatch.await(2, TimeUnit.SECONDS));
         TaskRecord saved = repository.tasks.get(task.id());
         assertEquals("COMPLETED", saved.status());
         assertEquals(100, saved.progress());
+        assertEquals(0, repository.saveCalls);
     }
 
     @Test
     void scheduleJoinSkipsWhenClipsAreIncomplete() throws Exception {
         FakeTaskRepository repository = new FakeTaskRepository();
-        TaskExecutionCoordinator coordinator = mock(TaskExecutionCoordinator.class);
         LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
         TaskRecord task = renderableTask("task_join_gap", List.of(1, 3));
         repository.tasks.put(task.id(), task);
-        service = new JoinOutputService(repository, coordinator, mediaArtifactService);
+        service = new JoinOutputService(repository, mediaArtifactService);
 
         service.scheduleJoin(task.id(), 3);
 
         Thread.sleep(200L);
 
-        verify(coordinator, never()).recordModelCall(any(), any());
         assertEquals(0, repository.saveCalls);
+        assertEquals(0, repository.saveMutationCalls);
     }
 
     @Test
     void shutdownStopsExecutor() {
         FakeTaskRepository repository = new FakeTaskRepository();
-        TaskExecutionCoordinator coordinator = mock(TaskExecutionCoordinator.class);
         LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
-        service = new JoinOutputService(repository, coordinator, mediaArtifactService);
+        service = new JoinOutputService(repository, mediaArtifactService);
 
         assertDoesNotThrow(() -> service.shutdown());
+    }
+
+    @Test
+    void scheduleJoinRunsWhileTaskIsStillRendering() throws Exception {
+        FakeTaskRepository repository = new FakeTaskRepository();
+        LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
+        TaskRecord task = renderableTask("task_join_rendering", List.of(1, 2));
+        repository.tasks.put(task.id(), task);
+        repository.saveMutationLatch = new CountDownLatch(1);
+        LocalMediaArtifactService.StoredArtifact artifact = new LocalMediaArtifactService.StoredArtifact(
+            "join.mp4",
+            "/tmp/join.mp4",
+            "/storage/join.mp4",
+            1234L
+        );
+        org.mockito.Mockito.when(mediaArtifactService.concatVideos(any(), any(), any())).thenReturn(artifact);
+        service = new JoinOutputService(repository, mediaArtifactService);
+
+        service.scheduleJoin(task.id(), 2);
+
+        assertTrue(repository.saveMutationLatch.await(2, TimeUnit.SECONDS));
+        assertEquals(0, repository.saveCalls);
+        assertEquals(1, repository.resultRows.size());
     }
 
     private TaskRecord renderableTask(String taskId, List<Integer> clipIndices) {
@@ -170,7 +181,13 @@ class JoinOutputServiceTest {
 
         private final Map<String, TaskRecord> tasks = new LinkedHashMap<>();
         private int saveCalls;
-        private CountDownLatch saveLatch;
+        private int saveMutationCalls;
+        private CountDownLatch saveMutationLatch;
+        private final List<Map<String, Object>> modelCallRows = new java.util.ArrayList<>();
+        private final List<Map<String, Object>> materialRows = new java.util.ArrayList<>();
+        private final List<Map<String, Object>> resultRows = new java.util.ArrayList<>();
+        private final List<Map<String, Object>> stageRunRows = new java.util.ArrayList<>();
+        private final List<Map<String, Object>> traceRows = new java.util.ArrayList<>();
 
         @Override
         public void save(TaskRecord task) {
@@ -183,6 +200,15 @@ class JoinOutputServiceTest {
 
         @Override
         public void saveMutation(TaskPersistenceMutation mutation) {
+            saveMutationCalls += 1;
+            modelCallRows.addAll(copyRows(mutation.modelCallRows()));
+            materialRows.addAll(copyRows(mutation.materialRows()));
+            resultRows.addAll(copyRows(mutation.resultRows()));
+            stageRunRows.addAll(copyRows(mutation.stageRunRows()));
+            traceRows.addAll(copyRows(mutation.traceRows()));
+            if (saveMutationLatch != null) {
+                saveMutationLatch.countDown();
+            }
         }
 
         @Override
@@ -289,6 +315,14 @@ class JoinOutputServiceTest {
             source.materialsView().forEach(item -> target.addMaterial(new LinkedHashMap<>(item)));
             source.outputsView().forEach(item -> target.addOutput(new LinkedHashMap<>(item)));
             return target;
+        }
+
+        private List<Map<String, Object>> copyRows(List<Map<String, Object>> rows) {
+            List<Map<String, Object>> copies = new java.util.ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                copies.add(new LinkedHashMap<>(row));
+            }
+            return copies;
         }
     }
 }

@@ -164,6 +164,7 @@ public class TaskViewMapper {
         Map<String, Object> latestStageRun = latestStageRun(task);
         Map<String, Object> latestVideoOutput = latestVideoOutput(task);
         Map<String, Object> latestJoinOutput = latestJoinOutput(task);
+        Map<String, Object> latestJoinExtra = mapValue(latestJoinOutput.get("extra"));
         int plannedClipCount = resolvePlannedClipCount(task);
         List<Integer> renderedClipIndices = renderedClipIndices(task);
         Map<String, Object> attemptPayload = mapValue(activeAttempt.get("payload"));
@@ -194,10 +195,14 @@ public class TaskViewMapper {
             contiguousClipCount(renderedClipIndices),
             renderedClipIndices.isEmpty() ? 0 : renderedClipIndices.get(renderedClipIndices.size() - 1),
             firstNonBlank(stringValue(latestVideoOutput.get("downloadUrl")), stringValue(latestVideoOutput.get("previewUrl"))),
-            firstNonBlank(stringValue(task.executionContext().get("latestJoinName")), stringValue(mapValue(latestJoinOutput.get("extra")).get("joinName"))),
-            firstNonBlank(stringValue(task.executionContext().get("latestJoinOutputUrl")), stringValue(latestJoinOutput.get("downloadUrl"))),
+            firstNonBlank(stringValue(task.executionContext().get("latestJoinName")), stringValue(latestJoinExtra.get("joinName"))),
+            firstNonBlank(
+                stringValue(task.executionContext().get("latestJoinOutputUrl")),
+                stringValue(latestJoinOutput.get("downloadUrl")),
+                stringValue(latestJoinOutput.get("previewUrl"))
+            ),
             intValue(task.executionContext().get("latestJoinClipIndex"), intValue(latestJoinOutput.get("clipIndex"), 0)),
-            listValue(task.executionContext().get("latestJoinClipIndices")),
+            listValue(firstPresent(task.executionContext().get("latestJoinClipIndices"), latestJoinExtra.get("clipIndices"))),
             stringValue(task.executionContext().get("storyboardFileUrl")),
             artifactDirectories(task),
             latestTrace,
