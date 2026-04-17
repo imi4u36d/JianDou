@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 
 import com.jiandou.api.media.LocalMediaArtifactService;
 import com.jiandou.api.task.TaskRecord;
@@ -74,15 +75,48 @@ class JoinOutputServiceTest {
         service.scheduleJoin(task.id(), 2);
 
         assertTrue(repository.saveLatch.await(2, TimeUnit.SECONDS));
-        assertEquals("join-1-2", task.executionContext().get("latestJoinName"));
-        assertEquals("/storage/join.mp4", task.executionContext().get("latestJoinOutputUrl"));
-        assertEquals(10002, task.executionContext().get("latestJoinClipIndex"));
-        assertEquals(List.of(1, 2), task.executionContext().get("latestJoinClipIndices"));
+        TaskRecord saved = repository.tasks.get(task.id());
+        assertEquals("join-1-2", saved.executionContext().get("latestJoinName"));
+        assertEquals("/storage/join.mp4", saved.executionContext().get("latestJoinOutputUrl"));
+        assertEquals(10002, saved.executionContext().get("latestJoinClipIndex"));
+        assertEquals(List.of(1, 2), saved.executionContext().get("latestJoinClipIndices"));
         verify(coordinator).recordModelCall(any(), any());
         verify(coordinator).recordMaterial(any(), any());
         verify(coordinator).recordResult(any(), any());
         verify(coordinator).recordStageRun(any(), any());
-        verify(coordinator).recordTrace(eqTask(task), org.mockito.ArgumentMatchers.eq("render"), org.mockito.ArgumentMatchers.eq("render.join_completed"), any(), org.mockito.ArgumentMatchers.eq("INFO"), any());
+        verify(coordinator).recordTrace(any(), org.mockito.ArgumentMatchers.eq("render"), org.mockito.ArgumentMatchers.eq("render.join_completed"), any(), org.mockito.ArgumentMatchers.eq("INFO"), any());
+    }
+
+    @Test
+    void scheduleJoinReloadsLatestTaskBeforeSaveToAvoidOverwritingCompletedStatus() throws Exception {
+        FakeTaskRepository repository = new FakeTaskRepository();
+        TaskExecutionCoordinator coordinator = mock(TaskExecutionCoordinator.class);
+        LocalMediaArtifactService mediaArtifactService = mock(LocalMediaArtifactService.class);
+        TaskRecord task = renderableTask("task_join_completed", List.of(1, 2));
+        repository.tasks.put(task.id(), repository.copy(task));
+        repository.saveLatch = new CountDownLatch(1);
+
+        LocalMediaArtifactService.StoredArtifact artifact = new LocalMediaArtifactService.StoredArtifact(
+            "join.mp4",
+            "/tmp/join.mp4",
+            "/storage/join.mp4",
+            1234L
+        );
+        doAnswer(invocation -> {
+            TaskRecord latest = repository.tasks.get(task.id());
+            latest.setStatus("COMPLETED");
+            latest.setProgress(100);
+            latest.setFinishedAt("2026-04-17T00:00:00Z");
+            return artifact;
+        }).when(mediaArtifactService).concatVideos(any(), any(), any());
+        service = new JoinOutputService(repository, coordinator, mediaArtifactService);
+
+        service.scheduleJoin(task.id(), 2);
+
+        assertTrue(repository.saveLatch.await(2, TimeUnit.SECONDS));
+        TaskRecord saved = repository.tasks.get(task.id());
+        assertEquals("COMPLETED", saved.status());
+        assertEquals(100, saved.progress());
     }
 
     @Test
@@ -132,10 +166,6 @@ class JoinOutputServiceTest {
         return task;
     }
 
-    private TaskRecord eqTask(TaskRecord task) {
-        return org.mockito.ArgumentMatchers.eq(task);
-    }
-
     private static final class FakeTaskRepository implements TaskRepository {
 
         private final Map<String, TaskRecord> tasks = new LinkedHashMap<>();
@@ -145,7 +175,7 @@ class JoinOutputServiceTest {
         @Override
         public void save(TaskRecord task) {
             saveCalls += 1;
-            tasks.put(task.id(), task);
+            tasks.put(task.id(), copy(task));
             if (saveLatch != null) {
                 saveLatch.countDown();
             }
@@ -201,7 +231,8 @@ class JoinOutputServiceTest {
 
         @Override
         public TaskRecord findById(String taskId) {
-            return tasks.get(taskId);
+            TaskRecord task = tasks.get(taskId);
+            return task == null ? null : copy(task);
         }
 
         @Override
@@ -212,6 +243,52 @@ class JoinOutputServiceTest {
         @Override
         public void delete(String taskId) {
             tasks.remove(taskId);
+        }
+
+        private TaskRecord copy(TaskRecord source) {
+            TaskRecord target = new TaskRecord();
+            target.setId(source.id());
+            target.setTitle(source.title());
+            target.setStatus(source.status());
+            target.setProgress(source.progress());
+            target.setCreatedAt(source.createdAt());
+            target.setUpdatedAt(source.updatedAt());
+            target.setSourceFileName(source.sourceFileName());
+            target.setAspectRatio(source.aspectRatio());
+            target.setMinDurationSeconds(source.minDurationSeconds());
+            target.setMaxDurationSeconds(source.maxDurationSeconds());
+            target.setRetryCount(source.retryCount());
+            target.setStartedAt(source.startedAt());
+            target.setFinishedAt(source.finishedAt());
+            target.setCompletedOutputCount(source.completedOutputCount());
+            target.setCurrentAttemptNo(source.currentAttemptNo());
+            target.setHasTranscript(source.hasTranscript());
+            target.setHasTimedTranscript(source.hasTimedTranscript());
+            target.setSourceAssetCount(source.sourceAssetCount());
+            target.setEditingMode(source.editingMode());
+            target.setQueued(source.isQueued());
+            target.setQueuePosition(source.queuePosition());
+            target.setActiveAttemptId(source.activeAttemptId());
+            target.setIntroTemplate(source.introTemplate());
+            target.setOutroTemplate(source.outroTemplate());
+            target.setCreativePrompt(source.creativePrompt());
+            target.setTaskSeed(source.taskSeed());
+            target.setEffectRating(source.effectRating());
+            target.setEffectRatingNote(source.effectRatingNote());
+            target.setRatedAt(source.ratedAt());
+            target.setErrorMessage(source.errorMessage());
+            target.setTranscriptText(source.transcriptText());
+            target.setStoryboardScript(source.storyboardScript());
+            target.setExecutionContext(new LinkedHashMap<>(source.executionContext()));
+            target.setRequestSnapshot(source.requestSnapshot());
+            source.traceView().forEach(item -> target.addTrace(new LinkedHashMap<>(item)));
+            source.statusHistory().forEach(item -> target.addStatusHistory(new LinkedHashMap<>(item)));
+            source.attemptsView().forEach(item -> target.prependAttempt(new LinkedHashMap<>(item)));
+            source.stageRunsView().forEach(item -> target.addStageRun(new LinkedHashMap<>(item)));
+            source.modelCallsView().forEach(item -> target.addModelCall(new LinkedHashMap<>(item)));
+            source.materialsView().forEach(item -> target.addMaterial(new LinkedHashMap<>(item)));
+            source.outputsView().forEach(item -> target.addOutput(new LinkedHashMap<>(item)));
+            return target;
         }
     }
 }

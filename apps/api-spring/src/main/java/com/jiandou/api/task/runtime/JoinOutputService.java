@@ -163,18 +163,23 @@ public class JoinOutputService {
         int width = intValue(clipResults.get(0).get("width"), 0);
         int height = intValue(clipResults.get(0).get("height"), 0);
         boolean hasAudio = clipResults.stream().anyMatch(item -> boolValue(mapValue(item.get("extra")).get("hasAudio")));
+        TaskRecord currentTask = requireTask(taskId);
+        Map<String, Object> modelCall = createJoinModelCall(currentTask, joinName, endClipIndex, clipIndices, segmentUrls, artifact.publicUrl());
+        executionCoordinator.recordModelCall(currentTask, modelCall);
 
-        Map<String, Object> modelCall = createJoinModelCall(task, joinName, endClipIndex, clipIndices, segmentUrls, artifact.publicUrl());
-        executionCoordinator.recordModelCall(task, modelCall);
+        currentTask = requireTask(taskId);
+        Map<String, Object> material = createJoinMaterial(currentTask, joinName, clipIndices, artifact, segmentUrls, durationSeconds, width, height, hasAudio);
+        executionCoordinator.recordMaterial(currentTask, material);
 
-        Map<String, Object> material = createJoinMaterial(task, joinName, clipIndices, artifact, segmentUrls, durationSeconds, width, height, hasAudio);
-        executionCoordinator.recordMaterial(task, material);
+        currentTask = requireTask(taskId);
+        Map<String, Object> result = createJoinResult(currentTask, joinName, joinClipIndex, modelCall, material, artifact, clipIndices, segmentUrls, durationSeconds, width, height, hasAudio);
+        executionCoordinator.recordResult(currentTask, result);
 
-        Map<String, Object> result = createJoinResult(task, joinName, joinClipIndex, modelCall, material, artifact, clipIndices, segmentUrls, durationSeconds, width, height, hasAudio);
-        executionCoordinator.recordResult(task, result);
+        currentTask = requireTask(taskId);
+        executionCoordinator.recordStageRun(currentTask, createJoinStageRun(currentTask, joinName, joinClipIndex, clipIndices, segmentUrls, artifact.publicUrl(), material, result));
 
-        executionCoordinator.recordStageRun(task, createJoinStageRun(task, joinName, joinClipIndex, clipIndices, segmentUrls, artifact.publicUrl(), material, result));
-        executionCoordinator.recordTrace(task, TaskStage.RENDER.code(), "render.join_completed", "Spring join worker 已完成拼接输出。", "INFO", Map.of(
+        currentTask = requireTask(taskId);
+        executionCoordinator.recordTrace(currentTask, TaskStage.RENDER.code(), "render.join_completed", "Spring join worker 已完成拼接输出。", "INFO", Map.of(
             "joinName", joinName,
             "clipIndex", joinClipIndex,
             "targetClipIndex", endClipIndex,
@@ -183,11 +188,21 @@ public class JoinOutputService {
             "hasAudio", hasAudio,
             "outputUrl", artifact.publicUrl()
         ));
-        task.mutableExecutionContext().put("latestJoinName", joinName);
-        task.mutableExecutionContext().put("latestJoinOutputUrl", artifact.publicUrl());
-        task.mutableExecutionContext().put("latestJoinClipIndex", joinClipIndex);
-        task.mutableExecutionContext().put("latestJoinClipIndices", clipIndices);
-        taskRepository.save(task);
+
+        currentTask = requireTask(taskId);
+        currentTask.mutableExecutionContext().put("latestJoinName", joinName);
+        currentTask.mutableExecutionContext().put("latestJoinOutputUrl", artifact.publicUrl());
+        currentTask.mutableExecutionContext().put("latestJoinClipIndex", joinClipIndex);
+        currentTask.mutableExecutionContext().put("latestJoinClipIndices", clipIndices);
+        taskRepository.save(currentTask);
+    }
+
+    private TaskRecord requireTask(String taskId) {
+        TaskRecord currentTask = taskRepository.findById(taskId);
+        if (currentTask == null) {
+            throw new IllegalStateException("task not found during join writeback: " + taskId);
+        }
+        return currentTask;
     }
 
     /**
