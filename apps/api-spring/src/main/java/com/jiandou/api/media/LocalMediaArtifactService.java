@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import javax.imageio.ImageIO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class LocalMediaArtifactService {
     private final JiandouStorageProperties storageProperties;
     private final Path storageRoot;
     private final String ffmpegBin;
+    private final String ffprobeBin;
     private final HttpClient httpClient;
 
     /**
@@ -43,6 +45,7 @@ public class LocalMediaArtifactService {
         this.storageProperties = storageProperties;
         this.storageRoot = storageProperties.resolveRootDir();
         this.ffmpegBin = ffmpegBin == null || ffmpegBin.isBlank() ? "ffmpeg" : ffmpegBin.trim();
+        this.ffprobeBin = deriveFfprobeBin(this.ffmpegBin);
         this.httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
     }
 
@@ -358,11 +361,20 @@ public class LocalMediaArtifactService {
             }
             Path dir = ensureDirectory(relativeDir);
             Path output = dir.resolve(fileName).toAbsolutePath().normalize();
+            Path normalizedDir = Files.createTempDirectory("jiandou-join-segments-");
             Path listFile = Files.createTempFile("jiandou-join-", ".txt");
             try {
+                List<Path> normalizedPaths = new ArrayList<>();
+                for (int index = 0; index < sourcePaths.size(); index++) {
+                    Path sourcePath = sourcePaths.get(index);
+                    MediaProbeInfo probeInfo = probeMedia(sourcePath);
+                    Path normalizedPath = normalizedDir.resolve(String.format(Locale.ROOT, "segment-%03d.mp4", index + 1));
+                    normalizeJoinSource(sourcePath, normalizedPath, probeInfo);
+                    normalizedPaths.add(normalizedPath);
+                }
                 List<String> lines = new ArrayList<>();
-                for (Path sourcePath : sourcePaths) {
-                    lines.add("file '" + sourcePath.toString().replace("'", "'\\''") + "'");
+                for (Path normalizedPath : normalizedPaths) {
+                    lines.add("file '" + normalizedPath.toString().replace("'", "'\\''") + "'");
                 }
                 Files.write(listFile, lines, StandardCharsets.UTF_8);
                 List<String> command = new ArrayList<>();
@@ -376,6 +388,8 @@ public class LocalMediaArtifactService {
                 command.add(listFile.toString());
                 command.add("-c");
                 command.add("copy");
+                command.add("-avoid_negative_ts");
+                command.add("make_zero");
                 command.add("-movflags");
                 command.add("+faststart");
                 command.add(output.toString());
@@ -393,9 +407,145 @@ public class LocalMediaArtifactService {
                 );
             } finally {
                 Files.deleteIfExists(listFile);
+                deleteDirectoryQuietly(normalizedDir);
             }
         } catch (Exception ex) {
             throw new IllegalStateException("video concat failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    private void normalizeJoinSource(Path sourcePath, Path outputPath, MediaProbeInfo probeInfo) throws IOException, InterruptedException {
+        List<String> command = new ArrayList<>();
+        command.add(ffmpegBin);
+        command.add("-y");
+        command.add("-i");
+        command.add(sourcePath.toString());
+        if (!probeInfo.hasAudio()) {
+            command.add("-f");
+            command.add("lavfi");
+            command.add("-i");
+            command.add("anullsrc=channel_layout=stereo:sample_rate=48000");
+        }
+        command.add("-map");
+        command.add("0:v:0");
+        command.add("-map");
+        command.add(probeInfo.hasAudio() ? "0:a:0" : "1:a:0");
+        command.add("-vf");
+        command.add("format=yuv420p");
+        command.add("-af");
+        command.add(buildJoinAudioFilter(probeInfo.durationSeconds()));
+        command.add("-c:v");
+        command.add("libx264");
+        command.add("-preset");
+        command.add("veryfast");
+        command.add("-crf");
+        command.add("18");
+        command.add("-pix_fmt");
+        command.add("yuv420p");
+        command.add("-c:a");
+        command.add("aac");
+        command.add("-ar");
+        command.add("48000");
+        command.add("-b:a");
+        command.add("192k");
+        command.add("-movflags");
+        command.add("+faststart");
+        command.add("-shortest");
+        command.add(outputPath.toString());
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        int exitCode = process.waitFor();
+        String processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        if (exitCode != 0 || !Files.exists(outputPath)) {
+            throw new IOException(processOutput.isBlank() ? "ffmpeg normalize failed" : processOutput);
+        }
+    }
+
+    private MediaProbeInfo probeMedia(Path sourcePath) throws IOException, InterruptedException {
+        return new MediaProbeInfo(probeDurationSeconds(sourcePath), probeHasAudio(sourcePath));
+    }
+
+    private double probeDurationSeconds(Path sourcePath) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(
+            ffprobeBin,
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            sourcePath.toString()
+        ).redirectErrorStream(true).start();
+        int exitCode = process.waitFor();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        if (exitCode != 0 || output.isBlank()) {
+            throw new IOException(output.isBlank() ? "ffprobe duration failed" : output);
+        }
+        try {
+            return Double.parseDouble(output);
+        } catch (NumberFormatException ex) {
+            throw new IOException("ffprobe returned invalid duration: " + output, ex);
+        }
+    }
+
+    private boolean probeHasAudio(Path sourcePath) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(
+            ffprobeBin,
+            "-v", "error",
+            "-select_streams", "a",
+            "-show_entries", "stream=index",
+            "-of", "csv=p=0",
+            sourcePath.toString()
+        ).redirectErrorStream(true).start();
+        int exitCode = process.waitFor();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        if (exitCode != 0) {
+            throw new IOException(output.isBlank() ? "ffprobe audio probe failed" : output);
+        }
+        return !output.isBlank();
+    }
+
+    private String buildJoinAudioFilter(double durationSeconds) {
+        double fadeSeconds = joinFadeSeconds(durationSeconds);
+        StringBuilder filter = new StringBuilder("aresample=async=1:min_hard_comp=0.100:first_pts=0,asetpts=PTS-STARTPTS");
+        if (fadeSeconds > 0D) {
+            filter.append(",afade=t=in:st=0:d=").append(formatSeconds(fadeSeconds));
+            filter.append(",afade=t=out:st=").append(formatSeconds(Math.max(0D, durationSeconds - fadeSeconds)));
+            filter.append(":d=").append(formatSeconds(fadeSeconds));
+        }
+        return filter.toString();
+    }
+
+    private double joinFadeSeconds(double durationSeconds) {
+        if (durationSeconds <= 0D) {
+            return 0D;
+        }
+        if (durationSeconds < 0.12D) {
+            return Math.max(0.005D, durationSeconds / 6D);
+        }
+        return Math.min(0.02D, durationSeconds / 10D);
+    }
+
+    private String formatSeconds(double value) {
+        return String.format(Locale.ROOT, "%.3f", value);
+    }
+
+    private String deriveFfprobeBin(String ffmpegCommand) {
+        String normalized = ffmpegCommand == null ? "" : ffmpegCommand.trim();
+        if (normalized.endsWith("ffmpeg")) {
+            return normalized.substring(0, normalized.length() - "ffmpeg".length()) + "ffprobe";
+        }
+        return "ffprobe";
+    }
+
+    private void deleteDirectoryQuietly(Path dir) {
+        if (dir == null) {
+            return;
+        }
+        try (var paths = Files.walk(dir)) {
+            paths.sorted((left, right) -> right.compareTo(left)).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException ignored) {
         }
     }
 
@@ -508,4 +658,6 @@ public class LocalMediaArtifactService {
         String publicUrl,
         long sizeBytes
     ) {}
+
+    private record MediaProbeInfo(double durationSeconds, boolean hasAudio) {}
 }
