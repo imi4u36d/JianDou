@@ -30,7 +30,7 @@
     }
   },
   // 由 vue-tsc / TypeScript 编译检查的应用源码范围。
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "src/**/*.vue"],
   // 单独给 vite.config.ts 这类 Node 侧文件使用的配置。
   "references": [
     {

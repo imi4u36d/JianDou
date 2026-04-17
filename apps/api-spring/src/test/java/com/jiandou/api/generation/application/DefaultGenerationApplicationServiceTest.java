@@ -122,7 +122,7 @@ class DefaultGenerationApplicationServiceTest {
             Map.of("value", "gpt-4.1", "label", "GPT 4.1", "provider", "openai"),
             Map.of("value", "glm", "provider", "zhipu")
         ));
-        when(modelResolver.configSource()).thenReturn("config/app.yml");
+        when(modelResolver.configSource()).thenReturn("dir:/workspace/config");
         when(support.nowIso()).thenReturn("2026-04-16T00:00:00Z");
 
         Map<String, Object> usage = service.usage();
@@ -134,7 +134,7 @@ class DefaultGenerationApplicationServiceTest {
         assertEquals("GPT 4.1", items.get(0).get("label"));
         assertEquals("glm", items.get(1).get("model"));
         assertEquals("glm", items.get(1).get("label"));
-        assertEquals("config/app.yml", items.get(0).get("source"));
+        assertEquals("dir:/workspace/config", items.get(0).get("source"));
         assertEquals("2026-04-16T00:00:00Z", usage.get("generatedAt"));
         assertEquals("2026-04-16T00:00:00Z", usage.get("updatedAt"));
     }

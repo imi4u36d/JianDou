@@ -29,10 +29,10 @@ class PromptTemplateResolverTest {
      */
     @Test
     void returnsPromptTextWhenTemplateAndKeyExist() throws IOException {
-        Path configFile = writeAppConfig("prompts");
-        writePrompt(tempDir.resolve("prompts").resolve("script.yml"), "short_drama_script", "hello world");
+        Path configDir = writeAppConfig("prompts");
+        writePrompt(configDir.resolve("prompts").resolve("script.yml"), "short_drama_script", "hello world");
         MockEnvironment env = new MockEnvironment()
-            .withProperty("JIANDOU_CONFIG_FILE", configFile.toString())
+            .withProperty("JIANDOU_CONFIG_DIR", configDir.toString())
             .withProperty("JIANDOU_PROMPT_FAIL_FAST", "false");
 
         PromptTemplateResolver resolver = buildResolver(env);
@@ -46,10 +46,10 @@ class PromptTemplateResolverTest {
      */
     @Test
     void missingKeyIsObservableWhenFailFastDisabled() throws IOException {
-        Path configFile = writeAppConfig("prompts");
-        writePrompt(tempDir.resolve("prompts").resolve("core.yml"), "another_key", "value");
+        Path configDir = writeAppConfig("prompts");
+        writePrompt(configDir.resolve("prompts").resolve("core.yml"), "another_key", "value");
         MockEnvironment env = new MockEnvironment()
-            .withProperty("JIANDOU_CONFIG_FILE", configFile.toString())
+            .withProperty("JIANDOU_CONFIG_DIR", configDir.toString())
             .withProperty("JIANDOU_PROMPT_FAIL_FAST", "false");
 
         PromptTemplateResolver resolver = buildResolver(env);
@@ -64,9 +64,9 @@ class PromptTemplateResolverTest {
      */
     @Test
     void missingPromptFileCanFailFast() throws IOException {
-        Path configFile = writeAppConfig("missing-prompts");
+        Path configDir = writeAppConfig("missing-prompts");
         MockEnvironment env = new MockEnvironment()
-            .withProperty("JIANDOU_CONFIG_FILE", configFile.toString())
+            .withProperty("JIANDOU_CONFIG_DIR", configDir.toString())
             .withProperty("JIANDOU_PROMPT_FAIL_FAST", "true");
 
         PromptTemplateResolver resolver = buildResolver(env);
@@ -91,7 +91,9 @@ class PromptTemplateResolverTest {
      * @return 处理结果
      */
     private Path writeAppConfig(String promptDir) throws IOException {
-        Path configFile = tempDir.resolve("app.yml");
+        Path configDir = tempDir.resolve("config");
+        Path configFile = configDir.resolve("app").resolve("runtime.yml");
+        Files.createDirectories(configFile.getParent());
         Files.writeString(
             configFile,
             """
@@ -99,7 +101,7 @@ class PromptTemplateResolverTest {
                   file: "%s"
                 """.formatted(promptDir)
         );
-        return configFile;
+        return configDir;
     }
 
     /**

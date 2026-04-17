@@ -61,7 +61,7 @@ public class AdminModelConfigService {
         List<AdminModelConfigResponse.ProviderItem> providers = readProviders(models);
         return new AdminModelConfigResponse(
             modelResolver.configSource(),
-            buildSummary(models, providers.size()),
+            buildSummary(models, providers),
             readDefaults(),
             providers,
             List.copyOf(models),
@@ -70,7 +70,7 @@ public class AdminModelConfigService {
     }
 
     /**
-     * 校验 provider API Key 草稿。
+     * 校验模型接入 API Key 草稿。
      * @param request 密钥输入请求值
      * @return 处理结果
      */
@@ -82,7 +82,7 @@ public class AdminModelConfigService {
     }
 
     /**
-     * 保存 provider API Key 覆盖，并刷新运行时快照。
+     * 保存模型接入 API Key 覆盖，并刷新运行时快照。
      * @param request 密钥输入请求值
      * @return 处理结果
      */
@@ -135,19 +135,19 @@ public class AdminModelConfigService {
             String apiKey = trimToEmpty(input == null ? null : input.apiKey());
             if (requestedKey.isBlank()) {
                 if (!apiKey.isBlank()) {
-                    errors.add("存在未命名 provider");
+                    errors.add("存在未命名模型接入");
                 }
                 continue;
             }
             String resolvedKey = knownProviders.get(normalize(requestedKey));
             if (resolvedKey == null) {
                 if (!apiKey.isBlank()) {
-                    errors.add("未知 provider: " + requestedKey);
+                    errors.add("未知模型接入: " + requestedKey);
                 }
                 continue;
             }
             if (!seen.add(resolvedKey)) {
-                errors.add("provider 重复: " + resolvedKey);
+                errors.add("模型接入重复: " + resolvedKey);
                 continue;
             }
             if (!apiKey.isBlank()) {
@@ -168,6 +168,7 @@ public class AdminModelConfigService {
             AdminModelConfigResponse.ProviderItem updated = new AdminModelConfigResponse.ProviderItem(
                 provider.key(),
                 provider.provider(),
+                provider.vendor(),
                 provider.kinds(),
                 provider.baseUrl(),
                 provider.taskBaseUrl(),
@@ -198,7 +199,7 @@ public class AdminModelConfigService {
         }
         return new AdminModelConfigResponse(
             base.configSource(),
-            buildSummary(models, providers.size()),
+            buildSummary(models, providers),
             base.defaults(),
             List.copyOf(providers),
             List.copyOf(models),
@@ -216,6 +217,7 @@ public class AdminModelConfigService {
             model.label(),
             model.kind(),
             model.provider(),
+            model.vendor(),
             model.family(),
             model.description(),
             model.fallbackModel(),
@@ -253,9 +255,22 @@ public class AdminModelConfigService {
         return issues;
     }
 
-    private AdminModelConfigResponse.Summary buildSummary(List<AdminModelConfigResponse.ModelItem> models, int providerCount) {
+    private AdminModelConfigResponse.Summary buildSummary(
+        List<AdminModelConfigResponse.ModelItem> models,
+        List<AdminModelConfigResponse.ProviderItem> providers
+    ) {
+        int providerCount = providers == null ? 0 : providers.size();
+        int vendorCount = providers == null
+            ? 0
+            : (int) providers.stream()
+                .map(AdminModelConfigResponse.ProviderItem::vendor)
+                .map(this::normalize)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .count();
         return new AdminModelConfigResponse.Summary(
             providerCount,
+            vendorCount,
             models.size(),
             countReadyModels(models, null),
             countReadyModels(models, GenerationModelKinds.TEXT),
@@ -282,6 +297,7 @@ public class AdminModelConfigService {
                 firstNonBlank(stringValue(item.get("label")), name),
                 kind,
                 profile.provider(),
+                stringValue(item.get("vendor")),
                 stringValue(item.get("family")),
                 stringValue(item.get("description")),
                 stringValue(item.get("fallbackModel")),
@@ -321,6 +337,7 @@ public class AdminModelConfigService {
                 firstNonBlank(stringValue(item.get("label")), name),
                 kind,
                 profile.provider(),
+                stringValue(item.get("vendor")),
                 stringValue(item.get("family")),
                 stringValue(item.get("description")),
                 "",
@@ -345,6 +362,15 @@ public class AdminModelConfigService {
         for (ModelRuntimePropertiesResolver.ConfigSection section : modelResolver.listSections("model.providers")) {
             String key = section.name();
             String providerName = firstNonBlank(section.values().get("provider"), key);
+            String vendorName = firstNonBlank(
+                section.values().get("vendor"),
+                models.stream()
+                    .filter(item -> providerName.equalsIgnoreCase(item.provider()) || key.equalsIgnoreCase(item.provider()))
+                    .map(AdminModelConfigResponse.ModelItem::vendor)
+                    .filter(value -> value != null && !value.isBlank())
+                    .findFirst()
+                    .orElse("")
+            );
             List<AdminModelConfigResponse.ModelItem> providerModels = models.stream()
                 .filter(item -> providerName.equalsIgnoreCase(item.provider()) || key.equalsIgnoreCase(item.provider()))
                 .toList();
@@ -371,6 +397,7 @@ public class AdminModelConfigService {
             items.add(new AdminModelConfigResponse.ProviderItem(
                 key,
                 providerName,
+                vendorName,
                 providerModels.stream().map(AdminModelConfigResponse.ModelItem::kind).distinct().sorted(this::compareKinds).toList(),
                 baseUrl,
                 taskBaseUrl,

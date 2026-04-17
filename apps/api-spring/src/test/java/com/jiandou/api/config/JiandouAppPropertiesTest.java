@@ -34,4 +34,15 @@ class JiandouAppPropertiesTest {
 
         assertEquals("sync", properties.getExecutionMode());
     }
+
+    @Test
+    void resolveCookieSameSiteUsesSecureAwareDefaults() {
+        JiandouAppProperties properties = new JiandouAppProperties();
+
+        assertEquals("Lax", properties.resolveCookieSameSite());
+
+        properties.setCookieSecure(true);
+
+        assertEquals("None", properties.resolveCookieSameSite());
+    }
 }

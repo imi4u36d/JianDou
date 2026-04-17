@@ -1,0 +1,50 @@
+catalog:
+  aspect_ratios:
+    "9:16":
+      label: "竖版 9:16"
+    "16:9":
+      label: "横版 16:9"
+  style_presets:
+    cinematic:
+      label: "电影写实"
+      description: "贴近真实影视剧照与镜头语言"
+    drama:
+      label: "短剧冲突"
+      description: "更强调人物冲突和情绪推进"
+  image_sizes:
+    "1024x1024":
+      label: "1:1 · 1024x1024"
+      width: 1024
+      height: 1024
+    "720x1280":
+      label: "9:16 · 720x1280"
+      width: 720
+      height: 1280
+  video_sizes:
+    "480*854":
+      label: "480P · 9:16（480 x 854）"
+      width: 480
+      height: 854
+    "854*480":
+      label: "480P · 16:9（854 x 480）"
+      width: 854
+      height: 480
+    "720*1280":
+      label: "720P · 9:16（720 x 1280）"
+      width: 720
+      height: 1280
+    "1280*720":
+      label: "720P · 16:9（1280 x 720）"
+      width: 1280
+      height: 720
+  video_durations:
+    "4":
+      label: "4 秒"
+    "6":
+      label: "6 秒"
+    "8":
+      label: "8 秒"
+    "10":
+      label: "10 秒"
+    "12":
+      label: "12 秒"

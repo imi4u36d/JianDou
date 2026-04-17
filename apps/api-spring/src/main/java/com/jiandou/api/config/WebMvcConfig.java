@@ -2,8 +2,6 @@ package com.jiandou.api.config;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -33,12 +31,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping(ApiPathConstants.API_V2_PATTERN)
-            .allowedOrigins(resolveAllowedOrigins().toArray(String[]::new))
+            .allowedOriginPatterns(appProperties.resolveWebOrigins().toArray(String[]::new))
             .allowedMethods("*")
             .allowedHeaders("*")
+            .exposedHeaders("X-XSRF-TOKEN")
             .allowCredentials(true);
         registry.addMapping(ApiPathConstants.STORAGE_PATTERN)
-            .allowedOrigins(resolveAllowedOrigins().toArray(String[]::new))
+            .allowedOriginPatterns(appProperties.resolveWebOrigins().toArray(String[]::new))
             .allowedMethods("*")
             .allowedHeaders("*")
             .allowCredentials(true);
@@ -59,19 +58,4 @@ public class WebMvcConfig implements WebMvcConfigurer {
             .addResourceLocations(root.toUri().toString() + "/");
     }
 
-    /**
-     * 处理解析AllowedOrigins。
-     * @return 处理结果
-     */
-    private List<String> resolveAllowedOrigins() {
-        String[] rawValues = appProperties.getWebOrigin().split(",");
-        List<String> values = new ArrayList<>();
-        for (String rawValue : rawValues) {
-            String value = rawValue == null ? "" : rawValue.trim();
-            if (!value.isEmpty() && !values.contains(value)) {
-                values.add(value);
-            }
-        }
-        return values;
-    }
 }

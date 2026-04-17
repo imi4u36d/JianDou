@@ -1,0 +1,10 @@
+app:
+  name: "JianDou"
+  env: "local"
+  api_host: "0.0.0.0"
+  api_port: 8000
+  web_origin: "http://localhost:5173"
+  execution_mode: "queue"
+
+prompt:
+  file: "prompts"

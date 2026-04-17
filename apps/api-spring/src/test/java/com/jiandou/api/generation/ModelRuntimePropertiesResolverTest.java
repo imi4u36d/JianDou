@@ -11,6 +11,8 @@ import com.jiandou.api.generation.runtime.ModelRuntimePropertiesResolver;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.env.MockEnvironment;
@@ -28,17 +30,17 @@ class ModelRuntimePropertiesResolverTest {
      */
     @Test
     void cacheReloadsWhenTtlExpiresAndFileChanges() throws Exception {
-        Path configFile = tempDir.resolve("app.yml");
-        writeConfig(configFile, "0.20");
+        Path configDir = tempDir.resolve("config");
+        writeConfig(configDir, "0.20");
 
         MockEnvironment env = new MockEnvironment()
-            .withProperty("JIANDOU_CONFIG_FILE", configFile.toString())
+            .withProperty("JIANDOU_CONFIG_DIR", configDir.toString())
             .withProperty("JIANDOU_CONFIG_CACHE_TTL_SECONDS", "1");
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
 
         assertEquals(0.20d, Double.parseDouble(resolver.value("model", "temperature", "fallback")), 0.0001d);
 
-        writeConfig(configFile, "0.95");
+        writeConfig(configDir, "0.95");
         assertEquals(0.20d, Double.parseDouble(resolver.value("model", "temperature", "fallback")), 0.0001d);
 
         Thread.sleep(1200L);
@@ -50,9 +52,9 @@ class ModelRuntimePropertiesResolverTest {
      */
     @Test
     void missingConfigCanFailFast() {
-        Path missingFile = tempDir.resolve("missing.yml");
+        Path missingDir = tempDir.resolve("missing-config");
         MockEnvironment env = new MockEnvironment()
-            .withProperty("JIANDOU_CONFIG_FILE", missingFile.toString())
+            .withProperty("JIANDOU_CONFIG_DIR", missingDir.toString())
             .withProperty("JIANDOU_CONFIG_FAIL_FAST", "true");
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
 
@@ -64,9 +66,9 @@ class ModelRuntimePropertiesResolverTest {
      */
     @Test
     void missingConfigIsObservableWhenFailFastDisabled() {
-        Path missingFile = tempDir.resolve("missing.yml");
+        Path missingDir = tempDir.resolve("missing-config");
         MockEnvironment env = new MockEnvironment()
-            .withProperty("JIANDOU_CONFIG_FILE", missingFile.toString())
+            .withProperty("JIANDOU_CONFIG_DIR", missingDir.toString())
             .withProperty("JIANDOU_CONFIG_FAIL_FAST", "false");
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
 
@@ -80,26 +82,10 @@ class ModelRuntimePropertiesResolverTest {
      */
     @Test
     void secretsOverlayProvidesApiKey() throws Exception {
-        Path configFile = tempDir.resolve("config").resolve("app.yml");
-        Files.createDirectories(configFile.getParent());
-        Files.writeString(
-            configFile,
-            """
-                model:
-                  timeout_seconds: 120
-                  temperature: 0.20
-                  max_tokens: 2000
-                  providers:
-                    qwen:
-                      api_key: ""
-                      base_url: "https://example.com/v1"
-                  models:
-                    "qwen-plus":
-                      provider: "qwen"
-                      kind: "text"
-                """
-        );
-        Path secretsFile = configFile.getParent().resolve("app.secrets.yml");
+        Path configDir = tempDir.resolve("config");
+        writeConfig(configDir, "0.20");
+        Path secretsFile = configDir.resolve("model").resolve("providers.secrets.yml");
+        Files.createDirectories(secretsFile.getParent());
         Files.writeString(
             secretsFile,
             """
@@ -110,35 +96,69 @@ class ModelRuntimePropertiesResolverTest {
                 """
         );
 
-        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_FILE", configFile.toString());
+        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
 
         assertEquals("secret-key", resolver.resolveTextProfile("qwen-plus").apiKey());
-        assertTrue(resolver.configSource().contains("app.secrets.yml"));
+        assertTrue(resolver.configSource().contains("providers.secrets.yml"));
+    }
+
+    @Test
+    void listModelsByKindResolvesVendorFromModelOrProviderSection() throws Exception {
+        Path configDir = tempDir.resolve("config");
+        writeConfig(configDir, "0.20");
+
+        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
+        ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
+
+        List<Map<String, Object>> items = resolver.listModelsByKind("text");
+
+        assertEquals(1, items.size());
+        assertEquals("qwen", items.get(0).get("provider"));
+        assertEquals("aliyun", items.get(0).get("vendor"));
     }
 
     /**
      * 处理写入配置。
-     * @param configFile 配置文件值
+     * @param configDir 配置目录值
      * @param temperature temperature值
      */
-    private void writeConfig(Path configFile, String temperature) throws IOException {
+    private void writeConfig(Path configDir, String temperature) throws IOException {
+        Path defaultsFile = configDir.resolve("model").resolve("defaults.yml");
+        Path providerFile = configDir.resolve("model").resolve("providers").resolve("qwen.yml");
+        Path modelsFile = configDir.resolve("model").resolve("models.yml");
+        Files.createDirectories(defaultsFile.getParent());
+        Files.createDirectories(providerFile.getParent());
         Files.writeString(
-            configFile,
+            defaultsFile,
             """
                 model:
                   timeout_seconds: 120
                   temperature: %s
                   max_tokens: 2000
+                """.formatted(temperature)
+        );
+        Files.writeString(
+            providerFile,
+            """
+                model:
                   providers:
                     qwen:
+                      vendor: "aliyun"
                       api_key: "test-key"
                       base_url: "https://example.com/v1"
+                """
+        );
+        Files.writeString(
+            modelsFile,
+            """
+                model:
                   models:
                     "qwen-plus":
                       provider: "qwen"
+                      vendor: "aliyun"
                       kind: "text"
-                """.formatted(temperature)
+                """
         );
     }
 }

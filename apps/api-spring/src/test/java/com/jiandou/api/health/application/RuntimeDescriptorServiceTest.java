@@ -42,7 +42,7 @@ class RuntimeDescriptorServiceTest {
         when(resolver.resolveVideoProfile("seedance-1.0")).thenReturn(readyMediaProfile("seedance-1.0"));
         when(resolver.value("model", "temperature", "0.15")).thenReturn("0.35");
         when(resolver.value("model", "max_tokens", "2000")).thenReturn("4096");
-        when(resolver.configSource()).thenReturn("config/app.yml");
+        when(resolver.configSource()).thenReturn("dir:/workspace/config");
 
         RuntimeDescriptorResponse response = service.describeRuntime();
 
@@ -55,7 +55,7 @@ class RuntimeDescriptorServiceTest {
         assertTrue(response.runtime().model().ready());
         assertEquals(0.35, response.runtime().model().temperature());
         assertEquals(4096, response.runtime().model().maxTokens());
-        assertEquals("config/app.yml", response.runtime().model().configSource());
+        assertEquals("dir:/workspace/config", response.runtime().model().configSource());
         assertEquals(List.of(), response.runtime().model().configErrors());
         assertTrue(response.runtime().planningCapabilities().timedTranscriptSupported());
         assertFalse(response.runtime().planningCapabilities().fallbackHeuristicEnabled());

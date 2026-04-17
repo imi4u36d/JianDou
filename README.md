@@ -55,6 +55,7 @@ JianDou（中文名：煎豆）是一个 AI 文本驱动视频生成平台，面
 - [Python 到 Spring 迁移台账](./docs/PYTHON_TO_SPRING_MIGRATION_BACKLOG.md)
 - [API 文档](./docs/API.md)
 - [使用文档](./docs/USER_GUIDE.md)
+- [Docker 部署](./docs/DEPLOY_DOCKER.md)
 - [路线图](./docs/ROADMAP.md)
 - [版本记录](./docs/CHANGELOG.md)
 - [功能开发记录](./docs/DEVELOPMENT_LOG.md)

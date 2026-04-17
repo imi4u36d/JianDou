@@ -534,7 +534,13 @@ function compareVideoSizeByArea(a: GenerationVideoSizeOption, b: GenerationVideo
 }
 
 const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.textAnalysisModels ?? []);
-const aspectRatioOptions = computed<GenerationAspectRatioOption[]>(() => options.value?.aspectRatios ?? []);
+const aspectRatioOptions = computed<Array<GenerationAspectRatioOption & { value: CreateGenerationTaskRequest["aspectRatio"] }>>(() => {
+  return (options.value?.aspectRatios ?? []).filter(
+    (item): item is GenerationAspectRatioOption & { value: CreateGenerationTaskRequest["aspectRatio"] } => {
+      return item.value === "9:16" || item.value === "16:9";
+    },
+  );
+});
 const visionModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.visionModels ?? []);
 const imageModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.imageModels ?? []);
 const videoModelOptions = computed<GenerationVideoModelInfo[]>(() => options.value?.videoModels ?? []);
@@ -646,7 +652,7 @@ const selectedModelCount = computed(() => {
   ].filter(Boolean).length;
 });
 
-const transcriptCharacterCount = computed(() => form.value.transcriptText.trim().length);
+const transcriptCharacterCount = computed(() => (form.value.transcriptText ?? "").trim().length);
 
 const seedCapabilityHint = computed(() => {
   const visionSupportsSeed = Boolean(selectedVisionModelOption.value?.supportsSeed);

@@ -1,0 +1,13 @@
+database:
+  url: "jdbc:mysql://127.0.0.1:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
+  echo: false
+
+redis:
+  url: "redis://127.0.0.1:6379/0"
+
+storage:
+  root_dir: "storage"
+  uploads_dir: "storage/uploads"
+  outputs_dir: "storage/gen"
+  temp_dir: "storage/temp"
+  public_base_url: "http://127.0.0.1:8000/storage"

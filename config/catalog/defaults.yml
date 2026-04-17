@@ -1,0 +1,7 @@
+catalog:
+  defaults:
+    style_preset: "cinematic"
+    image_size: "1024x1024"
+    video_size: "720*1280"
+    video_duration_seconds: 10
+    video_generate_audio: true

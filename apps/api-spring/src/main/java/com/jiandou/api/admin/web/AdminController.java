@@ -72,7 +72,7 @@ public class AdminController {
     }
 
     /**
-     * 保存 provider API Key 配置并刷新运行时。
+     * 保存模型接入 API Key 配置并刷新运行时。
      * @param request 密钥请求体
      * @return 处理结果
      */

@@ -1,0 +1,72 @@
+model:
+  models:
+    "qwen3.6-plus":
+      provider: "qwen"
+      vendor: "aliyun"
+      kind: "text"
+      label: "Qwen 3.6 Plus"
+      family: "qwen"
+      capabilities:
+        - "text_analysis"
+        - "planner_fusion"
+        - "creative_prompt"
+        - "script_generation"
+      description: "阿里 Qwen 文本模型。"
+      fallback_model: "qwen3.5-flash"
+    "qwen-plus":
+      provider: "qwen"
+      vendor: "aliyun"
+      kind: "text"
+      label: "Qwen Plus"
+      family: "qwen"
+      capabilities:
+        - "text_analysis"
+        - "planner_fusion"
+        - "creative_prompt"
+        - "script_generation"
+      description: "Qwen 通用文本模型。"
+    "qwen3.5-flash":
+      provider: "qwen"
+      vendor: "aliyun"
+      kind: "text"
+      label: "qwen3.5-flash"
+      family: "qwen"
+      capabilities:
+        - "text_analysis"
+        - "planner_fusion"
+        - "creative_prompt"
+        - "script_generation"
+      description: "Qwen 通用文本模型 qwen3.5-flash。"
+    "qwen3-vl-flash-2026-01-22":
+      provider: "qwen"
+      vendor: "aliyun"
+      kind: "vision"
+      label: "Qwen 3 VL Flash 2026-01-22"
+      family: "qwen-vl"
+      supports_seed: true
+      capabilities:
+        - "vision_analysis"
+        - "prompt_rewrite"
+      description: "Qwen 视觉理解快速模型。"
+    "Doubao-Seedream-4.5":
+      provider: "seedream"
+      vendor: "volcengine"
+      kind: "image"
+      label: "Doubao Seedream 4.5"
+      family: "seedream"
+      capabilities:
+        - "image_generation"
+      description: "Seedream 文生图模型。"
+    "seedance-1.5-pro":
+      provider: "seedance"
+      vendor: "volcengine"
+      kind: "video"
+      label: "Seedance 1.5 Pro"
+      family: "seedance"
+      supports_seed: true
+      capabilities:
+        - "video_generation"
+      description: "火山引擎 Seedance 视频模型。"
+      generation_mode: "i2v"
+      supported_sizes: "480*854,854*480,720*1280,1280*720"
+      supported_durations: "4,6,8,10,12"

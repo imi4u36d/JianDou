@@ -1,0 +1,25 @@
+ARG MAVEN_IMAGE=docker.m.daocloud.io/library/maven:3.9.9-eclipse-temurin-17
+ARG JAVA_IMAGE=docker.m.daocloud.io/library/eclipse-temurin:17-jre-jammy
+FROM ${MAVEN_IMAGE} AS builder
+
+WORKDIR /build
+
+COPY apps/api-spring/pom.xml /build/apps/api-spring/pom.xml
+
+COPY apps/api-spring /build/apps/api-spring
+RUN mvn -B -f /build/apps/api-spring/pom.xml -DskipTests package
+
+FROM ${JAVA_IMAGE}
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/apps/api-spring/target/*.jar /app/app.jar
+COPY config /app/config
+
+EXPOSE 8000
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

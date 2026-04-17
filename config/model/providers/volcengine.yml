@@ -1,0 +1,28 @@
+model:
+  providers:
+    ark:
+      provider: "ark"
+      vendor: "volcengine"
+      api_key: ""
+      base_url: "https://ark.cn-beijing.volces.com/api/v3"
+      extras:
+        use_responses_api: true
+        timeout_seconds: 180
+    seedream:
+      provider: "seedream"
+      vendor: "volcengine"
+      api_key: ""
+      base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+    seedance:
+      provider: "seedance"
+      vendor: "volcengine"
+      api_key: ""
+      base_url: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
+      extras:
+        task_base_url: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
+        image_base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+        poll_interval_seconds: 8
+        poll_timeout_seconds: 600
+        camera_fixed: false
+        watermark: false
+        prompt_extend: false

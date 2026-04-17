@@ -4,10 +4,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
@@ -37,35 +39,17 @@ public class GenerationConfigPathLocator {
      */
     public LocatedConfig locateAppConfig() {
         List<Path> checkedCandidates = new ArrayList<>();
-        boolean explicitConfigRequested = hasConfiguredValue("JIANDOU_CONFIG_FILE", "jiandou.config.file", "JIANDOU_CONFIG_PATH", "jiandou.config.path")
-            /**
-             * 检查是否Configured值。
-             * @param "JIANDOU_CONFIG_DIR" "JIANDOU配置DIR"值
-             * @param "jiandou.config.dir" "jiandou.config.dir"值
-             * @return 是否满足条件
-             */
-            || hasConfiguredValue("JIANDOU_CONFIG_DIR", "jiandou.config.dir")
-            /**
-             * 检查是否Configured值。
-             * @param "spring.config.additional-location" "spring.config.additionallocation"值
-             * @param "SPRING_CONFIG_ADDITIONAL_LOCATION" "SPRING配置ADDITIONALLOCATION"值
-             * @return 是否满足条件
-             */
-            || hasConfiguredValue("spring.config.additional-location", "SPRING_CONFIG_ADDITIONAL_LOCATION")
-            /**
-             * 检查是否Configured值。
-             * @param "spring.config.location" "spring.config.location"值
-             * @param "SPRING_CONFIG_LOCATION" "SPRING配置LOCATION"值
-             * @return 是否满足条件
-             */
-            || hasConfiguredValue("spring.config.location", "SPRING_CONFIG_LOCATION");
-        Path explicitFile = resolveExplicitConfigFile(checkedCandidates);
-        if (explicitFile != null) {
-            return buildLocatedConfig(explicitFile, "explicit-file");
-        }
-        Path fromExplicitDir = resolveConfigFromExplicitDir(checkedCandidates);
-        if (fromExplicitDir != null) {
-            return buildLocatedConfig(fromExplicitDir, "explicit-dir");
+        boolean explicitConfigRequested = hasConfiguredValue(
+            "JIANDOU_CONFIG_DIR",
+            "jiandou.config.dir",
+            "spring.config.additional-location",
+            "SPRING_CONFIG_ADDITIONAL_LOCATION",
+            "spring.config.location",
+            "SPRING_CONFIG_LOCATION"
+        );
+        Path explicitDir = resolveExplicitConfigDir(checkedCandidates);
+        if (explicitDir != null) {
+            return buildLocatedConfig(explicitDir, "explicit-dir");
         }
         Path fromSpringAdditional = resolveFromSpringLocation(
             firstNonBlank(property("spring.config.additional-location"), property("SPRING_CONFIG_ADDITIONAL_LOCATION")),
@@ -85,21 +69,21 @@ public class GenerationConfigPathLocator {
         }
         for (Path candidate : springDefaultExternalCandidates()) {
             checkedCandidates.add(candidate);
-            if (isRegularFile(candidate)) {
+            if (isConfigDirectory(candidate)) {
                 return buildLocatedConfig(candidate, "spring-default");
             }
         }
         if (!explicitConfigRequested) {
             for (Path candidate : ancestorExternalCandidates()) {
                 checkedCandidates.add(candidate);
-                if (isRegularFile(candidate)) {
+                if (isConfigDirectory(candidate)) {
                     return buildLocatedConfig(candidate, "parent-default");
                 }
             }
         }
         String detail = describeCheckedCandidates(checkedCandidates);
-        log.warn("Generation config file not found; {}", detail);
-        return new LocatedConfig(null, null, null, "missing", detail);
+        log.warn("Generation config directory not found; {}", detail);
+        return new LocatedConfig(null, null, List.of(), "missing", detail);
     }
 
     /**
@@ -139,28 +123,7 @@ public class GenerationConfigPathLocator {
         if (locatedConfig.configDir() == null) {
             return null;
         }
-        return locatedConfig.configDir().resolve("app.secrets.yml").toAbsolutePath().normalize();
-    }
-
-    /**
-     * 处理解析Explicit配置文件。
-     * @param checkedCandidates checkedCandidates值
-     * @return 处理结果
-     */
-    private Path resolveExplicitConfigFile(List<Path> checkedCandidates) {
-        for (String key : List.of("JIANDOU_CONFIG_FILE", "jiandou.config.file", "JIANDOU_CONFIG_PATH", "jiandou.config.path")) {
-            String value = property(key);
-            if (value.isBlank()) {
-                continue;
-            }
-            Path candidate = Paths.get(value);
-            checkedCandidates.add(candidate.toAbsolutePath().normalize());
-            if (isRegularFile(candidate)) {
-                return candidate.toAbsolutePath().normalize();
-            }
-            log.warn("Ignored non-existent config file from {}={}", key, value);
-        }
-        return null;
+        return locatedConfig.configDir().resolve("model").resolve("providers.secrets.yml").toAbsolutePath().normalize();
     }
 
     /**
@@ -168,20 +131,18 @@ public class GenerationConfigPathLocator {
      * @param checkedCandidates checkedCandidates值
      * @return 处理结果
      */
-    private Path resolveConfigFromExplicitDir(List<Path> checkedCandidates) {
+    private Path resolveExplicitConfigDir(List<Path> checkedCandidates) {
         for (String key : List.of("JIANDOU_CONFIG_DIR", "jiandou.config.dir")) {
             String value = property(key);
             if (value.isBlank()) {
                 continue;
             }
-            Path base = Paths.get(value).toAbsolutePath().normalize();
-            for (Path candidate : configFileCandidates(base)) {
-                checkedCandidates.add(candidate);
-                if (isRegularFile(candidate)) {
-                    return candidate;
-                }
+            Path candidate = Paths.get(value).toAbsolutePath().normalize();
+            checkedCandidates.add(candidate);
+            if (isConfigDirectory(candidate)) {
+                return candidate;
             }
-            log.warn("Ignored config dir without app.yml/app.yaml from {}={}", key, value);
+            log.warn("Ignored config dir without split config files from {}={}", key, value);
         }
         return null;
     }
@@ -208,21 +169,16 @@ public class GenerationConfigPathLocator {
             }
             Path candidate = Paths.get(cleaned);
             boolean treatAsDir = raw.endsWith("/") || raw.endsWith("\\") || Files.isDirectory(candidate);
-            if (treatAsDir) {
-                for (Path configCandidate : configFileCandidates(candidate)) {
-                    checkedCandidates.add(configCandidate);
-                    if (isRegularFile(configCandidate)) {
-                        return configCandidate;
-                    }
-                }
+            if (!treatAsDir) {
                 continue;
             }
-            checkedCandidates.add(candidate.toAbsolutePath().normalize());
-            if (isRegularFile(candidate)) {
-                return candidate.toAbsolutePath().normalize();
+            Path normalizedCandidate = candidate.toAbsolutePath().normalize();
+            checkedCandidates.add(normalizedCandidate);
+            if (isConfigDirectory(normalizedCandidate)) {
+                return normalizedCandidate;
             }
         }
-        log.debug("No usable config file found in {}", sourceKey);
+        log.debug("No usable config directory found in {}", sourceKey);
         return null;
     }
 
@@ -232,8 +188,9 @@ public class GenerationConfigPathLocator {
      */
     private List<Path> springDefaultExternalCandidates() {
         Path cwd = currentWorkingDirectory();
-        List<Path> candidates = new ArrayList<>(configFileCandidates(cwd.resolve("config")));
-        candidates.addAll(configFileCandidates(cwd));
+        List<Path> candidates = new ArrayList<>();
+        candidates.add(cwd.resolve("config").toAbsolutePath().normalize());
+        candidates.add(cwd.toAbsolutePath().normalize());
         return candidates.stream().distinct().toList();
     }
 
@@ -245,8 +202,8 @@ public class GenerationConfigPathLocator {
         List<Path> candidates = new ArrayList<>();
         Path current = currentWorkingDirectory().getParent();
         while (current != null) {
-            candidates.addAll(configFileCandidates(current.resolve("config")));
-            candidates.addAll(configFileCandidates(current));
+            candidates.add(current.resolve("config").toAbsolutePath().normalize());
+            candidates.add(current.toAbsolutePath().normalize());
             current = current.getParent();
         }
         return candidates.stream().distinct().toList();
@@ -260,17 +217,56 @@ public class GenerationConfigPathLocator {
         return Paths.get(firstNonBlank(System.getProperty("user.dir"), ".")).toAbsolutePath().normalize();
     }
 
-    /**
-     * 处理配置文件Candidates。
-     * @param directory directory值
-     * @return 处理结果
-     */
-    private List<Path> configFileCandidates(Path directory) {
-        Path normalizedDir = directory.toAbsolutePath().normalize();
-        List<Path> candidates = new ArrayList<>();
-        candidates.add(normalizedDir.resolve("app.yml").normalize());
-        candidates.add(normalizedDir.resolve("app.yaml").normalize());
-        return candidates;
+    private boolean isConfigDirectory(Path directory) {
+        return !collectConfigFiles(directory).isEmpty();
+    }
+
+    public List<Path> collectConfigFiles(Path configDirectory) {
+        if (configDirectory == null) {
+            return List.of();
+        }
+        Path normalizedDir = configDirectory.toAbsolutePath().normalize();
+        if (!Files.isDirectory(normalizedDir)) {
+            return List.of();
+        }
+        List<Path> files = new ArrayList<>();
+        files.addAll(collectYamlFiles(normalizedDir.resolve("app")));
+        files.addAll(collectYamlFiles(normalizedDir.resolve("pipeline")));
+        files.addAll(collectYamlFiles(normalizedDir.resolve("catalog")));
+        files.addAll(collectYamlFiles(normalizedDir.resolve("model"), path ->
+            !path.getFileName().toString().contains(".secrets.")
+                && !normalizedDir.resolve("model").resolve("providers").equals(path.getParent())
+        ));
+        files.addAll(collectYamlFiles(normalizedDir.resolve("model").resolve("providers"), path ->
+            !path.getFileName().toString().contains(".secrets.")
+        ));
+        return files;
+    }
+
+    private List<Path> collectYamlFiles(Path directory) {
+        return collectYamlFiles(directory, path -> true);
+    }
+
+    private List<Path> collectYamlFiles(Path directory, java.util.function.Predicate<Path> filter) {
+        if (directory == null || !Files.isDirectory(directory)) {
+            return List.of();
+        }
+        try (Stream<Path> stream = Files.list(directory)) {
+            return stream
+                .map(Path::toAbsolutePath)
+                .map(Path::normalize)
+                .filter(Files::isRegularFile)
+                .filter(path -> {
+                    String name = path.getFileName().toString().toLowerCase();
+                    return name.endsWith(".yml") || name.endsWith(".yaml");
+                })
+                .filter(filter)
+                .sorted(Comparator.comparing(Path::toString))
+                .toList();
+        } catch (Exception ex) {
+            log.warn("Failed to list config directory: {}", directory.toAbsolutePath().normalize(), ex);
+            return List.of();
+        }
     }
 
     /**
@@ -307,13 +303,12 @@ public class GenerationConfigPathLocator {
 
     /**
      * 构建Located配置。
-     * @param configFile 配置文件值
+     * @param configDirectory 配置目录值
      * @param sourceTag 来源Tag值
      * @return 处理结果
      */
-    private LocatedConfig buildLocatedConfig(Path configFile, String sourceTag) {
-        Path normalizedFile = configFile.toAbsolutePath().normalize();
-        Path configDir = normalizedFile.getParent();
+    private LocatedConfig buildLocatedConfig(Path configDirectory, String sourceTag) {
+        Path configDir = configDirectory.toAbsolutePath().normalize();
         Path projectRoot = configDir;
         if (configDir != null
             && configDir.getFileName() != null
@@ -321,11 +316,12 @@ public class GenerationConfigPathLocator {
             && configDir.getParent() != null) {
             projectRoot = configDir.getParent();
         }
+        List<Path> configFiles = collectConfigFiles(configDir);
         return new LocatedConfig(
-            normalizedFile,
             configDir,
             projectRoot,
-            "file:" + normalizedFile,
+            List.copyOf(configFiles),
+            "dir:" + configDir,
             sourceTag
         );
     }
@@ -338,15 +334,6 @@ public class GenerationConfigPathLocator {
     private boolean startsWithConfigPrefix(String value) {
         String normalized = value.replace('\\', '/');
         return normalized.startsWith("config/");
-    }
-
-    /**
-     * 检查是否Regular文件。
-     * @param path 路径值
-     * @return 是否满足条件
-     */
-    private boolean isRegularFile(Path path) {
-        return path != null && Files.isRegularFile(path.toAbsolutePath().normalize());
     }
 
     /**
@@ -398,18 +385,22 @@ public class GenerationConfigPathLocator {
 
     /**
      * 处理Located配置。
-     * @param configFile 配置文件值
      * @param configDir 配置Dir值
      * @param projectRoot projectRoot值
+     * @param configFiles 配置Files值
      * @param source 来源值
      * @param detail 详情值
      * @return 处理结果
      */
     public record LocatedConfig(
-        Path configFile,
         Path configDir,
         Path projectRoot,
+        List<Path> configFiles,
         String source,
         String detail
-    ) {}
+    ) {
+        public Path configFile() {
+            return configFiles == null || configFiles.isEmpty() ? null : configFiles.get(0);
+        }
+    }
 }

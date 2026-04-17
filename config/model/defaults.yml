@@ -1,0 +1,10 @@
+model:
+  aliyun_billing_access_key_id: ""
+  aliyun_billing_access_key_secret: ""
+  volcengine_billing_access_key_id: ""
+  volcengine_billing_access_key_secret: ""
+  video_model_usage_quota: '{"wan2.6-i2v":300,"seedance-1.5-pro":200}'
+  timeout_seconds: 120
+  temperature: 0.15
+  max_tokens: 2000
+  vision_frame_count: 6

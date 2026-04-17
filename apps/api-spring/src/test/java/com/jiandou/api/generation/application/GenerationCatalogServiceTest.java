@@ -24,7 +24,7 @@ class GenerationCatalogServiceTest {
         when(modelResolver.intValue(anyString(), anyString(), eq(0))).thenReturn(0);
         when(modelResolver.listModelsByKind(anyString())).thenReturn(List.of());
         when(modelResolver.listSections(anyString())).thenReturn(List.of());
-        when(modelResolver.configSource()).thenReturn("config/app.yml");
+        when(modelResolver.configSource()).thenReturn("dir:/workspace/config");
 
         Map<String, Object> payload = service.catalog();
 
@@ -33,7 +33,7 @@ class GenerationCatalogServiceTest {
         assertEquals("1024x1024", payload.get("defaultImageSize"));
         assertEquals("720*1280", payload.get("defaultVideoSize"));
         assertEquals(8, payload.get("defaultVideoDurationSeconds"));
-        assertEquals("config/app.yml", payload.get("configSource"));
+        assertEquals("dir:/workspace/config", payload.get("configSource"));
         assertEquals(2, list(payload, "aspectRatios").size());
         assertEquals(2, list(payload, "stylePresets").size());
         assertEquals(2, list(payload, "imageSizes").size());
@@ -72,7 +72,7 @@ class GenerationCatalogServiceTest {
             Map.of("value", "seedance", "supportedSizes", List.of("720*1280"), "supportedDurations", List.of(8)),
             Map.of("value", "wanx", "supportedSizes", List.of("1280*720"), "supportedDurations", List.of(10))
         ));
-        when(modelResolver.configSource()).thenReturn("config/test.yml");
+        when(modelResolver.configSource()).thenReturn("dir:/workspace/config");
 
         Map<String, Object> payload = service.catalog();
 
@@ -81,7 +81,7 @@ class GenerationCatalogServiceTest {
         assertEquals("1536x1024", payload.get("defaultImageSize"));
         assertEquals("720*1280", payload.get("defaultVideoSize"));
         assertEquals(8, payload.get("defaultVideoDurationSeconds"));
-        assertEquals("config/test.yml", payload.get("configSource"));
+        assertEquals("dir:/workspace/config", payload.get("configSource"));
         assertEquals(List.of("seedance"), list(payload, "videoSizes").get(0).get("supportedModels"));
         assertEquals(List.of("seedance"), list(payload, "videoDurations").get(0).get("supportedModels"));
         assertEquals("海报 3:4", list(payload, "aspectRatios").get(0).get("label"));

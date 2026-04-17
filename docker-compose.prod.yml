@@ -1,0 +1,91 @@
+name: jiandou-prod
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: jiandou-mysql-prod
+    restart: unless-stopped
+    command:
+      - mysqld
+      - --default-time-zone=+08:00
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env.prod}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jiandou}
+      MYSQL_USER: ${MYSQL_USER:-jiandou}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env.prod}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api-spring/Dockerfile.prod
+      args:
+        MAVEN_IMAGE: ${JIANDOU_MAVEN_IMAGE:-docker.m.daocloud.io/library/maven:3.9.9-eclipse-temurin-17}
+        JAVA_IMAGE: ${JIANDOU_JAVA_IMAGE:-docker.m.daocloud.io/library/eclipse-temurin:17-jre-jammy}
+    container_name: jiandou-api-prod
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      SERVER_PORT: 8000
+      JIANDOU_APP_ENV: prod
+      JIANDOU_EXECUTION_MODE: ${JIANDOU_EXECUTION_MODE:-queue}
+      JIANDOU_DATABASE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-jiandou}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      JIANDOU_DATABASE_USER: ${MYSQL_USER:-jiandou}
+      JIANDOU_DATABASE_PASSWORD: ${MYSQL_PASSWORD}
+      JIANDOU_WEB_ORIGIN: ${JIANDOU_WEB_ORIGIN:?set JIANDOU_WEB_ORIGIN in .env.prod}
+      JIANDOU_COOKIE_SECURE: ${JIANDOU_COOKIE_SECURE:-false}
+      JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_USERNAME: ${JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_USERNAME:-admin}
+      JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_DISPLAY_NAME: ${JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_DISPLAY_NAME:-系统管理员}
+      JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_PASSWORD: ${JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_PASSWORD:?set JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_PASSWORD in .env.prod}
+      JIANDOU_STORAGE_ROOT: /app/storage
+      JIANDOU_CONFIG_DIR: /app/config
+      JIANDOU_FFMPEG_BIN: ffmpeg
+    volumes:
+      - ./config:/app/config
+      - ./storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/v2/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.prod
+      args:
+        NODE_IMAGE: ${JIANDOU_NODE_IMAGE:-docker.m.daocloud.io/library/node:20-bookworm-slim}
+        NGINX_IMAGE: ${JIANDOU_NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
+    container_name: jiandou-web-prod
+    restart: unless-stopped
+    environment:
+      JIANDOU_PUBLIC_API_BASE_URL: ${JIANDOU_PUBLIC_API_BASE_URL:-/api/v2}
+      JIANDOU_PUBLIC_STORAGE_BASE_URL: ${JIANDOU_PUBLIC_STORAGE_BASE_URL:-/storage}
+    ports:
+      - "${JIANDOU_WEB_PORT:-80}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/runtime-config.json >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  mysql_data:

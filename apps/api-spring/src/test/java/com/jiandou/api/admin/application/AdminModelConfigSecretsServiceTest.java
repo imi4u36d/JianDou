@@ -18,15 +18,16 @@ class AdminModelConfigSecretsServiceTest {
 
     @Test
     void saveApiKeysWritesSecretsOverlayFile() throws IOException {
-        Path configFile = tempDir.resolve("config").resolve("app.yml");
-        Files.createDirectories(configFile.getParent());
-        Files.writeString(configFile, "model:\n  providers:\n    qwen:\n      base_url: \"https://example.com/v1\"\n");
-        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_FILE", configFile.toString());
+        Path configDir = tempDir.resolve("config");
+        Path providerFile = configDir.resolve("model").resolve("providers").resolve("qwen.yml");
+        Files.createDirectories(providerFile.getParent());
+        Files.writeString(providerFile, "model:\n  providers:\n    qwen:\n      base_url: \"https://example.com/v1\"\n");
+        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
         AdminModelConfigSecretsService service = new AdminModelConfigSecretsService(new GenerationConfigPathLocator(env));
 
         service.saveApiKeys(Map.of("qwen", "secret-key", "seedream", "image-key"));
 
-        Path secretsFile = configFile.getParent().resolve("app.secrets.yml");
+        Path secretsFile = configDir.resolve("model").resolve("providers.secrets.yml");
         String content = Files.readString(secretsFile);
         assertTrue(content.contains("qwen"));
         assertTrue(content.contains("secret-key"));
@@ -36,10 +37,11 @@ class AdminModelConfigSecretsServiceTest {
 
     @Test
     void saveApiKeysPreservesExistingSecrets() throws IOException {
-        Path configFile = tempDir.resolve("config").resolve("app.yml");
-        Files.createDirectories(configFile.getParent());
-        Files.writeString(configFile, "model:\n  providers:\n    qwen:\n      base_url: \"https://example.com/v1\"\n");
-        Path secretsFile = configFile.getParent().resolve("app.secrets.yml");
+        Path configDir = tempDir.resolve("config");
+        Path providerFile = configDir.resolve("model").resolve("providers").resolve("qwen.yml");
+        Files.createDirectories(providerFile.getParent());
+        Files.writeString(providerFile, "model:\n  providers:\n    qwen:\n      base_url: \"https://example.com/v1\"\n");
+        Path secretsFile = configDir.resolve("model").resolve("providers.secrets.yml");
         Files.writeString(
             secretsFile,
             """
@@ -51,7 +53,7 @@ class AdminModelConfigSecretsServiceTest {
                       api_key: "image-key"
                 """
         );
-        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_FILE", configFile.toString());
+        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
         AdminModelConfigSecretsService service = new AdminModelConfigSecretsService(new GenerationConfigPathLocator(env));
 
         service.saveApiKeys(Map.of("qwen", "new-secret"));

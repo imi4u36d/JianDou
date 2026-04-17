@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -243,7 +242,13 @@ public class ModelRuntimePropertiesResolver {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("value", entry.getKey());
             item.put("label", firstNonBlank(stringValue(section.get("label")), entry.getKey()));
-            item.put("provider", trimToEmpty(stringValue(section.get("provider"))));
+            String provider = trimToEmpty(stringValue(section.get("provider")));
+            String providerSection = provider.isBlank() ? "" : "model.providers." + provider;
+            item.put("provider", provider);
+            item.put("vendor", firstNonBlank(
+                trimToEmpty(stringValue(section.get("vendor"))),
+                providerSection.isBlank() ? "" : current.value(providerSection, "vendor")
+            ));
             item.put("family", trimToEmpty(stringValue(section.get("family"))));
             item.put("description", trimToEmpty(stringValue(section.get("description"))));
             item.put("kind", targetKind);
@@ -443,15 +448,8 @@ public class ModelRuntimePropertiesResolver {
             }
             GenerationConfigPathLocator.LocatedConfig locatedConfig = configPathLocator.locateAppConfig();
             Path secretsConfigPath = configPathLocator.resolveSecretsConfigPath();
-            ConfigFileState fileState = ConfigFileState.from(locatedConfig.configFile());
-            ConfigFileState secretsFileState = ConfigFileState.from(secretsConfigPath);
-            // 缓存在 TTL 到期、配置路径变化或文件指纹变化时失效。
-            if (cacheEnabled() && latest != null && latest.matches(fileState, locatedConfig.configFile(), secretsFileState, secretsConfigPath)) {
-                cachedSnapshot = latest.refresh(now);
-                return latest.snapshot();
-            }
             ConfigSnapshot loaded = loadSnapshot(locatedConfig, secretsConfigPath);
-            cachedSnapshot = new CachedSnapshot(loaded, locatedConfig.configFile(), fileState, secretsConfigPath, secretsFileState, now);
+            cachedSnapshot = new CachedSnapshot(loaded, now);
             return loaded;
         }
     }
@@ -462,26 +460,28 @@ public class ModelRuntimePropertiesResolver {
      * @return 处理结果
      */
     private ConfigSnapshot loadSnapshot(GenerationConfigPathLocator.LocatedConfig locatedConfig, Path secretsConfigPath) {
-        Path configPath = locatedConfig.configFile();
-        if (configPath == null || !Files.exists(configPath)) {
-            String message = "Generation config file missing: " + locatedConfig.detail();
+        List<Path> configFiles = locatedConfig.configFiles();
+        if (configFiles == null || configFiles.isEmpty()) {
+            String message = "Generation config directory missing: " + locatedConfig.detail();
             log.warn(message);
             return failOrSnapshot(Map.of(), locatedConfig.source(), message, null);
         }
         try {
-            String source = "file:" + configPath.toAbsolutePath().normalize();
+            String source = configFiles.stream()
+                .map(path -> "file:" + path.toAbsolutePath().normalize())
+                .collect(Collectors.joining(" + "));
             if (secretsConfigPath != null && Files.exists(secretsConfigPath)) {
                 source = source + " + file:" + secretsConfigPath.toAbsolutePath().normalize();
             }
             return new ConfigSnapshot(
-                loadConfigTree(configPath, secretsConfigPath),
+                loadConfigTree(configFiles, secretsConfigPath),
                 source,
                 List.of()
             );
         } catch (RuntimeException ex) {
-            String message = "Failed to load generation config from " + configPath.toAbsolutePath().normalize() + ": " + ex.getMessage();
+            String message = "Failed to load generation config from " + locatedConfig.source() + ": " + ex.getMessage();
             log.error(message, ex);
-            return failOrSnapshot(Map.of(), "error:" + configPath.toAbsolutePath().normalize(), message, ex);
+            return failOrSnapshot(Map.of(), "error:" + locatedConfig.source(), message, ex);
         }
     }
 
@@ -531,11 +531,14 @@ public class ModelRuntimePropertiesResolver {
 
     /**
      * 加载配置Tree。
-     * @param configPath 配置路径值
+     * @param configPaths 配置路径值
      * @return 处理结果
      */
-    private Map<String, Object> loadConfigTree(Path configPath, Path secretsConfigPath) {
-        Map<String, Object> base = loadYamlTree(configPath);
+    private Map<String, Object> loadConfigTree(List<Path> configPaths, Path secretsConfigPath) {
+        Map<String, Object> base = new LinkedHashMap<>();
+        for (Path configPath : configPaths) {
+            base = mergeMaps(base, loadYamlTree(configPath));
+        }
         if (secretsConfigPath == null || !Files.isRegularFile(secretsConfigPath)) {
             return base;
         }
@@ -1066,79 +1069,13 @@ public class ModelRuntimePropertiesResolver {
     /**
      * 处理Cached快照。
      * @param snapshot 快照值
-     * @param configPath 配置路径值
-     * @param fileState 文件状态值
      * @param loadedAtMillis loadedAtMillis值
      * @return 处理结果
      */
     private record CachedSnapshot(
         ConfigSnapshot snapshot,
-        Path configPath,
-        ConfigFileState fileState,
-        Path secretsConfigPath,
-        ConfigFileState secretsFileState,
         long loadedAtMillis
-    ) {
-
-        /**
-         * 处理refresh。
-         * @param now 当前值
-         * @return 处理结果
-         */
-        private CachedSnapshot refresh(long now) {
-            return new CachedSnapshot(snapshot, configPath, fileState, secretsConfigPath, secretsFileState, now);
-        }
-
-        /**
-         * 检查是否matches。
-         * @param latestFileState latest文件状态值
-         * @param latestPath latest路径值
-         * @param latestSecretsFileState latest secrets 文件状态值
-         * @param latestSecretsPath latest secrets 路径值
-         * @return 是否满足条件
-         */
-        private boolean matches(
-            ConfigFileState latestFileState,
-            Path latestPath,
-            ConfigFileState latestSecretsFileState,
-            Path latestSecretsPath
-        ) {
-            return Objects.equals(configPath, latestPath)
-                && Objects.equals(fileState, latestFileState)
-                && Objects.equals(secretsConfigPath, latestSecretsPath)
-                && Objects.equals(secretsFileState, latestSecretsFileState);
-        }
-    }
-
-    /**
-     * 处理配置文件状态。
-     * @param exists exists值
-     * @param modifiedTime modified时间值
-     * @param size size值
-     * @return 处理结果
-     */
-    private record ConfigFileState(boolean exists, long modifiedTime, long size) {
-
-        /**
-         * 处理from。
-         * @param path 路径值
-         * @return 处理结果
-         */
-        private static ConfigFileState from(Path path) {
-            if (path == null || !Files.exists(path)) {
-                return new ConfigFileState(false, -1L, -1L);
-            }
-            try {
-                return new ConfigFileState(
-                    true,
-                    Files.getLastModifiedTime(path).toMillis(),
-                    Files.size(path)
-                );
-            } catch (Exception ex) {
-                return new ConfigFileState(true, -1L, -1L);
-            }
-        }
-    }
+    ) {}
 
     /**
      * 处理配置Section。

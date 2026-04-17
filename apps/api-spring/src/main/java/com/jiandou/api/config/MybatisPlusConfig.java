@@ -3,6 +3,8 @@ package com.jiandou.api.config;
 import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
+import com.jiandou.api.auth.infrastructure.mybatis.SysInviteCodeMapper;
+import com.jiandou.api.auth.infrastructure.mybatis.SysUserMapper;
 import com.jiandou.api.task.infrastructure.mybatis.TaskAttemptMapper;
 import com.jiandou.api.task.infrastructure.mybatis.TaskModelCallMapper;
 import com.jiandou.api.task.infrastructure.mybatis.MaterialAssetMapper;
@@ -70,6 +72,8 @@ public class MybatisPlusConfig {
         configuration.addMapper(SystemLogMapper.class);
         configuration.addMapper(TaskQueueEventMapper.class);
         configuration.addMapper(WorkerInstanceMapper.class);
+        configuration.addMapper(SysUserMapper.class);
+        configuration.addMapper(SysInviteCodeMapper.class);
 
         GlobalConfig config = new GlobalConfig();
         config.setBanner(false);

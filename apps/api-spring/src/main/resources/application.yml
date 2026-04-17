@@ -3,14 +3,20 @@ spring:
     name: JianDou Spring API
   datasource:
     url: ${JIANDOU_DATABASE_URL:jdbc:mysql://127.0.0.1:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
-    username: ${JIANDOU_DATABASE_USER:root}
-    password: ${JIANDOU_DATABASE_PASSWORD:root}
+    username: ${JIANDOU_DATABASE_USER:jiandou}
+    password: ${JIANDOU_DATABASE_PASSWORD:JianDou_ai123!}
     driver-class-name: ${JIANDOU_DB_DRIVER:com.mysql.cj.jdbc.Driver}
 
 server:
   port: ${SERVER_PORT:8000}
+  forward-headers-strategy: framework
   error:
     include-message: always
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: ${JIANDOU_COOKIE_SECURE:false}
 
 logging:
   level:
@@ -22,6 +28,14 @@ jiandou:
     env: ${JIANDOU_APP_ENV:dev}
     execution-mode: ${JIANDOU_EXECUTION_MODE:queue}
     web-origin: ${JIANDOU_WEB_ORIGIN:http://127.0.0.1:5173,http://localhost:5173}
+    cookie-secure: ${JIANDOU_COOKIE_SECURE:false}
+  auth:
+    invite-default-expiry-days: ${JIANDOU_AUTH_INVITE_DEFAULT_EXPIRY_DAYS:7}
+    bootstrap:
+      initial-admin:
+        username: ${JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_USERNAME:admin}
+        display-name: ${JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_DISPLAY_NAME:系统管理员}
+        password: ${JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_PASSWORD:}
   storage:
     root-dir: ${JIANDOU_STORAGE_ROOT:../../storage}
     uploads-dir: uploads

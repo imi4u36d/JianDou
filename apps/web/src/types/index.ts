@@ -4,6 +4,54 @@
 /**
  * 索引相关类型定义。
  */
+export type UserRole = "ADMIN" | "USER";
+
+/**
+ * 用户状态。
+ */
+export type UserStatus = "ACTIVE" | "DISABLED";
+
+/**
+ * 邀请码状态。
+ */
+export type InviteStatus = "UNUSED" | "USED" | "REVOKED" | "EXPIRED";
+
+/**
+ * 当前登录用户接口定义。
+ */
+export interface AuthenticatedUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+}
+
+/**
+ * 登录态接口定义。
+ */
+export interface AuthSession {
+  authenticated: boolean;
+  user: AuthenticatedUser | null;
+}
+
+/**
+ * 登录请求接口定义。
+ */
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+/**
+ * 激活邀请码请求接口定义。
+ */
+export interface ActivateInviteRequest {
+  code: string;
+  username: string;
+  displayName: string;
+  password: string;
+}
+
 export type TaskStatus =
   | "PENDING"
   | "PAUSED"
@@ -316,6 +364,7 @@ export interface GenerationOptionsResponse {
  */
 export interface AdminModelConfigSummary {
   providerCount: number;
+  vendorCount: number;
   modelCount: number;
   readyModelCount: number;
   readyTextModelCount: number;
@@ -344,6 +393,7 @@ export interface AdminModelConfigDefaults {
 export interface AdminModelConfigProviderItem {
   key: string;
   provider: string;
+  vendor: string;
   kinds: string[];
   baseUrl: string;
   taskBaseUrl: string;
@@ -364,6 +414,7 @@ export interface AdminModelConfigModelItem {
   label: string;
   kind: string;
   provider: string;
+  vendor: string;
   family: string;
   description: string;
   fallbackModel: string;
@@ -508,7 +559,7 @@ export interface RateTaskEffectRequest {
 export interface TaskFilters {
   q?: string;
   status?: TaskStatus | "all";
-  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "effect_rating_desc";
+  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "status_desc" | "effect_rating_desc";
 }
 
 /**
@@ -855,7 +906,53 @@ export interface AdminTraceEvent extends TaskTraceEvent {
  * 管理任务筛选条件接口定义。
  */
 export interface AdminTaskFilters extends TaskFilters {
-  sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "status_desc" | "effect_rating_desc";
+}
+
+/**
+ * 管理端用户接口定义。
+ */
+export interface AdminUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  lastLoginAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 管理端邀请码参与人接口定义。
+ */
+export interface AdminInviteActor {
+  id: number;
+  username: string;
+  displayName: string;
+}
+
+/**
+ * 管理端邀请码接口定义。
+ */
+export interface AdminInvite {
+  id: number;
+  code: string;
+  role: UserRole;
+  status: InviteStatus;
+  expiresAt?: string | null;
+  createdBy?: AdminInviteActor | null;
+  usedBy?: AdminInviteActor | null;
+  usedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 创建管理端邀请码请求接口定义。
+ */
+export interface CreateAdminInviteRequest {
+  role: UserRole;
+  expiresAt?: string | null;
 }
 
 /**

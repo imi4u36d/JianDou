@@ -1,0 +1,20 @@
+model:
+  providers:
+    qwen:
+      provider: "qwen"
+      vendor: "aliyun"
+      api_key: ""
+      base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      extras:
+        use_responses_api: true
+        timeout_seconds: 300
+    wan:
+      provider: "wan"
+      vendor: "aliyun"
+      api_key: ""
+      base_url: "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
+      extras:
+        task_base_url: "https://dashscope.aliyuncs.com/api/v1/tasks"
+        poll_interval_seconds: 8
+        poll_timeout_seconds: 600
+        prompt_extend: false

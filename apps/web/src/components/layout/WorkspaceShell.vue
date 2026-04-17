@@ -6,7 +6,7 @@
     <aside class="workspace-sidebar" :class="{ 'workspace-sidebar-open': sidebarOpen }">
       <div class="workspace-sidebar__top">
         <div class="sidebar-avatar">
-          <span>JD</span>
+          <span>{{ avatarInitials }}</span>
         </div>
 
         <nav class="sidebar-nav">
@@ -37,6 +37,28 @@
             <small>{{ developerNote }}</small>
           </div>
         </label>
+
+        <div class="sidebar-user-card">
+          <div class="sidebar-user-card__header">
+            <div class="sidebar-user-card__avatar">{{ avatarInitials }}</div>
+            <div>
+              <p class="sidebar-user-card__name">{{ currentUser?.displayName || "未登录" }}</p>
+              <p class="sidebar-user-card__meta">{{ currentUser?.username || "-" }} · {{ currentUser?.role || "-" }}</p>
+            </div>
+          </div>
+          <div class="sidebar-user-card__actions">
+            <RouterLink
+              v-if="isAdmin"
+              class="sidebar-user-card__link"
+              to="/admin/tasks"
+            >
+              管理端
+            </RouterLink>
+            <button class="sidebar-user-card__logout" type="button" @click="handleLogout">
+              退出登录
+            </button>
+          </div>
+        </div>
       </section>
     </aside>
 
@@ -51,12 +73,18 @@
 
       <header class="workspace-header">
         <h1 class="workspace-header__title">{{ currentTitle }}</h1>
-        <div class="workspace-brand">
-          <div class="workspace-brand__mark">
-            <span class="workspace-brand__mark-j">j</span>
-            <span class="workspace-brand__mark-d">d</span>
+        <div class="workspace-header__actions">
+          <div class="workspace-header__user">
+            <span class="workspace-header__user-name">{{ currentUser?.displayName || currentUser?.username }}</span>
+            <span class="workspace-header__user-role">{{ currentUser?.role }}</span>
           </div>
-          <span>煎豆工作台</span>
+          <div class="workspace-brand">
+            <div class="workspace-brand__mark">
+              <span class="workspace-brand__mark-j">j</span>
+              <span class="workspace-brand__mark-d">d</span>
+            </div>
+            <span>煎豆工作台</span>
+          </div>
         </div>
       </header>
 
@@ -72,15 +100,18 @@
  * 工作区组件。
  */
 import { computed, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import { loadDeveloperSettings, saveDeveloperSettings } from "@/workbench/developer-settings";
 
 const route = useRoute();
+const router = useRouter();
+const authState = useAuthSessionState();
 
 const navItems = [
   {
-    to: "/",
-    label: "首页",
+    to: "/workspace",
+    label: "工作台",
     icon: `
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 11.5 12 4l9 7.5" />
@@ -127,8 +158,15 @@ const navItems = [
 const sidebarOpen = ref(false);
 const developerSettings = reactive(loadDeveloperSettings());
 
+const currentUser = computed(() => authState.user.value);
+const isAdmin = computed(() => authState.isAdmin.value);
+const avatarInitials = computed(() => {
+  const source = currentUser.value?.displayName || currentUser.value?.username || "JD";
+  return source.slice(0, 2).toUpperCase();
+});
+
 function isActive(target: string) {
-  return target === "/" ? route.path === "/" : route.path.startsWith(target);
+  return route.path === target || route.path.startsWith(`${target}/`);
 }
 
 const currentTitle = computed(() => {
@@ -142,6 +180,11 @@ const developerNote = computed(() => {
   }
   return "保持完整生成链路启用。";
 });
+
+async function handleLogout() {
+  await logoutAndClearSession();
+  await router.replace("/login");
+}
 
 watch(
   () => route.fullPath,
@@ -362,6 +405,70 @@ watch(
   line-height: 1.55;
 }
 
+.sidebar-user-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sidebar-user-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-user-card__avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 169, 77, 0.9), rgba(71, 193, 255, 0.88));
+  color: #06111a;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.sidebar-user-card__name {
+  margin: 0;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sidebar-user-card__meta {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.76rem;
+}
+
+.sidebar-user-card__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.sidebar-user-card__link,
+.sidebar-user-card__logout {
+  flex: 1;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.sidebar-user-card__logout {
+  cursor: pointer;
+}
+
 .workspace-main {
   position: relative;
   z-index: 1;
@@ -389,6 +496,29 @@ watch(
   font-weight: 700;
   letter-spacing: -0.04em;
   color: #f5f7fb;
+}
+
+.workspace-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.workspace-header__user {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.workspace-header__user-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.workspace-header__user-role {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.74rem;
 }
 
 .workspace-brand {

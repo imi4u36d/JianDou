@@ -3,6 +3,7 @@
  */
 import { deleteJson, getJson, postJson } from "./client";
 import type {
+  AdminInvite,
   AdminModelConfigKeyUpdateRequest,
   AdminModelConfigResponse,
   AdminModelConfigValidationResponse,
@@ -11,6 +12,8 @@ import type {
   AdminTaskBatchResult,
   AdminTaskFilters,
   AdminTraceEvent,
+  AdminUser,
+  CreateAdminInviteRequest,
   RateTaskEffectRequest,
   TaskDeleteResult,
   TaskDetail,
@@ -155,4 +158,28 @@ export function bulkDeleteAdminTasks(taskIds: string[]) {
  */
 export function bulkRetryAdminTasks(taskIds: string[]) {
   return postJson<AdminTaskBatchResult>("/admin/tasks/bulk-retry", { taskIds });
+}
+
+export function fetchAdminUsers() {
+  return getJson<AdminUser[]>("/admin/users");
+}
+
+export function disableAdminUser(id: number) {
+  return postJson<AdminUser>(`/admin/users/${id}/disable`, {});
+}
+
+export function enableAdminUser(id: number) {
+  return postJson<AdminUser>(`/admin/users/${id}/enable`, {});
+}
+
+export function fetchAdminInvites() {
+  return getJson<AdminInvite[]>("/admin/invites");
+}
+
+export function createAdminInvite(payload: CreateAdminInviteRequest) {
+  return postJson<AdminInvite>("/admin/invites", payload);
+}
+
+export function revokeAdminInvite(id: number) {
+  return postJson<AdminInvite>(`/admin/invites/${id}/revoke`, {});
 }

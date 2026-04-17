@@ -1,3 +1,73 @@
+CREATE TABLE IF NOT EXISTS `biz_tasks` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `task_id` varchar(64) NOT NULL COMMENT '任务业务ID',
+  `task_type` varchar(32) NOT NULL DEFAULT 'generation' COMMENT '任务类型',
+  `title` varchar(255) NOT NULL DEFAULT '' COMMENT '任务标题',
+  `description` text COMMENT '任务描述',
+  `aspect_ratio` varchar(16) NOT NULL DEFAULT '' COMMENT '画幅比例',
+  `min_duration_seconds` int unsigned NOT NULL DEFAULT '0' COMMENT '最小时长秒',
+  `max_duration_seconds` int unsigned NOT NULL DEFAULT '0' COMMENT '最大时长秒',
+  `output_count` int unsigned NOT NULL DEFAULT '0' COMMENT '输出数量',
+  `source_primary_asset_id` varchar(64) NOT NULL DEFAULT '' COMMENT '主来源素材ID',
+  `source_file_name` varchar(255) NOT NULL DEFAULT '' COMMENT '来源文件名',
+  `source_asset_ids_json` longtext COMMENT '来源素材ID列表',
+  `source_file_names_json` longtext COMMENT '来源文件名列表',
+  `request_payload_json` longtext COMMENT '请求快照',
+  `context_json` longtext COMMENT '执行上下文',
+  `intro_template` varchar(255) NOT NULL DEFAULT '' COMMENT '片头模板',
+  `outro_template` varchar(255) NOT NULL DEFAULT '' COMMENT '片尾模板',
+  `creative_prompt` text COMMENT '创意提示词',
+  `task_seed` int DEFAULT NULL COMMENT '任务种子',
+  `effect_rating` int DEFAULT NULL COMMENT '效果评分',
+  `effect_rating_note` varchar(1000) NOT NULL DEFAULT '' COMMENT '效果评分备注',
+  `rated_at` datetime DEFAULT NULL COMMENT '评分时间',
+  `model_provider` varchar(64) NOT NULL DEFAULT '' COMMENT '模型提供方',
+  `execution_mode` varchar(32) NOT NULL DEFAULT 'queue' COMMENT '执行模式',
+  `editing_mode` varchar(32) NOT NULL DEFAULT '' COMMENT '编辑模式',
+  `status` varchar(32) NOT NULL DEFAULT 'PENDING' COMMENT '任务状态',
+  `progress` int unsigned NOT NULL DEFAULT '0' COMMENT '任务进度',
+  `error_code` varchar(120) NOT NULL DEFAULT '' COMMENT '错误码',
+  `error_message` text COMMENT '错误信息',
+  `plan_json` longtext COMMENT '规划信息',
+  `retry_count` int unsigned NOT NULL DEFAULT '0' COMMENT '重试次数',
+  `timezone_offset_minutes` int NOT NULL DEFAULT '480' COMMENT '业务时区偏移分钟（东八区=480）',
+  `started_at` datetime DEFAULT NULL COMMENT '开始时间',
+  `finished_at` datetime DEFAULT NULL COMMENT '结束时间',
+  `is_deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '逻辑删除: 0-未删, 1-已删',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间（业务时区：UTC+8）',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间（业务时区：UTC+8）',
+  `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_task_id` (`task_id`),
+  KEY `idx_biz_tasks_status_create_time` (`status`, `create_time`),
+  KEY `idx_biz_tasks_effect_rating` (`effect_rating`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务主表';
+
+CREATE TABLE IF NOT EXISTS `biz_task_status_history` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `task_status_history_id` varchar(64) NOT NULL COMMENT '状态历史业务ID',
+  `task_id` varchar(64) NOT NULL DEFAULT '' COMMENT '任务业务ID',
+  `previous_status` varchar(32) NOT NULL DEFAULT '' COMMENT '前一状态',
+  `current_status` varchar(32) NOT NULL DEFAULT '' COMMENT '当前状态',
+  `progress` int unsigned NOT NULL DEFAULT '0' COMMENT '状态进度',
+  `stage` varchar(64) NOT NULL DEFAULT '' COMMENT '阶段名称',
+  `event` varchar(128) NOT NULL DEFAULT '' COMMENT '事件名称',
+  `message` text COMMENT '状态说明',
+  `payload_json` longtext COMMENT '扩展载荷',
+  `change_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '状态变更时间',
+  `operator_type` varchar(32) NOT NULL DEFAULT '' COMMENT '操作方类型',
+  `operator_id` varchar(64) NOT NULL DEFAULT '' COMMENT '操作方标识',
+  `timezone_offset_minutes` int NOT NULL DEFAULT '480' COMMENT '业务时区偏移分钟（东八区=480）',
+  `is_deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '逻辑删除: 0-未删, 1-已删',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间（业务时区：UTC+8）',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间（业务时区：UTC+8）',
+  `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_task_status_history_id` (`task_status_history_id`),
+  KEY `idx_task_status_history_task_time` (`task_id`, `change_time`),
+  KEY `idx_task_status_history_current_status` (`current_status`, `change_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务状态变更历史表';
+
 CREATE TABLE IF NOT EXISTS `biz_task_attempts` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `task_attempt_id` varchar(64) NOT NULL COMMENT '任务尝试业务ID',
@@ -24,17 +94,10 @@ CREATE TABLE IF NOT EXISTS `biz_task_attempts` (
   `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_attempt_id` (`task_attempt_id`),
-  UNIQUE KEY `uk_task_attempts_task_no` (`task_id`,`attempt_no`),
-  KEY `idx_task_attempts_task_id_attempt_no` (`task_id`,`attempt_no`),
-  KEY `idx_task_attempts_status_queue_entered_at` (`status`,`queue_entered_at`),
-  KEY `idx_task_attempts_worker_status` (`worker_instance_id`,`status`)
+  UNIQUE KEY `uk_task_attempts_task_no` (`task_id`, `attempt_no`),
+  KEY `idx_task_attempts_status_queue_entered_at` (`status`, `queue_entered_at`),
+  KEY `idx_task_attempts_worker_status` (`worker_instance_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务执行尝试表';
-
-CREATE INDEX `idx_task_attempts_status_queue_entered_at`
-ON `biz_task_attempts` (`status`, `queue_entered_at`);
-
-CREATE INDEX `idx_task_attempts_worker_status`
-ON `biz_task_attempts` (`worker_instance_id`, `status`);
 
 CREATE TABLE IF NOT EXISTS `biz_task_stage_runs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -60,7 +123,7 @@ CREATE TABLE IF NOT EXISTS `biz_task_stage_runs` (
   `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_stage_run_id` (`task_stage_run_id`),
-  KEY `idx_task_stage_runs_attempt_stage` (`attempt_id`,`stage_seq`)
+  KEY `idx_task_stage_runs_attempt_stage` (`attempt_id`, `stage_seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务阶段执行表';
 
 CREATE TABLE IF NOT EXISTS `biz_task_queue_events` (
@@ -81,9 +144,9 @@ CREATE TABLE IF NOT EXISTS `biz_task_queue_events` (
   `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_queue_event_id` (`task_queue_event_id`),
-  KEY `idx_task_queue_events_task_time` (`task_id`,`event_time`),
-  KEY `idx_task_queue_events_attempt_time` (`attempt_id`,`event_time`),
-  KEY `idx_task_queue_events_worker_time` (`worker_instance_id`,`event_time`)
+  KEY `idx_task_queue_events_task_time` (`task_id`, `event_time`),
+  KEY `idx_task_queue_events_attempt_time` (`attempt_id`, `event_time`),
+  KEY `idx_task_queue_events_worker_time` (`worker_instance_id`, `event_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务队列事件表（入队/claim/重入队/完成等）';
 
 CREATE TABLE IF NOT EXISTS `biz_worker_instances` (
@@ -105,8 +168,8 @@ CREATE TABLE IF NOT EXISTS `biz_worker_instances` (
   `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_worker_instance_id` (`worker_instance_id`),
-  KEY `idx_worker_instances_status_heartbeat` (`status`,`last_heartbeat_at`),
-  KEY `idx_worker_instances_type_started` (`worker_type`,`started_at`)
+  KEY `idx_worker_instances_status_heartbeat` (`status`, `last_heartbeat_at`),
+  KEY `idx_worker_instances_type_started` (`worker_type`, `started_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Worker 实例表（进程存活、心跳、类型）';
 
 CREATE TABLE IF NOT EXISTS `biz_task_model_calls` (
@@ -144,7 +207,7 @@ CREATE TABLE IF NOT EXISTS `biz_task_model_calls` (
   `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_model_call_id` (`task_model_call_id`),
-  KEY `idx_task_model_calls_task_id_start_time` (`task_id`,`started_at`)
+  KEY `idx_task_model_calls_task_id_start_time` (`task_id`, `started_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务模型调用记录表';
 
 CREATE TABLE IF NOT EXISTS `biz_task_results` (
@@ -176,7 +239,7 @@ CREATE TABLE IF NOT EXISTS `biz_task_results` (
   `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_result_id` (`task_result_id`),
-  UNIQUE KEY `uk_task_results_task_clip` (`task_id`,`clip_index`)
+  UNIQUE KEY `uk_task_results_task_clip` (`task_id`, `clip_index`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='任务结果表';
 
 CREATE TABLE IF NOT EXISTS `biz_system_logs` (
@@ -243,14 +306,35 @@ CREATE TABLE IF NOT EXISTS `biz_material_assets` (
   UNIQUE KEY `uk_material_asset_id` (`material_asset_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='素材表';
 
-ALTER TABLE `biz_tasks`
-  ADD COLUMN `task_seed` int DEFAULT NULL COMMENT '任务种子',
-  ADD COLUMN `effect_rating` int DEFAULT NULL COMMENT '效果评分',
-  ADD COLUMN `effect_rating_note` varchar(1000) NOT NULL DEFAULT '' COMMENT '效果评分备注',
-  ADD COLUMN `rated_at` datetime DEFAULT NULL COMMENT '评分时间';
+CREATE TABLE IF NOT EXISTS `sys_user` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `username` varchar(64) NOT NULL COMMENT '登录用户名',
+  `display_name` varchar(128) NOT NULL DEFAULT '' COMMENT '显示名称',
+  `password_hash` varchar(255) NOT NULL COMMENT '密码哈希',
+  `role` varchar(16) NOT NULL DEFAULT 'USER' COMMENT '角色',
+  `status` varchar(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态',
+  `last_login_at` datetime DEFAULT NULL COMMENT '最近登录时间',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_sys_user_username` (`username`),
+  KEY `idx_sys_user_role_status` (`role`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='系统用户表';
 
-ALTER TABLE `biz_tasks`
-  DROP COLUMN `platform`;
-
-CREATE INDEX `idx_biz_tasks_effect_rating`
-ON `biz_tasks` (`effect_rating`, `create_time`);
+CREATE TABLE IF NOT EXISTS `sys_invite_code` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `code` varchar(64) NOT NULL COMMENT '邀请码',
+  `role` varchar(16) NOT NULL DEFAULT 'USER' COMMENT '邀请码角色',
+  `status` varchar(16) NOT NULL DEFAULT 'UNUSED' COMMENT '邀请码状态',
+  `expires_at` datetime DEFAULT NULL COMMENT '过期时间',
+  `created_by` bigint unsigned DEFAULT NULL COMMENT '创建人ID',
+  `used_by` bigint unsigned DEFAULT NULL COMMENT '使用人ID',
+  `used_at` datetime DEFAULT NULL COMMENT '使用时间',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_sys_invite_code_code` (`code`),
+  KEY `idx_sys_invite_code_status_expires` (`status`, `expires_at`),
+  KEY `idx_sys_invite_code_created_by` (`created_by`),
+  KEY `idx_sys_invite_code_used_by` (`used_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='系统邀请码表';

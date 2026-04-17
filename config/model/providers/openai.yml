@@ -1,0 +1,7 @@
+model:
+  providers:
+    openai:
+      provider: "openai"
+      vendor: "openai"
+      api_key: ""
+      base_url: "https://api.openai.com/v1"

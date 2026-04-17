@@ -1,0 +1,6 @@
+pipeline:
+  default_aspect_ratio: "9:16"
+  max_output_count: 10
+  max_source_minutes: 120
+  default_intro_template: "hook"
+  default_outro_template: "brand"

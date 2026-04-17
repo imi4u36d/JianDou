@@ -4,13 +4,13 @@
       <header class="settings-page-head">
         <p class="panel-eyebrow">模型设置</p>
         <h2 class="page-title">运行时模型配置</h2>
-        <p class="settings-page-head__summary">端点和模型目录由后端维护，前端只负责补充各 provider 的 API Key。</p>
+        <p class="settings-page-head__summary">端点和模型目录由后端维护，前端只负责补充各模型接入的 API Key。</p>
       </header>
 
       <section class="settings-section">
         <div class="settings-section__head">
           <div>
-            <h3>Provider 密钥</h3>
+            <h3>模型接入密钥</h3>
             <p>输入新 key 后可先校验，再保存到后端 secrets 覆盖文件并立即刷新运行时。</p>
           </div>
           <div class="settings-actions">
@@ -47,14 +47,15 @@
             <article class="surface-panel summary-card summary-card-primary">
               <p class="summary-card__eyebrow">运行时来源</p>
               <strong>{{ displayedConfig?.configSource || "未知" }}</strong>
-              <p>Provider {{ displayedConfig?.summary.providerCount ?? 0 }} 个 · 模型 {{ displayedConfig?.summary.modelCount ?? 0 }} 个</p>
+              <p>厂商 {{ displayedConfig?.summary.vendorCount ?? 0 }} 个 · 模型接入 {{ displayedConfig?.summary.providerCount ?? 0 }} 个</p>
+              <p>模型 {{ displayedConfig?.summary.modelCount ?? 0 }} 个</p>
               <p>就绪 {{ displayedConfig?.summary.readyModelCount ?? 0 }}/{{ displayedConfig?.summary.modelCount ?? 0 }}</p>
             </article>
 
             <article class="surface-panel summary-card">
               <p class="summary-card__eyebrow">草稿状态</p>
               <strong>{{ pendingUpdateCount > 0 ? `待保存 ${pendingUpdateCount} 项` : "无待保存改动" }}</strong>
-              <p>已配置 Key {{ configuredProviderCount }}/{{ providerRows.length }}</p>
+              <p>已配置接入 Key {{ configuredProviderCount }}/{{ providerRows.length }}</p>
               <p v-if="successMessage">{{ successMessage }}</p>
               <p v-else-if="validationResult">{{ validationResult.valid ? "校验通过" : "校验未通过" }}</p>
               <p v-else>可先校验，再保存到后端。</p>
@@ -97,69 +98,86 @@
 
           <section class="settings-block">
             <div class="settings-block__head">
-              <h4>Provider Key 输入</h4>
+              <h4>模型接入 Key 输入</h4>
               <span class="surface-chip">{{ providerRows.length }} 个</span>
             </div>
 
-            <div class="provider-grid">
-              <article v-for="(provider, index) in providerRows" :key="provider.key" class="surface-panel provider-card">
-                <div class="provider-card__head">
+            <div class="vendor-groups">
+              <section v-for="group in groupedProviders" :key="group.vendor" class="vendor-group">
+                <div class="vendor-group__head">
                   <div>
-                    <p class="provider-card__eyebrow">{{ provider.key }}</p>
-                    <h5>{{ provider.provider || provider.key }}</h5>
+                    <p class="provider-card__eyebrow">厂商</p>
+                    <h5>{{ group.title }}</h5>
                   </div>
-                  <span class="status-pill" :class="resolveProviderStatus(provider).tone">
-                    {{ resolveProviderStatus(provider).label }}
-                  </span>
+                  <span class="surface-chip">{{ group.items.length }} 个接入</span>
                 </div>
 
-                <label class="settings-field">
-                  <span>API Key</span>
-                  <input
-                    v-model="providerDrafts[index].apiKey"
-                    class="field-input"
-                    type="password"
-                    :placeholder="provider.apiKeyConfigured ? '已存在 key，留空表示不修改' : '请输入新的 API Key'"
-                  />
-                </label>
+                <div class="provider-grid">
+                  <article v-for="provider in group.items" :key="provider.key" class="surface-panel provider-card">
+                    <div class="provider-card__head">
+                      <div>
+                        <p class="provider-card__eyebrow">{{ provider.key }}</p>
+                        <h5>{{ provider.provider || provider.key }}</h5>
+                      </div>
+                      <span class="status-pill" :class="resolveProviderStatus(provider).tone">
+                        {{ resolveProviderStatus(provider).label }}
+                      </span>
+                    </div>
 
-                <div class="summary-list provider-card__summary">
-                  <div>
-                    <span>Endpoint Host</span>
-                    <strong>{{ provider.endpointHost || "未配置" }}</strong>
-                  </div>
-                  <div>
-                    <span>Task Host</span>
-                    <strong>{{ provider.taskEndpointHost || "未配置" }}</strong>
-                  </div>
-                  <div>
-                    <span>模型数</span>
-                    <strong>{{ provider.modelNames.length }}</strong>
-                  </div>
-                  <div>
-                    <span>类型</span>
-                    <strong>{{ provider.kinds.join(" / ") || "未关联" }}</strong>
-                  </div>
-                </div>
+                    <label class="settings-field">
+                      <span>API Key</span>
+                      <input
+                        v-model="providerDrafts[provider.draftIndex].apiKey"
+                        class="field-input"
+                        type="password"
+                        :placeholder="provider.apiKeyConfigured ? '已存在 key，留空表示不修改' : '请输入新的 API Key'"
+                      />
+                    </label>
 
-                <div class="chip-list">
-                  <span class="meta-chip" :class="provider.apiKeyConfigured ? 'meta-chip-ready' : 'meta-chip-muted'">
-                    {{ provider.apiKeyConfigured ? "运行时已有 Key" : "运行时无 Key" }}
-                  </span>
-                  <span v-if="provider.apiKey.trim()" class="meta-chip meta-chip-ready">本次将覆盖</span>
-                  <span class="meta-chip meta-chip-muted">
-                    {{ provider.baseUrlConfigured ? "端点已配置" : "端点缺失" }}
-                  </span>
-                  <span v-if="provider.taskBaseUrlConfigured" class="meta-chip meta-chip-muted">含 Task Endpoint</span>
-                </div>
+                    <div class="summary-list provider-card__summary">
+                      <div>
+                        <span>厂商</span>
+                        <strong>{{ group.title }}</strong>
+                      </div>
+                      <div>
+                        <span>Endpoint Host</span>
+                        <strong>{{ provider.endpointHost || "未配置" }}</strong>
+                      </div>
+                      <div>
+                        <span>Task Host</span>
+                        <strong>{{ provider.taskEndpointHost || "未配置" }}</strong>
+                      </div>
+                      <div>
+                        <span>模型数</span>
+                        <strong>{{ provider.modelNames.length }}</strong>
+                      </div>
+                      <div>
+                        <span>类型</span>
+                        <strong>{{ provider.kinds.join(" / ") || "未关联" }}</strong>
+                      </div>
+                    </div>
 
-                <div v-if="provider.modelNames.length" class="provider-card__models">
-                  <strong>关联模型</strong>
-                  <div class="chip-list">
-                    <span v-for="name in provider.modelNames" :key="name" class="meta-chip meta-chip-muted">{{ name }}</span>
-                  </div>
+                    <div class="chip-list">
+                      <span class="meta-chip meta-chip-muted">{{ formatVendor(provider.vendor) }}</span>
+                      <span class="meta-chip" :class="provider.apiKeyConfigured ? 'meta-chip-ready' : 'meta-chip-muted'">
+                        {{ provider.apiKeyConfigured ? "运行时已有 Key" : "运行时无 Key" }}
+                      </span>
+                      <span v-if="provider.apiKey.trim()" class="meta-chip meta-chip-ready">本次将覆盖</span>
+                      <span class="meta-chip meta-chip-muted">
+                        {{ provider.baseUrlConfigured ? "端点已配置" : "端点缺失" }}
+                      </span>
+                      <span v-if="provider.taskBaseUrlConfigured" class="meta-chip meta-chip-muted">含 Task Endpoint</span>
+                    </div>
+
+                    <div v-if="provider.modelNames.length" class="provider-card__models">
+                      <strong>关联模型</strong>
+                      <div class="chip-list">
+                        <span v-for="name in provider.modelNames" :key="name" class="meta-chip meta-chip-muted">{{ name }}</span>
+                      </div>
+                    </div>
+                  </article>
                 </div>
-              </article>
+              </section>
             </div>
           </section>
 
@@ -179,51 +197,68 @@
                   <span class="surface-chip">{{ group.items.length }} 个</span>
                 </div>
 
-                <div class="model-list">
-                  <div v-for="item in group.items" :key="`${group.kind}-${item.name}`" class="model-item">
-                    <div class="model-item__head">
+                <div class="model-vendor-groups">
+                  <section v-for="vendorGroup in group.vendorGroups" :key="`${group.kind}-${vendorGroup.vendor}`" class="model-vendor-group">
+                    <div class="model-vendor-group__head">
                       <div>
-                        <strong>{{ item.label || item.name }}</strong>
-                        <p>{{ item.name }}</p>
+                        <p class="provider-card__eyebrow">厂商</p>
+                        <h6>{{ vendorGroup.title }}</h6>
                       </div>
-                      <span class="status-pill" :class="item.ready ? 'status-connected' : 'status-disconnected'">
-                        {{ item.ready ? "就绪" : "缺配置" }}
-                      </span>
+                      <span class="surface-chip">{{ vendorGroup.items.length }} 个</span>
                     </div>
 
-                    <p v-if="item.description" class="model-item__description">{{ item.description }}</p>
+                    <div class="model-list">
+                      <div v-for="item in vendorGroup.items" :key="`${group.kind}-${item.name}`" class="model-item">
+                        <div class="model-item__head">
+                          <div>
+                            <strong>{{ item.label || item.name }}</strong>
+                            <p>{{ item.name }}</p>
+                          </div>
+                          <span class="status-pill" :class="item.ready ? 'status-connected' : 'status-disconnected'">
+                            {{ item.ready ? "就绪" : "缺配置" }}
+                          </span>
+                        </div>
 
-                    <div class="model-meta-grid">
-                      <div>
-                        <span>Provider</span>
-                        <strong>{{ item.provider || "-" }}</strong>
-                      </div>
-                      <div>
-                        <span>Family</span>
-                        <strong>{{ item.family || "-" }}</strong>
-                      </div>
-                      <div>
-                        <span>Endpoint Host</span>
-                        <strong>{{ item.endpointHost || "-" }}</strong>
-                      </div>
-                      <div>
-                        <span>Task Host</span>
-                        <strong>{{ item.taskEndpointHost || "-" }}</strong>
+                        <p v-if="item.description" class="model-item__description">{{ item.description }}</p>
+
+                        <div class="model-meta-grid">
+                          <div>
+                            <span>厂商</span>
+                            <strong>{{ vendorGroup.title }}</strong>
+                          </div>
+                          <div>
+                            <span>模型接入</span>
+                            <strong>{{ item.provider || "-" }}</strong>
+                          </div>
+                          <div>
+                            <span>Family</span>
+                            <strong>{{ item.family || "-" }}</strong>
+                          </div>
+                          <div>
+                            <span>Endpoint Host</span>
+                            <strong>{{ item.endpointHost || "-" }}</strong>
+                          </div>
+                          <div>
+                            <span>Task Host</span>
+                            <strong>{{ item.taskEndpointHost || "-" }}</strong>
+                          </div>
+                        </div>
+
+                        <div class="chip-list">
+                          <span class="meta-chip meta-chip-muted">{{ formatVendor(item.vendor) }}</span>
+                          <span v-if="item.fallbackModel" class="meta-chip meta-chip-muted">Fallback: {{ item.fallbackModel }}</span>
+                          <span v-if="item.generationMode" class="meta-chip meta-chip-muted">Mode: {{ item.generationMode }}</span>
+                          <span v-if="item.supportsSeed" class="meta-chip meta-chip-ready">支持 Seed</span>
+                          <span v-if="item.supportsResponsesApi" class="meta-chip meta-chip-ready">Responses API</span>
+                          <span v-if="item.prefersChatCompletionsForVision" class="meta-chip meta-chip-muted">Vision Chat</span>
+                          <span v-for="size in item.supportedSizes" :key="`${item.name}-size-${size}`" class="meta-chip meta-chip-muted">{{ size }}</span>
+                          <span v-for="duration in item.supportedDurations" :key="`${item.name}-duration-${duration}`" class="meta-chip meta-chip-muted">{{ duration }} 秒</span>
+                        </div>
+
+                        <p v-if="item.issues.length" class="control-card__error">{{ item.issues.join(" / ") }}</p>
                       </div>
                     </div>
-
-                    <div class="chip-list">
-                      <span v-if="item.fallbackModel" class="meta-chip meta-chip-muted">Fallback: {{ item.fallbackModel }}</span>
-                      <span v-if="item.generationMode" class="meta-chip meta-chip-muted">Mode: {{ item.generationMode }}</span>
-                      <span v-if="item.supportsSeed" class="meta-chip meta-chip-ready">支持 Seed</span>
-                      <span v-if="item.supportsResponsesApi" class="meta-chip meta-chip-ready">Responses API</span>
-                      <span v-if="item.prefersChatCompletionsForVision" class="meta-chip meta-chip-muted">Vision Chat</span>
-                      <span v-for="size in item.supportedSizes" :key="`${item.name}-size-${size}`" class="meta-chip meta-chip-muted">{{ size }}</span>
-                      <span v-for="duration in item.supportedDurations" :key="`${item.name}-duration-${duration}`" class="meta-chip meta-chip-muted">{{ duration }} 秒</span>
-                    </div>
-
-                    <p v-if="item.issues.length" class="control-card__error">{{ item.issues.join(" / ") }}</p>
-                  </div>
+                  </section>
                 </div>
               </article>
             </div>
@@ -252,12 +287,26 @@ interface ProviderKeyDraftRow {
 
 interface ProviderViewRow extends AdminModelConfigProviderItem {
   apiKey: string;
+  draftIndex: number;
+}
+
+interface ProviderVendorGroup {
+  vendor: string;
+  title: string;
+  items: ProviderViewRow[];
+}
+
+interface ModelVendorGroup {
+  vendor: string;
+  title: string;
+  items: AdminModelConfigResponse["models"];
 }
 
 interface ModelGroup {
   kind: string;
   title: string;
   items: AdminModelConfigResponse["models"];
+  vendorGroups: ModelVendorGroup[];
 }
 
 const runtimeConfig = ref<AdminModelConfigResponse | null>(null);
@@ -274,11 +323,12 @@ const displayedConfig = computed(() => validationResult.value?.snapshot ?? runti
 const providerRows = computed<ProviderViewRow[]>(() => {
   const runtimeMap = new Map((runtimeConfig.value?.providers ?? []).map((item) => [item.key, item]));
   const displayedMap = new Map((displayedConfig.value?.providers ?? []).map((item) => [item.key, item]));
-  return providerDrafts.value.map((draft) => {
+  return providerDrafts.value.map((draft, index) => {
     const provider = displayedMap.get(draft.key) ?? runtimeMap.get(draft.key);
     return {
       key: draft.key,
       provider: provider?.provider ?? draft.key,
+      vendor: provider?.vendor ?? "",
       kinds: provider?.kinds ?? [],
       baseUrl: provider?.baseUrl ?? "",
       taskBaseUrl: provider?.taskBaseUrl ?? "",
@@ -290,8 +340,26 @@ const providerRows = computed<ProviderViewRow[]>(() => {
       extras: provider?.extras ?? {},
       modelNames: provider?.modelNames ?? [],
       apiKey: draft.apiKey,
+      draftIndex: index,
     };
   });
+});
+
+const groupedProviders = computed<ProviderVendorGroup[]>(() => {
+  const buckets = new Map<string, ProviderViewRow[]>();
+  for (const provider of providerRows.value) {
+    const key = normalizeVendor(provider.vendor);
+    const current = buckets.get(key) ?? [];
+    current.push(provider);
+    buckets.set(key, current);
+  }
+  return Array.from(buckets.entries())
+    .map(([vendor, items]) => ({
+      vendor,
+      title: formatVendor(vendor),
+      items: items.slice().sort((left, right) => left.key.localeCompare(right.key)),
+    }))
+    .sort((left, right) => left.title.localeCompare(right.title));
 });
 
 const configuredProviderCount = computed(() => {
@@ -311,11 +379,28 @@ const groupedModels = computed<ModelGroup[]>(() => {
     { kind: "video", title: "视频模型" },
   ];
   return groups
-    .map((group) => ({
-      kind: group.kind,
-      title: group.title,
-      items: source.filter((item) => item.kind === group.kind),
-    }))
+    .map((group) => {
+      const items = source.filter((item) => item.kind === group.kind);
+      const buckets = new Map<string, AdminModelConfigResponse["models"]>();
+      for (const item of items) {
+        const key = normalizeVendor(item.vendor);
+        const current = buckets.get(key) ?? [];
+        current.push(item);
+        buckets.set(key, current);
+      }
+      return {
+        kind: group.kind,
+        title: group.title,
+        items,
+        vendorGroups: Array.from(buckets.entries())
+          .map(([vendor, vendorItems]) => ({
+            vendor,
+            title: formatVendor(vendor),
+            items: vendorItems.slice().sort((left, right) => left.name.localeCompare(right.name)),
+          }))
+          .sort((left, right) => left.title.localeCompare(right.title)),
+      };
+    })
     .filter((group) => group.items.length > 0);
 });
 
@@ -343,7 +428,7 @@ const validationBellText = computed(() => {
 const validationBellItems = computed(() => {
   const items: string[] = [];
   if (pendingUpdateCount.value > 0) {
-    items.push(`待保存 provider: ${pendingUpdateCount.value} 个`);
+    items.push(`待保存模型接入: ${pendingUpdateCount.value} 个`);
   }
   for (const issue of displayedConfig.value?.configErrors.slice(0, 3) ?? []) {
     items.push(`全局问题: ${issue}`);
@@ -385,6 +470,26 @@ function formatKind(kind: string) {
       return "视频";
     default:
       return kind || "未知";
+  }
+}
+
+function normalizeVendor(vendor: string) {
+  const normalized = vendor.trim().toLowerCase();
+  return normalized || "unknown";
+}
+
+function formatVendor(vendor: string) {
+  switch (normalizeVendor(vendor)) {
+    case "aliyun":
+      return "Aliyun";
+    case "volcengine":
+      return "Volcengine";
+    case "openai":
+      return "OpenAI";
+    case "unknown":
+      return "未归类厂商";
+    default:
+      return vendor || "未归类厂商";
   }
 }
 
@@ -639,6 +744,41 @@ onMounted(async () => {
   gap: 16px;
 }
 
+.vendor-groups,
+.model-vendor-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.vendor-group,
+.model-vendor-group {
+  display: grid;
+  gap: 14px;
+}
+
+.vendor-group__head,
+.model-vendor-group__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.vendor-group__head h5,
+.model-vendor-group__head h6 {
+  margin: 0.45rem 0 0;
+}
+
+.model-vendor-group {
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.model-vendor-group:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .provider-card,
 .model-group-card {
   display: grid;
@@ -827,6 +967,8 @@ onMounted(async () => {
 
 @media (max-width: 760px) {
   .settings-section__head,
+  .vendor-group__head,
+  .model-vendor-group__head,
   .provider-card__head,
   .model-group-card__head,
   .model-item__head {

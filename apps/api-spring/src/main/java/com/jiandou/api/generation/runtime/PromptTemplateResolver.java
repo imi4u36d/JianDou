@@ -87,7 +87,7 @@ public class PromptTemplateResolver {
         String promptDirectory = firstNonBlank(
             property("JIANDOU_PROMPT_DIR"),
             property("jiandou.prompt.dir"),
-            modelRuntimePropertiesResolver.value("prompt", "file", "config/prompts")
+            modelRuntimePropertiesResolver.value("prompt", "file", "prompts")
         );
         Path base = configPathLocator.resolvePath(promptDirectory);
         if (base == null) {

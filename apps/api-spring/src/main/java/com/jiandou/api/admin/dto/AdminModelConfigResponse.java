@@ -25,6 +25,7 @@ public record AdminModelConfigResponse(
     /**
      * 汇总信息。
      * @param providerCount provider 数量值
+     * @param vendorCount vendor 数量值
      * @param modelCount 模型数量值
      * @param readyModelCount 就绪模型数量值
      * @param readyTextModelCount 就绪文本模型数量值
@@ -34,6 +35,7 @@ public record AdminModelConfigResponse(
      */
     public record Summary(
         int providerCount,
+        int vendorCount,
         int modelCount,
         int readyModelCount,
         int readyTextModelCount,
@@ -70,6 +72,7 @@ public record AdminModelConfigResponse(
      * provider 配置项。
      * @param key provider 键值
      * @param provider provider 名称值
+     * @param vendor vendor 名称值
      * @param kinds 关联类型值
      * @param baseUrl 基础地址值
      * @param taskBaseUrl 任务基础地址值
@@ -84,6 +87,7 @@ public record AdminModelConfigResponse(
     public record ProviderItem(
         String key,
         String provider,
+        String vendor,
         List<String> kinds,
         String baseUrl,
         String taskBaseUrl,
@@ -103,6 +107,7 @@ public record AdminModelConfigResponse(
      * @param label 标签值
      * @param kind 类型值
      * @param provider provider 值
+     * @param vendor vendor 值
      * @param family family 值
      * @param description 描述值
      * @param fallbackModel 兜底模型值
@@ -123,6 +128,7 @@ public record AdminModelConfigResponse(
         String label,
         String kind,
         String provider,
+        String vendor,
         String family,
         String description,
         String fallbackModel,
