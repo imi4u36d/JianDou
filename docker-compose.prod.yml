@@ -16,6 +16,8 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jiandou}
       MYSQL_USER: ${MYSQL_USER:-jiandou}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env.prod}
+    ports:
+      - "${JIANDOU_MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
