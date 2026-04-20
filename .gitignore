@@ -6,6 +6,7 @@ storage/
 .DS_Store
 .idea
 .env
+.env.dev
 .env.prod
 .venv/
 __pycache__/
