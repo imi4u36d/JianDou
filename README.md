@@ -25,7 +25,9 @@ JianDou（中文名：煎豆）是一个 AI 文本驱动视频生成平台，面
 
 > 当前默认开发入口已切换到 Spring Boot 3：`npm run dev`、`npm run dev:spring`、`npm run api:spring:dev` 都会启动 `apps/api-spring`。
 
-> 独立后台管理系统已拆分到 `apps/admin`，本地可使用 `npm run admin:dev` 或 `docker compose up admin` 启动。
+> 独立后台管理系统已拆分到 `apps/admin`，本地可使用 `npm run admin:dev` 启动；如需整套 Docker 开发环境，使用 `npm run compose:dev`。
+
+> Docker 编排脚本现已区分 `dev` / `prod` 两套入口：开发环境走 `docker-compose.dev.yml + .env.dev`，可用 `npm run compose:dev`；生产编排走 `docker-compose.prod.yml + .env.prod`，可用 `npm run compose:prod`。
 
 > 旧 Python API 入口已废弃并移除，当前以 `apps/api-spring` 作为唯一后端 API 入口。
 

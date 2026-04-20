@@ -8,9 +8,11 @@ import ActivateInviteView from "@/views/ActivateInviteView.vue";
 import ForbiddenView from "@/views/ForbiddenView.vue";
 import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
+import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
 import NewTaskView from "@/views/NewTaskView.vue";
 import OfficialSiteView from "@/views/OfficialSiteView.vue";
 import SettingsView from "@/views/SettingsView.vue";
+import StageWorkflowView from "@/views/StageWorkflowView.vue";
 import TasksView from "@/views/TasksView.vue";
 
 function normalizeRedirectTarget(value: unknown) {
@@ -79,7 +81,7 @@ const router = createRouter({
           name: "generate",
           component: NewTaskView,
           meta: {
-            title: "新建任务"
+            title: "一键生成"
           }
         },
         {
@@ -88,6 +90,30 @@ const router = createRouter({
           component: NewTaskView,
           meta: {
             title: "新建任务"
+          }
+        },
+        {
+          path: "workflows",
+          name: "workflows",
+          component: StageWorkflowView,
+          meta: {
+            title: "阶段工作流"
+          }
+        },
+        {
+          path: "workflows/:workflowId",
+          name: "workflow-detail",
+          component: StageWorkflowView,
+          meta: {
+            title: "阶段工作流"
+          }
+        },
+        {
+          path: "materials",
+          name: "materials",
+          component: MaterialLibraryView,
+          meta: {
+            title: "素材库"
           }
         },
         {

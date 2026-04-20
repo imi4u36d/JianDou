@@ -4,14 +4,12 @@
       <header class="settings-page-head">
         <p class="panel-eyebrow">模型设置</p>
         <h2 class="page-title">我的模型配置</h2>
-        <p class="settings-page-head__summary">端点和模型目录由系统维护，这里只保存你自己的模型接入 API Key。</p>
       </header>
 
       <section class="settings-section">
         <div class="settings-section__head">
           <div>
             <h3>模型接入密钥</h3>
-                    <p>输入新 key 后可先校验，再保存到数据库，并立即用于你后续的生成任务。</p>
           </div>
           <div class="settings-actions">
             <HintBell
@@ -58,7 +56,6 @@
               <p>已配置接入 Key {{ configuredProviderCount }}/{{ providerRows.length }}</p>
               <p v-if="successMessage">{{ successMessage }}</p>
               <p v-else-if="validationResult">{{ validationResult.valid ? "校验通过" : "校验未通过" }}</p>
-              <p v-else>可先校验，再保存到后端。</p>
             </article>
 
             <article class="surface-panel summary-card">

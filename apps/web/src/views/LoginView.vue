@@ -7,15 +7,12 @@
       <div class="auth-screen__hero">
         <p class="auth-screen__eyebrow">Session Access</p>
         <h1>登录后进入煎豆工作台</h1>
-        <p>
-          当前版本已切换为邀请制账号体系。工作台和管理端都依赖服务端 Session，不再允许匿名进入。
-        </p>
       </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
         <label class="auth-form__field">
           <span>用户名</span>
-          <input v-model="username" autocomplete="username" placeholder="请输入用户名" type="text" />
+          <input v-model="username" autocomplete="username" placeholder="用户名" type="text" />
         </label>
         <label class="auth-form__field">
           <span>密码</span>
@@ -24,7 +21,7 @@
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
               autocomplete="current-password"
-              placeholder="请输入密码"
+              placeholder="密码"
             />
             <button
               :aria-label="showPassword ? '隐藏密码' : '显示密码'"
@@ -50,7 +47,6 @@
         </button>
 
         <p class="auth-form__footer">
-          还没有账号？
           <RouterLink :to="activateLink">使用邀请码激活</RouterLink>
         </p>
       </form>

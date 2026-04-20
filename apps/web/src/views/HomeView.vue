@@ -34,7 +34,6 @@
     <section class="cases-section">
       <div class="cases-section__head">
         <h3>案例展示</h3>
-        <p>{{ casesHint }}</p>
       </div>
 
       <div v-if="caseStudies.length" class="case-grid">

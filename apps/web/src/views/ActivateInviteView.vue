@@ -4,27 +4,24 @@
       <div class="auth-screen__hero">
         <p class="auth-screen__eyebrow">Invite Activation</p>
         <h1>使用邀请码创建账号</h1>
-        <p>
-          邀请码只能使用一次。激活成功后会立即建立 Session，并直接进入工作台。
-        </p>
       </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
         <label class="auth-form__field">
           <span>邀请码</span>
-          <input v-model="code" autocomplete="off" placeholder="例如 ABCD23EFGH89" type="text" />
+          <input v-model="code" autocomplete="off" placeholder="邀请码" type="text" />
         </label>
         <label class="auth-form__field">
           <span>用户名</span>
-          <input v-model="username" autocomplete="username" placeholder="3-32 位英文数字组合" type="text" />
+          <input v-model="username" autocomplete="username" placeholder="用户名" type="text" />
         </label>
         <label class="auth-form__field">
           <span>显示名</span>
-          <input v-model="displayName" autocomplete="nickname" placeholder="用于界面展示" type="text" />
+          <input v-model="displayName" autocomplete="nickname" placeholder="显示名" type="text" />
         </label>
         <label class="auth-form__field">
           <span>密码</span>
-          <input v-model="password" autocomplete="new-password" placeholder="至少 8 位" type="password" />
+          <input v-model="password" autocomplete="new-password" placeholder="密码" type="password" />
         </label>
 
         <div v-if="errorMessage" class="auth-form__error">
@@ -36,7 +33,6 @@
         </button>
 
         <p class="auth-form__footer">
-          已有账号？
           <RouterLink :to="loginLink">返回登录</RouterLink>
         </p>
       </form>

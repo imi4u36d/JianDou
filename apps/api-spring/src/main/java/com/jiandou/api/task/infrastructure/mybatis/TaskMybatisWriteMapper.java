@@ -261,10 +261,18 @@ final class TaskMybatisWriteMapper {
     MaterialAssetEntity toMaterialAssetEntity(String taskId, Map<String, Object> material) {
         MaterialAssetEntity entity = new MaterialAssetEntity();
         entity.setMaterialAssetId(TaskMybatisValueSupport.stringValue(material.get("id")));
+        entity.setOwnerUserId(null);
         entity.setTaskId(taskId);
+        entity.setWorkflowId(TaskMybatisValueSupport.stringValue(material.getOrDefault("workflowId", "")));
         entity.setSourceTaskId(TaskMybatisValueSupport.stringValue(material.getOrDefault("sourceTaskId", "")));
         entity.setSourceMaterialId(TaskMybatisValueSupport.stringValue(material.getOrDefault("sourceMaterialId", "")));
         entity.setAssetRole(TaskMybatisValueSupport.stringValue(material.get("kind")));
+        entity.setStageType(TaskMybatisValueSupport.stringValue(material.getOrDefault("stageType", "")));
+        entity.setClipIndex(TaskMybatisValueSupport.intValue(material.get("clipIndex"), 0));
+        entity.setVersionNo(TaskMybatisValueSupport.intValue(material.getOrDefault("versionNo", 0), 0));
+        entity.setSelectedForNext(TaskMybatisValueSupport.boolValue(material.get("selectedForNext")) ? 1 : 0);
+        entity.setUserRating(material.get("userRating") == null ? null : TaskMybatisValueSupport.intValue(material.get("userRating"), 0));
+        entity.setRatingNote(TaskMybatisValueSupport.stringValue(material.getOrDefault("ratingNote", "")));
         entity.setMediaType(TaskMybatisValueSupport.stringValue(material.get("mediaType")));
         entity.setTitle(TaskMybatisValueSupport.stringValue(material.get("title")));
         entity.setOriginProvider(TaskMybatisValueSupport.stringValue(material.get("originProvider")));
