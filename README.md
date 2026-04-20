@@ -35,8 +35,8 @@ JianDou（中文名：煎豆）是一个 AI 文本驱动视频生成平台，面
 
 ## 项目截图
 
-<img src="screencapture-localhost-5173-generate-2026-04-09-19_07_43.png" alt="JianDou Screenshot" width="800"/>
-<img src="ScreenShot_2026-04-09_190924_682.png" alt="JianDou Screenshot" width="800"/>
+<img src="oneKey.png" alt="JianDou Screenshot" width="800"/>
+<img src="metra.png" alt="JianDou Screenshot" width="800"/>
 
 ## 当前能力
 
@@ -47,6 +47,7 @@ JianDou（中文名：煎豆）是一个 AI 文本驱动视频生成平台，面
 - 本地 MySQL / 文件存储
 
 ## feature
+
 - 模型快速切换与快速接入能力（插件化AI模型）
 - 大文本、文本文件拆分异步调用大模型后组装
 
