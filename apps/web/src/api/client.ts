@@ -212,6 +212,17 @@ export async function postForm<T>(path: string, body: FormData, init?: Omit<ApiR
   });
 }
 
+export async function patchJson<T>(path: string, body: unknown, init?: Omit<ApiRequestInit, "body" | "method" | "headers">) {
+  return request<T>(path, {
+    ...init,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+}
+
 export async function deleteJson<T>(path: string, init?: Omit<ApiRequestInit, "method">) {
   return request<T>(path, {
     ...init,

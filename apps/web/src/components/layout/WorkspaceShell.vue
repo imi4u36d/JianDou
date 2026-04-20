@@ -3,10 +3,28 @@
     <div class="workspace-shell__aurora workspace-shell__aurora-left" aria-hidden="true"></div>
     <div class="workspace-shell__aurora workspace-shell__aurora-right" aria-hidden="true"></div>
 
-    <aside class="workspace-sidebar" :class="{ 'workspace-sidebar-open': sidebarOpen }">
+    <aside
+      class="workspace-sidebar"
+      :class="{
+        'workspace-sidebar-open': sidebarOpen,
+        'workspace-sidebar-collapsed': sidebarCollapsed,
+      }"
+    >
       <div class="workspace-sidebar__top">
-        <div class="sidebar-avatar">
-          <span>{{ avatarInitials }}</span>
+        <div class="workspace-sidebar__topbar">
+          <div class="sidebar-avatar">
+            <span>{{ avatarInitials }}</span>
+          </div>
+          <button
+            class="sidebar-collapse-btn"
+            type="button"
+            :aria-label="sidebarCollapsed ? '展开系统菜单' : '收起系统菜单'"
+            :title="sidebarCollapsed ? '展开系统菜单' : '收起系统菜单'"
+            @click="sidebarCollapsed = !sidebarCollapsed"
+          >
+            <span v-if="sidebarCollapsed">»</span>
+            <span v-else>«</span>
+          </button>
         </div>
 
         <nav class="sidebar-nav">
@@ -18,7 +36,7 @@
             :to="item.to"
           >
             <span class="sidebar-nav__icon" v-html="item.icon"></span>
-            <span>{{ item.label }}</span>
+            <span class="sidebar-nav__label">{{ item.label }}</span>
           </RouterLink>
         </nav>
       </div>
@@ -34,7 +52,6 @@
           <input v-model="developerSettings.stopBeforeVideoGeneration" type="checkbox" />
           <div>
             <strong>视频生成前停止</strong>
-            <small>{{ developerNote }}</small>
           </div>
         </label>
 
@@ -105,6 +122,8 @@ import { getRuntimeConfig } from "@/api/runtime-config";
 import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import { loadDeveloperSettings, saveDeveloperSettings } from "@/workbench/developer-settings";
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "jiandou-workspace-sidebar-collapsed-v1";
+
 const route = useRoute();
 const router = useRouter();
 const authState = useAuthSessionState();
@@ -123,13 +142,26 @@ const navItems = [
   },
   {
     to: "/generate",
-    label: "文本生成",
+    label: "一键生成",
     icon: `
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M7 3.5h7l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5Z" />
         <path d="M14 3.5V8h4" />
         <path d="M9 12h6" />
         <path d="M9 16h6" />
+      </svg>
+    `,
+  },
+  {
+    to: "/workflows",
+    label: "阶段工作流",
+    icon: `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 6h6v4H5z" />
+        <path d="M13 14h6v4h-6z" />
+        <path d="M11 8h2a3 3 0 0 1 3 3v3" />
+        <path d="M8 10v8" />
+        <path d="M5 18h6" />
       </svg>
     `,
   },
@@ -146,6 +178,17 @@ const navItems = [
     `,
   },
   {
+    to: "/materials",
+    label: "素材库",
+    icon: `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7.5 12 4l8 3.5-8 3.5-8-3.5Z" />
+        <path d="M4 12l8 3.5 8-3.5" />
+        <path d="M4 16.5 12 20l8-3.5" />
+      </svg>
+    `,
+  },
+  {
     to: "/settings",
     label: "设置",
     icon: `
@@ -157,7 +200,30 @@ const navItems = [
   },
 ];
 
+function loadSidebarCollapsed() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function saveSidebarCollapsed(value: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(value));
+  } catch {
+    // 忽略持久化失败，避免影响主流程。
+  }
+}
+
 const sidebarOpen = ref(false);
+const sidebarCollapsed = ref(loadSidebarCollapsed());
 const developerSettings = reactive(loadDeveloperSettings());
 
 const currentUser = computed(() => authState.user.value);
@@ -174,13 +240,6 @@ function isActive(target: string) {
 const currentTitle = computed(() => {
   const metaTitle = route.meta?.title;
   return typeof metaTitle === "string" && metaTitle.trim() ? metaTitle : "煎豆工作台";
-});
-
-const developerNote = computed(() => {
-  if (developerSettings.stopBeforeVideoGeneration) {
-    return "任务会创建并完成分析与编排，但不会进入图片和视频生成。";
-  }
-  return "保持完整生成链路启用。";
 });
 
 async function handleLogout() {
@@ -202,6 +261,10 @@ watch(
   },
   { deep: true },
 );
+
+watch(sidebarCollapsed, (value) => {
+  saveSidebarCollapsed(value);
+});
 </script>
 
 <style scoped>
@@ -263,6 +326,13 @@ watch(
   gap: 28px;
 }
 
+.workspace-sidebar__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .sidebar-avatar {
   width: 42px;
   height: 42px;
@@ -281,6 +351,28 @@ watch(
   font-weight: 800;
   letter-spacing: 0.08em;
   color: #fff;
+}
+
+.sidebar-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.sidebar-collapse-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-nav {
@@ -329,6 +421,10 @@ watch(
 .sidebar-nav__icon :deep(svg) {
   width: 20px;
   height: 20px;
+}
+
+.sidebar-nav__label {
+  min-width: 0;
 }
 
 .sidebar-dev {
@@ -557,6 +653,33 @@ watch(
   overflow: hidden;
 }
 
+.workspace-sidebar-collapsed {
+  width: 92px;
+  flex-basis: 92px;
+  padding: 22px 14px 22px;
+}
+
+.workspace-sidebar-collapsed .workspace-sidebar__top {
+  gap: 20px;
+}
+
+.workspace-sidebar-collapsed .workspace-sidebar__topbar {
+  flex-direction: column;
+}
+
+.workspace-sidebar-collapsed .sidebar-nav__item {
+  justify-content: center;
+  padding: 0;
+}
+
+.workspace-sidebar-collapsed .sidebar-nav__label {
+  display: none;
+}
+
+.workspace-sidebar-collapsed .sidebar-dev {
+  display: none;
+}
+
 .workspace-mobile-bar {
   display: none;
 }
@@ -593,6 +716,34 @@ watch(
 }
 
 @media (max-width: 1024px) {
+  .workspace-sidebar-collapsed {
+    width: 264px;
+    flex-basis: 264px;
+    padding: 22px 18px 26px;
+  }
+
+  .workspace-sidebar-collapsed .workspace-sidebar__topbar {
+    flex-direction: row;
+  }
+
+  .workspace-sidebar-collapsed .sidebar-nav__item {
+    justify-content: flex-start;
+    padding: 0 14px;
+  }
+
+  .workspace-sidebar-collapsed .sidebar-nav__label,
+  .workspace-sidebar-collapsed .sidebar-nav__label {
+    display: inline;
+  }
+
+  .workspace-sidebar-collapsed .sidebar-dev {
+    display: grid;
+  }
+
+  .sidebar-collapse-btn {
+    display: none;
+  }
+
   .workspace-sidebar {
     position: fixed;
     top: 0;

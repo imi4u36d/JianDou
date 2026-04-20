@@ -80,6 +80,14 @@ public class DatabaseSchemaInitializer {
         ensureTextColumn(connection, "biz_material_assets", "public_url");
         ensureTextColumn(connection, "biz_material_assets", "third_party_url");
         ensureTextColumn(connection, "biz_material_assets", "remote_url");
+        ensureColumn(connection, "biz_material_assets", "owner_user_id", "ALTER TABLE `biz_material_assets` ADD COLUMN `owner_user_id` bigint unsigned DEFAULT NULL COMMENT '归属用户ID' AFTER `material_asset_id`");
+        ensureColumn(connection, "biz_material_assets", "workflow_id", "ALTER TABLE `biz_material_assets` ADD COLUMN `workflow_id` varchar(64) NOT NULL DEFAULT '' COMMENT '关联工作流ID' AFTER `task_id`");
+        ensureColumn(connection, "biz_material_assets", "stage_type", "ALTER TABLE `biz_material_assets` ADD COLUMN `stage_type` varchar(32) NOT NULL DEFAULT '' COMMENT '阶段类型' AFTER `asset_role`");
+        ensureColumn(connection, "biz_material_assets", "clip_index", "ALTER TABLE `biz_material_assets` ADD COLUMN `clip_index` int NOT NULL DEFAULT '0' COMMENT '镜头序号' AFTER `stage_type`");
+        ensureColumn(connection, "biz_material_assets", "version_no", "ALTER TABLE `biz_material_assets` ADD COLUMN `version_no` int NOT NULL DEFAULT '0' COMMENT '版本号' AFTER `clip_index`");
+        ensureColumn(connection, "biz_material_assets", "selected_for_next", "ALTER TABLE `biz_material_assets` ADD COLUMN `selected_for_next` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否被选为继续依据' AFTER `version_no`");
+        ensureColumn(connection, "biz_material_assets", "user_rating", "ALTER TABLE `biz_material_assets` ADD COLUMN `user_rating` int DEFAULT NULL COMMENT '用户评分' AFTER `selected_for_next`");
+        ensureColumn(connection, "biz_material_assets", "rating_note", "ALTER TABLE `biz_material_assets` ADD COLUMN `rating_note` varchar(1000) NOT NULL DEFAULT '' COMMENT '评分备注' AFTER `user_rating`");
     }
 
     /**
@@ -95,6 +103,15 @@ public class DatabaseSchemaInitializer {
         }
         try (Statement statement = connection.createStatement()) {
             statement.execute("ALTER TABLE `" + tableName + "` MODIFY COLUMN `" + columnName + "` TEXT NOT NULL");
+        }
+    }
+
+    private void ensureColumn(Connection connection, String tableName, String columnName, String alterSql) throws SQLException {
+        if (loadColumnInfo(connection, tableName, columnName) != null) {
+            return;
+        }
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(alterSql);
         }
     }
 

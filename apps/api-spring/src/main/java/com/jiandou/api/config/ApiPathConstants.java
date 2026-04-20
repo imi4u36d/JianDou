@@ -18,6 +18,8 @@ public final class ApiPathConstants {
     public static final String AUTH_ACTIVATE_INVITE = AUTH + "/activate-invite";
     public static final String TASKS = API_V2 + "/tasks";
     public static final String TASK_SHOWCASE = TASKS + "/showcase";
+    public static final String WORKFLOWS = API_V2 + "/workflows";
+    public static final String MATERIAL_ASSETS = API_V2 + "/material-assets";
     public static final String UPLOADS = API_V2 + "/uploads";
     public static final String ADMIN = API_V2 + "/admin";
     public static final String ADMIN_PATTERN = ADMIN + "/**";

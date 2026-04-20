@@ -21,8 +21,14 @@ cp config/app.example.yml config/app.yml
 
 ## 3. Docker 一键启动（推荐）
 
+先准备开发环境变量：
+
 ```bash
-docker compose up --build
+cp .env.dev.example .env.dev
+```
+
+```bash
+npm run compose:dev
 ```
 
 默认地址：
@@ -34,18 +40,31 @@ docker compose up --build
 说明：
 
 - 项目默认后端为 `apps/api-spring`
+- Docker 开发编排使用 `docker-compose.dev.yml + .env.dev`
 - `apps/api/app/**` 下的 FastAPI API 入口已移除，不再作为启动方式
 
 停止服务：
 
 ```bash
-docker compose down
+npm run compose:dev:down
 ```
 
 清空数据卷：
 
 ```bash
 docker compose down -v
+```
+
+查看容器状态：
+
+```bash
+npm run compose:dev:ps
+```
+
+查看日志：
+
+```bash
+npm run compose:dev:logs
 ```
 
 ## 4. 本地开发启动

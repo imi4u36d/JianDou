@@ -10,16 +10,20 @@ services:
     environment:
       TZ: Asia/Shanghai
       # 仅供本地开发容器使用的 root 密码。
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: JianDouAdmin123!
+      MYSQL_ROOT_HOST: "%"
       # 首次启动时自动创建的数据库名。
       MYSQL_DATABASE: jiandou
+      # 与 Spring 默认配置保持一致的本地开发账号。
+      MYSQL_USER: jiandou
+      MYSQL_PASSWORD: JianDouAdmin123!
     ports:
       - "3306:3306"
     volumes:
       # 持久化数据库文件，避免容器重启后数据丢失。
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -proot --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -35,6 +39,8 @@ services:
     environment:
       # Spring 端改用 JDBC 连接 MySQL。
       JIANDOU_DATABASE_URL: jdbc:mysql://mysql:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      JIANDOU_DATABASE_USER: jiandou
+      JIANDOU_DATABASE_PASSWORD: JianDouAdmin123!
       JIANDOU_EXECUTION_MODE: queue
       JIANDOU_WEB_ORIGIN: http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174
       SERVER_PORT: 8000
@@ -47,11 +53,18 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - maven_cache:/root/.m2
       - ./apps/api-spring:/app/apps/api-spring
       - ./config:/app/config
       - ./storage/uploads:/app/storage/uploads
       - ./storage/outputs:/app/storage/outputs
       - ./storage/temp:/app/storage/temp
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'cat < /dev/null > /dev/tcp/127.0.0.1/8000'"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
     depends_on:
       mysql:
         condition: service_healthy
@@ -76,7 +89,7 @@ services:
       - web_node_modules:/app/apps/web/node_modules
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
   # Element Plus 管理后台的 Vite 开发服务器。
   admin:
@@ -96,10 +109,11 @@ services:
       - admin_node_modules:/app/apps/admin/node_modules
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
 # 命名卷用于保留本地状态，同时避免污染仓库目录。
 volumes:
   mysql_data:
+  maven_cache:
   web_node_modules:
   admin_node_modules:

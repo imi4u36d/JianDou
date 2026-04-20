@@ -45,9 +45,7 @@
       </div>
     </div>
 
-    <div v-else class="empty-shell">
-      任务执行后，这里会显示实时进度和生成成品预览。
-    </div>
+    <div v-else class="empty-shell"></div>
   </section>
 </template>
 

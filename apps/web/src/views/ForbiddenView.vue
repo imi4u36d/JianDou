@@ -3,9 +3,6 @@
     <div class="forbidden-view__card">
       <p class="forbidden-view__eyebrow">403 Forbidden</p>
       <h1>当前账号没有管理端权限</h1>
-      <p>
-        普通用户仍然可以进入工作台，但 `/admin/*` 仅对 `ADMIN` 角色开放。
-      </p>
       <div class="forbidden-view__actions">
         <RouterLink class="forbidden-view__secondary" to="/workspace">返回工作台</RouterLink>
         <RouterLink class="forbidden-view__primary" to="/tasks">打开任务列表</RouterLink>

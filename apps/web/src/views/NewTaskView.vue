@@ -181,15 +181,13 @@
           />
         </div>
 
-        <p class="core-upload-label">{{ uploadedTextLabel }}</p>
-
         <label class="studio-field">
           <span>小说正文</span>
           <textarea
             v-model="form.transcriptText"
             rows="12"
             class="field-textarea core-textarea"
-            placeholder="可直接粘贴小说正文，或上传文本文件自动填充。"
+            placeholder="输入正文"
           ></textarea>
         </label>
 
@@ -199,7 +197,7 @@
             v-model="form.creativePrompt"
             rows="5"
             class="field-textarea"
-            placeholder="填写全局创意提示词..."
+            placeholder="输入提示词"
           ></textarea>
         </label>
 
@@ -220,7 +218,6 @@
             <p class="studio-eyebrow">提交检查</p>
             <strong>{{ submitLabel }}</strong>
             <p>{{ statusText }}</p>
-            <p class="core-status__meta">提示词来源：{{ promptSourceLabel }}</p>
           </div>
         </div>
 
@@ -247,7 +244,7 @@
               <strong>{{ progressState.progress }}%</strong>
             </div>
           </div>
-          <p class="trace-ring__meta">{{ progressElapsedLabel || "任务开始后会显示耗时。" }}</p>
+          <p v-if="progressElapsedLabel" class="trace-ring__meta">{{ progressElapsedLabel }}</p>
         </div>
 
         <div v-if="previewOutputUrl" class="trace-preview">
@@ -274,7 +271,7 @@
               <small>{{ item.stage }} · {{ item.level }}</small>
             </li>
           </ul>
-          <div v-else class="trace-feed__empty">创建任务后，这里会显示最近追踪记录。</div>
+          <div v-else class="trace-feed__empty"></div>
         </section>
       </aside>
     </form>
@@ -644,10 +641,6 @@ const isDurationLimitValid = computed(() => {
   }
   return Boolean(normalizedManualMaxDurationSeconds.value !== null && !manualDurationValidationMessage.value);
 });
-const promptSourceLabel = computed(() => {
-  return form.value.creativePrompt?.trim() ? promptSource.value : "系统默认";
-});
-
 const selectedModelCount = computed(() => {
   return [
     form.value.textAnalysisModel,
@@ -739,14 +732,6 @@ const submitLabel = computed(() => {
     return "创建中...";
   }
   return isFormReady.value ? "生成视频" : "请先补全任务参数";
-});
-
-const uploadedTextLabel = computed(() => {
-  if (!uploadedText.value) {
-    return "未上传文本文件";
-  }
-  const sizeKb = (uploadedText.value.sizeBytes / 1024).toFixed(1);
-  return `已上传：${uploadedText.value.fileName}（${sizeKb} KB）`;
 });
 
 const progressTraceCount = computed(() => traceEvents.value.length);
@@ -1284,8 +1269,7 @@ onUnmounted(() => {
 }
 
 .seed-library__item small,
-.seed-library__empty,
-.core-upload-label {
+.seed-library__empty {
   color: var(--text-muted);
   font-size: 0.76rem;
   line-height: 1.55;

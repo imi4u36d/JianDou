@@ -13,14 +13,30 @@ public class MaterialAssetEntity {
 
     @TableId("material_asset_id")
     private String materialAssetId;
+    @TableField("owner_user_id")
+    private Long ownerUserId;
     @TableField("task_id")
     private String taskId;
+    @TableField("workflow_id")
+    private String workflowId;
     @TableField("source_task_id")
     private String sourceTaskId;
     @TableField("source_material_id")
     private String sourceMaterialId;
     @TableField("asset_role")
     private String assetRole;
+    @TableField("stage_type")
+    private String stageType;
+    @TableField("clip_index")
+    private Integer clipIndex;
+    @TableField("version_no")
+    private Integer versionNo;
+    @TableField("selected_for_next")
+    private Integer selectedForNext;
+    @TableField("user_rating")
+    private Integer userRating;
+    @TableField("rating_note")
+    private String ratingNote;
     @TableField("media_type")
     private String mediaType;
     private String title;
@@ -80,12 +96,16 @@ public class MaterialAssetEntity {
      */
     public String getMaterialAssetId() { return materialAssetId; }
     public void setMaterialAssetId(String materialAssetId) { this.materialAssetId = materialAssetId; }
+    public Long getOwnerUserId() { return ownerUserId; }
+    public void setOwnerUserId(Long ownerUserId) { this.ownerUserId = ownerUserId; }
     /**
      * 返回任务标识。
      * @return 处理结果
      */
     public String getTaskId() { return taskId; }
     public void setTaskId(String taskId) { this.taskId = taskId; }
+    public String getWorkflowId() { return workflowId; }
+    public void setWorkflowId(String workflowId) { this.workflowId = workflowId; }
     /**
      * 返回来源任务标识。
      * @return 处理结果
@@ -104,6 +124,18 @@ public class MaterialAssetEntity {
      */
     public String getAssetRole() { return assetRole; }
     public void setAssetRole(String assetRole) { this.assetRole = assetRole; }
+    public String getStageType() { return stageType; }
+    public void setStageType(String stageType) { this.stageType = stageType; }
+    public Integer getClipIndex() { return clipIndex; }
+    public void setClipIndex(Integer clipIndex) { this.clipIndex = clipIndex; }
+    public Integer getVersionNo() { return versionNo; }
+    public void setVersionNo(Integer versionNo) { this.versionNo = versionNo; }
+    public Integer getSelectedForNext() { return selectedForNext; }
+    public void setSelectedForNext(Integer selectedForNext) { this.selectedForNext = selectedForNext; }
+    public Integer getUserRating() { return userRating; }
+    public void setUserRating(Integer userRating) { this.userRating = userRating; }
+    public String getRatingNote() { return ratingNote; }
+    public void setRatingNote(String ratingNote) { this.ratingNote = ratingNote; }
     /**
      * 返回媒体类型。
      * @return 处理结果

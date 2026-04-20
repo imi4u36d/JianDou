@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${JIANDOU_DATABASE_URL:jdbc:mysql://127.0.0.1:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${JIANDOU_DATABASE_USER:jiandou}
-    password: ${JIANDOU_DATABASE_PASSWORD:JianDou_ai123!}
+    password: ${JIANDOU_DATABASE_PASSWORD:JianDouAdmin123!}
     driver-class-name: ${JIANDOU_DB_DRIVER:com.mysql.cj.jdbc.Driver}
 
 server:

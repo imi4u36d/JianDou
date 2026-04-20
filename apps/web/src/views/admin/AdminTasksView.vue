@@ -5,7 +5,6 @@
         <div class="admin-heading-block">
           <p class="admin-eyebrow">Task Ops</p>
           <h2 class="admin-title">任务管理</h2>
-          <p class="admin-subtitle">标准数据表管理：筛选、批量操作、状态巡检、详情跳转。</p>
         </div>
         <div class="admin-action-row">
           <RouterLink to="/tasks/new" :class="primaryButtonClass">新建任务</RouterLink>
@@ -22,7 +21,6 @@
       >
         <p class="admin-metric-label">{{ card.label }}</p>
         <p class="admin-metric-value">{{ card.value }}</p>
-        <p class="admin-metric-hint">{{ card.hint }}</p>
       </article>
     </div>
 
@@ -94,7 +92,6 @@
       <div class="admin-panel-header">
         <div>
           <h3 class="text-base font-semibold text-slate-900">任务数据表</h3>
-          <p class="mt-1 text-sm text-slate-600">支持批量运维与单任务快速处置。</p>
         </div>
         <span class="admin-chip">{{ summaryFooterLabel }}</span>
       </div>

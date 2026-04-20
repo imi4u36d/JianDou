@@ -3,8 +3,7 @@
     <div class="official-site__shell">
       <div class="official-site__announcement reveal-on-scroll is-visible">
         <span>公告</span>
-        <p>煎豆工作台把文本、提示词、图像与视频生成整合到同一条生产链路中。</p>
-        <a href="#pricing" @click.prevent="scrollToSection('pricing')">了解方案</a>
+        <a href="#solutions" @click.prevent="scrollToSection('solutions')">查看案例</a>
       </div>
 
       <header class="official-site__nav reveal-on-scroll is-visible">
@@ -20,12 +19,27 @@
           <a href="#top" @click.prevent="scrollToSection('top')">首页</a>
           <a href="#features" @click.prevent="scrollToSection('features')">产品能力</a>
           <a href="#solutions" @click.prevent="scrollToSection('solutions')">解决方案</a>
-          <a href="#pricing" @click.prevent="scrollToSection('pricing')">定价</a>
           <a href="#footer" @click.prevent="scrollToSection('footer')">博客</a>
           <a :href="adminPortalUrl">管理后台</a>
         </nav>
 
-        <RouterLink class="official-site__nav-cta" to="/generate">立即开始</RouterLink>
+        <div class="official-site__nav-actions">
+          <a
+            class="official-site__github"
+            :href="githubRepoUrl"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="打开 GitHub 仓库"
+            title="GitHub"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 2C6.48 2 2 6.59 2 12.25c0 4.53 2.87 8.37 6.84 9.72.5.1.66-.22.66-.49 0-.24-.01-1.03-.01-1.86-2.78.62-3.37-1.21-3.37-1.21-.46-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.93.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.08 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.36 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.63 1.03 2.75 0 3.95-2.35 4.82-4.58 5.07.36.32.68.95.68 1.92 0 1.38-.01 2.49-.01 2.83 0 .27.18.59.67.49A10.29 10.29 0 0 0 22 12.25C22 6.59 17.52 2 12 2Z"
+              />
+            </svg>
+          </a>
+          <RouterLink class="official-site__nav-cta" to="/generate">立即开始</RouterLink>
+        </div>
       </header>
 
       <section class="hero-section reveal-on-scroll is-visible">
@@ -35,10 +49,6 @@
             <span class="hero-section__title-text">{{ typedHeadline }}</span>
             <span class="hero-section__caret" aria-hidden="true"></span>
           </h1>
-          <p class="hero-section__description">
-            面向内容团队的 AI 视频官网首页。你可以从一句文本开始，串联提示词生成、模型编排、案例预览与后台运营，
-            把创意快速推进到可交付、可复用、可持续运营的生产流程。
-          </p>
 
           <div class="hero-section__actions">
             <RouterLink class="hero-button hero-button-primary" to="/generate">开始创作</RouterLink>
@@ -48,27 +58,15 @@
           <p class="hero-strip__status">{{ showcaseStatusText }}</p>
 
           <div v-if="heroFrames.length" class="hero-strip" aria-label="案例预览">
-            <article
-              v-for="(frame, index) in heroFrames"
-              :key="frame.id"
-              class="hero-strip__frame reveal-on-scroll floating-panel"
-              :style="{
+            <article v-for="(frame, index) in heroFrames" :key="frame.id"
+              class="hero-strip__frame reveal-on-scroll floating-panel" :style="{
                 '--frame-scene': frame.scene,
                 '--reveal-delay': `${120 + index * 70}ms`,
                 '--float-delay': `${index * 0.9}s`
-              }"
-            >
+              }">
               <div class="hero-strip__visual">
-                <video
-                  v-if="frame.previewUrl"
-                  class="showcase-media"
-                  :src="frame.previewUrl"
-                  autoplay
-                  loop
-                  muted
-                  playsinline
-                  preload="metadata"
-                ></video>
+                <video v-if="frame.previewUrl" class="showcase-media" :src="frame.previewUrl" autoplay loop muted
+                  playsinline preload="metadata"></video>
                 <div class="hero-strip__poster">
                   <span>{{ frame.badge }}</span>
                 </div>
@@ -87,12 +85,8 @@
             </div>
 
             <div class="feature-grid">
-              <article
-                v-for="(feature, index) in features"
-                :key="feature.title"
-                class="feature-card reveal-on-scroll"
-                :style="{ '--reveal-delay': `${index * 90}ms` }"
-              >
+              <article v-for="(feature, index) in features" :key="feature.title" class="feature-card reveal-on-scroll"
+                :style="{ '--reveal-delay': `${index * 90}ms` }">
                 <div class="feature-card__icon">{{ feature.icon }}</div>
                 <h3>{{ feature.title }}</h3>
                 <p>{{ feature.description }}</p>
@@ -112,16 +106,11 @@
 
             <div class="showcase-card">
               <div class="showcase-card__map">
-                <article
-                  v-for="(model, index) in showcaseModels"
-                  :key="model.key"
-                  class="showcase-node reveal-on-scroll floating-panel"
-                  :class="model.className"
-                  :style="{
+                <article v-for="(model, index) in showcaseModels" :key="model.key"
+                  class="showcase-node reveal-on-scroll floating-panel" :class="model.className" :style="{
                     '--reveal-delay': `${100 + index * 70}ms`,
                     '--float-delay': `${index * 0.7}s`
-                  }"
-                >
+                  }">
                   <div class="showcase-node__badge">{{ model.badge }}</div>
                   <strong>{{ model.name }}</strong>
                   <span>{{ model.vendor }}</span>
@@ -146,26 +135,14 @@
             </div>
 
             <div class="solution-list">
-              <article
-                v-for="(solution, index) in solutions"
-                :key="solution.title"
-                class="solution-card reveal-on-scroll"
-                :style="{
+              <article v-for="(solution, index) in solutions" :key="solution.title"
+                class="solution-card reveal-on-scroll" :style="{
                   '--solution-scene': solution.scene,
                   '--reveal-delay': `${index * 90}ms`
-                }"
-              >
+                }">
                 <div class="solution-card__visual">
-                  <video
-                    v-if="solution.previewUrl"
-                    class="showcase-media"
-                    :src="solution.previewUrl"
-                    autoplay
-                    loop
-                    muted
-                    playsinline
-                    preload="metadata"
-                  ></video>
+                  <video v-if="solution.previewUrl" class="showcase-media" :src="solution.previewUrl" autoplay loop
+                    muted playsinline preload="metadata"></video>
                   <div class="solution-card__poster">
                     <span>{{ solution.poster }}</span>
                   </div>
@@ -186,27 +163,15 @@
         <aside class="official-site__side">
           <section class="side-card side-card-showcase reveal-on-scroll">
             <div class="side-media">
-              <article
-                v-for="(sample, index) in sideSamples"
-                :key="sample.title"
-                class="side-media__frame reveal-on-scroll floating-panel"
-                :style="{
+              <article v-for="(sample, index) in sideSamples" :key="sample.title"
+                class="side-media__frame reveal-on-scroll floating-panel" :style="{
                   '--sample-scene': sample.scene,
                   '--reveal-delay': `${90 + index * 90}ms`,
                   '--float-delay': `${index * 0.8}s`
-                }"
-              >
+                }">
                 <div class="side-media__visual">
-                  <video
-                    v-if="sample.previewUrl"
-                    class="showcase-media"
-                    :src="sample.previewUrl"
-                    autoplay
-                    loop
-                    muted
-                    playsinline
-                    preload="metadata"
-                  ></video>
+                  <video v-if="sample.previewUrl" class="showcase-media" :src="sample.previewUrl" autoplay loop muted
+                    playsinline preload="metadata"></video>
                 </div>
                 <div class="side-media__meta">
                   <span>{{ sample.title }}</span>
@@ -227,31 +192,6 @@
             </div>
           </section>
 
-          <section class="side-card pricing-card reveal-on-scroll" id="pricing">
-            <div class="section-heading section-heading-side">
-              <p>价格方案</p>
-              <h2>覆盖个人创作、团队生产与企业级内容运营。</h2>
-            </div>
-
-            <div class="pricing-grid">
-              <article
-                v-for="(plan, index) in plans"
-                :key="plan.name"
-                class="pricing-plan reveal-on-scroll"
-                :class="{ 'pricing-plan-featured': plan.featured }"
-                :style="{ '--reveal-delay': `${index * 90}ms` }"
-              >
-                <h3>{{ plan.name }}</h3>
-                <p>{{ plan.description }}</p>
-                <div class="pricing-plan__price">
-                  <strong>{{ plan.price }}</strong>
-                  <span>/月</span>
-                </div>
-                <button type="button" @click="openContactDialog(plan.name)">选择方案</button>
-              </article>
-            </div>
-          </section>
-
           <section class="side-card admin-card reveal-on-scroll">
             <div class="admin-card__content">
               <div>
@@ -259,7 +199,8 @@
                 <h2>煎豆后台：完整掌控你的内容生产管线</h2>
               </div>
 
-              <div class="admin-preview reveal-on-scroll floating-panel" style="--reveal-delay: 180ms; --float-delay: 0.8s">
+              <div class="admin-preview reveal-on-scroll floating-panel"
+                style="--reveal-delay: 180ms; --float-delay: 0.8s">
                 <div class="admin-preview__screen">
                   <span class="admin-preview__bar admin-preview__bar-short"></span>
                   <span class="admin-preview__bar"></span>
@@ -269,12 +210,8 @@
             </div>
 
             <div class="admin-card__meta">
-              <article
-                v-for="(item, index) in adminItems"
-                :key="item.title"
-                class="reveal-on-scroll"
-                :style="{ '--reveal-delay': `${140 + index * 90}ms` }"
-              >
+              <article v-for="(item, index) in adminItems" :key="item.title" class="reveal-on-scroll"
+                :style="{ '--reveal-delay': `${140 + index * 90}ms` }">
                 <h3>{{ item.title }}</h3>
                 <p>{{ item.description }}</p>
               </article>
@@ -291,14 +228,11 @@
             </div>
 
             <div class="site-footer__links">
-              <article
-                v-for="(group, index) in footerGroups"
-                :key="group.title"
-                class="reveal-on-scroll"
-                :style="{ '--reveal-delay': `${index * 80}ms` }"
-              >
+              <article v-for="(group, index) in footerGroups" :key="group.title" class="reveal-on-scroll"
+                :style="{ '--reveal-delay': `${index * 80}ms` }">
                 <h3>{{ group.title }}</h3>
-                <a v-for="item in group.items" :key="item" href="#top" @click.prevent="scrollToSection('top')">{{ item }}</a>
+                <a v-for="item in group.items" :key="item" href="#top" @click.prevent="scrollToSection('top')">{{ item
+                }}</a>
               </article>
             </div>
 
@@ -309,43 +243,6 @@
           </footer>
         </aside>
       </div>
-    </div>
-
-    <div
-      v-if="contactDialogOpen"
-      class="contact-dialog-backdrop"
-      @click="closeContactDialog"
-    >
-      <section
-        class="contact-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="contact-dialog-title"
-        @click.stop
-      >
-        <p class="contact-dialog__eyebrow">方案咨询</p>
-        <h2 id="contact-dialog-title">{{ selectedPlanName }} 联系方式</h2>
-        <p class="contact-dialog__description">
-          欢迎加入社区或直接联系，获取方案配置、接入支持和最新动态。
-        </p>
-
-        <div class="contact-dialog__channels">
-          <article class="contact-dialog__channel">
-            <span>QQ群</span>
-            <strong>1090387362</strong>
-          </article>
-          <article class="contact-dialog__channel">
-            <span>Telegram</span>
-            <strong>@JianDouAI</strong>
-          </article>
-        </div>
-
-        <div class="contact-dialog__actions">
-          <button type="button" class="contact-dialog__button contact-dialog__button-primary" @click="closeContactDialog">
-            我知道了
-          </button>
-        </div>
-      </section>
     </div>
   </main>
 </template>
@@ -365,10 +262,9 @@ import {
 
 const scrollRoot = ref<HTMLElement | null>(null);
 const typedHeadline = ref("");
-const contactDialogOpen = ref(false);
-const selectedPlanName = ref("方案");
-const fullHeadline = "煎豆：从文本到视频，\n一键直达";
+const fullHeadline = "从文本到视频\n一键直达";
 const adminPortalUrl = getRuntimeConfig().adminBaseUrl;
+const githubRepoUrl = "https://github.com/imi4u36d/JianDou";
 
 let typingTimer: number | null = null;
 let revealObserver: IntersectionObserver | null = null;
@@ -495,27 +391,6 @@ const sideDetailsJson = computed(() => {
   }, null, 2);
 });
 
-const plans = [
-  {
-    name: "入门版",
-    description: "适合个人创作者和轻量内容试水，快速验证文生视频工作流。",
-    price: "¥99",
-    featured: false
-  },
-  {
-    name: "专业版",
-    description: "适合有稳定产量的内容团队，支持多模型路由和案例化模板管理。",
-    price: "¥299",
-    featured: true
-  },
-  {
-    name: "企业版",
-    description: "支持后台权限、批量任务和系统连接配置，适合完整生产团队部署。",
-    price: "¥999",
-    featured: false
-  }
-];
-
 const adminItems = [
   {
     title: "概览分析",
@@ -532,7 +407,7 @@ const adminItems = [
 ];
 
 const footerGroups = [
-  { title: "产品", items: ["功能概览", "模型能力", "价格方案", "联系我们"] },
+  { title: "产品", items: ["功能概览", "模型能力", "联系我们"] },
   { title: "公司", items: ["品牌故事", "服务条款", "隐私政策", "合作咨询"] },
   { title: "资源", items: ["使用指南", "案例展示", "接口参考", "更新路线"] },
   { title: "社区", items: ["公众号", "视频号", "交流群", "GitHub"] }
@@ -540,15 +415,6 @@ const footerGroups = [
 
 function prefersReducedMotion() {
   return reducedMotionQuery?.matches ?? false;
-}
-
-function openContactDialog(planName: string) {
-  selectedPlanName.value = planName;
-  contactDialogOpen.value = true;
-}
-
-function closeContactDialog() {
-  contactDialogOpen.value = false;
 }
 
 function scrollToSection(targetId: string) {
@@ -816,9 +682,46 @@ onBeforeUnmount(() => {
   background: linear-gradient(90deg, #a65cff, #5fddff);
 }
 
+.official-site__nav-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.official-site__github {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: #2a2d3a;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 12px 24px rgba(85, 90, 120, 0.1),
+    inset 0 0 0 1px rgba(157, 147, 196, 0.18);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
+}
+
+.official-site__github svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.official-site__github:hover {
+  transform: translateY(-1px);
+  color: #8a57e7;
+  box-shadow:
+    0 14px 28px rgba(110, 89, 255, 0.16),
+    inset 0 0 0 1px rgba(138, 87, 231, 0.18);
+}
+
 .official-site__nav-cta,
-.hero-button,
-.pricing-plan button {
+.hero-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -836,16 +739,14 @@ onBeforeUnmount(() => {
 }
 
 .official-site__nav-cta,
-.hero-button-primary,
-.pricing-plan button {
+.hero-button-primary {
   color: #fff;
   background: linear-gradient(135deg, #ae69ff, #6e59ff 42%, #59d6ff 100%);
   box-shadow: 0 12px 28px rgba(140, 105, 255, 0.28);
 }
 
 .official-site__nav-cta:hover,
-.hero-button:hover,
-.pricing-plan button:hover {
+.hero-button:hover {
   transform: translateY(-1px);
 }
 
@@ -1105,7 +1006,6 @@ onBeforeUnmount(() => {
 }
 
 .feature-card,
-.pricing-plan,
 .side-json__card {
   position: relative;
   overflow: hidden;
@@ -1137,7 +1037,6 @@ onBeforeUnmount(() => {
 }
 
 .feature-card h3,
-.pricing-plan h3,
 .solution-card h3,
 .site-footer__links h3,
 .admin-card__meta h3 {
@@ -1149,7 +1048,6 @@ onBeforeUnmount(() => {
 }
 
 .feature-card p,
-.pricing-plan p,
 .solution-card p,
 .admin-card__meta p,
 .site-footer__top p {
@@ -1453,63 +1351,6 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-.section-heading-side {
-  text-align: center;
-}
-
-.section-heading-side h2 {
-  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
-}
-
-.pricing-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-items: stretch;
-  margin-top: 20px;
-}
-
-.pricing-plan {
-  display: flex;
-  flex-direction: column;
-  text-align: center;
-  min-height: 250px;
-}
-
-.pricing-plan__price {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 16px;
-}
-
-.pricing-plan__price strong {
-  font-size: 2.2rem;
-  line-height: 1;
-  color: #1f2230;
-}
-
-.pricing-plan__price span {
-  padding-bottom: 5px;
-  font-size: 0.82rem;
-  color: #7d8194;
-}
-
-.pricing-plan button {
-  width: 100%;
-  margin-top: auto;
-}
-
-.pricing-plan-featured {
-  background:
-    radial-gradient(circle at top center, rgba(154, 112, 255, 0.14), transparent 42%),
-    rgba(255, 255, 255, 0.92);
-  box-shadow:
-    0 18px 36px rgba(138, 111, 255, 0.16),
-    inset 0 0 0 1px rgba(157, 147, 196, 0.18);
-}
-
 .admin-card__content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 260px;
@@ -1647,106 +1488,6 @@ onBeforeUnmount(() => {
   font-size: 0.78rem;
 }
 
-.contact-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(13, 16, 24, 0.38);
-  backdrop-filter: blur(12px);
-}
-
-.contact-dialog {
-  width: min(100%, 460px);
-  padding: 28px;
-  border-radius: 30px;
-  border: 1px solid rgba(157, 138, 201, 0.18);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow:
-    0 30px 80px rgba(62, 57, 94, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-.contact-dialog__eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #8b8899;
-}
-
-.contact-dialog h2 {
-  margin: 10px 0 0;
-  font-family: "Plus Jakarta Sans", "Sora", "PingFang SC", sans-serif;
-  font-size: 2rem;
-  line-height: 1.08;
-  letter-spacing: -0.05em;
-  color: #222334;
-}
-
-.contact-dialog__description {
-  margin: 14px 0 0;
-  color: #6d7080;
-  line-height: 1.75;
-}
-
-.contact-dialog__channels {
-  display: grid;
-  gap: 12px;
-  margin-top: 22px;
-}
-
-.contact-dialog__channel {
-  display: grid;
-  gap: 6px;
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow:
-    0 14px 30px rgba(99, 102, 138, 0.08),
-    inset 0 0 0 1px rgba(157, 147, 196, 0.16);
-}
-
-.contact-dialog__channel span {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #808599;
-}
-
-.contact-dialog__channel strong {
-  font-size: 1.15rem;
-  color: #262a39;
-  word-break: break-word;
-}
-
-.contact-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 22px;
-}
-
-.contact-dialog__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 20px;
-  border: 0;
-  border-radius: 999px;
-  font-size: 0.92rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.contact-dialog__button-primary {
-  color: #fff;
-  background: linear-gradient(135deg, #ae69ff, #6e59ff 42%, #59d6ff 100%);
-  box-shadow: 0 12px 28px rgba(140, 105, 255, 0.28);
-}
-
 .reveal-on-scroll {
   opacity: 0;
   transform: translateY(28px) scale(0.985);
@@ -1768,6 +1509,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes caret-blink {
+
   0%,
   49% {
     opacity: 1;
@@ -1780,6 +1522,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes float-up {
+
   0%,
   100% {
     transform: translateY(0);
@@ -1791,6 +1534,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes drift-left {
+
   0%,
   100% {
     transform: translate3d(0, 0, 0);
@@ -1802,6 +1546,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes drift-right {
+
   0%,
   100% {
     transform: translate3d(0, 0, 0);
@@ -1823,6 +1568,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes wave-shift {
+
   0%,
   100% {
     transform: translateX(0) translateY(0);
@@ -1834,6 +1580,7 @@ onBeforeUnmount(() => {
 }
 
 @keyframes footer-pulse {
+
   0%,
   100% {
     transform: scale(1);
@@ -1848,7 +1595,6 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
   .feature-grid,
-  .pricing-grid,
   .admin-card__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1877,13 +1623,17 @@ onBeforeUnmount(() => {
     justify-content: center;
   }
 
+  .official-site__nav-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
   .hero-section {
     padding: 36px 20px 24px;
   }
 
   .hero-strip,
   .feature-grid,
-  .pricing-grid,
   .site-footer__links,
   .admin-card__meta {
     grid-template-columns: 1fr;
@@ -1975,23 +1725,29 @@ onBeforeUnmount(() => {
     width: 100%;
   }
 
+  .official-site__nav-actions {
+    gap: 10px;
+  }
+
+  .official-site__github {
+    flex: 0 0 42px;
+  }
+
+  .official-site__nav-cta {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
   .site-footer__top,
   .site-footer__bottom {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .contact-dialog {
-    padding: 22px 18px;
-    border-radius: 24px;
-  }
-
-  .contact-dialog h2 {
-    font-size: 1.6rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .official-site::before,
   .official-site::after,
   .hero-section::before,

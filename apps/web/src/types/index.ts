@@ -1027,3 +1027,164 @@ export interface AdminTaskBatchResult {
   succeededTaskIds: string[];
   failed: AdminTaskBatchFailure[];
 }
+
+export type WorkflowStageType = "storyboard" | "keyframe" | "video" | "joined";
+
+export interface CreateWorkflowRequest {
+  title: string;
+  transcriptText?: string | null;
+  globalPrompt?: string | null;
+  aspectRatio: "9:16" | "16:9";
+  stylePreset?: string | null;
+  textAnalysisModel: string;
+  visionModel: string;
+  imageModel: string;
+  videoModel: string;
+  videoSize?: string | null;
+  seed?: number | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
+}
+
+export interface RateWorkflowRequest {
+  effectRating: number;
+  effectRatingNote?: string | null;
+}
+
+export interface RateStageVersionRequest {
+  effectRating: number;
+  effectRatingNote?: string | null;
+}
+
+export interface MaterialAssetTag {
+  id: string;
+  tagType: "system" | "custom";
+  tagKey: string;
+  tagValue: string;
+}
+
+export interface MaterialAssetLibraryItem {
+  id: string;
+  workflowId: string;
+  stageType: WorkflowStageType;
+  clipIndex: number;
+  versionNo: number;
+  selectedForNext: boolean;
+  userRating?: number | null;
+  ratingNote?: string | null;
+  mediaType: "text" | "image" | "video" | string;
+  title: string;
+  originModel?: string | null;
+  originProvider?: string | null;
+  mimeType?: string | null;
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  hasAudio?: boolean | null;
+  fileUrl: string;
+  previewUrl: string;
+  remoteUrl?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  tags: MaterialAssetTag[];
+}
+
+export interface StageVersion {
+  id: string;
+  stageType: Exclude<WorkflowStageType, "joined">;
+  clipIndex: number;
+  versionNo: number;
+  title: string;
+  status: string;
+  selected: boolean;
+  rating?: number | null;
+  ratingNote?: string | null;
+  ratedAt?: string | null;
+  parentVersionId?: string | null;
+  sourceMaterialAssetId?: string | null;
+  materialAssetId?: string | null;
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
+  inputSummary?: Record<string, unknown> | null;
+  outputSummary?: Record<string, unknown> | null;
+  modelCallSummary?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  asset?: MaterialAssetLibraryItem | null;
+}
+
+export interface WorkflowClipSlot {
+  clipIndex: number;
+  shotLabel?: string | null;
+  scene?: string | null;
+  durationHint?: string | null;
+  targetDurationSeconds?: number | null;
+  keyframeVersions: StageVersion[];
+  videoVersions: StageVersion[];
+}
+
+export interface WorkflowSummary {
+  id: string;
+  title: string;
+  status: string;
+  currentStage: string;
+  aspectRatio: string;
+  effectRating?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  storyboardVersionCount: number;
+  keyframeVersionCount: number;
+  videoVersionCount: number;
+}
+
+export interface WorkflowDetail {
+  id: string;
+  title: string;
+  transcriptText?: string | null;
+  globalPrompt?: string | null;
+  aspectRatio: string;
+  stylePreset?: string | null;
+  textAnalysisModel: string;
+  visionModel: string;
+  imageModel: string;
+  videoModel: string;
+  videoSize?: string | null;
+  seed?: number | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
+  status: string;
+  currentStage: string;
+  selectedStoryboardVersionId?: string | null;
+  effectRating?: number | null;
+  effectRatingNote?: string | null;
+  ratedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  storyboardVersions: StageVersion[];
+  clipSlots: WorkflowClipSlot[];
+  finalResult?: MaterialAssetLibraryItem | null;
+}
+
+export interface MaterialAssetQuery {
+  q?: string;
+  type?: WorkflowStageType | "";
+  tag?: string;
+  minRating?: number | null;
+  model?: string;
+  aspectRatio?: string;
+  clipIndex?: number | null;
+}
+
+export interface UpdateMaterialAssetRatingRequest {
+  effectRating: number;
+  effectRatingNote?: string | null;
+}
+
+export interface UpdateMaterialAssetTagsRequest {
+  tags: string[];
+}
+
+export interface ReuseMaterialRequest {
+  mode: "clone";
+}

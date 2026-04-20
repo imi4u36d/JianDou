@@ -5,7 +5,6 @@
         <div class="admin-heading-block">
           <p class="admin-eyebrow">Task Detail</p>
           <h2 class="admin-title">任务详情</h2>
-          <p class="admin-subtitle">面向运维的任务生成诊断视图：状态、参数、进度、日志。</p>
         </div>
         <div class="admin-action-row">
           <button v-if="task?.status === 'FAILED'" :class="warningButtonClass" :disabled="actionLoading" type="button" @click="retryTaskAction">失败重试</button>
@@ -74,7 +73,6 @@
           <div class="border-t border-slate-200/80 px-5 py-4">
             <h4 class="text-sm font-semibold text-slate-900">任务摘要</h4>
             <p class="mt-1 text-sm text-slate-700">{{ planningSummary.title }}</p>
-            <p class="mt-1 text-xs text-slate-500">{{ planningSummary.detail }}</p>
           </div>
 
           <div v-if="monitoringRows.length" class="border-t border-slate-200/80 px-5 py-4">
@@ -179,7 +177,7 @@
               v-model="ratingNote"
               class="admin-field mt-3 min-h-[96px]"
               rows="4"
-              placeholder="记录当前 seed 或画面效果表现，例如稳定性、人物一致性、动作完成度。"
+              placeholder="评分备注"
             ></textarea>
             <div class="mt-3 flex flex-wrap items-center gap-2">
               <button
@@ -190,9 +188,6 @@
               >
                 {{ ratingSaving ? "保存中..." : "保存评分" }}
               </button>
-              <span class="text-xs text-slate-500">
-                {{ task.ratedAt ? `最近评分时间 ${formatTime(task.ratedAt)}` : "当前还没有保存过评分" }}
-              </span>
             </div>
           </div>
 
@@ -237,7 +232,6 @@
           <div class="admin-panel-header">
             <div>
               <h3 class="text-base font-semibold text-slate-900">任务日志</h3>
-              <p class="mt-1 text-sm text-slate-600">默认显示最新摘要，可展开完整事件流。</p>
             </div>
             <div class="flex flex-wrap gap-2">
               <button :class="secondaryButtonClass" type="button" @click="refresh">刷新</button>
