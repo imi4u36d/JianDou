@@ -90,17 +90,17 @@
 
       <header class="workspace-header">
         <h1 class="workspace-header__title">{{ currentTitle }}</h1>
-        <div class="workspace-header__actions">
-          <div class="workspace-header__user">
-            <span class="workspace-header__user-name">{{ currentUser?.displayName || currentUser?.username }}</span>
-            <span class="workspace-header__user-role">{{ currentUser?.role }}</span>
-          </div>
+        <div class="workspace-header__meta">
           <div class="workspace-brand">
             <div class="workspace-brand__mark">
               <span class="workspace-brand__mark-j">j</span>
               <span class="workspace-brand__mark-d">d</span>
             </div>
             <span>煎豆工作台</span>
+          </div>
+          <div class="workspace-header__user">
+            <span class="workspace-header__user-name">{{ currentUser?.displayName || currentUser?.username }}</span>
+            <span class="workspace-header__user-role">{{ currentUser?.role }}</span>
           </div>
         </div>
       </header>
@@ -310,12 +310,12 @@ watch(sidebarCollapsed, (value) => {
   position: relative;
   z-index: 30;
   height: 100%;
-  width: 264px;
-  flex: 0 0 264px;
+  width: 228px;
+  flex: 0 0 228px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 22px 18px 26px;
+  padding: 20px 14px 22px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(9, 11, 17, 0.92), rgba(5, 7, 11, 0.84));
   backdrop-filter: blur(24px);
@@ -323,7 +323,7 @@ watch(sidebarCollapsed, (value) => {
 
 .workspace-sidebar__top {
   display: grid;
-  gap: 28px;
+  gap: 22px;
 }
 
 .workspace-sidebar__topbar {
@@ -334,8 +334,8 @@ watch(sidebarCollapsed, (value) => {
 }
 
 .sidebar-avatar {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -357,8 +357,8 @@ watch(sidebarCollapsed, (value) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
@@ -377,16 +377,16 @@ watch(sidebarCollapsed, (value) => {
 
 .sidebar-nav {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .sidebar-nav__item {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
-  padding: 0 14px;
-  border-radius: 14px;
+  min-height: 46px;
+  padding: 0 12px;
+  border-radius: 13px;
   color: var(--text-muted);
   border: 1px solid transparent;
   transition:
@@ -429,7 +429,7 @@ watch(sidebarCollapsed, (value) => {
 
 .sidebar-dev {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .sidebar-dev__line {
@@ -487,8 +487,8 @@ watch(sidebarCollapsed, (value) => {
 .sidebar-dev__option {
   display: grid;
   gap: 4px;
-  padding: 14px 14px 14px 18px;
-  border-radius: 16px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
 }
@@ -505,9 +505,9 @@ watch(sidebarCollapsed, (value) => {
 
 .sidebar-user-card {
   display: grid;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
 }
@@ -545,13 +545,13 @@ watch(sidebarCollapsed, (value) => {
 
 .sidebar-user-card__actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .sidebar-user-card__link,
 .sidebar-user-card__logout {
   flex: 1;
-  min-height: 38px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -582,49 +582,54 @@ watch(sidebarCollapsed, (value) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  min-height: 68px;
-  padding: 0 28px 0 46px;
+  gap: 16px;
+  min-height: 60px;
+  padding: 0 22px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .workspace-header__title {
   margin: 0;
-  font-size: clamp(1.3rem, 1.6vw, 1.9rem);
+  font-size: clamp(1.18rem, 1.45vw, 1.72rem);
   font-weight: 700;
   letter-spacing: -0.04em;
   color: #f5f7fb;
 }
 
-.workspace-header__actions {
+.workspace-header__meta {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .workspace-header__user {
   display: grid;
-  justify-items: end;
+  justify-items: start;
   gap: 2px;
+  min-width: 0;
 }
 
 .workspace-header__user-name {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
 .workspace-header__user-role {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
 }
 
 .workspace-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   font-weight: 500;
 }
 
@@ -632,7 +637,7 @@ watch(sidebarCollapsed, (value) => {
   display: inline-flex;
   align-items: flex-end;
   gap: 1px;
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -649,14 +654,14 @@ watch(sidebarCollapsed, (value) => {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 22px 28px 28px 46px;
+  padding: 18px 22px 22px;
   overflow: hidden;
 }
 
 .workspace-sidebar-collapsed {
-  width: 92px;
-  flex-basis: 92px;
-  padding: 22px 14px 22px;
+  width: 76px;
+  flex-basis: 76px;
+  padding: 18px 10px;
 }
 
 .workspace-sidebar-collapsed .workspace-sidebar__top {
@@ -717,9 +722,9 @@ watch(sidebarCollapsed, (value) => {
 
 @media (max-width: 1024px) {
   .workspace-sidebar-collapsed {
-    width: 264px;
-    flex-basis: 264px;
-    padding: 22px 18px 26px;
+    width: 228px;
+    flex-basis: 228px;
+    padding: 20px 14px 22px;
   }
 
   .workspace-sidebar-collapsed .workspace-sidebar__topbar {
@@ -728,7 +733,7 @@ watch(sidebarCollapsed, (value) => {
 
   .workspace-sidebar-collapsed .sidebar-nav__item {
     justify-content: flex-start;
-    padding: 0 14px;
+    padding: 0 12px;
   }
 
   .workspace-sidebar-collapsed .sidebar-nav__label,
@@ -765,8 +770,8 @@ watch(sidebarCollapsed, (value) => {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    min-height: 56px;
-    padding: 10px 18px;
+    min-height: 52px;
+    padding: 8px 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(6, 8, 13, 0.92);
     backdrop-filter: blur(20px);
@@ -777,7 +782,7 @@ watch(sidebarCollapsed, (value) => {
   }
 
   .workspace-content {
-    padding: 18px;
+    padding: 16px;
   }
 }
 </style>

@@ -1,177 +1,200 @@
 <template>
   <section class="new-task-view">
     <form class="task-studio" @submit.prevent="submitTask">
-      <aside class="surface-panel studio-panel studio-panel-rail">
+      <aside class="surface-panel surface-panel-compact studio-panel studio-panel-rail">
         <div class="studio-panel__head">
           <div>
             <p class="studio-eyebrow">配置轨道</p>
             <h2>模型链路</h2>
           </div>
-          <span class="surface-chip">已选 {{ selectedModelCount }}/4</span>
+          <span class="surface-chip surface-chip-compact">已选 {{ selectedModelCount }}/4</span>
         </div>
 
-        <label class="studio-field">
-          <span>任务标题</span>
-          <input v-model="form.title" class="field-input" required placeholder="例如：悬疑短剧第 12 集预告" />
-        </label>
-
-        <div class="model-rail">
-          <div class="model-rail__line" aria-hidden="true"></div>
-
-          <label class="model-rail__item">
-            <span class="model-rail__dot"></span>
-            <span class="model-rail__label">文本模型</span>
-            <select v-model="form.textAnalysisModel" class="field-select">
-              <option :value="null">请选择文本模型</option>
-              <option v-for="item in textModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
+        <div class="studio-rail-scroll">
+          <label class="studio-field">
+            <span>任务标题</span>
+            <input
+              v-model="form.title"
+              class="field-input field-input-compact"
+              required
+              placeholder="例如：悬疑短剧第 12 集预告"
+            />
           </label>
 
-          <label class="model-rail__item">
-            <span class="model-rail__dot"></span>
-            <span class="model-rail__label">视觉模型</span>
-            <select v-model="form.visionModel" class="field-select">
-              <option :value="null">请选择视觉模型</option>
-              <option v-for="item in visionModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
+          <div class="model-rail">
+            <div class="model-rail__line" aria-hidden="true"></div>
 
-          <label class="model-rail__item">
-            <span class="model-rail__dot"></span>
-            <span class="model-rail__label">关键帧模型</span>
-            <select v-model="form.imageModel" class="field-select">
-              <option :value="null">请选择关键帧模型</option>
-              <option v-for="item in imageModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
-
-          <label class="model-rail__item">
-            <span class="model-rail__dot"></span>
-            <span class="model-rail__label">视频模型</span>
-            <select v-model="form.videoModel" class="field-select">
-              <option :value="null">请选择视频模型</option>
-              <option v-for="item in videoModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
-        </div>
-
-        <section class="surface-tile control-card">
-          <div class="control-card__head">
-            <div>
-              <p class="studio-eyebrow">参数控制</p>
-              <h3>输出设置</h3>
-            </div>
-            <HintBell title="种子使用说明" :text="seedCapabilityHint" align="left" />
-          </div>
-
-          <div class="ratio-toggle">
-            <button
-              v-for="item in aspectRatioOptions"
-              :key="item.value"
-              type="button"
-              class="ratio-toggle__item"
-              :class="{ 'ratio-toggle__item-active': form.aspectRatio === item.value }"
-              @click="form.aspectRatio = item.value"
-            >
-              {{ item.value }}
-            </button>
-          </div>
-
-          <div class="control-grid">
-            <label class="studio-field">
-              <span>清晰度</span>
-              <select v-model="form.videoSize" class="field-select">
-                <option v-for="item in videoSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            <label class="model-rail__item">
+              <span class="model-rail__dot"></span>
+              <span class="model-rail__label">文本模型</span>
+              <select v-model="form.textAnalysisModel" class="field-select field-select-compact">
+                <option :value="null">请选择文本模型</option>
+                <option v-for="item in textModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
             </label>
 
-            <label class="studio-field">
-              <span>输出数量</span>
-              <select v-model="form.outputCount" class="field-select">
-                <option value="auto">自动</option>
-                <option v-for="item in outputCountOptions" :key="item" :value="item">{{ item }}</option>
+            <label class="model-rail__item">
+              <span class="model-rail__dot"></span>
+              <span class="model-rail__label">视觉模型</span>
+              <select v-model="form.visionModel" class="field-select field-select-compact">
+                <option :value="null">请选择视觉模型</option>
+                <option v-for="item in visionModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
             </label>
 
-            <label class="studio-field">
-              <span>时长模式</span>
-              <select v-model="durationLimitMode" class="field-select">
-                <option value="auto">自动</option>
-                <option value="manual">手动</option>
+            <label class="model-rail__item">
+              <span class="model-rail__dot"></span>
+              <span class="model-rail__label">关键帧模型</span>
+              <select v-model="form.imageModel" class="field-select field-select-compact">
+                <option :value="null">请选择关键帧模型</option>
+                <option v-for="item in imageModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
               </select>
             </label>
 
-            <label v-if="durationLimitMode === 'manual'" class="studio-field">
-              <span>最大时长</span>
-              <input
-                v-model="manualMaxDurationSeconds"
-                class="field-input"
-                type="number"
-                min="5"
-                max="12"
-                step="1"
-                :placeholder="manualDurationPlaceholder"
-              />
+            <label class="model-rail__item">
+              <span class="model-rail__dot"></span>
+              <span class="model-rail__label">视频模型</span>
+              <select v-model="form.videoModel" class="field-select field-select-compact">
+                <option :value="null">请选择视频模型</option>
+                <option v-for="item in videoModelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
             </label>
           </div>
 
-          <p class="control-card__hint">
-            {{ durationLimitMode === "manual" ? manualDurationHint : "自动模式会跟随当前视频模型能力。" }}
-          </p>
-          <p v-if="durationLimitMode === 'manual' && manualDurationValidationMessage" class="control-card__error">
-            {{ manualDurationValidationMessage }}
-          </p>
-        </section>
-
-        <section class="surface-tile seed-library">
-          <div class="seed-library__head">
-            <div>
-              <p class="studio-eyebrow">种子库</p>
-              <h3>高分复用</h3>
-            </div>
-            <button type="button" class="btn-ghost btn-sm" :disabled="loadingReusableSeeds" @click="loadReusableSeeds">
-              {{ loadingReusableSeeds ? "加载中..." : "刷新" }}
-            </button>
-          </div>
-
-          <p v-if="reusableSeedError" class="control-card__error">{{ reusableSeedError }}</p>
-          <div v-else-if="reusableSeedTasks.length" class="seed-library__list">
-            <button
-              v-for="task in reusableSeedTasks"
-              :key="task.id"
-              type="button"
-              class="seed-library__item"
-              :class="{ 'seed-library__item-active': selectedSeedSourceTaskId === task.id }"
-              @click="applySeedFromTask(task)"
-            >
-              <div class="seed-library__chips">
-                <span class="surface-chip">种子 {{ formatReusableSeed(task.taskSeed) }}</span>
-                <span class="surface-chip">评分 {{ formatReusableRating(task.effectRating) }}</span>
+          <section class="surface-tile surface-tile-compact control-card">
+            <div class="control-card__head">
+              <div>
+                <p class="studio-eyebrow">参数控制</p>
+                <h3>输出设置</h3>
               </div>
-              <strong>{{ task.title }}</strong>
-              <small>{{ task.aspectRatio || "未知画幅" }} · {{ formatReusableDate(task.ratedAt) || task.status }}</small>
-            </button>
-          </div>
-          <p v-else class="seed-library__empty">当前还没有可复用的高分种子。</p>
-        </section>
+              <HintBell title="种子使用说明" :text="seedCapabilityHint" align="left" />
+            </div>
+
+            <div class="ratio-toggle">
+              <button
+                v-for="item in aspectRatioOptions"
+                :key="item.value"
+                type="button"
+                class="ratio-toggle__item"
+                :class="{ 'ratio-toggle__item-active': form.aspectRatio === item.value }"
+                @click="form.aspectRatio = item.value"
+              >
+                {{ item.value }}
+              </button>
+            </div>
+
+            <div class="control-grid">
+              <label class="studio-field">
+                <span>清晰度</span>
+                <select v-model="form.videoSize" class="field-select field-select-compact">
+                  <option v-for="item in videoSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+                </select>
+              </label>
+
+              <label class="studio-field">
+                <span>输出数量</span>
+                <select v-model="form.outputCount" class="field-select field-select-compact">
+                  <option value="auto">自动</option>
+                  <option v-for="item in outputCountOptions" :key="item" :value="item">{{ item }}</option>
+                </select>
+              </label>
+
+              <label class="studio-field">
+                <span>时长模式</span>
+                <select v-model="durationLimitMode" class="field-select field-select-compact">
+                  <option value="auto">自动</option>
+                  <option value="manual">手动</option>
+                </select>
+              </label>
+
+              <label v-if="durationLimitMode === 'manual'" class="studio-field">
+                <span>最大时长</span>
+                <input
+                  v-model="manualMaxDurationSeconds"
+                  class="field-input field-input-compact"
+                  type="number"
+                  min="5"
+                  max="12"
+                  step="1"
+                  :placeholder="manualDurationPlaceholder"
+                />
+              </label>
+            </div>
+
+            <p class="control-card__hint">
+              {{ durationLimitMode === "manual" ? manualDurationHint : "自动模式会跟随当前视频模型能力。" }}
+            </p>
+            <p v-if="durationLimitMode === 'manual' && manualDurationValidationMessage" class="control-card__error">
+              {{ manualDurationValidationMessage }}
+            </p>
+          </section>
+
+          <section class="surface-tile surface-tile-compact seed-library">
+            <div class="seed-library__head">
+              <div>
+                <p class="studio-eyebrow">种子库</p>
+                <h3>高分复用</h3>
+              </div>
+              <button
+                type="button"
+                class="btn-ghost btn-sm btn-compact"
+                :disabled="loadingReusableSeeds"
+                @click="loadReusableSeeds"
+              >
+                {{ loadingReusableSeeds ? "加载中..." : "刷新" }}
+              </button>
+            </div>
+
+            <p v-if="reusableSeedError" class="control-card__error">{{ reusableSeedError }}</p>
+            <div v-else-if="reusableSeedTasks.length" class="seed-library__list">
+              <button
+                v-for="task in reusableSeedTasks"
+                :key="task.id"
+                type="button"
+                class="seed-library__item"
+                :class="{ 'seed-library__item-active': selectedSeedSourceTaskId === task.id }"
+                @click="applySeedFromTask(task)"
+              >
+                <div class="seed-library__chips">
+                  <span class="surface-chip surface-chip-compact">种子 {{ formatReusableSeed(task.taskSeed) }}</span>
+                  <span class="surface-chip surface-chip-compact">评分 {{ formatReusableRating(task.effectRating) }}</span>
+                </div>
+                <strong>{{ task.title }}</strong>
+                <small>{{ task.aspectRatio || "未知画幅" }} · {{ formatReusableDate(task.ratedAt) || task.status }}</small>
+              </button>
+            </div>
+            <p v-else class="seed-library__empty">当前还没有可复用的高分种子。</p>
+          </section>
+        </div>
       </aside>
 
-      <section class="surface-panel studio-panel studio-panel-core">
+      <section class="surface-panel surface-panel-compact studio-panel studio-panel-core">
         <div class="studio-panel__head">
           <div>
             <p class="studio-eyebrow">创作核心</p>
             <h2>提示词与正文内容</h2>
           </div>
-          <span class="surface-chip">{{ transcriptCharacterCount > 0 ? `${transcriptCharacterCount} 字` : "等待正文输入" }}</span>
+          <span class="surface-chip surface-chip-compact">{{ transcriptCharacterCount > 0 ? `${transcriptCharacterCount} 字` : "等待正文输入" }}</span>
         </div>
 
         <div class="core-topbar">
-          <button type="button" class="btn-primary core-topbar__action" :disabled="generatingPrompt || loadingOptions" @click="handleGeneratePrompt">
+          <button
+            type="button"
+            class="btn-primary btn-compact core-topbar__action"
+            :disabled="generatingPrompt || loadingOptions"
+            @click="handleGeneratePrompt"
+          >
             {{ generatingPrompt ? "生成中..." : "智能生成提示词" }}
           </button>
-          <button type="button" class="btn-secondary btn-sm" :disabled="uploadingText" @click="textFileInput?.click()">
+          <button
+            type="button"
+            class="btn-secondary btn-sm btn-compact"
+            :disabled="uploadingText"
+            @click="textFileInput?.click()"
+          >
             {{ uploadingText ? "上传中..." : "上传文本" }}
           </button>
+          <span class="surface-chip surface-chip-compact core-topbar__meta">{{ promptSource }}</span>
           <input
             ref="textFileInput"
             type="file"
@@ -181,60 +204,84 @@
           />
         </div>
 
-        <label class="studio-field">
-          <span>小说正文</span>
-          <textarea
-            v-model="form.transcriptText"
-            rows="12"
-            class="field-textarea core-textarea"
-            placeholder="输入正文"
-          ></textarea>
-        </label>
-
-        <label class="studio-field">
-          <span>全局创意提示词</span>
-          <textarea
-            v-model="form.creativePrompt"
-            rows="5"
-            class="field-textarea"
-            placeholder="输入提示词"
-          ></textarea>
-        </label>
-
-        <div class="core-bottom-grid">
+        <div class="core-compose">
           <label class="studio-field">
-            <span>种子</span>
-            <input
-              v-model="seedInput"
-              class="field-input"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="可选"
-            />
+            <span>小说正文</span>
+            <textarea
+              v-model="form.transcriptText"
+              rows="12"
+              class="field-textarea field-textarea-compact core-textarea"
+              placeholder="输入正文"
+            ></textarea>
           </label>
 
-          <div class="surface-tile core-status">
-            <p class="studio-eyebrow">提交检查</p>
-            <strong>{{ submitLabel }}</strong>
-            <p>{{ statusText }}</p>
-          </div>
+          <label class="studio-field">
+            <span>全局创意提示词</span>
+            <textarea
+              v-model="form.creativePrompt"
+              rows="5"
+              class="field-textarea field-textarea-compact core-prompt-textarea"
+              placeholder="输入提示词"
+            ></textarea>
+          </label>
         </div>
 
-        <div class="core-actions">
-          <button class="btn-primary" type="submit" :disabled="submitting || !isFormReady || loadingOptions">{{ submitLabel }}</button>
-          <button class="btn-secondary" type="button" :disabled="submitting" @click="goToTasks">查看任务</button>
-          <button class="btn-ghost" type="button" :disabled="!progressTaskId" @click="goToCurrentTask">打开当前任务</button>
+        <div class="core-footer">
+          <div class="core-bottom-grid">
+            <label class="studio-field">
+              <span>种子</span>
+              <input
+                v-model="seedInput"
+                class="field-input field-input-compact"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="可选"
+              />
+            </label>
+
+            <div class="surface-tile surface-tile-compact core-status">
+              <p class="studio-eyebrow">提交检查</p>
+              <strong>{{ submitLabel }}</strong>
+              <p>{{ statusText }}</p>
+              <span class="core-status__meta">提示词来源：{{ promptSource }}</span>
+            </div>
+          </div>
+
+          <div class="core-actions">
+            <button class="btn-primary btn-compact core-actions__primary" type="submit" :disabled="submitting || !isFormReady || loadingOptions">{{ submitLabel }}</button>
+            <button class="btn-secondary btn-compact" type="button" :disabled="submitting" @click="goToTasks">查看任务</button>
+            <button class="btn-ghost btn-compact" type="button" :disabled="!progressTaskId" @click="goToCurrentTask">打开当前任务</button>
+          </div>
         </div>
       </section>
 
-      <aside class="surface-panel studio-panel studio-panel-trace">
+      <aside class="surface-panel surface-panel-compact studio-panel studio-panel-trace">
         <div class="studio-panel__head">
           <div>
             <p class="studio-eyebrow">实时追踪</p>
             <h2>执行监控</h2>
           </div>
-          <span class="surface-chip">{{ progressState.status }}</span>
+          <span class="surface-chip surface-chip-compact">{{ progressState.status }}</span>
+        </div>
+
+        <div class="trace-stats">
+          <div class="trace-stat">
+            <span>当前阶段</span>
+            <strong>{{ progressState.stage }}</strong>
+          </div>
+          <div class="trace-stat">
+            <span>追踪数量</span>
+            <strong>{{ progressTraceCount }} 条</strong>
+          </div>
+          <div class="trace-stat">
+            <span>任务编号</span>
+            <strong>{{ progressTaskId || "未挂载" }}</strong>
+          </div>
+          <div class="trace-stat">
+            <span>耗时</span>
+            <strong>{{ progressElapsedLabel || "等待开始" }}</strong>
+          </div>
         </div>
 
         <div class="trace-ring-shell">
@@ -254,7 +301,7 @@
             <span v-for="item in previewResultMeta" :key="item">{{ item }}</span>
           </div>
           <div v-if="previewDownloadUrl" class="trace-preview__actions">
-            <a class="btn-secondary btn-sm" :href="previewDownloadUrl" download target="_blank" rel="noopener noreferrer">
+            <a class="btn-secondary btn-sm btn-compact" :href="previewDownloadUrl" download target="_blank" rel="noopener noreferrer">
               下载最新拼接结果
             </a>
           </div>
@@ -1079,21 +1126,36 @@ onUnmounted(() => {
 
 .task-studio {
   display: grid;
-  gap: 22px;
-  align-items: start;
+  gap: 16px;
+  align-items: stretch;
   height: 100%;
   min-height: 0;
-  grid-template-columns: minmax(280px, 0.88fr) minmax(420px, 1fr) minmax(300px, 0.82fr);
+  grid-template-columns: 320px minmax(0, 1fr) 300px;
+  grid-template-areas: "rail core trace";
 }
 
 .studio-panel {
   display: grid;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
   min-height: 0;
   max-height: 100%;
-  padding: 18px;
+  padding: 16px;
   overflow: auto;
+}
+
+.studio-panel-rail {
+  grid-area: rail;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.studio-panel-core {
+  grid-area: core;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.studio-panel-trace {
+  grid-area: trace;
 }
 
 .studio-panel__head {
@@ -1109,7 +1171,7 @@ onUnmounted(() => {
 .seed-library__head h3,
 .trace-feed__head h3 {
   margin: 0.28rem 0 0;
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   color: rgba(255, 255, 255, 0.95);
@@ -1124,9 +1186,18 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
+.studio-rail-scroll {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
 .studio-field {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .studio-field > span {
@@ -1138,14 +1209,14 @@ onUnmounted(() => {
 .model-rail {
   position: relative;
   display: grid;
-  gap: 18px;
-  padding-left: 22px;
+  gap: 14px;
+  padding-left: 18px;
 }
 
 .model-rail__line {
   position: absolute;
-  top: 14px;
-  bottom: 14px;
+  top: 12px;
+  bottom: 12px;
   left: 5px;
   width: 2px;
   background: linear-gradient(180deg, rgba(176, 92, 255, 0.9), rgba(78, 219, 255, 0.88), rgba(176, 92, 255, 0.9));
@@ -1157,15 +1228,15 @@ onUnmounted(() => {
 .model-rail__item {
   position: relative;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.42rem;
 }
 
 .model-rail__dot {
   position: absolute;
-  left: -22px;
-  top: 13px;
-  width: 12px;
-  height: 12px;
+  left: -18px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: linear-gradient(180deg, #b05cff, #4edbff);
   box-shadow:
@@ -1183,8 +1254,8 @@ onUnmounted(() => {
 .seed-library,
 .core-status {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 14px;
 }
 
 .control-card__head,
@@ -1193,18 +1264,18 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .ratio-toggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .ratio-toggle__item {
-  min-height: 44px;
-  border-radius: 14px;
+  min-height: 40px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.03);
   color: rgba(255, 255, 255, 0.74);
@@ -1220,7 +1291,7 @@ onUnmounted(() => {
 
 .control-grid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1238,16 +1309,16 @@ onUnmounted(() => {
 
 .seed-library__list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   overflow: auto;
 }
 
 .seed-library__item {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   text-align: left;
-  padding: 14px;
-  border-radius: 16px;
+  padding: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
@@ -1278,27 +1349,48 @@ onUnmounted(() => {
 .seed-library__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .core-topbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
 }
 
 .core-topbar__action {
-  flex: 1 1 220px;
+  flex: 1 1 240px;
+}
+
+.core-topbar__meta {
+  margin-left: auto;
 }
 
 .core-textarea {
-  min-height: 300px;
+  min-height: clamp(280px, 42vh, 520px);
+}
+
+.core-prompt-textarea {
+  min-height: 138px;
+}
+
+.core-compose {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.core-footer {
+  display: grid;
+  gap: 12px;
 }
 
 .core-bottom-grid {
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 12px;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.28fr);
   align-items: start;
 }
 
@@ -1315,31 +1407,66 @@ onUnmounted(() => {
 
 .core-status__meta {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
 }
 
 .core-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
+}
+
+.core-actions__primary {
+  flex: 1 1 220px;
 }
 
 .studio-panel-trace {
   align-self: stretch;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+}
+
+.trace-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.trace-stat {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.trace-stat span {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.trace-stat strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trace-ring-shell {
   display: grid;
   justify-items: center;
-  gap: 12px;
-  padding: 8px 0 2px;
+  gap: 10px;
+  padding: 2px 0 0;
 }
 
 .trace-ring {
   --progress: 0%;
   position: relative;
-  width: min(240px, 100%);
+  width: min(188px, 100%);
   aspect-ratio: 1;
   border-radius: 50%;
   display: grid;
@@ -1349,7 +1476,7 @@ onUnmounted(() => {
     conic-gradient(from 220deg, rgba(255, 255, 255, 0.1) 0 25%, #b05cff 45%, #8f93ff 70%, #4edbff 100%);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 20px 40px rgba(0, 0, 0, 0.24);
+    0 14px 28px rgba(0, 0, 0, 0.22);
 }
 
 .trace-ring::before {
@@ -1366,7 +1493,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 8px;
+  gap: 6px;
   justify-items: center;
   width: 68%;
   text-align: center;
@@ -1379,7 +1506,7 @@ onUnmounted(() => {
 }
 
 .trace-ring__inner strong {
-  font-size: 2.3rem;
+  font-size: 2rem;
   line-height: 1;
   letter-spacing: -0.06em;
   color: rgba(255, 255, 255, 0.98);
@@ -1393,7 +1520,7 @@ onUnmounted(() => {
 
 .trace-preview {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   align-content: start;
 }
 
@@ -1406,7 +1533,9 @@ onUnmounted(() => {
 
 .trace-preview video {
   width: 100%;
-  border-radius: 18px;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.8);
 }
@@ -1414,7 +1543,7 @@ onUnmounted(() => {
 .trace-preview__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .trace-preview__meta span {
@@ -1433,7 +1562,8 @@ onUnmounted(() => {
 
 .trace-feed {
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -1442,15 +1572,14 @@ onUnmounted(() => {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 10px;
-  max-height: 420px;
+  gap: 8px;
   overflow: auto;
 }
 
 .trace-feed__item,
 .trace-feed__empty {
-  padding: 14px;
-  border-radius: 16px;
+  padding: 12px;
+  border-radius: 14px;
   background: rgba(0, 0, 0, 0.42);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -1481,21 +1610,25 @@ onUnmounted(() => {
 
 @media (max-width: 1380px) {
   .task-studio {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(300px, 0.95fr) minmax(0, 1.05fr);
+    grid-template-areas:
+      "rail core"
+      "trace trace";
     overflow: auto;
-  }
-
-  .studio-panel-trace {
-    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 900px) {
   .task-studio {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "core"
+      "rail"
+      "trace";
     overflow: auto;
   }
 
+  .trace-stats,
   .core-bottom-grid,
   .control-grid {
     grid-template-columns: 1fr;
@@ -1512,7 +1645,7 @@ onUnmounted(() => {
   }
 
   .trace-ring {
-    width: min(200px, 100%);
+    width: min(180px, 100%);
   }
 }
 </style>

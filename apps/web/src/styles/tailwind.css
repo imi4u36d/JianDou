@@ -134,6 +134,20 @@ textarea {
     border-radius: 20px;
   }
 
+  .surface-panel-compact {
+    border-radius: 20px;
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .surface-tile-compact {
+    border-radius: 16px;
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
   .surface-panel-warm {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
@@ -155,6 +169,13 @@ textarea {
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.06em;
+  }
+
+  .surface-chip-compact {
+    min-height: 24px;
+    padding: 0 0.65rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
   }
 
   .page-header {
@@ -234,6 +255,25 @@ textarea {
       background 180ms ease;
   }
 
+  .field-input-compact,
+  .field-select-compact,
+  .field-textarea-compact {
+    border-radius: 14px;
+    padding: 0.78rem 0.92rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 8px 18px rgba(0, 0, 0, 0.14);
+  }
+
+  .field-input-compact,
+  .field-select-compact {
+    min-height: 44px;
+  }
+
+  .field-textarea-compact {
+    min-height: 112px;
+  }
+
   .field-input::placeholder,
   .field-textarea::placeholder {
     color: rgba(255, 255, 255, 0.34);
@@ -283,6 +323,12 @@ textarea {
   .btn-danger {
     min-height: 46px;
     padding: 0 1rem;
+  }
+
+  .btn-compact {
+    min-height: 40px;
+    padding: 0 0.9rem;
+    border-radius: 14px;
   }
 
   .btn-sm {
