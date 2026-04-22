@@ -1,43 +1,7 @@
 <template>
   <main ref="scrollRoot" class="official-site" id="top">
     <div class="official-site__shell">
-      <div class="official-site__announcement reveal-on-scroll is-visible">
-        <span>公告</span>
-        <a href="#solutions" @click.prevent="scrollToSection('solutions')">查看案例</a>
-      </div>
-
-      <header class="official-site__nav reveal-on-scroll is-visible">
-        <RouterLink class="official-brand" to="/">
-          <img alt="煎豆 Logo" class="official-brand__logo" src="/brand/jiandou-mark.svg" />
-          <span>煎豆工作台</span>
-        </RouterLink>
-
-        <nav class="official-site__nav-links" aria-label="主导航">
-          <a href="#top" @click.prevent="scrollToSection('top')">首页</a>
-          <a href="#features" @click.prevent="scrollToSection('features')">产品能力</a>
-          <a href="#solutions" @click.prevent="scrollToSection('solutions')">解决方案</a>
-          <a href="#footer" @click.prevent="scrollToSection('footer')">博客</a>
-          <a :href="adminPortalUrl">管理后台</a>
-        </nav>
-
-        <div class="official-site__nav-actions">
-          <a
-            class="official-site__github"
-            :href="githubRepoUrl"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="打开 GitHub 仓库"
-            title="GitHub"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M12 2C6.48 2 2 6.59 2 12.25c0 4.53 2.87 8.37 6.84 9.72.5.1.66-.22.66-.49 0-.24-.01-1.03-.01-1.86-2.78.62-3.37-1.21-3.37-1.21-.46-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.93.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.08 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.36 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.63 1.03 2.75 0 3.95-2.35 4.82-4.58 5.07.36.32.68.95.68 1.92 0 1.38-.01 2.49-.01 2.83 0 .27.18.59.67.49A10.29 10.29 0 0 0 22 12.25C22 6.59 17.52 2 12 2Z"
-              />
-            </svg>
-          </a>
-          <RouterLink class="official-site__nav-cta" to="/generate">立即开始</RouterLink>
-        </div>
-      </header>
+      <MarketingTopbar active-page="home" scroll-sections @section-request="scrollToSection" />
 
       <section class="hero-section reveal-on-scroll is-visible">
         <div class="hero-section__copy">
@@ -50,7 +14,7 @@
 
           <div class="hero-section__actions">
             <RouterLink class="hero-button hero-button-primary" to="/generate">开始创作</RouterLink>
-            <a class="hero-button hero-button-secondary" href="#solutions">查看案例方案</a>
+            <a class="hero-button hero-button-secondary" href="#solutions" @click.prevent="scrollToSection('solutions')">查看案例方案</a>
           </div>
 
           <p class="hero-strip__status">{{ showcaseStatusText }}</p>
@@ -65,8 +29,14 @@
               <div class="hero-strip__visual">
                 <video v-if="frame.previewUrl" class="showcase-media" :src="frame.previewUrl" autoplay loop muted
                   playsinline preload="metadata"></video>
-                <div class="hero-strip__poster">
-                  <span>{{ frame.badge }}</span>
+                <div v-else class="showcase-placeholder showcase-placeholder-compact"
+                  :class="`showcase-placeholder--${frame.placeholderMeta.layout}`" :style="frame.placeholderStyle">
+                  <div class="showcase-placeholder__scene" aria-hidden="true">
+                    <span class="showcase-placeholder__beam"></span>
+                    <span class="showcase-placeholder__subject-shadow"></span>
+                    <span class="showcase-placeholder__subject"></span>
+                    <span class="showcase-placeholder__monitor"></span>
+                  </div>
                 </div>
               </div>
             </article>
@@ -90,7 +60,6 @@
                 <p>{{ feature.description }}</p>
                 <div class="feature-card__footer">
                   <span>{{ feature.meta }}</span>
-                  <button type="button">查看详情</button>
                 </div>
               </article>
             </div>
@@ -141,8 +110,14 @@
                 <div class="solution-card__visual">
                   <video v-if="solution.previewUrl" class="showcase-media" :src="solution.previewUrl" autoplay loop
                     muted playsinline preload="metadata"></video>
-                  <div class="solution-card__poster">
-                    <span>{{ solution.poster }}</span>
+                  <div v-else class="showcase-placeholder showcase-placeholder-expanded"
+                    :class="`showcase-placeholder--${solution.placeholderMeta.layout}`" :style="solution.placeholderStyle">
+                    <div class="showcase-placeholder__scene" aria-hidden="true">
+                      <span class="showcase-placeholder__beam"></span>
+                      <span class="showcase-placeholder__subject-shadow"></span>
+                      <span class="showcase-placeholder__subject"></span>
+                      <span class="showcase-placeholder__monitor"></span>
+                    </div>
                   </div>
                 </div>
                 <div class="solution-card__body">
@@ -170,6 +145,15 @@
                 <div class="side-media__visual">
                   <video v-if="sample.previewUrl" class="showcase-media" :src="sample.previewUrl" autoplay loop muted
                     playsinline preload="metadata"></video>
+                  <div v-else class="showcase-placeholder showcase-placeholder-side"
+                    :class="`showcase-placeholder--${sample.placeholderMeta.layout}`" :style="sample.placeholderStyle">
+                    <div class="showcase-placeholder__scene" aria-hidden="true">
+                      <span class="showcase-placeholder__beam"></span>
+                      <span class="showcase-placeholder__subject-shadow"></span>
+                      <span class="showcase-placeholder__subject"></span>
+                      <span class="showcase-placeholder__monitor"></span>
+                    </div>
+                  </div>
                 </div>
                 <div class="side-media__meta">
                   <span>{{ sample.title }}</span>
@@ -247,8 +231,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import type { TaskShowcaseItem } from "@/types";
 import { useTaskShowcase } from "@/composables/useTaskShowcase";
-import { getRuntimeConfig } from "@/api/runtime-config";
+import MarketingTopbar from "@/components/marketing/MarketingTopbar.vue";
 import {
   collectShowcaseModelNodes,
   formatShowcaseDuration,
@@ -258,11 +243,15 @@ import {
   selectShowcasePrimaryModel,
 } from "@/utils/showcase";
 
+type ShowcasePlaceholderMeta = {
+  layout: "left" | "right" | "center";
+};
+
+type ShowcasePlaceholderStyle = Record<string, string>;
+
 const scrollRoot = ref<HTMLElement | null>(null);
 const typedHeadline = ref("");
 const fullHeadline = "从文本到视频\n一键直达";
-const adminPortalUrl = getRuntimeConfig().adminBaseUrl;
-const githubRepoUrl = "https://github.com/imi4u36d/JianDou";
 
 let typingTimer: number | null = null;
 let revealObserver: IntersectionObserver | null = null;
@@ -274,6 +263,337 @@ const {
   generatedAt: showcaseGeneratedAt,
   totalCompletedTasks,
 } = useTaskShowcase();
+
+const mockShowcaseItems: TaskShowcaseItem[] = [
+  {
+    id: "mock-campus-romance-night-run",
+    title: "校园重逢夜跑告白",
+    status: "COMPLETED",
+    createdAt: "2026-04-08T20:15:00+08:00",
+    updatedAt: "2026-04-08T20:36:00+08:00",
+    sourceFileName: "chapter_12_night_run.txt",
+    aspectRatio: "9:16",
+    minDurationSeconds: 42,
+    maxDurationSeconds: 46,
+    completedOutputCount: 3,
+    taskSeed: 381204,
+    effectRating: 8.9,
+    description: "雨后操场、逆光路灯和贴近人物表情的近景切换，适合校园情绪向短剧片段。",
+    previewUrl: null,
+    downloadUrl: null,
+    joinName: "night-run-final.mp4",
+    models: {
+      textAnalysisModel: "qwen-max",
+      visionModel: "qwen-vl-max",
+      imageModel: "seedream-3.0",
+      videoModel: "seedance-pro"
+    },
+    media: {
+      title: "夜跑告白",
+      clipIndex: 1,
+      durationSeconds: 44,
+      width: 1080,
+      height: 1920,
+      hasAudio: true
+    }
+  },
+  {
+    id: "mock-city-suspense-elevator",
+    title: "都市悬疑电梯停电",
+    status: "COMPLETED",
+    createdAt: "2026-04-10T22:04:00+08:00",
+    updatedAt: "2026-04-10T22:29:00+08:00",
+    sourceFileName: "ep03_elevator_blackout.txt",
+    aspectRatio: "16:9",
+    minDurationSeconds: 28,
+    maxDurationSeconds: 32,
+    completedOutputCount: 2,
+    taskSeed: 902771,
+    effectRating: 9.2,
+    description: "封闭空间压迫感强，镜头语言偏克制，适合悬疑反转和停顿拉 tension 的场景。",
+    previewUrl: null,
+    downloadUrl: null,
+    joinName: "elevator-cut-v2.mp4",
+    models: {
+      textAnalysisModel: "gpt-4.1-mini",
+      visionModel: "qwen-vl-max",
+      imageModel: "seedream-3.0",
+      videoModel: "wanx2.1-video"
+    },
+    media: {
+      title: "电梯停电",
+      clipIndex: 2,
+      durationSeconds: 30,
+      width: 1920,
+      height: 1080,
+      hasAudio: true
+    }
+  },
+  {
+    id: "mock-republic-teahouse-confrontation",
+    title: "民国茶楼正面对峙",
+    status: "COMPLETED",
+    createdAt: "2026-04-12T14:20:00+08:00",
+    updatedAt: "2026-04-12T14:47:00+08:00",
+    sourceFileName: "republic_ep07_teahouse.txt",
+    aspectRatio: "21:9",
+    minDurationSeconds: 36,
+    maxDurationSeconds: 40,
+    completedOutputCount: 2,
+    taskSeed: 614338,
+    effectRating: 8.6,
+    description: "暖色室内光配合缓推镜头，更适合人物关系对峙和身份揭晓的情节。",
+    previewUrl: null,
+    downloadUrl: null,
+    joinName: "teahouse-confrontation.mp4",
+    models: {
+      textAnalysisModel: "qwen-max",
+      visionModel: "glm-4v",
+      imageModel: "seedream-3.0",
+      videoModel: "seedance-pro"
+    },
+    media: {
+      title: "茶楼对峙",
+      clipIndex: 4,
+      durationSeconds: 38,
+      width: 1920,
+      height: 816,
+      hasAudio: true
+    }
+  },
+  {
+    id: "mock-xianxia-cliff-farewell",
+    title: "仙侠悬崖诀别",
+    status: "COMPLETED",
+    createdAt: "2026-04-15T18:42:00+08:00",
+    updatedAt: "2026-04-15T19:08:00+08:00",
+    sourceFileName: "xianxia_ep21_cliff_goodbye.txt",
+    aspectRatio: "9:16",
+    minDurationSeconds: 47,
+    maxDurationSeconds: 52,
+    completedOutputCount: 4,
+    taskSeed: 127650,
+    effectRating: 9.0,
+    description: "高风速、长袍摆动和远景留白更明显，适合情绪拉满的诀别段落。",
+    previewUrl: null,
+    downloadUrl: null,
+    joinName: "cliff-goodbye-master.mp4",
+    models: {
+      textAnalysisModel: "gpt-4.1-mini",
+      visionModel: "qwen-vl-max",
+      imageModel: "seedream-3.0",
+      videoModel: "seedance-pro"
+    },
+    media: {
+      title: "悬崖诀别",
+      clipIndex: 5,
+      durationSeconds: 49,
+      width: 1080,
+      height: 1920,
+      hasAudio: true
+    }
+  },
+  {
+    id: "mock-livehouse-growth-montage",
+    title: "Livehouse 成长蒙太奇",
+    status: "COMPLETED",
+    createdAt: "2026-04-17T11:08:00+08:00",
+    updatedAt: "2026-04-17T11:31:00+08:00",
+    sourceFileName: "music_growth_montage.txt",
+    aspectRatio: "16:9",
+    minDurationSeconds: 24,
+    maxDurationSeconds: 27,
+    completedOutputCount: 3,
+    taskSeed: 445901,
+    effectRating: 8.7,
+    description: "鼓点切镜明显，适合练习、失败、上台三段式成长蒙太奇。",
+    previewUrl: null,
+    downloadUrl: null,
+    joinName: "livehouse-growth-cut.mp4",
+    models: {
+      textAnalysisModel: "qwen-max",
+      visionModel: "glm-4v",
+      imageModel: "flux-kontext",
+      videoModel: "wanx2.1-video"
+    },
+    media: {
+      title: "成长蒙太奇",
+      clipIndex: 3,
+      durationSeconds: 26,
+      width: 1920,
+      height: 1080,
+      hasAudio: true
+    }
+  },
+  {
+    id: "mock-corporate-comeback-boardroom",
+    title: "职场复仇董事会翻盘",
+    status: "COMPLETED",
+    createdAt: "2026-04-18T09:36:00+08:00",
+    updatedAt: "2026-04-18T10:02:00+08:00",
+    sourceFileName: "boardroom_comeback_finale.txt",
+    aspectRatio: "16:9",
+    minDurationSeconds: 33,
+    maxDurationSeconds: 37,
+    completedOutputCount: 2,
+    taskSeed: 778214,
+    effectRating: 9.1,
+    description: "会议室场景干净，人物站位清晰，适合权力关系翻转和结尾收束。",
+    previewUrl: null,
+    downloadUrl: null,
+    joinName: "boardroom-comeback.mp4",
+    models: {
+      textAnalysisModel: "gpt-4.1-mini",
+      visionModel: "qwen-vl-max",
+      imageModel: "flux-kontext",
+      videoModel: "seedance-pro"
+    },
+    media: {
+      title: "董事会翻盘",
+      clipIndex: 6,
+      durationSeconds: 35,
+      width: 1920,
+      height: 1080,
+      hasAudio: true
+    }
+  }
+];
+
+const showcasePlaceholderMetaMap: Record<string, ShowcasePlaceholderMeta> = {
+  "mock-campus-romance-night-run": {
+    layout: "left"
+  },
+  "mock-city-suspense-elevator": {
+    layout: "right"
+  },
+  "mock-republic-teahouse-confrontation": {
+    layout: "left"
+  },
+  "mock-xianxia-cliff-farewell": {
+    layout: "center"
+  },
+  "mock-livehouse-growth-montage": {
+    layout: "left"
+  },
+  "mock-corporate-comeback-boardroom": {
+    layout: "right"
+  }
+};
+
+const showcasePlaceholderStyleMap: Record<string, ShowcasePlaceholderStyle> = {
+  "mock-campus-romance-night-run": {
+    "--placeholder-glow": "radial-gradient(circle at 18% 22%, rgba(255, 196, 138, 0.32), transparent 30%), radial-gradient(circle at 82% 28%, rgba(118, 216, 255, 0.18), transparent 36%)",
+    "--placeholder-beam": "linear-gradient(120deg, rgba(255,255,255,0) 12%, rgba(255,225,198,0.2) 42%, rgba(255,255,255,0) 68%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(255, 166, 108, 0.18), rgba(112, 214, 255, 0.12))",
+    "--placeholder-subject-left": "62%",
+    "--placeholder-subject-bottom": "12px",
+    "--placeholder-subject-width": "68px",
+    "--placeholder-subject-height": "92px",
+    "--placeholder-panel-left": "10%",
+    "--placeholder-panel-width": "40%",
+    "--placeholder-grid-opacity": "0.28"
+  },
+  "mock-city-suspense-elevator": {
+    "--placeholder-glow": "radial-gradient(circle at 76% 14%, rgba(255, 86, 86, 0.24), transparent 26%), radial-gradient(circle at 22% 80%, rgba(81, 98, 136, 0.18), transparent 34%)",
+    "--placeholder-beam": "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 30%, rgba(255,92,92,0.18) 56%, rgba(255,255,255,0) 88%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(255, 86, 86, 0.22), rgba(255, 164, 164, 0.08))",
+    "--placeholder-subject-left": "46%",
+    "--placeholder-subject-bottom": "10px",
+    "--placeholder-subject-width": "60px",
+    "--placeholder-subject-height": "104px",
+    "--placeholder-panel-left": "56%",
+    "--placeholder-panel-width": "28%",
+    "--placeholder-grid-opacity": "0.16"
+  },
+  "mock-republic-teahouse-confrontation": {
+    "--placeholder-glow": "radial-gradient(circle at 24% 18%, rgba(255, 205, 143, 0.26), transparent 32%), radial-gradient(circle at 78% 72%, rgba(123, 66, 30, 0.18), transparent 34%)",
+    "--placeholder-beam": "linear-gradient(105deg, rgba(255,255,255,0) 18%, rgba(255,216,160,0.18) 40%, rgba(255,255,255,0) 70%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(255, 205, 143, 0.16), rgba(140, 74, 26, 0.14))",
+    "--placeholder-subject-left": "58%",
+    "--placeholder-subject-bottom": "10px",
+    "--placeholder-subject-width": "74px",
+    "--placeholder-subject-height": "98px",
+    "--placeholder-panel-left": "12%",
+    "--placeholder-panel-width": "42%",
+    "--placeholder-grid-opacity": "0.24"
+  },
+  "mock-xianxia-cliff-farewell": {
+    "--placeholder-glow": "radial-gradient(circle at 50% 10%, rgba(196, 228, 255, 0.22), transparent 24%), radial-gradient(circle at 52% 58%, rgba(160, 192, 255, 0.14), transparent 38%)",
+    "--placeholder-beam": "linear-gradient(180deg, rgba(232,245,255,0.22) 0%, rgba(255,255,255,0) 42%, rgba(255,255,255,0) 100%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(190, 220, 255, 0.12), rgba(130, 170, 255, 0.12))",
+    "--placeholder-subject-left": "50%",
+    "--placeholder-subject-bottom": "12px",
+    "--placeholder-subject-width": "56px",
+    "--placeholder-subject-height": "116px",
+    "--placeholder-panel-left": "30%",
+    "--placeholder-panel-width": "40%",
+    "--placeholder-grid-opacity": "0.12"
+  },
+  "mock-livehouse-growth-montage": {
+    "--placeholder-glow": "radial-gradient(circle at 18% 24%, rgba(255, 94, 166, 0.24), transparent 28%), radial-gradient(circle at 82% 22%, rgba(101, 220, 255, 0.18), transparent 34%)",
+    "--placeholder-beam": "linear-gradient(90deg, rgba(255,255,255,0) 8%, rgba(255,94,166,0.16) 32%, rgba(101,220,255,0.18) 62%, rgba(255,255,255,0) 86%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(255, 94, 166, 0.18), rgba(101, 220, 255, 0.14))",
+    "--placeholder-subject-left": "18%",
+    "--placeholder-subject-bottom": "10px",
+    "--placeholder-subject-width": "78px",
+    "--placeholder-subject-height": "98px",
+    "--placeholder-panel-left": "56%",
+    "--placeholder-panel-width": "24%",
+    "--placeholder-grid-opacity": "0.22"
+  },
+  "mock-corporate-comeback-boardroom": {
+    "--placeholder-glow": "radial-gradient(circle at 74% 16%, rgba(168, 214, 255, 0.18), transparent 24%), radial-gradient(circle at 22% 80%, rgba(122, 150, 190, 0.14), transparent 34%)",
+    "--placeholder-beam": "linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 44%, rgba(255,255,255,0) 100%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(164, 208, 255, 0.16), rgba(255, 255, 255, 0.08))",
+    "--placeholder-subject-left": "64%",
+    "--placeholder-subject-bottom": "11px",
+    "--placeholder-subject-width": "66px",
+    "--placeholder-subject-height": "94px",
+    "--placeholder-panel-left": "12%",
+    "--placeholder-panel-width": "46%",
+    "--placeholder-grid-opacity": "0.18"
+  }
+};
+
+function resolvePlaceholderMeta(item: TaskShowcaseItem, index: number): ShowcasePlaceholderMeta {
+  const mappedMeta = showcasePlaceholderMetaMap[item.id];
+  if (mappedMeta) {
+    return mappedMeta;
+  }
+  return {
+    layout: "left"
+  };
+}
+
+function resolvePlaceholderStyle(item: TaskShowcaseItem): ShowcasePlaceholderStyle {
+  return showcasePlaceholderStyleMap[item.id] ?? {
+    "--placeholder-glow": "radial-gradient(circle at 20% 20%, rgba(174, 105, 255, 0.2), transparent 32%), radial-gradient(circle at 82% 20%, rgba(95, 216, 255, 0.16), transparent 34%)",
+    "--placeholder-beam": "linear-gradient(120deg, rgba(255,255,255,0) 14%, rgba(255,255,255,0.14) 42%, rgba(255,255,255,0) 72%)",
+    "--placeholder-monitor": "linear-gradient(90deg, rgba(174, 105, 255, 0.18), rgba(95, 216, 255, 0.12))",
+    "--placeholder-subject-left": "58%",
+    "--placeholder-subject-bottom": "10px",
+    "--placeholder-subject-width": "68px",
+    "--placeholder-subject-height": "96px",
+    "--placeholder-panel-left": "12%",
+    "--placeholder-panel-width": "42%",
+    "--placeholder-grid-opacity": "0.22"
+  };
+}
+
+const hasMockShowcase = computed(() => !showcaseItems.value.length);
+const showcaseFeed = computed(() => hasMockShowcase.value ? mockShowcaseItems : showcaseItems.value);
+const showcaseGeneratedAtLabel = computed(() => {
+  if (showcaseGeneratedAt.value) {
+    return showcaseGeneratedAt.value;
+  }
+  return "2026-04-18T10:02:00+08:00";
+});
+const showcaseTotalCompletedLabel = computed(() => {
+  if (totalCompletedTasks.value > 0) {
+    return totalCompletedTasks.value;
+  }
+  return 86;
+});
 
 const features = [
   {
@@ -303,20 +623,22 @@ const features = [
 ];
 
 const heroFrames = computed(() => {
-  return showcaseItems.value.slice(0, 4).map((item, index) => {
+  return showcaseFeed.value.slice(0, 4).map((item, index) => {
     const visual = resolveShowcaseVisual(item, index);
     return {
       ...item,
       ...visual,
       badge: selectShowcasePrimaryModel(item) || item.aspectRatio || "真实案例",
+      placeholderMeta: resolvePlaceholderMeta(item, index),
+      placeholderStyle: resolvePlaceholderStyle(item),
     };
   });
 });
 
-const showcaseModels = computed(() => collectShowcaseModelNodes(showcaseItems.value));
+const showcaseModels = computed(() => collectShowcaseModelNodes(showcaseFeed.value));
 
 const solutions = computed(() => {
-  return showcaseItems.value.slice(0, 3).map((item, index) => {
+  return showcaseFeed.value.slice(0, 3).map((item, index) => {
     const visual = resolveShowcaseVisual(item, index);
     return {
       ...item,
@@ -324,20 +646,24 @@ const solutions = computed(() => {
       poster: item.aspectRatio || "真实案例",
       description: item.description || formatShowcaseTimeMeta(item),
       rating: formatShowcaseRatingLabel(item.effectRating),
+      placeholderMeta: resolvePlaceholderMeta(item, index),
+      placeholderStyle: resolvePlaceholderStyle(item),
     };
   });
 });
 
 const sideSamples = computed(() => {
-  const sampledItems = showcaseItems.value.length > 3
-    ? showcaseItems.value.slice(3, 5)
-    : showcaseItems.value.slice(0, 2);
+  const sampledItems = showcaseFeed.value.length > 3
+    ? showcaseFeed.value.slice(3, 5)
+    : showcaseFeed.value.slice(0, 2);
   return sampledItems.map((item, index) => {
     const visual = resolveShowcaseVisual(item, index + 2);
     return {
       ...item,
       ...visual,
       score: formatShowcaseRatingLabel(item.effectRating),
+      placeholderMeta: resolvePlaceholderMeta(item, index + 3),
+      placeholderStyle: resolvePlaceholderStyle(item),
     };
   });
 });
@@ -347,39 +673,42 @@ const showcaseStatusText = computed(() => {
     return "正在同步真实案例...";
   }
   if (showcaseErrorMessage.value) {
-    return showcaseErrorMessage.value;
+    return hasMockShowcase.value
+      ? "真实案例暂时不可用，当前展示精选示例案例"
+      : showcaseErrorMessage.value;
   }
-  if (showcaseItems.value.length) {
-    return `已同步 ${showcaseItems.value.length} 条真实案例，累计完成 ${totalCompletedTasks.value} 个任务`;
+  if (!hasMockShowcase.value) {
+    return `已同步 ${showcaseFeed.value.length} 条真实案例，累计完成 ${showcaseTotalCompletedLabel.value} 个任务`;
   }
-  return "暂无可展示的真实案例";
+  return `当前展示 ${showcaseFeed.value.length} 条精选示例案例，字段结构与真实任务一致`;
 });
 
 const showcaseDetailsJson = computed(() => {
-  const ratings = showcaseItems.value
+  const ratings = showcaseFeed.value
     .map((item) => item.effectRating)
     .filter((item): item is number => typeof item === "number" && Number.isFinite(item));
-  const aspectRatios = Array.from(new Set(showcaseItems.value.map((item) => item.aspectRatio).filter(Boolean)));
-  const generatedAt = showcaseGeneratedAt.value
-    ? new Date(showcaseGeneratedAt.value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+  const aspectRatios = Array.from(new Set(showcaseFeed.value.map((item) => item.aspectRatio).filter(Boolean)));
+  const generatedAt = showcaseGeneratedAtLabel.value
+    ? new Date(showcaseGeneratedAtLabel.value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "暂无";
   return JSON.stringify({
-    案例数: showcaseItems.value.length,
-    已完成任务: totalCompletedTasks.value,
+    案例数: showcaseFeed.value.length,
+    已完成任务: showcaseTotalCompletedLabel.value,
     最高评分: ratings.length ? Math.max(...ratings).toFixed(1) : "暂无",
     常见画幅: aspectRatios.join(" / ") || "暂无",
+    数据来源: hasMockShowcase.value ? "官网精选示例" : "真实任务",
     同步时间: generatedAt,
   }, null, 2);
 });
 
 const showcaseEndpointLabel = computed(() => {
-  return showcaseItems.value[0]?.downloadUrl
-    || showcaseItems.value[0]?.previewUrl
-    || "暂无可公开预览地址";
+  return showcaseFeed.value[0]?.downloadUrl
+    || showcaseFeed.value[0]?.previewUrl
+    || (hasMockShowcase.value ? "示例案例未附带媒体地址" : "暂无可公开预览地址");
 });
 
 const sideDetailsJson = computed(() => {
-  const item = showcaseItems.value[0];
+  const item = showcaseFeed.value[0];
   return JSON.stringify({
     标题: item?.title || "暂无",
     画幅: item?.aspectRatio || "暂无",
@@ -415,6 +744,15 @@ function prefersReducedMotion() {
   return reducedMotionQuery?.matches ?? false;
 }
 
+function replaceHash(targetId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const nextUrl = targetId === "top" ? window.location.pathname : `${window.location.pathname}#${targetId}`;
+  window.history.replaceState(null, "", nextUrl);
+}
+
 function scrollToSection(targetId: string) {
   if (typeof document === "undefined") {
     return;
@@ -425,6 +763,7 @@ function scrollToSection(targetId: string) {
       top: 0,
       behavior: prefersReducedMotion() ? "auto" : "smooth"
     });
+    replaceHash(targetId);
     return;
   }
 
@@ -437,6 +776,7 @@ function scrollToSection(targetId: string) {
     behavior: prefersReducedMotion() ? "auto" : "smooth",
     block: "start"
   });
+  replaceHash(targetId);
 }
 
 function startTypingAnimation() {
@@ -511,6 +851,12 @@ onMounted(() => {
   reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   startTypingAnimation();
   void setupRevealAnimations();
+  const hash = window.location.hash.replace(/^#/, "");
+  if (hash) {
+    setTimeout(() => {
+      scrollToSection(hash);
+    }, 0);
+  }
 });
 
 onBeforeUnmount(() => {
@@ -523,15 +869,15 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .official-site {
+  position: relative;
   height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
-  color: #17181f;
+  color: #2a2d3a;
   background:
-    radial-gradient(circle at 0% 18%, rgba(180, 125, 255, 0.12), transparent 24%),
-    radial-gradient(circle at 100% 35%, rgba(98, 220, 255, 0.14), transparent 26%),
-    radial-gradient(circle at 50% 100%, rgba(194, 150, 255, 0.1), transparent 24%),
-    linear-gradient(180deg, #faf8f5 0%, #f6f3ef 100%);
+    radial-gradient(circle at top left, rgba(184, 121, 255, 0.16), transparent 24%),
+    radial-gradient(circle at top right, rgba(114, 228, 255, 0.14), transparent 22%),
+    linear-gradient(180deg, #f5f4fb 0%, #f8f9fd 100%);
 }
 
 .official-site::before,
@@ -569,11 +915,10 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   width: min(1360px, calc(100% - 28px));
-  margin: 18px auto 28px;
+  margin: 0 auto;
+  padding: 18px 0 28px;
 }
 
-.official-site__announcement,
-.official-site__nav,
 .hero-section,
 .content-section,
 .side-card,
@@ -581,137 +926,13 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(157, 138, 201, 0.18);
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.72);
   box-shadow:
     0 18px 60px rgba(104, 83, 134, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.76);
   backdrop-filter: blur(18px);
 }
 
-.official-site__announcement {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 34px;
-  padding: 0 16px;
-  border-radius: 18px 18px 0 0;
-  background: rgba(18, 26, 34, 0.96);
-  color: rgba(255, 255, 255, 0.72);
-  box-shadow: none;
-}
-
-.official-site__announcement span,
-.official-site__announcement a {
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.official-site__announcement p {
-  margin: 0;
-  font-size: 0.72rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.official-site__announcement a {
-  color: #d4cbff;
-}
-
-.official-site__nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 16px 24px;
-  border-top: 0;
-  border-radius: 0 0 30px 30px;
-}
-
-.official-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-family: "Manrope", "Inter", "PingFang SC", sans-serif;
-  font-size: 0.96rem;
-  font-weight: 800;
-}
-
-.official-brand__logo {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  filter: drop-shadow(0 6px 14px rgba(112, 96, 255, 0.16));
-}
-
-.official-site__nav-links {
-  display: inline-flex;
-  align-items: center;
-  gap: 20px;
-  font-size: 0.9rem;
-  color: #505461;
-}
-
-.official-site__nav-links a,
-.official-site__nav-links :deep(a) {
-  position: relative;
-}
-
-.official-site__nav-links a:first-child {
-  color: #8a57e7;
-}
-
-.official-site__nav-links a:first-child::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -12px;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #a65cff, #5fddff);
-}
-
-.official-site__nav-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.official-site__github {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  color: #2a2d3a;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow:
-    0 12px 24px rgba(85, 90, 120, 0.1),
-    inset 0 0 0 1px rgba(157, 147, 196, 0.18);
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    color 160ms ease;
-}
-
-.official-site__github svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-}
-
-.official-site__github:hover {
-  transform: translateY(-1px);
-  color: #8a57e7;
-  box-shadow:
-    0 14px 28px rgba(110, 89, 255, 0.16),
-    inset 0 0 0 1px rgba(138, 87, 231, 0.18);
-}
-
-.official-site__nav-cta,
 .hero-button {
   display: inline-flex;
   align-items: center;
@@ -729,14 +950,12 @@ onBeforeUnmount(() => {
     background 160ms ease;
 }
 
-.official-site__nav-cta,
 .hero-button-primary {
   color: #fff;
   background: linear-gradient(135deg, #ae69ff, #6e59ff 42%, #59d6ff 100%);
   box-shadow: 0 12px 28px rgba(140, 105, 255, 0.28);
 }
 
-.official-site__nav-cta:hover,
 .hero-button:hover {
   transform: translateY(-1px);
 }
@@ -799,9 +1018,9 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #8b8899;
+  color: #8a57e7;
 }
 
 .hero-section__title,
@@ -809,8 +1028,8 @@ onBeforeUnmount(() => {
 .admin-card h2 {
   margin: 10px 0 0;
   font-family: "Plus Jakarta Sans", "Sora", "PingFang SC", sans-serif;
-  letter-spacing: -0.05em;
-  color: #222334;
+  letter-spacing: -0.03em;
+  color: #2a2d3a;
 }
 
 .hero-section__title {
@@ -829,7 +1048,7 @@ onBeforeUnmount(() => {
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #5d6475;
+  color: #5a6072;
 }
 
 .hero-section__title-text {
@@ -854,7 +1073,7 @@ onBeforeUnmount(() => {
   margin: 18px 0 0;
   font-size: 1rem;
   line-height: 1.8;
-  color: #676a79;
+  color: #535868;
 }
 
 .hero-section__actions {
@@ -866,11 +1085,11 @@ onBeforeUnmount(() => {
 }
 
 .hero-button-secondary {
-  color: #2b3040;
-  background: rgba(255, 255, 255, 0.82);
+  color: #2a2d3a;
+  background: rgba(255, 255, 255, 0.86);
   box-shadow:
-    inset 0 0 0 1px rgba(151, 147, 192, 0.18),
-    0 14px 34px rgba(126, 133, 159, 0.1);
+    0 12px 24px rgba(85, 90, 120, 0.08),
+    inset 0 0 0 1px rgba(157, 147, 196, 0.16);
 }
 
 .hero-strip {
@@ -884,11 +1103,12 @@ onBeforeUnmount(() => {
 .hero-strip__status {
   margin: 18px 0 0;
   font-size: 0.88rem;
-  color: #72778a;
+  color: #6c7284;
 }
 
 .hero-strip__frame {
   padding: 8px;
+  border: 1px solid rgba(157, 138, 201, 0.16);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow:
@@ -919,42 +1139,140 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 50% 24%, rgba(255, 240, 220, 0.16), transparent 24%);
 }
 
-.hero-strip__visual::after,
-.solution-card__visual::after,
-.side-media__visual::after {
+.showcase-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(6, 9, 15, 0.1), rgba(6, 9, 15, 0.42)),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
+}
+
+.showcase-placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0) 82%, rgba(255, 255, 255, 0.04) 100%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 4px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.showcase-placeholder__scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--placeholder-glow);
+}
+
+.showcase-placeholder__beam,
+.showcase-placeholder__subject,
+.showcase-placeholder__subject-shadow,
+.showcase-placeholder__monitor {
+  position: absolute;
+}
+
+.showcase-placeholder__beam {
+  inset: 0;
+  background: var(--placeholder-beam);
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+.showcase-placeholder__subject-shadow {
+  left: calc(var(--placeholder-subject-left) - 12px);
+  bottom: calc(var(--placeholder-subject-bottom) - 6px);
+  width: calc(var(--placeholder-subject-width) + 24px);
+  height: 22px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.28), transparent 68%);
+  filter: blur(4px);
+}
+
+.showcase-placeholder__subject {
+  left: calc(var(--placeholder-subject-left) - (var(--placeholder-subject-width) / 2));
+  bottom: var(--placeholder-subject-bottom);
+  width: var(--placeholder-subject-width);
+  height: var(--placeholder-subject-height);
+  border-radius: 38px 38px 14px 14px;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 242, 230, 0.74), transparent 18%),
+    linear-gradient(180deg, rgba(248, 228, 210, 0.88), rgba(92, 82, 78, 0.92));
+  box-shadow:
+    0 18px 28px rgba(0, 0, 0, 0.18),
+    inset 0 -18px 18px rgba(44, 39, 37, 0.32);
+}
+
+.showcase-placeholder__subject::before {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 14px;
-  width: 54px;
-  height: 76px;
-  border-radius: 26px 26px 10px 10px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   transform: translateX(-50%);
-  z-index: 1;
   background:
-    radial-gradient(circle at 50% 20%, rgba(255, 239, 224, 0.74), transparent 18%),
-    linear-gradient(180deg, rgba(244, 224, 200, 0.92), rgba(93, 85, 79, 0.88));
-  box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.22),
-    inset 0 -12px 14px rgba(52, 46, 41, 0.32);
+    radial-gradient(circle at 50% 32%, rgba(255, 241, 228, 0.92), rgba(229, 198, 170, 0.88));
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.16);
 }
 
-.hero-strip__poster,
-.solution-card__poster {
+.showcase-placeholder__monitor {
+  left: var(--placeholder-panel-left);
+  bottom: 14px;
+  width: var(--placeholder-panel-width);
+  height: 32px;
+  border-radius: 12px;
+  background: var(--placeholder-monitor);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.showcase-placeholder__monitor::before,
+.showcase-placeholder__monitor::after {
+  content: "";
   position: absolute;
-  left: 10px;
-  bottom: 10px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
+  left: 12px;
+  right: 12px;
+  height: 2px;
   border-radius: 999px;
-  background: rgba(8, 12, 18, 0.58);
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, var(--placeholder-grid-opacity, 0.22));
+}
+
+.showcase-placeholder__monitor::before {
+  top: 10px;
+}
+
+.showcase-placeholder__monitor::after {
+  top: 18px;
+}
+
+.showcase-placeholder--left {
+  text-align: left;
+}
+
+.showcase-placeholder--right {
+  text-align: right;
+}
+
+.showcase-placeholder--center {
+  text-align: center;
+}
+
+.showcase-placeholder-compact {
+  justify-content: flex-end;
+}
+
+.showcase-placeholder-expanded {
+  padding: 18px;
 }
 
 .showcase-media {
@@ -1009,6 +1327,7 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   padding: 18px;
+  border: 1px solid rgba(157, 138, 201, 0.16);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.82);
   box-shadow:
@@ -1030,7 +1349,7 @@ onBeforeUnmount(() => {
   height: 42px;
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(182, 111, 255, 0.18), rgba(97, 223, 255, 0.18));
-  color: #6f52d6;
+  color: #7a53dc;
   font-size: 0.74rem;
   font-weight: 800;
 }
@@ -1043,7 +1362,7 @@ onBeforeUnmount(() => {
   font-family: "Manrope", "Inter", "PingFang SC", sans-serif;
   font-size: 1.12rem;
   font-weight: 800;
-  color: #212433;
+  color: #2a2d3a;
 }
 
 .feature-card p,
@@ -1051,35 +1370,22 @@ onBeforeUnmount(() => {
 .admin-card__meta p,
 .site-footer__top p {
   margin: 10px 0 0;
-  color: #6d7080;
+  color: #535868;
   line-height: 1.7;
 }
 
 .feature-card__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
   margin-top: auto;
   padding-top: 16px;
 }
 
 .feature-card__footer span {
   font-size: 0.76rem;
-  color: #8a8da0;
+  color: #7c8194;
   font-weight: 700;
-}
-
-.feature-card__footer button {
-  min-height: 30px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(244, 245, 251, 0.96);
-  color: #43495a;
-  font-size: 0.76rem;
-  font-weight: 700;
-  box-shadow: inset 0 0 0 1px rgba(157, 147, 196, 0.16);
 }
 
 .showcase-card {
@@ -1127,6 +1433,7 @@ onBeforeUnmount(() => {
   gap: 4px;
   width: 122px;
   padding: 12px 10px;
+  border: 1px solid rgba(157, 138, 201, 0.16);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow:
@@ -1207,6 +1514,7 @@ onBeforeUnmount(() => {
 
 .showcase-card__details {
   padding: 18px;
+  border: 1px solid rgba(157, 138, 201, 0.16);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow:
@@ -1229,7 +1537,7 @@ onBeforeUnmount(() => {
   margin: 12px 0 0;
   padding: 16px;
   border-radius: 18px;
-  background: #f4f5fb;
+  background: rgba(244, 245, 251, 0.88);
   color: #4f5466;
   font-size: 0.76rem;
   line-height: 1.7;
@@ -1242,7 +1550,7 @@ onBeforeUnmount(() => {
   margin-top: 14px;
   padding: 14px;
   border-radius: 18px;
-  background: #f4f5fb;
+  background: rgba(244, 245, 251, 0.88);
   color: #474d60;
   font-size: 0.76rem;
   word-break: break-all;
@@ -1269,6 +1577,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 250px minmax(0, 1fr);
   gap: 18px;
   padding: 12px;
+  border: 1px solid rgba(157, 138, 201, 0.16);
   border-radius: 26px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow:
@@ -1318,6 +1627,7 @@ onBeforeUnmount(() => {
 .side-media__frame {
   overflow: hidden;
   padding: 10px;
+  border: 1px solid rgba(157, 138, 201, 0.16);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow:
@@ -1428,12 +1738,10 @@ onBeforeUnmount(() => {
 
 .site-footer {
   background:
-    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.08), transparent 28%),
-    linear-gradient(180deg, #121419 0%, #0b0d12 100%);
-  color: rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 26px 60px rgba(9, 10, 16, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    radial-gradient(circle at top right, rgba(95, 216, 255, 0.12), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(174, 105, 255, 0.14), transparent 30%),
+    rgba(255, 255, 255, 0.78);
+  color: #2a2d3a;
 }
 
 .site-footer__top,
@@ -1464,22 +1772,22 @@ onBeforeUnmount(() => {
 }
 
 .site-footer__links h3 {
-  color: #fff;
+  color: #2a2d3a;
   font-size: 0.92rem;
 }
 
 .site-footer__links a {
   display: block;
   margin-top: 10px;
-  color: rgba(255, 255, 255, 0.62);
+  color: #666d80;
   font-size: 0.84rem;
 }
 
 .site-footer__bottom {
   margin-top: 28px;
   padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.48);
+  border-top: 1px solid rgba(157, 138, 201, 0.14);
+  color: #81879a;
   font-size: 0.78rem;
 }
 
@@ -1602,27 +1910,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-  .official-site__announcement {
-    justify-content: flex-start;
-  }
-
-  .official-site__nav {
-    flex-wrap: wrap;
-    justify-content: center;
-    padding: 18px;
-  }
-
-  .official-site__nav-links {
-    order: 3;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .official-site__nav-actions {
-    width: 100%;
-    justify-content: center;
-  }
-
   .hero-section {
     padding: 36px 20px 24px;
   }
@@ -1640,6 +1927,11 @@ onBeforeUnmount(() => {
 
   .showcase-card__map {
     min-height: 500px;
+  }
+
+  .showcase-placeholder__headline,
+  .showcase-placeholder__subline {
+    max-width: 100%;
   }
 
   .showcase-node:nth-child(1) {
@@ -1686,19 +1978,9 @@ onBeforeUnmount(() => {
 @media (max-width: 640px) {
   .official-site__shell {
     width: min(100%, calc(100% - 16px));
-    margin-top: 8px;
+    padding-top: 8px;
   }
 
-  .official-site__announcement {
-    padding: 8px 12px;
-    border-radius: 16px 16px 0 0;
-  }
-
-  .official-site__announcement p {
-    white-space: normal;
-  }
-
-  .official-site__nav,
   .content-section,
   .side-card,
   .site-footer {
@@ -1715,22 +1997,21 @@ onBeforeUnmount(() => {
     font-size: clamp(2.5rem, 12vw, 3.4rem);
   }
 
-  .hero-button,
-  .official-site__nav-cta {
+  .showcase-placeholder,
+  .showcase-placeholder-expanded {
+    padding: 12px;
+  }
+
+  .showcase-placeholder__topline {
+    flex-wrap: wrap;
+  }
+
+  .showcase-placeholder__headline {
+    max-width: 100%;
+  }
+
+  .hero-button {
     width: 100%;
-  }
-
-  .official-site__nav-actions {
-    gap: 10px;
-  }
-
-  .official-site__github {
-    flex: 0 0 42px;
-  }
-
-  .official-site__nav-cta {
-    width: auto;
-    flex: 1 1 auto;
   }
 
   .site-footer__top,

@@ -10,6 +10,7 @@ import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
 import NewTaskView from "@/views/NewTaskView.vue";
+import OfficialDocsView from "@/views/OfficialDocsView.vue";
 import OfficialSiteView from "@/views/OfficialSiteView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import StageWorkflowView from "@/views/StageWorkflowView.vue";
@@ -59,6 +60,14 @@ const router = createRouter({
       component: OfficialSiteView,
       meta: {
         title: "官网"
+      }
+    },
+    {
+      path: "/docs",
+      name: "official-docs",
+      component: OfficialDocsView,
+      meta: {
+        title: "使用文档"
       }
     },
     {
