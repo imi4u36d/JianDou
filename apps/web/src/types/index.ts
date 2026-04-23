@@ -1154,6 +1154,11 @@ export interface WorkflowSummary {
   videoVersionCount: number;
 }
 
+export interface WorkflowDeleteResult {
+  workflowId: string;
+  deleted: boolean;
+}
+
 export interface WorkflowDetail {
   id: string;
   title: string;

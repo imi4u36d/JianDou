@@ -7,6 +7,7 @@ import com.jiandou.api.workflow.web.dto.RateStageVersionRequest;
 import com.jiandou.api.workflow.web.dto.RateWorkflowRequest;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,6 +40,11 @@ public class WorkflowController {
     @GetMapping("/{workflowId}")
     public Map<String, Object> getWorkflow(@PathVariable String workflowId) {
         return workflowService.getWorkflow(workflowId);
+    }
+
+    @DeleteMapping("/{workflowId}")
+    public Map<String, Object> deleteWorkflow(@PathVariable String workflowId) {
+        return workflowService.deleteWorkflow(workflowId);
     }
 
     @PostMapping("/{workflowId}/storyboards/generate")
@@ -88,5 +94,10 @@ public class WorkflowController {
         @RequestBody RateStageVersionRequest request
     ) {
         return workflowService.rateStageVersion(workflowId, versionId, request);
+    }
+
+    @DeleteMapping("/{workflowId}/versions/{versionId}")
+    public Map<String, Object> deleteStageVersion(@PathVariable String workflowId, @PathVariable String versionId) {
+        return workflowService.deleteStageVersion(workflowId, versionId);
     }
 }

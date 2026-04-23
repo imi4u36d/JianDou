@@ -1,11 +1,12 @@
 /**
  * 阶段化工作流 API 请求封装。
  */
-import { getJson, patchJson, postJson } from "./client";
+import { deleteJson, getJson, patchJson, postJson } from "./client";
 import type {
   CreateWorkflowRequest,
   RateStageVersionRequest,
   RateWorkflowRequest,
+  WorkflowDeleteResult,
   WorkflowDetail,
   WorkflowSummary,
 } from "@/types";
@@ -20,6 +21,10 @@ export function fetchWorkflows() {
 
 export function fetchWorkflow(workflowId: string) {
   return getJson<WorkflowDetail>(`/workflows/${encodeURIComponent(workflowId)}`);
+}
+
+export function deleteWorkflow(workflowId: string) {
+  return deleteJson<WorkflowDeleteResult>(`/workflows/${encodeURIComponent(workflowId)}`);
 }
 
 export function generateStoryboard(workflowId: string) {
@@ -68,4 +73,8 @@ export function rateStageVersion(workflowId: string, versionId: string, payload:
     `/workflows/${encodeURIComponent(workflowId)}/versions/${encodeURIComponent(versionId)}/rating`,
     payload
   );
+}
+
+export function deleteStageVersion(workflowId: string, versionId: string) {
+  return deleteJson<WorkflowDetail>(`/workflows/${encodeURIComponent(workflowId)}/versions/${encodeURIComponent(versionId)}`);
 }

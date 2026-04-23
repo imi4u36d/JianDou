@@ -32,32 +32,42 @@
                 {{ workflows.length ? "没有匹配的工作流" : "还没有阶段工作流" }}
               </div>
               <div v-else class="workflow-list">
-                <button
+                <article
                   v-for="item in filteredWorkflows"
                   :key="item.id"
-                  type="button"
                   class="workflow-list__item"
                   :class="{ 'workflow-list__item-active': item.id === selectedWorkflowId }"
-                  @click="openWorkflow(item.id)"
                 >
-                  <div class="workflow-list__top">
-                    <strong>{{ item.title }}</strong>
-                    <span class="surface-chip">{{ item.currentStage }}</span>
+                  <button type="button" class="workflow-list__open" @click="openWorkflow(item.id)">
+                    <div class="workflow-list__top">
+                      <strong>{{ item.title }}</strong>
+                      <span class="surface-chip">{{ item.currentStage }}</span>
+                    </div>
+                    <div class="workflow-list__meta">
+                      <span>{{ item.aspectRatio }}</span>
+                      <span>分镜 {{ item.storyboardVersionCount }}</span>
+                      <span>关键帧 {{ item.keyframeVersionCount }}</span>
+                      <span>视频 {{ item.videoVersionCount }}</span>
+                    </div>
+                    <div class="workflow-list__meta">
+                      <span>{{ item.status }}</span>
+                      <span>评分 {{ ratingLabel(item.effectRating) }}</span>
+                    </div>
+                    <div class="workflow-list__meta">
+                      <span>{{ formatDateTime(item.updatedAt) }}</span>
+                    </div>
+                  </button>
+                  <div class="workflow-list__actions">
+                    <button
+                      class="btn-danger btn-sm"
+                      type="button"
+                      :disabled="busyActionKey === `delete-workflow-${item.id}`"
+                      @click="handleDeleteWorkflow(item)"
+                    >
+                      {{ busyActionKey === `delete-workflow-${item.id}` ? "删除中..." : "删除" }}
+                    </button>
                   </div>
-                  <div class="workflow-list__meta">
-                    <span>{{ item.aspectRatio }}</span>
-                    <span>分镜 {{ item.storyboardVersionCount }}</span>
-                    <span>关键帧 {{ item.keyframeVersionCount }}</span>
-                    <span>视频 {{ item.videoVersionCount }}</span>
-                  </div>
-                  <div class="workflow-list__meta">
-                    <span>{{ item.status }}</span>
-                    <span>评分 {{ ratingLabel(item.effectRating) }}</span>
-                  </div>
-                  <div class="workflow-list__meta">
-                    <span>{{ formatDateTime(item.updatedAt) }}</span>
-                  </div>
-                </button>
+                </article>
               </div>
             </div>
           </section>
@@ -610,6 +620,9 @@
                     >
                       {{ busyActionKey === `reuse-${version.id}` ? "复制中..." : "复制为新工作流" }}
                     </button>
+                    <button class="btn-danger btn-sm" type="button" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">
+                      {{ busyActionKey === `delete-${version.id}` ? "删除中..." : "删除版本" }}
+                    </button>
                   </div>
 
                 </article>
@@ -783,6 +796,9 @@
                           >
                             {{ busyActionKey === `reuse-${version.id}` ? "复制为新工作流" : "复用" }}
                           </button>
+                          <button class="btn-danger btn-sm" type="button" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">
+                            {{ busyActionKey === `delete-${version.id}` ? "删除中..." : "删除版本" }}
+                          </button>
                         </div>
                       </article>
                     </div>
@@ -870,6 +886,9 @@
                       @click="handleReuseAsset(version.asset?.id || '', version.id)"
                     >
                       {{ busyActionKey === `reuse-${version.id}` ? "复制为新工作流" : "复用" }}
+                    </button>
+                    <button class="btn-danger btn-sm" type="button" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">
+                      {{ busyActionKey === `delete-${version.id}` ? "删除中..." : "删除版本" }}
                     </button>
                   </div>
                 </article>
@@ -1086,6 +1105,9 @@
                         >
                           下载
                         </a>
+                        <button class="btn-danger btn-sm" type="button" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">
+                          {{ busyActionKey === `delete-${version.id}` ? "删除中..." : "删除版本" }}
+                        </button>
                       </div>
                     </article>
                     </div>
@@ -1123,6 +1145,8 @@ import { fetchGenerationOptions } from "@/api/generation";
 import { reuseMaterialAsset } from "@/api/material-assets";
 import {
   createWorkflow,
+  deleteStageVersion,
+  deleteWorkflow,
   fetchWorkflow,
   fetchWorkflows,
   finalizeWorkflow,
@@ -1142,6 +1166,7 @@ import type {
   StageVersion,
   WorkflowCharacterSheet,
   WorkflowClipSlot,
+  WorkflowDeleteResult,
   WorkflowDetail,
   WorkflowSummary,
 } from "@/types";
@@ -2059,6 +2084,76 @@ async function handleRateStageVersion(version: StageVersion) {
   );
 }
 
+function stageTypeLabel(stageType: StageVersion["stageType"]) {
+  switch (stageType) {
+    case "storyboard":
+      return "分镜";
+    case "keyframe":
+      return "关键帧";
+    case "video":
+      return "视频";
+    default:
+      return "版本";
+  }
+}
+
+function deleteWorkflowConfirmMessage(workflow: WorkflowSummary) {
+  return `删除后不可恢复，工作流《${workflow.title}》及其所有生成版本都会一并删除。确认继续吗？`;
+}
+
+function deleteVersionConfirmMessage(version: StageVersion) {
+  const stageLabel = stageTypeLabel(version.stageType);
+  if (version.stageType === "storyboard") {
+    return `删除后不可恢复。删除该${stageLabel}版本时，与它关联的关键帧和视频版本也会一并删除。确认继续吗？`;
+  }
+  if (version.stageType === "keyframe") {
+    return `删除后不可恢复。删除该${stageLabel}版本时，依赖它生成的视频版本也会一并删除。确认继续吗？`;
+  }
+  return `删除后不可恢复，确认删除这个${stageLabel}版本吗？`;
+}
+
+async function handleDeleteWorkflow(workflow: WorkflowSummary) {
+  if (!window.confirm(deleteWorkflowConfirmMessage(workflow))) {
+    return;
+  }
+  const actionKey = `delete-workflow-${workflow.id}`;
+  busyActionKey.value = actionKey;
+  listError.value = "";
+  detailError.value = "";
+  try {
+    const result: WorkflowDeleteResult = await deleteWorkflow(workflow.id);
+    if (result.deleted && selectedWorkflowId.value === workflow.id) {
+      selectedWorkflow.value = null;
+      await router.push("/workflows");
+    }
+    await loadWorkflows();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "工作流删除失败";
+    listError.value = message;
+    detailError.value = message;
+  } finally {
+    busyActionKey.value = "";
+  }
+}
+
+async function handleDeleteStageVersion(version: StageVersion) {
+  if (!selectedWorkflowId.value || !window.confirm(deleteVersionConfirmMessage(version))) {
+    return;
+  }
+  const actionKey = `delete-${version.id}`;
+  busyActionKey.value = actionKey;
+  detailError.value = "";
+  try {
+    selectedWorkflow.value = await deleteStageVersion(selectedWorkflowId.value, version.id);
+    applyWorkflowDrafts(selectedWorkflow.value);
+    await loadWorkflows();
+  } catch (error) {
+    detailError.value = error instanceof Error ? error.message : "版本删除失败";
+  } finally {
+    busyActionKey.value = "";
+  }
+}
+
 async function handleReuseAsset(assetId: string, versionId: string) {
   if (!assetId) {
     return;
@@ -2834,6 +2929,18 @@ onMounted(async () => {
   transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
 }
 
+.workflow-list__open {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
 .workflow-list__item:hover,
 .workflow-list__item-active {
   border-color: rgba(255, 180, 92, 0.5);
@@ -2843,6 +2950,7 @@ onMounted(async () => {
 
 .workflow-list__top,
 .workflow-list__meta,
+.workflow-list__actions,
 .workflow-summary__meta,
 .workflow-summary__actions,
 .rating-row,
@@ -2851,6 +2959,10 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.workflow-list__actions {
+  justify-content: flex-end;
 }
 
 .workflow-list__meta,

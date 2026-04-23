@@ -116,6 +116,80 @@ public class WorkflowApplicationService {
         return toWorkflowDetail(workflow, versions, assetMap, tagMap);
     }
 
+    public Map<String, Object> deleteWorkflow(String workflowId) {
+        StageWorkflowEntity workflow = requireWorkflow(workflowId);
+        List<StageVersionEntity> versions = workflowRepository.listStageVersions(workflowId);
+        Set<String> assetIds = new LinkedHashSet<>();
+        for (StageVersionEntity version : versions) {
+            if (!isBlank(version.getMaterialAssetId())) {
+                assetIds.add(version.getMaterialAssetId());
+            }
+            markStageVersionDeleted(version);
+        }
+        if (!isBlank(workflow.getFinalJoinAssetId())) {
+            assetIds.add(workflow.getFinalJoinAssetId());
+        }
+        for (String assetId : assetIds) {
+            markMaterialAssetDeleted(assetId);
+        }
+        workflow.setIsDeleted(1);
+        workflow.setUpdateTime(OffsetDateTime.now(ZoneOffset.UTC));
+        workflowRepository.saveWorkflow(workflow);
+        return Map.of(
+            "workflowId", workflowId,
+            "deleted", true
+        );
+    }
+
+    public Map<String, Object> deleteStageVersion(String workflowId, String versionId) {
+        StageWorkflowEntity workflow = requireWorkflow(workflowId);
+        StageVersionEntity targetVersion = requireStageVersion(workflowId, versionId, "");
+        List<StageVersionEntity> existingVersions = workflowRepository.listStageVersions(workflowId);
+        List<StageVersionEntity> versionsToDelete = resolveDeleteVersionChain(targetVersion, existingVersions);
+        boolean selectedStoryboardDeleted = WorkflowConstants.STAGE_STORYBOARD.equals(targetVersion.getStageType())
+            && targetVersion.getStageVersionId().equals(trimmed(workflow.getSelectedStoryboardVersionId(), ""));
+        boolean selectedVersionDeleted = versionsToDelete.stream().anyMatch(item -> intValue(item.getSelected(), 0) == 1) || selectedStoryboardDeleted;
+        Set<Integer> impactedKeyframeClips = versionsToDelete.stream()
+            .filter(item -> WorkflowConstants.STAGE_KEYFRAME.equals(item.getStageType()))
+            .map(item -> intValue(item.getClipIndex(), 0))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Integer> impactedVideoClips = versionsToDelete.stream()
+            .filter(item -> WorkflowConstants.STAGE_VIDEO.equals(item.getStageType()))
+            .map(item -> intValue(item.getClipIndex(), 0))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        for (StageVersionEntity version : versionsToDelete) {
+            markStageVersionDeleted(version);
+            markMaterialAssetDeleted(version.getMaterialAssetId());
+        }
+        if (selectedStoryboardDeleted) {
+            StageVersionEntity replacementStoryboard = latestStageVersion(workflowRepository.listStageVersions(workflowId), WorkflowConstants.STAGE_STORYBOARD, 0, null);
+            applyStoryboardSelection(workflow, replacementStoryboard);
+            workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_KEYFRAME, null);
+            workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_VIDEO, null);
+        } else {
+            normalizeImpactedKeyframeSelections(workflowId, impactedKeyframeClips);
+            if (WorkflowConstants.STAGE_KEYFRAME.equals(targetVersion.getStageType())) {
+                for (Integer clipIndex : impactedKeyframeClips) {
+                    int normalizedClipIndex = intValue(clipIndex, 0);
+                    if (normalizedClipIndex > 0 && normalizedClipIndex < CHARACTER_SHEET_CLIP_INDEX_BASE) {
+                        workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_VIDEO, normalizedClipIndex);
+                    }
+                }
+            } else {
+                impactedVideoClips.addAll(impactedKeyframeClips.stream().filter(clipIndex -> clipIndex > 0 && clipIndex < CHARACTER_SHEET_CLIP_INDEX_BASE).toList());
+                normalizeImpactedVideoSelections(workflowId, impactedVideoClips);
+            }
+        }
+        if (selectedVersionDeleted) {
+            detachFinalJoinAsset(workflow);
+        }
+        syncAllWorkflowAssetSelection(workflowId);
+        refreshWorkflowProgressState(workflow);
+        workflow.setUpdateTime(OffsetDateTime.now(ZoneOffset.UTC));
+        workflowRepository.saveWorkflow(workflow);
+        return getWorkflow(workflowId);
+    }
+
     public Map<String, Object> generateStoryboard(String workflowId) {
         StageWorkflowEntity workflow = requireWorkflow(workflowId);
         int versionNo = workflowRepository.nextStageVersionNo(workflowId, WorkflowConstants.STAGE_STORYBOARD, 0);
@@ -1053,6 +1127,199 @@ public class WorkflowApplicationService {
         }
         asset.setSelectedForNext(selected ? 1 : 0);
         workflowRepository.saveMaterialAsset(asset);
+    }
+
+    private List<StageVersionEntity> resolveDeleteVersionChain(StageVersionEntity targetVersion, List<StageVersionEntity> versions) {
+        List<StageVersionEntity> deleted = new ArrayList<>();
+        deleted.add(targetVersion);
+        if (WorkflowConstants.STAGE_STORYBOARD.equals(targetVersion.getStageType())) {
+            List<StageVersionEntity> keyframeVersions = versions.stream()
+                .filter(item -> WorkflowConstants.STAGE_KEYFRAME.equals(item.getStageType()))
+                .filter(item -> targetVersion.getStageVersionId().equals(trimmed(item.getParentVersionId(), "")))
+                .toList();
+            deleted.addAll(keyframeVersions);
+            Set<String> keyframeIds = keyframeVersions.stream().map(StageVersionEntity::getStageVersionId).collect(Collectors.toSet());
+            deleted.addAll(versions.stream()
+                .filter(item -> WorkflowConstants.STAGE_VIDEO.equals(item.getStageType()))
+                .filter(item -> keyframeIds.contains(trimmed(item.getParentVersionId(), "")))
+                .toList());
+        } else if (WorkflowConstants.STAGE_KEYFRAME.equals(targetVersion.getStageType())) {
+            deleted.addAll(versions.stream()
+                .filter(item -> WorkflowConstants.STAGE_VIDEO.equals(item.getStageType()))
+                .filter(item -> targetVersion.getStageVersionId().equals(trimmed(item.getParentVersionId(), "")))
+                .toList());
+        }
+        return deleted.stream()
+            .collect(Collectors.toMap(StageVersionEntity::getStageVersionId, item -> item, (left, right) -> left, LinkedHashMap::new))
+            .values()
+            .stream()
+            .toList();
+    }
+
+    private void markStageVersionDeleted(StageVersionEntity version) {
+        if (version == null || intValue(version.getIsDeleted(), 0) == 1) {
+            return;
+        }
+        version.setSelected(0);
+        version.setIsDeleted(1);
+        version.setUpdateTime(OffsetDateTime.now(ZoneOffset.UTC));
+        workflowRepository.saveStageVersion(version);
+    }
+
+    private void markMaterialAssetDeleted(String assetId) {
+        if (isBlank(assetId)) {
+            return;
+        }
+        MaterialAssetEntity asset = workflowRepository.findMaterialAsset(assetId, requiredUserId());
+        if (asset == null || intValue(asset.getIsDeleted(), 0) == 1) {
+            return;
+        }
+        asset.setSelectedForNext(0);
+        asset.setIsDeleted(1);
+        asset.setUpdateTime(OffsetDateTime.now(ZoneOffset.UTC));
+        workflowRepository.saveMaterialAsset(asset);
+        workflowRepository.saveMaterialAssetTags(assetId, List.of());
+    }
+
+    private void applyStoryboardSelection(StageWorkflowEntity workflow, StageVersionEntity selectedStoryboard) {
+        String workflowId = workflow.getWorkflowId();
+        if (selectedStoryboard == null) {
+            workflow.setSelectedStoryboardVersionId("");
+            workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_STORYBOARD, 0);
+            return;
+        }
+        workflow.setSelectedStoryboardVersionId(selectedStoryboard.getStageVersionId());
+        workflowRepository.markSelectedStageVersion(workflowId, WorkflowConstants.STAGE_STORYBOARD, 0, selectedStoryboard.getStageVersionId());
+    }
+
+    private void normalizeImpactedKeyframeSelections(String workflowId, Set<Integer> clipIndices) {
+        for (Integer clipIndex : clipIndices) {
+            int normalizedClipIndex = intValue(clipIndex, 0);
+            List<StageVersionEntity> candidates = workflowRepository.listStageVersions(workflowId).stream()
+                .filter(item -> WorkflowConstants.STAGE_KEYFRAME.equals(item.getStageType()))
+                .filter(item -> intValue(item.getClipIndex(), 0) == normalizedClipIndex)
+                .sorted(Comparator.comparing(StageVersionEntity::getVersionNo).reversed())
+                .toList();
+            if (candidates.isEmpty()) {
+                workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_KEYFRAME, normalizedClipIndex);
+                continue;
+            }
+            boolean hasSelected = candidates.stream().anyMatch(item -> intValue(item.getSelected(), 0) == 1);
+            if (!hasSelected) {
+                workflowRepository.markSelectedStageVersion(
+                    workflowId,
+                    WorkflowConstants.STAGE_KEYFRAME,
+                    normalizedClipIndex,
+                    candidates.get(0).getStageVersionId()
+                );
+            }
+        }
+    }
+
+    private void normalizeImpactedVideoSelections(String workflowId, Set<Integer> clipIndices) {
+        for (Integer clipIndex : clipIndices) {
+            int normalizedClipIndex = intValue(clipIndex, 0);
+            if (normalizedClipIndex <= 0 || normalizedClipIndex >= CHARACTER_SHEET_CLIP_INDEX_BASE) {
+                continue;
+            }
+            String selectedKeyframeId = selectedStageVersionId(workflowId, WorkflowConstants.STAGE_KEYFRAME, normalizedClipIndex);
+            if (selectedKeyframeId.isBlank()) {
+                workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_VIDEO, normalizedClipIndex);
+                continue;
+            }
+            List<StageVersionEntity> candidates = workflowRepository.listStageVersions(workflowId).stream()
+                .filter(item -> WorkflowConstants.STAGE_VIDEO.equals(item.getStageType()))
+                .filter(item -> intValue(item.getClipIndex(), 0) == normalizedClipIndex)
+                .filter(item -> selectedKeyframeId.equals(trimmed(item.getParentVersionId(), "")))
+                .sorted(Comparator.comparing(StageVersionEntity::getVersionNo).reversed())
+                .toList();
+            if (candidates.isEmpty()) {
+                workflowRepository.clearSelectedStageVersions(workflowId, WorkflowConstants.STAGE_VIDEO, normalizedClipIndex);
+                continue;
+            }
+            boolean hasSelected = candidates.stream().anyMatch(item -> intValue(item.getSelected(), 0) == 1);
+            if (!hasSelected) {
+                workflowRepository.markSelectedStageVersion(
+                    workflowId,
+                    WorkflowConstants.STAGE_VIDEO,
+                    normalizedClipIndex,
+                    candidates.get(0).getStageVersionId()
+                );
+            }
+        }
+    }
+
+    private String selectedStageVersionId(String workflowId, String stageType, int clipIndex) {
+        return workflowRepository.listStageVersions(workflowId).stream()
+            .filter(item -> stageType.equals(item.getStageType()))
+            .filter(item -> intValue(item.getClipIndex(), 0) == clipIndex)
+            .filter(item -> intValue(item.getSelected(), 0) == 1)
+            .map(StageVersionEntity::getStageVersionId)
+            .findFirst()
+            .orElse("");
+    }
+
+    private StageVersionEntity latestStageVersion(
+        List<StageVersionEntity> versions,
+        String stageType,
+        int clipIndex,
+        String parentVersionId
+    ) {
+        return versions.stream()
+            .filter(item -> stageType.equals(item.getStageType()))
+            .filter(item -> intValue(item.getClipIndex(), 0) == clipIndex)
+            .filter(item -> parentVersionId == null || parentVersionId.equals(trimmed(item.getParentVersionId(), "")))
+            .max(Comparator.comparing(item -> intValue(item.getVersionNo(), 0)))
+            .orElse(null);
+    }
+
+    private void detachFinalJoinAsset(StageWorkflowEntity workflow) {
+        if (workflow == null || isBlank(workflow.getFinalJoinAssetId())) {
+            return;
+        }
+        MaterialAssetEntity finalAsset = workflowRepository.findMaterialAsset(workflow.getFinalJoinAssetId(), requiredUserId());
+        if (finalAsset != null) {
+            finalAsset.setSelectedForNext(0);
+            finalAsset.setUpdateTime(OffsetDateTime.now(ZoneOffset.UTC));
+            workflowRepository.saveMaterialAsset(finalAsset);
+        }
+        workflow.setFinalJoinAssetId("");
+    }
+
+    private void refreshWorkflowProgressState(StageWorkflowEntity workflow) {
+        List<StageVersionEntity> versions = workflowRepository.listStageVersions(workflow.getWorkflowId());
+        StageVersionEntity selectedStoryboard = versions.stream()
+            .filter(item -> WorkflowConstants.STAGE_STORYBOARD.equals(item.getStageType()))
+            .filter(item -> item.getStageVersionId().equals(trimmed(workflow.getSelectedStoryboardVersionId(), "")) || intValue(item.getSelected(), 0) == 1)
+            .max(Comparator.comparing(item -> intValue(item.getVersionNo(), 0)))
+            .orElse(null);
+        if (selectedStoryboard == null) {
+            workflow.setSelectedStoryboardVersionId("");
+            workflow.setCurrentStage(WorkflowConstants.STAGE_STORYBOARD);
+            workflow.setStatus(WorkflowConstants.STATUS_DRAFT);
+            return;
+        }
+        workflow.setSelectedStoryboardVersionId(selectedStoryboard.getStageVersionId());
+        List<Integer> regularClipIndices = readClips(selectedStoryboard).stream()
+            .map(clip -> intValue(clip.get("clipIndex"), 0))
+            .filter(clipIndex -> clipIndex > 0 && clipIndex < CHARACTER_SHEET_CLIP_INDEX_BASE)
+            .toList();
+        boolean allKeyframesSelected = regularClipIndices.stream()
+            .allMatch(clipIndex -> !selectedStageVersionId(workflow.getWorkflowId(), WorkflowConstants.STAGE_KEYFRAME, clipIndex).isBlank());
+        if (!allKeyframesSelected) {
+            workflow.setCurrentStage(WorkflowConstants.STAGE_KEYFRAME);
+            workflow.setStatus(WorkflowConstants.STATUS_READY);
+            return;
+        }
+        boolean allVideosSelected = regularClipIndices.stream()
+            .allMatch(clipIndex -> !selectedStageVersionId(workflow.getWorkflowId(), WorkflowConstants.STAGE_VIDEO, clipIndex).isBlank());
+        if (!allVideosSelected) {
+            workflow.setCurrentStage(WorkflowConstants.STAGE_VIDEO);
+            workflow.setStatus(WorkflowConstants.STATUS_READY);
+            return;
+        }
+        workflow.setCurrentStage(WorkflowConstants.STAGE_JOINED);
+        workflow.setStatus(isBlank(workflow.getFinalJoinAssetId()) ? WorkflowConstants.STATUS_READY : WorkflowConstants.STATUS_COMPLETED);
     }
 
     private void syncAssetTags(MaterialAssetEntity asset, StageVersionEntity version, StageWorkflowEntity workflow, List<String> customTags) {

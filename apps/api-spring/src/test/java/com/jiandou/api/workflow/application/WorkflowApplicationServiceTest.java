@@ -72,7 +72,10 @@ class WorkflowApplicationServiceTest {
         );
 
         when(localMediaArtifactService.resolveAbsolutePath(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(workflowRepository.findWorkflow(anyString(), anyLong())).thenAnswer(invocation -> workflows.get(invocation.getArgument(0)));
+        when(workflowRepository.findWorkflow(anyString(), anyLong())).thenAnswer(invocation -> {
+            StageWorkflowEntity workflow = workflows.get(invocation.getArgument(0));
+            return workflow == null || intValue(workflow.getIsDeleted(), 0) == 1 ? null : workflow;
+        });
         when(workflowRepository.findStageVersion(anyString(), anyString())).thenAnswer(invocation -> findStageVersion(invocation.getArgument(0), invocation.getArgument(1)));
         when(workflowRepository.listStageVersions(anyString())).thenAnswer(invocation -> listStageVersions(invocation.getArgument(0)));
         when(storyboardPlanner.extractCharacterDefinitions(anyString())).thenReturn(List.of());
@@ -81,7 +84,10 @@ class WorkflowApplicationServiceTest {
             invocation.getArgument(1),
             invocation.getArgument(2)
         ));
-        when(workflowRepository.findMaterialAsset(anyString(), anyLong())).thenAnswer(invocation -> assets.get(invocation.getArgument(0)));
+        when(workflowRepository.findMaterialAsset(anyString(), anyLong())).thenAnswer(invocation -> {
+            MaterialAssetEntity asset = assets.get(invocation.getArgument(0));
+            return asset == null || intValue(asset.getIsDeleted(), 0) == 1 ? null : asset;
+        });
         when(workflowRepository.findMaterialAssetsByIds(anySet(), anyLong())).thenAnswer(invocation -> findMaterialAssets(invocation.getArgument(0)));
         when(workflowRepository.listMaterialAssets(anyLong())).thenAnswer(invocation -> new ArrayList<>(assets.values()));
         when(workflowRepository.listTags(anyString())).thenReturn(List.of());
@@ -419,6 +425,95 @@ class WorkflowApplicationServiceTest {
         assertTrue(sheetVersions.stream().anyMatch(item -> "sv_sheet_2".equals(item.get("id")) && Boolean.TRUE.equals(item.get("selected"))));
     }
 
+    @Test
+    void deleteWorkflowMarksWorkflowVersionsAndAssetsDeleted() {
+        StageWorkflowEntity workflow = workflow("wf_delete");
+        workflow.setFinalJoinAssetId("asset_join_delete");
+        workflows.put(workflow.getWorkflowId(), workflow);
+        versions.put("sv_story_delete", customStoryboardVersion(workflow.getWorkflowId(), "sv_story_delete", 1, true, storyboardClips()));
+        versions.put("sv_key_delete", customKeyframeVersion(workflow.getWorkflowId(), "sv_key_delete", 1, 1, "sv_story_delete", "asset_key_delete", true));
+        versions.put("sv_video_delete", customVideoVersion(workflow.getWorkflowId(), "sv_video_delete", 1, 1, "sv_key_delete", "asset_video_delete", true));
+        assets.put("asset_key_delete", asset(workflow.getWorkflowId(), "asset_key_delete", WorkflowConstants.STAGE_KEYFRAME, 1, "https://cdn.example.com/key-delete.png", "image/png"));
+        assets.put("asset_video_delete", asset(workflow.getWorkflowId(), "asset_video_delete", WorkflowConstants.STAGE_VIDEO, 1, "https://cdn.example.com/video-delete.mp4", "video/mp4"));
+        assets.put("asset_join_delete", asset(workflow.getWorkflowId(), "asset_join_delete", WorkflowConstants.STAGE_JOINED, 0, "https://cdn.example.com/join-delete.mp4", "video/mp4"));
+
+        Map<String, Object> result = service.deleteWorkflow("wf_delete");
+
+        assertEquals("wf_delete", result.get("workflowId"));
+        assertEquals(true, result.get("deleted"));
+        assertEquals(1, workflows.get("wf_delete").getIsDeleted());
+        assertEquals(1, versions.get("sv_story_delete").getIsDeleted());
+        assertEquals(1, versions.get("sv_key_delete").getIsDeleted());
+        assertEquals(1, versions.get("sv_video_delete").getIsDeleted());
+        assertEquals(1, assets.get("asset_key_delete").getIsDeleted());
+        assertEquals(1, assets.get("asset_video_delete").getIsDeleted());
+        assertEquals(1, assets.get("asset_join_delete").getIsDeleted());
+    }
+
+    @Test
+    void deleteSelectedStoryboardFallsBackAndClearsDownstreamSelections() {
+        StageWorkflowEntity workflow = workflow("wf_delete_storyboard");
+        workflow.setSelectedStoryboardVersionId("sv_story_new");
+        workflow.setCurrentStage(WorkflowConstants.STAGE_JOINED);
+        workflow.setStatus(WorkflowConstants.STATUS_COMPLETED);
+        workflow.setFinalJoinAssetId("asset_join_storyboard");
+        workflows.put(workflow.getWorkflowId(), workflow);
+        versions.put("sv_story_old", customStoryboardVersion(workflow.getWorkflowId(), "sv_story_old", 1, false, storyboardClips()));
+        versions.put("sv_story_new", customStoryboardVersion(workflow.getWorkflowId(), "sv_story_new", 2, true, storyboardClips()));
+        versions.put("sv_key_old", customKeyframeVersion(workflow.getWorkflowId(), "sv_key_old", 1, 1, "sv_story_old", "asset_key_old", false));
+        versions.put("sv_key_new", customKeyframeVersion(workflow.getWorkflowId(), "sv_key_new", 1, 2, "sv_story_new", "asset_key_new", true));
+        versions.put("sv_video_old", customVideoVersion(workflow.getWorkflowId(), "sv_video_old", 1, 1, "sv_key_old", "asset_video_old", false));
+        versions.put("sv_video_new", customVideoVersion(workflow.getWorkflowId(), "sv_video_new", 1, 2, "sv_key_new", "asset_video_new", true));
+        assets.put("asset_key_old", asset(workflow.getWorkflowId(), "asset_key_old", WorkflowConstants.STAGE_KEYFRAME, 1, "https://cdn.example.com/key-old.png", "image/png"));
+        assets.put("asset_key_new", asset(workflow.getWorkflowId(), "asset_key_new", WorkflowConstants.STAGE_KEYFRAME, 1, "https://cdn.example.com/key-new.png", "image/png"));
+        assets.put("asset_video_old", asset(workflow.getWorkflowId(), "asset_video_old", WorkflowConstants.STAGE_VIDEO, 1, "https://cdn.example.com/video-old.mp4", "video/mp4"));
+        assets.put("asset_video_new", asset(workflow.getWorkflowId(), "asset_video_new", WorkflowConstants.STAGE_VIDEO, 1, "https://cdn.example.com/video-new.mp4", "video/mp4"));
+        assets.put("asset_join_storyboard", asset(workflow.getWorkflowId(), "asset_join_storyboard", WorkflowConstants.STAGE_JOINED, 0, "https://cdn.example.com/join-storyboard.mp4", "video/mp4"));
+
+        Map<String, Object> detail = service.deleteStageVersion("wf_delete_storyboard", "sv_story_new");
+
+        assertEquals("sv_story_old", workflows.get("wf_delete_storyboard").getSelectedStoryboardVersionId());
+        assertEquals("", workflows.get("wf_delete_storyboard").getFinalJoinAssetId());
+        assertEquals(WorkflowConstants.STAGE_KEYFRAME, workflows.get("wf_delete_storyboard").getCurrentStage());
+        assertEquals(WorkflowConstants.STATUS_READY, workflows.get("wf_delete_storyboard").getStatus());
+        assertEquals(1, versions.get("sv_story_new").getIsDeleted());
+        assertEquals(1, versions.get("sv_key_new").getIsDeleted());
+        assertEquals(1, versions.get("sv_video_new").getIsDeleted());
+        assertEquals(0, versions.get("sv_key_old").getSelected());
+        assertEquals(0, versions.get("sv_video_old").getSelected());
+        assertEquals(0, assets.get("asset_join_storyboard").getSelectedForNext());
+        assertEquals("sv_story_old", detail.get("selectedStoryboardVersionId"));
+    }
+
+    @Test
+    void deleteSelectedKeyframePromotesRemainingKeyframeAndClearsClipVideos() {
+        StageWorkflowEntity workflow = workflow("wf_delete_keyframe");
+        workflow.setCurrentStage(WorkflowConstants.STAGE_JOINED);
+        workflow.setStatus(WorkflowConstants.STATUS_COMPLETED);
+        workflow.setFinalJoinAssetId("asset_join_keyframe");
+        workflows.put(workflow.getWorkflowId(), workflow);
+        versions.put("sv_story", storyboardVersion(workflow.getWorkflowId(), List.of(storyboardClips().get(0))));
+        versions.put("sv_key_1a", customKeyframeVersion(workflow.getWorkflowId(), "sv_key_1a", 1, 1, "sv_story", "asset_key_1a", false));
+        versions.put("sv_key_1b", customKeyframeVersion(workflow.getWorkflowId(), "sv_key_1b", 1, 2, "sv_story", "asset_key_1b", true));
+        versions.put("sv_video_1a", customVideoVersion(workflow.getWorkflowId(), "sv_video_1a", 1, 1, "sv_key_1a", "asset_video_1a", false));
+        versions.put("sv_video_1b", customVideoVersion(workflow.getWorkflowId(), "sv_video_1b", 1, 2, "sv_key_1b", "asset_video_1b", true));
+        assets.put("asset_key_1a", asset(workflow.getWorkflowId(), "asset_key_1a", WorkflowConstants.STAGE_KEYFRAME, 1, "https://cdn.example.com/key-1a.png", "image/png"));
+        assets.put("asset_key_1b", asset(workflow.getWorkflowId(), "asset_key_1b", WorkflowConstants.STAGE_KEYFRAME, 1, "https://cdn.example.com/key-1b.png", "image/png"));
+        assets.put("asset_video_1a", asset(workflow.getWorkflowId(), "asset_video_1a", WorkflowConstants.STAGE_VIDEO, 1, "https://cdn.example.com/video-1a.mp4", "video/mp4"));
+        assets.put("asset_video_1b", asset(workflow.getWorkflowId(), "asset_video_1b", WorkflowConstants.STAGE_VIDEO, 1, "https://cdn.example.com/video-1b.mp4", "video/mp4"));
+        assets.put("asset_join_keyframe", asset(workflow.getWorkflowId(), "asset_join_keyframe", WorkflowConstants.STAGE_JOINED, 0, "https://cdn.example.com/join-keyframe.mp4", "video/mp4"));
+
+        service.deleteStageVersion("wf_delete_keyframe", "sv_key_1b");
+
+        assertEquals(1, versions.get("sv_key_1a").getSelected());
+        assertEquals(1, versions.get("sv_key_1b").getIsDeleted());
+        assertEquals(1, versions.get("sv_video_1b").getIsDeleted());
+        assertEquals(0, versions.get("sv_video_1a").getSelected());
+        assertEquals("", workflows.get("wf_delete_keyframe").getFinalJoinAssetId());
+        assertEquals(WorkflowConstants.STAGE_VIDEO, workflows.get("wf_delete_keyframe").getCurrentStage());
+        assertEquals(WorkflowConstants.STATUS_READY, workflows.get("wf_delete_keyframe").getStatus());
+    }
+
     private StageWorkflowEntity workflow(String workflowId) {
         StageWorkflowEntity workflow = new StageWorkflowEntity();
         workflow.setWorkflowId(workflowId);
@@ -468,6 +563,14 @@ class WorkflowApplicationServiceTest {
         )));
         version.setModelCallSummaryJson(WorkflowJsonSupport.write(Map.of()));
         version.setIsDeleted(0);
+        return version;
+    }
+
+    private StageVersionEntity customStoryboardVersion(String workflowId, String versionId, int versionNo, boolean selected, List<Map<String, Object>> clips) {
+        StageVersionEntity version = storyboardVersion(workflowId, clips);
+        version.setStageVersionId(versionId);
+        version.setVersionNo(versionNo);
+        version.setSelected(selected ? 1 : 0);
         return version;
     }
 
@@ -536,6 +639,32 @@ class WorkflowApplicationServiceTest {
         return version;
     }
 
+    private StageVersionEntity customKeyframeVersion(
+        String workflowId,
+        String versionId,
+        int clipIndex,
+        int versionNo,
+        String parentVersionId,
+        String assetId,
+        boolean selected
+    ) {
+        StageVersionEntity version = keyframeVersion(workflowId, clipIndex, assetId, "https://cdn.example.com/" + assetId + ".png");
+        version.setStageVersionId(versionId);
+        version.setVersionNo(versionNo);
+        version.setParentVersionId(parentVersionId);
+        version.setSelected(selected ? 1 : 0);
+        version.setPreviewUrl("https://cdn.example.com/" + assetId + ".png");
+        version.setDownloadUrl("https://cdn.example.com/" + assetId + ".png");
+        version.setOutputSummaryJson(WorkflowJsonSupport.write(Map.of(
+            "firstFrameUrl", "https://cdn.example.com/" + assetId + "-first.png",
+            "startFrameUrl", "https://cdn.example.com/" + assetId + "-first.png",
+            "lastFrameUrl", "https://cdn.example.com/" + assetId + ".png",
+            "endFrameUrl", "https://cdn.example.com/" + assetId + ".png",
+            "fileUrl", "https://cdn.example.com/" + assetId + ".png"
+        )));
+        return version;
+    }
+
     private StageVersionEntity videoVersion(String workflowId, int clipIndex, String assetId, String fileUrl, String lastFrameUrl) {
         StageVersionEntity version = new StageVersionEntity();
         version.setStageVersionId("sv_video_" + clipIndex);
@@ -558,6 +687,29 @@ class WorkflowApplicationServiceTest {
         )));
         version.setModelCallSummaryJson(WorkflowJsonSupport.write(Map.of()));
         version.setIsDeleted(0);
+        return version;
+    }
+
+    private StageVersionEntity customVideoVersion(
+        String workflowId,
+        String versionId,
+        int clipIndex,
+        int versionNo,
+        String parentVersionId,
+        String assetId,
+        boolean selected
+    ) {
+        StageVersionEntity version = videoVersion(
+            workflowId,
+            clipIndex,
+            assetId,
+            "https://cdn.example.com/" + assetId + ".mp4",
+            "https://cdn.example.com/" + assetId + "-last.png"
+        );
+        version.setStageVersionId(versionId);
+        version.setVersionNo(versionNo);
+        version.setParentVersionId(parentVersionId);
+        version.setSelected(selected ? 1 : 0);
         return version;
     }
 
@@ -711,6 +863,7 @@ class WorkflowApplicationServiceTest {
     private List<StageVersionEntity> listStageVersions(String workflowId) {
         return versions.values().stream()
             .filter(item -> workflowId.equals(item.getWorkflowId()))
+            .filter(item -> intValue(item.getIsDeleted(), 0) == 0)
             .sorted(Comparator.comparing(StageVersionEntity::getStageType)
                 .thenComparing(item -> item.getClipIndex() == null ? 0 : item.getClipIndex())
                 .thenComparing(item -> item.getVersionNo() == null ? 0 : -item.getVersionNo()))
@@ -729,7 +882,7 @@ class WorkflowApplicationServiceTest {
         Map<String, MaterialAssetEntity> resolved = new LinkedHashMap<>();
         for (Object assetId : assetIds) {
             MaterialAssetEntity asset = assets.get(String.valueOf(assetId));
-            if (asset != null) {
+            if (asset != null && intValue(asset.getIsDeleted(), 0) == 0) {
                 resolved.put(asset.getMaterialAssetId(), asset);
             }
         }
