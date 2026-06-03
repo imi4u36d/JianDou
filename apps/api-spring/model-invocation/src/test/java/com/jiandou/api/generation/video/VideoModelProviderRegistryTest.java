@@ -13,28 +13,14 @@ class VideoModelProviderRegistryTest {
 
     @Test
     void resolveReturnsSeedanceProviderForSeedanceProfile() {
-        VideoModelProviderRegistry registry = registry();
+        VideoProviderTransport videoProviderTransport = new VideoProviderTransport(new ObjectMapper());
+        VideoModelProviderRegistry registry = new VideoModelProviderRegistry(List.of(
+            new SeedanceVideoModelProvider(videoProviderTransport)
+        ));
 
         VideoModelProvider provider = registry.resolve(profile("seedance"));
 
         assertInstanceOf(SeedanceVideoModelProvider.class, provider);
-    }
-
-    @Test
-    void resolveReturnsDashscopeProviderForNonSeedanceProfile() {
-        VideoModelProviderRegistry registry = registry();
-
-        VideoModelProvider provider = registry.resolve(profile("wan"));
-
-        assertInstanceOf(DashscopeVideoModelProvider.class, provider);
-    }
-
-    private VideoModelProviderRegistry registry() {
-        VideoProviderTransport videoProviderTransport = new VideoProviderTransport(new ObjectMapper());
-        return new VideoModelProviderRegistry(List.of(
-            new SeedanceVideoModelProvider(videoProviderTransport),
-            new DashscopeVideoModelProvider(videoProviderTransport)
-        ));
     }
 
     private MediaProviderProfile profile(String provider) {

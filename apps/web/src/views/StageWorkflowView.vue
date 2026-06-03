@@ -452,14 +452,16 @@
                           <strong>{{ stageVersionDisplayTitle(version) }}</strong>
                           <span class="compact-version-card__status">{{ version.selected ? "已选中" : version.status }}</span>
                         </button>
-                        <details class="workflow-more-menu compact-version-menu">
-                          <summary aria-label="版本操作">•••</summary>
-                          <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectStoryboard(version.id)">
-                            {{ version.selected ? "已选中" : "设为当前" }}
-                          </button>
-                          <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复制为新工作流</button>
-                          <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
-                        </details>
+                        <div class="workflow-more-menu compact-version-menu">
+                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+                          <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
+                            <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectStoryboard(version.id)">
+                              {{ version.selected ? "已选中" : "设为当前" }}
+                            </button>
+                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复制为新工作流</button>
+                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
+                          </div>
+                        </div>
                       </article>
                     </div>
                   </div>
@@ -635,12 +637,14 @@
                           <strong>{{ stageVersionDisplayTitle(version) }}</strong>
                           <span v-if="keyframeVersionHasSelectedFrame(version)" class="surface-chip">当前</span>
                         </button>
-                        <details class="workflow-more-menu compact-version-menu">
-                          <summary aria-label="版本操作">•••</summary>
-                          <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectKeyframe(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
-                          <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
-                          <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
-                        </details>
+                        <div class="workflow-more-menu compact-version-menu">
+                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+                          <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
+                            <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectKeyframe(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
+                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
+                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
+                          </div>
+                        </div>
                       </article>
                     </div>
                   </div>
@@ -747,13 +751,15 @@
                             <strong>{{ stageVersionDisplayTitle(version) }}</strong>
                             <span v-if="version.selected" class="surface-chip">当前</span>
                           </button>
-                          <details class="workflow-more-menu compact-version-menu">
-                            <summary aria-label="版本操作">•••</summary>
-                            <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
-                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
-                            <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
-                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
-                          </details>
+                          <div class="workflow-more-menu compact-version-menu">
+                            <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+                            <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
+                              <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
+                              <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
+                              <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
+                              <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
+                            </div>
+                          </div>
                         </article>
                       </div>
                     </div>
@@ -768,12 +774,14 @@
                       <video v-if="previewVideoVersion.previewUrl" class="version-card__video" :src="previewVideoVersion.previewUrl" controls playsinline preload="metadata"></video>
                       <div class="version-card__actions">
                         <button class="btn-secondary btn-sm" type="button" :disabled="previewVideoVersion.selected || busyActionKey === previewVideoVersion.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, previewVideoVersion.id)">选中继续</button>
-                        <details class="workflow-more-menu compact-version-menu">
-                          <summary aria-label="版本操作">•••</summary>
-                          <button type="button" :disabled="!previewVideoVersion.asset || busyActionKey === `reuse-${previewVideoVersion.id}`" @click="handleReuseAsset(previewVideoVersion.asset?.id || '', previewVideoVersion.id)">复用</button>
-                          <a v-if="previewVideoVersion.downloadUrl" :href="previewVideoVersion.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
-                          <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${previewVideoVersion.id}`" @click="handleDeleteStageVersion(previewVideoVersion)">删除版本</button>
-                        </details>
+                        <div class="workflow-more-menu compact-version-menu">
+                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-card-${previewVideoVersion.id}`">•••</button>
+                          <div :id="`vsm-card-${previewVideoVersion.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
+                            <button type="button" :disabled="!previewVideoVersion.asset || busyActionKey === `reuse-${previewVideoVersion.id}`" @click="handleReuseAsset(previewVideoVersion.asset?.id || '', previewVideoVersion.id)">复用</button>
+                            <a v-if="previewVideoVersion.downloadUrl" :href="previewVideoVersion.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
+                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${previewVideoVersion.id}`" @click="handleDeleteStageVersion(previewVideoVersion)">删除版本</button>
+                          </div>
+                        </div>
                       </div>
                     </article>
                   </div>
@@ -2641,6 +2649,20 @@ async function handleReuseAsset(assetId: string, versionId: string) {
   }
 }
 
+function positionVersionMenu(event: ToggleEvent) {
+  if (event.newState !== "open") return;
+  const popover = event.target as HTMLElement;
+  const trigger = popover.parentElement?.querySelector<HTMLElement>(".workflow-more-menu__trigger");
+  if (!trigger) return;
+  const rect = trigger.getBoundingClientRect();
+  const popoverWidth = 150;
+  let left = rect.right - popoverWidth;
+  if (left < 8) left = 8;
+  if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${rect.bottom + 4}px`;
+}
+
 function closeOpenWorkflowMenus(exceptTarget?: EventTarget | null) {
   const activeNode = exceptTarget instanceof Node ? exceptTarget : null;
   const menus = document.querySelectorAll<HTMLDetailsElement>(".workflow-more-menu[open]");
@@ -2649,6 +2671,11 @@ function closeOpenWorkflowMenus(exceptTarget?: EventTarget | null) {
       return;
     }
     menu.open = false;
+  });
+  document.querySelectorAll<HTMLElement>(".workflow-more-menu__popover").forEach((popover) => {
+    if (!popover.matches(":popover-open")) return;
+    if (activeNode && popover.contains(activeNode)) return;
+    popover.hidePopover();
   });
 }
 
@@ -2784,7 +2811,7 @@ onBeforeUnmount(() => {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .workflow-canvas-header,
@@ -3449,14 +3476,42 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-panel);
 }
 
-.workflow-more-menu > button,
-.workflow-more-menu > a {
-  position: absolute;
-  top: 38px;
-  right: 8px;
-  z-index: 11;
-  display: flex;
+.workflow-more-menu__trigger {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workflow-more-menu__trigger:hover {
+  background: #eef2f4;
+  color: var(--text-strong);
+}
+
+.workflow-more-menu__popover {
+  position: fixed;
+  inset: unset;
   width: 150px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.workflow-more-menu__popover > button,
+.workflow-more-menu__popover > a {
+  display: flex;
+  width: 100%;
   min-height: 34px;
   align-items: center;
   padding: 0 12px;
@@ -3469,40 +3524,19 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.workflow-more-menu > button:nth-child(3),
-.workflow-more-menu > a:nth-child(3) {
-  top: 72px;
-}
-
-.workflow-more-menu > button:nth-child(4),
-.workflow-more-menu > a:nth-child(4) {
-  top: 106px;
-}
-
-.workflow-more-menu > button:nth-child(5),
-.workflow-more-menu > a:nth-child(5) {
-  top: 140px;
-}
-
-.workflow-more-menu > button:nth-child(2),
-.workflow-more-menu > a:nth-child(2) {
+.workflow-more-menu__popover > button:first-child,
+.workflow-more-menu__popover > a:first-child {
   border-radius: 12px 12px 0 0;
 }
 
-.workflow-more-menu > button:last-child,
-.workflow-more-menu > a:last-child {
+.workflow-more-menu__popover > button:last-child,
+.workflow-more-menu__popover > a:last-child {
   border-bottom: 0;
   border-radius: 0 0 12px 12px;
 }
 
-.workflow-more-menu[open] > button,
-.workflow-more-menu[open] > a {
+.workflow-more-menu__popover:popover-open {
   box-shadow: var(--shadow-panel);
-}
-
-.workflow-more-menu:not([open]) > button,
-.workflow-more-menu:not([open]) > a {
-  display: none;
 }
 
 .workflow-more-menu-project {
@@ -4085,8 +4119,6 @@ button:disabled {
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding-bottom: 150px;
-  margin-bottom: -148px;
   align-items: flex-start;
 }
 

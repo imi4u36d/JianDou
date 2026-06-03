@@ -62,12 +62,12 @@ class GenerationRunFactoryVideoAsyncTest {
         MediaProviderProfile videoProfile = new MediaProviderProfile(
             new MediaProviderConfig(
                 "video",
-                "wan2.2-i2v-plus",
-                "wan",
-                "wan2.2-i2v-plus",
+                "seedance-v1",
+                "seedance",
+                "seedance-v1",
                 "k",
-                "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
-                "https://dashscope.aliyuncs.com/api/v1/tasks",
+                "https://video.example.com/api/v1/services/aigc/video-generation/video-synthesis",
+                "https://video.example.com/api/v1/tasks",
                 60,
                 "test"
             ),
@@ -176,11 +176,11 @@ class GenerationRunFactoryVideoAsyncTest {
             @Override
             public RemoteVideoTaskSubmission submit(MediaProviderProfile profile, VideoGenerationRequest request) {
                 return new RemoteVideoTaskSubmission(
-                    "wan",
+                    "seedance",
                     request.requestedModel(),
                     request.requestedModel(),
-                    "dashscope.aliyuncs.com",
-                    "dashscope.aliyuncs.com",
+                    "video.example.com",
+                    "video.example.com",
                     "task_123",
                     "",
                     "",
@@ -232,7 +232,7 @@ class GenerationRunFactoryVideoAsyncTest {
         ));
         request.put("model", Map.of(
             "textAnalysisModel", "gpt-text",
-            "providerModel", "wan2.2-i2v-plus"
+            "providerModel", "seedance-v1"
         ));
         request.put("options", Map.of("stylePreset", "cinematic"));
 
@@ -285,12 +285,12 @@ class GenerationRunFactoryVideoAsyncTest {
         MediaProviderProfile videoProfile = new MediaProviderProfile(
             new MediaProviderConfig(
                 "video",
-                "wan2.2-i2v-plus",
-                "wan",
-                "wan2.2-i2v-plus",
+                "seedance-v1",
+                "seedance",
+                "seedance-v1",
                 "k",
-                "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
-                "https://dashscope.aliyuncs.com/api/v1/tasks",
+                "https://video.example.com/api/v1/services/aigc/video-generation/video-synthesis",
+                "https://video.example.com/api/v1/tasks",
                 60,
                 "test"
             ),
@@ -344,11 +344,11 @@ class GenerationRunFactoryVideoAsyncTest {
                 assertTrue(request.firstFrameUrl().startsWith("data:image/png;base64,"));
                 assertEquals("https://cdn.example.com/clip1-last.png", request.lastFrameUrl());
                 return new RemoteVideoTaskSubmission(
-                    "wan",
+                    "seedance",
                     request.requestedModel(),
                     request.requestedModel(),
-                    "dashscope.aliyuncs.com",
-                    "dashscope.aliyuncs.com",
+                    "video.example.com",
+                    "video.example.com",
                     "task_local_frame",
                     request.firstFrameUrl(),
                     request.lastFrameUrl(),
@@ -388,7 +388,7 @@ class GenerationRunFactoryVideoAsyncTest {
         ));
         request.put("model", Map.of(
             "textAnalysisModel", "gpt-text",
-            "providerModel", "wan2.2-i2v-plus"
+            "providerModel", "seedance-v1"
         ));
         request.put("options", Map.of("stylePreset", "cinematic"));
 
@@ -418,12 +418,12 @@ class GenerationRunFactoryVideoAsyncTest {
         MediaProviderProfile videoProfile = new MediaProviderProfile(
             new MediaProviderConfig(
                 "video",
-                "wan2.2-i2v-plus",
-                "wan",
-                "wan2.2-i2v-plus",
+                "seedance-v1",
+                "seedance",
+                "seedance-v1",
                 "k",
-                "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
-                "https://dashscope.aliyuncs.com/api/v1/tasks",
+                "https://video.example.com/api/v1/services/aigc/video-generation/video-synthesis",
+                "https://video.example.com/api/v1/tasks",
                 60,
                 "test"
             ),
@@ -493,11 +493,11 @@ class GenerationRunFactoryVideoAsyncTest {
             @Override
             public RemoteVideoTaskSubmission submit(MediaProviderProfile profile, VideoGenerationRequest request) {
                 return new RemoteVideoTaskSubmission(
-                    "wan",
+                    "seedance",
                     request.requestedModel(),
                     request.requestedModel(),
-                    "dashscope.aliyuncs.com",
-                    "dashscope.aliyuncs.com",
+                    "video.example.com",
+                    "video.example.com",
                     "task_123",
                     request.firstFrameUrl(),
                     request.lastFrameUrl() == null ? "" : request.lastFrameUrl(),
@@ -535,7 +535,7 @@ class GenerationRunFactoryVideoAsyncTest {
         ));
         request.put("model", Map.of(
             "textAnalysisModel", "gpt-text",
-            "providerModel", "wan2.2-i2v-plus"
+            "providerModel", "seedance-v1"
         ));
         request.put("options", Map.of("stylePreset", "cinematic"));
 

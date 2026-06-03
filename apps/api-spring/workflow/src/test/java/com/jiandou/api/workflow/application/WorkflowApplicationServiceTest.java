@@ -927,7 +927,7 @@ class WorkflowApplicationServiceTest {
         workflows.put(workflow.getWorkflowId(), workflow);
         when(generationApplicationService.createRun(any())).thenThrow(new GenerationProviderException(
             "text model response is empty",
-            Map.of("method", "POST", "endpoint", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "body", Map.of("model", "qwen3.6-flash")),
+            Map.of("method", "POST", "endpoint", "https://api.deepseek.com/v1/chat/completions", "body", Map.of("model", "deepseek-v4-flash")),
             Map.of("id", "resp_empty", "choices", List.of()),
             200
         ));
@@ -952,8 +952,8 @@ class WorkflowApplicationServiceTest {
         assertEquals(200, modelCall.get("httpStatus"));
         assertEquals(200, responsePayload.get("httpStatus"));
         assertEquals("POST", requestPayload.get("method"));
-        assertEquals("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", requestPayload.get("endpoint"));
-        assertEquals("qwen3.6-flash", mapValue(requestPayload.get("body")).get("model"));
+        assertEquals("https://api.deepseek.com/v1/chat/completions", requestPayload.get("endpoint"));
+        assertEquals("deepseek-v4-flash", mapValue(requestPayload.get("body")).get("model"));
         assertFalse(mapValue(requestPayload.get("businessRequest")).isEmpty());
         assertFalse(mapValue(responsePayload.get("providerRequest")).isEmpty());
         assertFalse(mapValue(responsePayload.get("providerResponse")).isEmpty());
@@ -986,12 +986,12 @@ class WorkflowApplicationServiceTest {
         assertEquals(WorkflowConstants.STAGE_STORYBOARD, modelCall.get("stage"));
         assertEquals("workflow.storyboard.generate", modelCall.get("operation"));
         assertEquals(true, modelCall.get("success"));
-        assertEquals("qwen", modelCall.get("provider"));
-        assertEquals("qwen3.6-plus", modelCall.get("requestedModel"));
-        assertEquals("qwen3.6-plus", modelCall.get("providerModel"));
+        assertEquals("deepseek", modelCall.get("provider"));
+        assertEquals("deepseek-v4-pro", modelCall.get("requestedModel"));
+        assertEquals("deepseek-v4-pro", modelCall.get("providerModel"));
         assertEquals("run_story_1", modelCall.get("requestId"));
         Map<String, Object> requestPayload = mapValue(modelCall.get("requestPayload"));
-        assertEquals("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", requestPayload.get("endpoint"));
+        assertEquals("https://api.deepseek.com/v1/chat/completions", requestPayload.get("endpoint"));
         assertFalse(mapValue(requestPayload.get("businessRequest")).isEmpty());
         assertFalse(mapValue(modelCall.get("responsePayload")).isEmpty());
         Map<String, Object> run = mapValue(mapValue(modelCall.get("responsePayload")).get("run"));
@@ -2216,25 +2216,25 @@ class WorkflowApplicationServiceTest {
                 "mimeType", "text/markdown",
                 "latencyMs", 321,
                 "metadata", Map.of(
-                    "providerRequest", Map.of("endpoint", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"),
+                    "providerRequest", Map.of("endpoint", "https://api.deepseek.com/v1/chat/completions"),
                     "providerResponse", Map.of("id", "resp_story_1"),
                     "providerHttpStatus", 200,
                     "providerInteractions", List.of(
                         Map.of(
                             "step", "draft",
-                            "providerRequest", Map.of("endpoint", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"),
+                            "providerRequest", Map.of("endpoint", "https://api.deepseek.com/v1/chat/completions"),
                             "providerResponse", Map.of("id", "resp_story_1"),
                             "httpStatus", 200
                         )
                     )
                 ),
                 "modelInfo", Map.of(
-                    "provider", "qwen",
-                    "providerModel", "qwen3.6-plus",
-                    "requestedModel", "qwen3.6-plus",
-                    "resolvedModel", "qwen3.6-plus",
-                    "modelName", "qwen3.6-plus",
-                    "endpointHost", "dashscope.aliyuncs.com"
+                    "provider", "deepseek",
+                    "providerModel", "deepseek-v4-pro",
+                    "requestedModel", "deepseek-v4-pro",
+                    "resolvedModel", "deepseek-v4-pro",
+                    "modelName", "deepseek-v4-pro",
+                    "endpointHost", "api.deepseek.com"
                 )
             )
         );

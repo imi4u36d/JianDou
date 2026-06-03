@@ -1,19 +1,33 @@
 model:
   models:
-    "qwen3.6-flash":
-      provider: "qwen"
-      vendor: "aliyun"
+    "deepseek-v4-flash":
+      provider: "deepseek"
+      vendor: "deepseek"
       kind: "text"
-      label: "qwen3.6-flash"
-      provider_model: "qwen3.6-flash-2026-04-16"
+      label: "deepseek-v4-flash"
+      provider_model: "deepseek-v4-flash"
       max_tokens: 8000
-      family: "qwen"
+      family: "deepseek"
       capabilities:
         - "text_analysis"
         - "planner_fusion"
         - "creative_prompt"
         - "script_generation"
-      description: "Qwen 通用文本模型 qwen3.6-flash。"
+      description: "DeepSeek 快速文本模型 deepseek-v4-flash。"
+    "deepseek-v4-pro":
+      provider: "deepseek"
+      vendor: "deepseek"
+      kind: "text"
+      label: "deepseek-v4-pro"
+      provider_model: "deepseek-v4-pro"
+      max_tokens: 8000
+      family: "deepseek"
+      capabilities:
+        - "text_analysis"
+        - "planner_fusion"
+        - "creative_prompt"
+        - "script_generation"
+      description: "DeepSeek 专业文本模型 deepseek-v4-pro。"
     "Doubao-Seedream-4.5":
       provider: "seedream"
       vendor: "volcengine"

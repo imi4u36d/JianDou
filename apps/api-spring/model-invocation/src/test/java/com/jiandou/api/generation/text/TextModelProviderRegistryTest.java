@@ -29,9 +29,9 @@ class TextModelProviderRegistryTest {
         return new ModelRuntimeProfile(
             new com.jiandou.api.generation.runtime.TextProviderConfig(
                 "text",
-                "qwen-plus",
-                "qwen",
-                "qwen-plus",
+                "deepseek-v4-pro",
+                "deepseek",
+                "deepseek-v4-pro",
                 "k",
                 "https://api.example.com/v1",
                 60,

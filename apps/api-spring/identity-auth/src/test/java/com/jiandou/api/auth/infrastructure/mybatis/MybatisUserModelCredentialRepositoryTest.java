@@ -24,7 +24,7 @@ class MybatisUserModelCredentialRepositoryTest {
         MybatisUserModelCredentialRepository repository = new MybatisUserModelCredentialRepository(sqlSessionFactory, cipher);
         SysUserEntity normalUser = user(7L, "tester");
         SysUserEntity adminUser = user(1L, "admin");
-        SysUserModelCredentialEntity adminCredential = credential(1L, "qwen", "encrypted-admin-key");
+        SysUserModelCredentialEntity adminCredential = credential(1L, "deepseek", "encrypted-admin-key");
 
         when(sqlSessionFactory.openSession()).thenReturn(session);
         when(session.getMapper(SysUserMapper.class)).thenReturn(userMapper);
@@ -34,7 +34,7 @@ class MybatisUserModelCredentialRepositoryTest {
         when(credentialMapper.selectList(any())).thenReturn(List.of(adminCredential));
         when(cipher.decrypt("encrypted-admin-key")).thenReturn("admin-key");
 
-        String apiKey = repository.findRuntimeApiKey(7L, List.of("qwen"));
+        String apiKey = repository.findRuntimeApiKey(7L, List.of("deepseek"));
 
         assertEquals("admin-key", apiKey);
     }
@@ -48,7 +48,7 @@ class MybatisUserModelCredentialRepositoryTest {
         UserModelCredentialCipher cipher = mock(UserModelCredentialCipher.class);
         MybatisUserModelCredentialRepository repository = new MybatisUserModelCredentialRepository(sqlSessionFactory, cipher);
         SysUserEntity adminUser = user(1L, "admin");
-        SysUserModelCredentialEntity adminCredential = credential(1L, "qwen", "encrypted-admin-key");
+        SysUserModelCredentialEntity adminCredential = credential(1L, "deepseek", "encrypted-admin-key");
 
         when(sqlSessionFactory.openSession()).thenReturn(session);
         when(session.getMapper(SysUserMapper.class)).thenReturn(userMapper);
@@ -57,7 +57,7 @@ class MybatisUserModelCredentialRepositoryTest {
         when(credentialMapper.selectList(any())).thenReturn(List.of(adminCredential));
         when(cipher.decrypt("encrypted-admin-key")).thenReturn("admin-key");
 
-        String apiKey = repository.findRuntimeApiKey(1L, List.of("qwen"));
+        String apiKey = repository.findRuntimeApiKey(1L, List.of("deepseek"));
 
         assertEquals("admin-key", apiKey);
         verify(userMapper, never()).selectOne(any());
@@ -81,7 +81,7 @@ class MybatisUserModelCredentialRepositoryTest {
         when(userMapper.selectOne(any())).thenReturn(adminUser);
         when(credentialMapper.selectList(any())).thenReturn(List.of());
 
-        String apiKey = repository.findRuntimeApiKey(7L, List.of("qwen"));
+        String apiKey = repository.findRuntimeApiKey(7L, List.of("deepseek"));
 
         assertEquals("", apiKey);
     }

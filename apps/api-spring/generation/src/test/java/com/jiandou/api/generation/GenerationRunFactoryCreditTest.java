@@ -113,11 +113,11 @@ class GenerationRunFactoryCreditTest {
             @Override
             public RemoteVideoTaskSubmission submit(MediaProviderProfile profile, VideoGenerationRequest request) {
                 return new RemoteVideoTaskSubmission(
-                    "wan",
+                    "seedance",
                     request.requestedModel(),
                     request.requestedModel(),
-                    "dashscope.aliyuncs.com",
-                    "dashscope.aliyuncs.com",
+                    "video.example.com",
+                    "video.example.com",
                     "remote_task_1",
                     request.firstFrameUrl(),
                     request.lastFrameUrl(),
@@ -165,7 +165,7 @@ class GenerationRunFactoryCreditTest {
             new MediaProviderCapabilities(false, false, false, false, 5, 120, "", List.of(), List.of(), false)
         );
         MediaProviderProfile videoProfile = new MediaProviderProfile(
-            new MediaProviderConfig("video", "wan2.2-i2v-plus", "wan", "wan2.2-i2v-plus", "k", "https://api.example.com/videos", "https://api.example.com/tasks", 60, "test"),
+            new MediaProviderConfig("video", "seedance-v1", "seedance", "seedance-v1", "k", "https://api.example.com/videos", "https://api.example.com/tasks", 60, "test"),
             new MediaProviderCapabilities(false, true, false, false, 5, 120, "i2v", List.of(), List.of(8), false)
         );
         ModelRuntimePropertiesResolver modelResolver = new ModelRuntimePropertiesResolver(new MockEnvironment()) {
@@ -229,7 +229,7 @@ class GenerationRunFactoryCreditTest {
             "durationSeconds", 8,
             "firstFrameUrl", "https://cdn.example.com/clip1-first.png"
         ));
-        request.put("model", Map.of("textAnalysisModel", "gpt-text", "providerModel", "wan2.2-i2v-plus"));
+        request.put("model", Map.of("textAnalysisModel", "gpt-text", "providerModel", "seedance-v1"));
         request.put("metadata", Map.of("relatedTaskId", "task_" + userId));
         return request;
     }

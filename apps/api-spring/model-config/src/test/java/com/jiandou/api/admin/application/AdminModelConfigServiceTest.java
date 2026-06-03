@@ -104,30 +104,30 @@ class AdminModelConfigServiceTest {
         ModelRuntimePropertiesResolver resolver = mock(ModelRuntimePropertiesResolver.class);
         AdminModelConfigService service = new AdminModelConfigService(resolver, mock(AdminModelConfigSecretsService.class));
         when(resolver.listModelsByKind(GenerationModelKinds.TEXT)).thenReturn(List.of(
-            Map.of("value", "qwen-plus", "label", "Qwen Plus", "provider", "qwen", "vendor", "aliyun")
+            Map.of("value", "deepseek-v4-pro", "label", "DeepSeek V4 Pro", "provider", "deepseek", "vendor", "deepseek")
         ));
         when(resolver.listModelsByKind(GenerationModelKinds.IMAGE)).thenReturn(List.of());
         when(resolver.listModelsByKind(GenerationModelKinds.VIDEO)).thenReturn(List.of());
-        when(resolver.resolveTextProfile("qwen-plus")).thenReturn(new ModelRuntimeProfile(
-            new TextProviderConfig("text", "qwen-plus", "qwen", "qwen-plus", "", "https://dashscope.aliyuncs.com/compatible-mode/v1", 30, 0.2, 2000, "cfg"),
-            new TextProviderCapabilities(false, true)
+        when(resolver.resolveTextProfile("deepseek-v4-pro")).thenReturn(new ModelRuntimeProfile(
+            new TextProviderConfig("text", "deepseek-v4-pro", "deepseek", "deepseek-v4-pro", "", "https://api.deepseek.com/v1", 30, 0.2, 2000, "cfg"),
+            new TextProviderCapabilities(false, false)
         ));
         when(resolver.listSections("model.providers")).thenReturn(List.of(
-            new ModelRuntimePropertiesResolver.ConfigSection("qwen", Map.of("provider", "qwen", "vendor", "aliyun", "base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1"))
+            new ModelRuntimePropertiesResolver.ConfigSection("deepseek", Map.of("provider", "deepseek", "vendor", "deepseek", "base_url", "https://api.deepseek.com/v1"))
         ));
-        when(resolver.section("model.providers.qwen.extras")).thenReturn(Map.of("use_responses_api", "true"));
-        when(resolver.value("model.providers.qwen.extras", "task_base_url", "")).thenReturn("");
+        when(resolver.section("model.providers.deepseek.extras")).thenReturn(Map.of());
+        when(resolver.value("model.providers.deepseek.extras", "task_base_url", "")).thenReturn("");
         stubDefaults(resolver);
         when(resolver.configSource()).thenReturn("dir:/workspace/config");
         when(resolver.configErrors()).thenReturn(List.of());
 
         AdminModelConfigValidationResponse response = service.validateKeys(
-            new AdminModelConfigKeyUpdateRequest(List.of(new AdminModelConfigKeyUpdateRequest.ProviderKeyInput("qwen", "secret-key")))
+            new AdminModelConfigKeyUpdateRequest(List.of(new AdminModelConfigKeyUpdateRequest.ProviderKeyInput("deepseek", "secret-key")))
         );
 
         assertTrue(response.valid());
-        assertEquals("aliyun", response.snapshot().providers().get(0).vendor());
-        assertEquals("aliyun", response.snapshot().models().get(0).vendor());
+        assertEquals("deepseek", response.snapshot().providers().get(0).vendor());
+        assertEquals("deepseek", response.snapshot().models().get(0).vendor());
         assertTrue(response.snapshot().providers().get(0).apiKeyConfigured());
         assertTrue(response.snapshot().models().get(0).ready());
         assertEquals(List.of(), response.snapshot().models().get(0).issues());
@@ -139,28 +139,28 @@ class AdminModelConfigServiceTest {
         AdminModelConfigSecretsService secretsService = mock(AdminModelConfigSecretsService.class);
         AdminModelConfigService service = new AdminModelConfigService(resolver, secretsService);
         when(resolver.listModelsByKind(GenerationModelKinds.TEXT)).thenReturn(List.of(
-            Map.of("value", "qwen-plus", "label", "Qwen Plus", "provider", "qwen", "vendor", "aliyun")
+            Map.of("value", "deepseek-v4-pro", "label", "DeepSeek V4 Pro", "provider", "deepseek", "vendor", "deepseek")
         ));
         when(resolver.listModelsByKind(GenerationModelKinds.IMAGE)).thenReturn(List.of());
         when(resolver.listModelsByKind(GenerationModelKinds.VIDEO)).thenReturn(List.of());
-        when(resolver.resolveTextProfile("qwen-plus")).thenReturn(new ModelRuntimeProfile(
-            new TextProviderConfig("text", "qwen-plus", "qwen", "qwen-plus", "", "https://dashscope.aliyuncs.com/compatible-mode/v1", 30, 0.2, 2000, "cfg"),
-            new TextProviderCapabilities(false, true)
+        when(resolver.resolveTextProfile("deepseek-v4-pro")).thenReturn(new ModelRuntimeProfile(
+            new TextProviderConfig("text", "deepseek-v4-pro", "deepseek", "deepseek-v4-pro", "", "https://api.deepseek.com/v1", 30, 0.2, 2000, "cfg"),
+            new TextProviderCapabilities(false, false)
         ));
         when(resolver.listSections("model.providers")).thenReturn(List.of(
-            new ModelRuntimePropertiesResolver.ConfigSection("qwen", Map.of("provider", "qwen", "vendor", "aliyun", "base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1"))
+            new ModelRuntimePropertiesResolver.ConfigSection("deepseek", Map.of("provider", "deepseek", "vendor", "deepseek", "base_url", "https://api.deepseek.com/v1"))
         ));
-        when(resolver.section("model.providers.qwen.extras")).thenReturn(Map.of("use_responses_api", "true"));
-        when(resolver.value("model.providers.qwen.extras", "task_base_url", "")).thenReturn("");
+        when(resolver.section("model.providers.deepseek.extras")).thenReturn(Map.of());
+        when(resolver.value("model.providers.deepseek.extras", "task_base_url", "")).thenReturn("");
         stubDefaults(resolver);
         when(resolver.configSource()).thenReturn("dir:/workspace/config");
         when(resolver.configErrors()).thenReturn(List.of());
 
         service.saveKeys(new AdminModelConfigKeyUpdateRequest(
-            List.of(new AdminModelConfigKeyUpdateRequest.ProviderKeyInput("qwen", "secret-key"))
+            List.of(new AdminModelConfigKeyUpdateRequest.ProviderKeyInput("deepseek", "secret-key"))
         ));
 
-        verify(secretsService).saveApiKeys(Map.of("aliyun", "secret-key"));
+        verify(secretsService).saveApiKeys(Map.of("deepseek", "secret-key"));
         verify(resolver).refresh();
     }
 

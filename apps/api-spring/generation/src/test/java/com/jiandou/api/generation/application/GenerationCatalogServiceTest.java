@@ -76,8 +76,7 @@ class GenerationCatalogServiceTest {
             Map.of("value", "gpt-image-2", "supportedSizes", List.of("1280x720"))
         ));
         when(modelResolver.listModelsByKind(GenerationModelKinds.VIDEO)).thenReturn(List.of(
-            Map.of("value", "seedance", "supportedSizes", List.of("720*1280"), "supportedDurations", List.of(8)),
-            Map.of("value", "wanx", "supportedSizes", List.of("1280*720"), "supportedDurations", List.of(10))
+            Map.of("value", "seedance", "supportedSizes", List.of("720*1280"), "supportedDurations", List.of(8))
         ));
         when(modelResolver.configSource()).thenReturn("dir:/workspace/config");
 

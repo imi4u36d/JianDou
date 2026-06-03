@@ -19,7 +19,6 @@ import com.jiandou.api.generation.text.TextCompletionInvocation;
 import com.jiandou.api.generation.text.TextModelInvocation;
 import com.jiandou.api.generation.text.TextModelProvider;
 import com.jiandou.api.generation.text.TextModelProviderRegistry;
-import com.jiandou.api.generation.video.DashscopeVideoModelProvider;
 import com.jiandou.api.generation.video.SeedanceVideoModelProvider;
 import com.jiandou.api.generation.video.VideoModelProviderRegistry;
 import com.jiandou.api.generation.video.VideoProviderTransport;
@@ -642,8 +641,7 @@ class GenerationRunFactoryScriptPromptTest {
         ImageModelProviderRegistry imageModelProviderRegistry = new ImageModelProviderRegistry(java.util.List.of());
         VideoProviderTransport videoProviderTransport = new VideoProviderTransport(new ObjectMapper());
         VideoModelProviderRegistry videoModelProviderRegistry = new VideoModelProviderRegistry(java.util.List.of(
-            new SeedanceVideoModelProvider(videoProviderTransport),
-            new DashscopeVideoModelProvider(videoProviderTransport)
+            new SeedanceVideoModelProvider(videoProviderTransport)
         ));
         return new GenerationRunFactory(
             modelResolver,

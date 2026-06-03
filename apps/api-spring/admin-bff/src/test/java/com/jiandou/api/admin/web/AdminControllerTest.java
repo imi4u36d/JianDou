@@ -35,7 +35,7 @@ class AdminControllerTest {
         RateTaskEffectRequest rateRequest = new RateTaskEffectRequest(4, "nice");
         AdminModelConfigResponse configResponse = new AdminModelConfigResponse("cfg", null, null, List.of(), List.of(), List.of());
         AdminModelConfigKeyUpdateRequest draftRequest = new AdminModelConfigKeyUpdateRequest(
-            List.of(new AdminModelConfigKeyUpdateRequest.ProviderKeyInput("qwen", "secret"))
+            List.of(new AdminModelConfigKeyUpdateRequest.ProviderKeyInput("deepseek", "secret"))
         );
         AdminModelConfigValidationResponse validationResponse = new AdminModelConfigValidationResponse(true, configResponse);
         when(service.adminOverview()).thenReturn(row);

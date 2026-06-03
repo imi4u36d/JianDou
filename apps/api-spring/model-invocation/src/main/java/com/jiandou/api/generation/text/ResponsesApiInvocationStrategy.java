@@ -4,7 +4,6 @@ import com.jiandou.api.generation.runtime.ModelRuntimeProfile;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -63,21 +62,7 @@ public class ResponsesApiInvocationStrategy implements TextModelInvocationStrate
         ));
         body.put("temperature", invocation.temperature());
         body.put("max_output_tokens", invocation.maxTokens());
-        if (shouldUseThinking(profile)) {
-            body.put("reasoning", Map.of("effort", "medium"));
-        }
         return body;
-    }
-
-    private boolean shouldUseThinking(ModelRuntimeProfile profile) {
-        String provider = normalize(profile.provider());
-        String model = normalize(profile.modelName());
-        String host = normalize(profile.endpointHost());
-        return provider.contains("qwen") || model.startsWith("qwen") || host.contains("dashscope.aliyuncs.com");
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
 }

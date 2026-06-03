@@ -96,7 +96,7 @@ class ModelRuntimePropertiesResolverTest {
             """
                 model:
                   providers:
-                    qwen:
+                    deepseek:
                       api_key: "secret-key"
                 """
         );
@@ -104,7 +104,7 @@ class ModelRuntimePropertiesResolverTest {
         MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
 
-        assertEquals("secret-key", resolver.resolveTextProfile("qwen-plus").apiKey());
+        assertEquals("secret-key", resolver.resolveTextProfile("deepseek-v4-pro").apiKey());
         assertTrue(resolver.configSource().contains("providers.secrets.yml"));
     }
 
@@ -119,8 +119,8 @@ class ModelRuntimePropertiesResolverTest {
         List<Map<String, Object>> items = resolver.listModelsByKind("text");
 
         assertEquals(1, items.size());
-        assertEquals("qwen", items.get(0).get("provider"));
-        assertEquals("aliyun", items.get(0).get("vendor"));
+        assertEquals("deepseek", items.get(0).get("provider"));
+        assertEquals("deepseek", items.get(0).get("vendor"));
     }
 
     @Test
@@ -131,8 +131,8 @@ class ModelRuntimePropertiesResolverTest {
         MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
 
-        assertEquals("qwen-plus", resolver.resolveTextProfile("qwen-plus").config().requestedModel());
-        assertEquals("qwen-plus-2026-04-01", resolver.resolveTextProfile("qwen-plus").modelName());
+        assertEquals("deepseek-v4-pro", resolver.resolveTextProfile("deepseek-v4-pro").config().requestedModel());
+        assertEquals("deepseek-v4-pro", resolver.resolveTextProfile("deepseek-v4-pro").modelName());
         assertEquals("seedance-v1", resolver.resolveVideoProfile("seedance-v1").requestedModel());
         assertEquals("seedance-v1-upstream", resolver.resolveVideoProfile("seedance-v1").modelName());
         assertTrue(resolver.supportsSeed("seedance-v1"));
@@ -161,7 +161,7 @@ class ModelRuntimePropertiesResolverTest {
             """
                 model:
                   providers:
-                    qwen:
+                    deepseek:
                       api_key: "shared-text-key"
                     volcengine:
                       api_key: "shared-volc-key"
@@ -172,7 +172,7 @@ class ModelRuntimePropertiesResolverTest {
         RuntimeModelCredentialProvider repository = mock(RuntimeModelCredentialProvider.class);
         when(repository.findRuntimeApiKey(eq(42L), anyList())).thenAnswer(invocation -> {
             List<String> providerKeys = invocation.getArgument(1);
-            if (providerKeys.contains("qwen")) {
+            if (providerKeys.contains("deepseek")) {
                 return "admin-text-key";
             }
             if (providerKeys.contains("volcengine")) {
@@ -183,13 +183,13 @@ class ModelRuntimePropertiesResolverTest {
 
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env), repository);
 
-        assertEquals("shared-text-key", resolver.resolveTextProfile("qwen-plus").apiKey());
+        assertEquals("shared-text-key", resolver.resolveTextProfile("deepseek-v4-pro").apiKey());
         assertEquals("shared-volc-key", resolver.resolveImageProfile("seedream-v1").apiKey());
         assertEquals("shared-volc-key", resolver.resolveVideoProfile("seedance-v1").apiKey());
-        assertEquals("admin-text-key", resolver.resolveTextProfile("qwen-plus", 42L).apiKey());
+        assertEquals("admin-text-key", resolver.resolveTextProfile("deepseek-v4-pro", 42L).apiKey());
         assertEquals("admin-volc-key", resolver.resolveImageProfile("seedream-v1", 42L).apiKey());
         assertEquals("admin-volc-key", resolver.resolveVideoProfile("seedance-v1", 42L).apiKey());
-        assertEquals("user-db", resolver.resolveTextProfile("qwen-plus", 42L).source());
+        assertEquals("user-db", resolver.resolveTextProfile("deepseek-v4-pro", 42L).source());
         assertEquals("user-db", resolver.resolveVideoProfile("seedance-v1", 42L).source());
     }
 
@@ -204,8 +204,8 @@ class ModelRuntimePropertiesResolverTest {
 
         ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env), repository);
 
-        assertEquals("", resolver.resolveTextProfile("qwen-plus", 7L).apiKey());
-        assertTrue(resolver.resolveTextProfile("qwen-plus", 7L).source().startsWith("file:"));
+        assertEquals("", resolver.resolveTextProfile("deepseek-v4-pro", 7L).apiKey());
+        assertTrue(resolver.resolveTextProfile("deepseek-v4-pro", 7L).source().startsWith("file:"));
     }
 
     /**
@@ -215,7 +215,7 @@ class ModelRuntimePropertiesResolverTest {
      */
     private void writeConfig(Path configDir, String temperature) throws IOException {
         Path defaultsFile = configDir.resolve("model").resolve("defaults.yml");
-        Path providerFile = configDir.resolve("model").resolve("providers").resolve("qwen.yml");
+        Path providerFile = configDir.resolve("model").resolve("providers").resolve("deepseek.yml");
         Path modelsFile = configDir.resolve("model").resolve("models.yml");
         Files.createDirectories(defaultsFile.getParent());
         Files.createDirectories(providerFile.getParent());
@@ -233,10 +233,10 @@ class ModelRuntimePropertiesResolverTest {
             """
                 model:
                   providers:
-                    qwen:
-                      vendor: "aliyun"
+                    deepseek:
+                      vendor: "deepseek"
                       api_key: "test-key"
-                      base_url: "https://example.com/v1"
+                      base_url: "https://api.deepseek.com/v1"
                     seedream:
                       vendor: "volcengine"
                       api_key: ""
@@ -254,11 +254,11 @@ class ModelRuntimePropertiesResolverTest {
             """
                 model:
                   models:
-                    "qwen-plus":
-                      provider: "qwen"
-                      vendor: "aliyun"
+                    "deepseek-v4-pro":
+                      provider: "deepseek"
+                      vendor: "deepseek"
                       kind: "text"
-                      provider_model: "qwen-plus-2026-04-01"
+                      provider_model: "deepseek-v4-pro"
                     "seedream-v1":
                       provider: "seedream"
                       vendor: "volcengine"

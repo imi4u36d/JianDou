@@ -53,8 +53,8 @@
 cat &gt; config/model/providers.secrets.yml &lt;&lt;'EOF'
 model:
   providers:
-    qwen:
-      api_key: "你的 DashScope Key"
+    deepseek:
+      api_key: "你的 DeepSeek Key"
     seedream:
       api_key: "你的 Seedream Key"
     seedance:

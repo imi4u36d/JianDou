@@ -425,8 +425,7 @@ public class ModelRuntimePropertiesResolver {
         ));
         String taskBaseUrl = normalizeBaseUrl(firstNonBlank(
             providerProperty(provider, "TASK_BASE_URL"),
-            current.value(providerSection + ".extras", "task_base_url"),
-            defaultTaskBaseUrl(actualKind, provider, baseUrl)
+            current.value(providerSection + ".extras", "task_base_url")
         ));
         String apiKey = resolveApiKey(current, userId, provider, vendor, providerSection);
         String source = resolveConfigSource(userScoped, apiKey, provider, vendor, current.source(), false);
@@ -815,16 +814,6 @@ public class ModelRuntimePropertiesResolver {
         return !GenerationModelKinds.IMAGE.equals(kind);
     }
 
-    private String defaultTaskBaseUrl(String kind, String provider, String baseUrl) {
-        if (!GenerationModelKinds.VIDEO.equals(kind)) {
-            return "";
-        }
-        if (provider.startsWith("wan") && !baseUrl.isBlank()) {
-            return deriveDashscopeTaskBaseUrl(baseUrl);
-        }
-        return "";
-    }
-
     private ResolvedModel resolveConfiguredModel(ConfigSnapshot current, String requestedModel) {
         String normalizedRequestedModel = trimToEmpty(requestedModel);
         if (normalizedRequestedModel.isBlank()) {
@@ -890,32 +879,10 @@ public class ModelRuntimePropertiesResolver {
         String normalizedProvider = trimToEmpty(provider).toLowerCase(Locale.ROOT);
         String normalizedBaseUrl = trimToEmpty(baseUrl).toLowerCase(Locale.ROOT);
         return "openai".equals(normalizedProvider)
-            || "qwen".equals(normalizedProvider)
             || normalizedProvider.contains("ark")
             || normalizedProvider.contains("volc")
             || normalizedBaseUrl.contains("openai.com")
-            || normalizedBaseUrl.contains("dashscope.aliyuncs.com")
             || normalizedBaseUrl.contains("volces.com/api/v3");
-    }
-
-    /**
-     * 处理deriveDashscope任务BaseURL。
-     * @param rawBaseUrl 原始BaseURL值
-     * @return 处理结果
-     */
-    private String deriveDashscopeTaskBaseUrl(String rawBaseUrl) {
-        String normalized = normalizeBaseUrl(rawBaseUrl);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        if (normalized.contains("/api/v1/tasks")) {
-            return normalized;
-        }
-        int marker = normalized.indexOf("/api/v1/services/");
-        if (marker > 0) {
-            return normalized.substring(0, marker) + "/api/v1/tasks";
-        }
-        return normalized;
     }
 
     /**

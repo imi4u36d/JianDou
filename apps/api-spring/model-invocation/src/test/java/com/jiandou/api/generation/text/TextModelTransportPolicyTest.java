@@ -40,17 +40,5 @@ class TextModelTransportPolicyTest {
             "https://api.example.com/v1/chat/completions",
             TextModelTransportPolicy.resolveEndpoint("https://api.example.com/v1/chat/completions/", false)
         );
-        assertEquals(
-            "https://dashscope.aliyuncs.com/compatible-mode/v1/responses",
-            TextModelTransportPolicy.resolveEndpoint("https://dashscope.aliyuncs.com/compatible-mode/v1", true)
-        );
-        assertEquals(
-            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-            TextModelTransportPolicy.resolveEndpoint("https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1", false)
-        );
-        assertEquals(
-            "https://dashscope.aliyuncs.com/compatible-mode/v1/responses",
-            TextModelTransportPolicy.resolveEndpoint("https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1", true)
-        );
     }
 }

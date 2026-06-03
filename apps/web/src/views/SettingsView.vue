@@ -437,8 +437,8 @@ function normalizeVendor(vendor: string) {
 
 function formatVendor(vendor: string) {
   switch (normalizeVendor(vendor)) {
-    case "aliyun":
-      return "Aliyun";
+    case "deepseek":
+      return "DeepSeek";
     case "volcengine":
       return "Volcengine";
     case "openai":
