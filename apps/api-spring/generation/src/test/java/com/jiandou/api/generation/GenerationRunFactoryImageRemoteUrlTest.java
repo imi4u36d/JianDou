@@ -101,7 +101,7 @@ class GenerationRunFactoryImageRemoteUrlTest {
             new MediaProviderConfig(
                 "image",
                 "gpt-image-2",
-                "deeps_api",
+                "seedream",
                 "gpt-image-2",
                 "k",
                 "https://api.example.com/v1/images",

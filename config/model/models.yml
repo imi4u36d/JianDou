@@ -1,19 +1,5 @@
 model:
   models:
-    "gpt-5.4":
-      provider: "deeps_api"
-      vendor: "deeps_api"
-      kind: "text"
-      label: "GPT5.4"
-      provider_model: "gpt-5.4"
-      max_tokens: 8000
-      family: "gpt"
-      capabilities:
-        - "text_analysis"
-        - "planner_fusion"
-        - "creative_prompt"
-        - "script_generation"
-      description: "Deeps API GPT5.4 文本模型。"
     "qwen3.6-flash":
       provider: "qwen"
       vendor: "aliyun"
@@ -28,21 +14,6 @@ model:
         - "creative_prompt"
         - "script_generation"
       description: "Qwen 通用文本模型 qwen3.6-flash。"
-    "gpt-image-2":
-      provider: "deeps_api"
-      vendor: "deeps_api"
-      kind: "image"
-      label: "gpt-image-2"
-      provider_model: "gpt-image-2"
-      timeout_seconds: 300
-      family: "gpt-image"
-      supports_image_data_uri_references: true
-      supported_sizes: "1024x1024,2048x2048,2880x2880,1536x1024,2048x1360,3520x2336,1\
-        024x1536,1360x2048,2336x3520,1824x1024,2048x1152,3840x2160,1024x1824,11\
-        52x2048,2160x3840"
-      capabilities:
-        - "image_generation"
-      description: "Deeps API gpt-image-2 图片模型。"
     "Doubao-Seedream-4.5":
       provider: "seedream"
       vendor: "volcengine"

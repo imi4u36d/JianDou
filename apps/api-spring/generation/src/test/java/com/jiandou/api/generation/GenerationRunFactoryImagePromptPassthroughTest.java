@@ -60,7 +60,7 @@ class GenerationRunFactoryImagePromptPassthroughTest {
             new MediaProviderConfig(
                 "image",
                 "gpt-image-2",
-                "deeps_api",
+                "seedream",
                 "gpt-image-2",
                 "k",
                 "https://api.example.com/v1/images",
@@ -232,14 +232,14 @@ class GenerationRunFactoryImagePromptPassthroughTest {
         assertEquals(12345, metadata.get("requestedSeed"));
         assertNull(metadata.get("imageGenerationSeed"));
         assertEquals(java.util.List.of("https://example.com/reference.png"), metadata.get("referenceImageUrls"));
-        assertEquals("deeps_api", metadata.get("provider"));
+        assertEquals("seedream", metadata.get("provider"));
         assertEquals("gpt-image-2", metadata.get("providerModel"));
         assertEquals("https://assets.example.com/storage/gen/_runs/run_image_1/image.png", metadata.get("remoteSourceUrl"));
         @SuppressWarnings("unchecked")
         Map<String, Object> modelInfo = (Map<String, Object>) result.get("modelInfo");
         assertEquals("gpt-image-2", modelInfo.get("requestedModel"));
         assertEquals("gpt-image-2", modelInfo.get("providerModel"));
-        assertEquals("deeps_api", modelInfo.get("provider"));
+        assertEquals("seedream", modelInfo.get("provider"));
         assertTrue(String.valueOf(result.get("outputUrl")).startsWith("/storage/"));
     }
 
@@ -259,7 +259,7 @@ class GenerationRunFactoryImagePromptPassthroughTest {
             new MediaProviderConfig(
                 "image",
                 "gpt-image-2",
-                "deeps_api",
+                "seedream",
                 "gpt-image-2",
                 "k",
                 "https://api.example.com/v1/images",

@@ -139,32 +139,6 @@ class ModelRuntimePropertiesResolverTest {
     }
 
     @Test
-    void deepsApiModelsResolveProviderModelsAndChatCompletionsCapability() throws Exception {
-        Path configDir = tempDir.resolve("deeps-config");
-        writeDeepsConfig(configDir);
-
-        MockEnvironment env = new MockEnvironment().withProperty("JIANDOU_CONFIG_DIR", configDir.toString());
-        ModelRuntimePropertiesResolver resolver = new ModelRuntimePropertiesResolver(env, new GenerationConfigPathLocator(env));
-
-        List<String> textModels = resolver.listModelsByKind("text").stream()
-            .map(item -> String.valueOf(item.get("value")))
-            .toList();
-        List<String> imageModels = resolver.listModelsByKind("image").stream()
-            .map(item -> String.valueOf(item.get("value")))
-            .toList();
-
-        assertTrue(textModels.contains("gpt-5.4"));
-        assertTrue(textModels.contains("gpt-5.5"));
-        assertTrue(imageModels.contains("gpt-image-2"));
-        assertEquals("gpt-5.4", resolver.resolveTextProfile("gpt-5.4").modelName());
-        assertEquals("gpt-5.5", resolver.resolveTextProfile("gpt-5.5").modelName());
-        assertEquals("gpt-image-2", resolver.resolveImageProfile("gpt-image-2").modelName());
-        assertTrue(resolver.resolveImageProfile("gpt-image-2").supportsImageDataUriReferences());
-        assertFalse(resolver.resolveTextProfile("gpt-5.4").supportsResponsesApi());
-        assertFalse(resolver.resolveTextProfile("gpt-5.5").supportsResponsesApi());
-    }
-
-    @Test
     void volcengineProviderApiKeyIsSharedAcrossSiblingModels() throws Exception {
         Path configDir = tempDir.resolve("config");
         writeConfig(configDir, "0.20");
@@ -296,60 +270,6 @@ class ModelRuntimePropertiesResolverTest {
                       kind: "video"
                       provider_model: "seedance-v1-upstream"
                       supports_seed: true
-                """
-        );
-    }
-
-    private void writeDeepsConfig(Path configDir) throws IOException {
-        Path defaultsFile = configDir.resolve("model").resolve("defaults.yml");
-        Path providerFile = configDir.resolve("model").resolve("providers").resolve("deeps_api.yml");
-        Path modelsFile = configDir.resolve("model").resolve("models.yml");
-        Files.createDirectories(defaultsFile.getParent());
-        Files.createDirectories(providerFile.getParent());
-        Files.writeString(
-            defaultsFile,
-            """
-                model:
-                  timeout_seconds: 120
-                  temperature: 0.2
-                  max_tokens: 2000
-                """
-        );
-        Files.writeString(
-            providerFile,
-            """
-                model:
-                  providers:
-                    deeps_api:
-                      provider: "deeps_api"
-                      vendor: "deeps_api"
-                      api_key: "deeps-key"
-                      base_url: "https://api.deeps.example/v1"
-                      extras:
-                        use_responses_api: false
-                """
-        );
-        Files.writeString(
-            modelsFile,
-            """
-                model:
-                  models:
-                    "gpt-5.4":
-                      provider: "deeps_api"
-                      vendor: "deeps_api"
-                      kind: "text"
-                      provider_model: "gpt-5.4"
-                    "gpt-5.5":
-                      provider: "deeps_api"
-                      vendor: "deeps_api"
-                      kind: "text"
-                      provider_model: "gpt-5.5"
-                    "gpt-image-2":
-                      provider: "deeps_api"
-                      vendor: "deeps_api"
-                      kind: "image"
-                      provider_model: "gpt-image-2"
-                      supports_image_data_uri_references: true
                 """
         );
     }

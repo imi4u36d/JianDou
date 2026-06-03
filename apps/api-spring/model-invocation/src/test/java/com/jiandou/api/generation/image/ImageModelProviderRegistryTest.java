@@ -13,25 +13,12 @@ class ImageModelProviderRegistryTest {
     @Test
     void resolveReturnsSeedreamProviderForSeedreamProfile() {
         ImageModelProviderRegistry registry = new ImageModelProviderRegistry(List.of(
-            new OpenAiCompatibleImageModelProvider(new ImageProviderTransport(new com.fasterxml.jackson.databind.ObjectMapper())),
             new SeedreamImageModelProvider(new ImageProviderTransport(new com.fasterxml.jackson.databind.ObjectMapper()))
         ));
 
         ImageModelProvider provider = registry.resolve(profile("seedream"));
 
         assertInstanceOf(SeedreamImageModelProvider.class, provider);
-    }
-
-    @Test
-    void resolveReturnsOpenAiCompatibleProviderForDeepsApiProfile() {
-        ImageModelProviderRegistry registry = new ImageModelProviderRegistry(List.of(
-            new OpenAiCompatibleImageModelProvider(new ImageProviderTransport(new com.fasterxml.jackson.databind.ObjectMapper())),
-            new SeedreamImageModelProvider(new ImageProviderTransport(new com.fasterxml.jackson.databind.ObjectMapper()))
-        ));
-
-        ImageModelProvider provider = registry.resolve(profile("deeps_api"));
-
-        assertInstanceOf(OpenAiCompatibleImageModelProvider.class, provider);
     }
 
     private MediaProviderProfile profile(String provider) {
