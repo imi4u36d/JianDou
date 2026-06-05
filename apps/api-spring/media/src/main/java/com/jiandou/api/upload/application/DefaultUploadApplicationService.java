@@ -70,6 +70,9 @@ public class DefaultUploadApplicationService implements UploadApplicationService
             String originalName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "upload.bin";
             String storedName = assetId + "_" + originalName.replaceAll("[^A-Za-z0-9._-]+", "_");
             Path target = uploadsDir.resolve(storedName).normalize();
+            if (!target.startsWith(uploadsDir)) {
+                throw new UploadFailedException("非法文件路径", null);
+            }
             file.transferTo(target);
             String relativePath = storageProperties.getUploadsDir() + "/" + storedName;
             return new UploadAssetResponse(
