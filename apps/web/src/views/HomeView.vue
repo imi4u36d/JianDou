@@ -511,317 +511,162 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { useAuthSessionState } from "@/auth/session";
-import { usePolling } from "@/composables/usePolling";
-import { createGenerationTask, fetchCreditSummary, fetchGenerationOptions, fetchTasks, uploadText } from "@/features/home";
+import { createGenerationTask } from "@/features/home";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { formatVideoSizeLabel } from "@/utils/presentation";
 import { formatTaskStatus } from "@/utils/task";
 import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";
-import type {
-  CreateGenerationTaskRequest,
-  CreditSummary,
-  GenerationImageSizeOption,
-  GenerationOptionsResponse,
-  GenerationTextAnalysisModelInfo,
-  GenerationVideoDurationOption,
-  GenerationVideoModelInfo,
-  GenerationVideoSizeOption,
-  TaskListItem,
-  TaskStatus,
-} from "@/types";
+import type { CreateGenerationTaskRequest } from "@/types";
 
-type ModeValue = "video" | "image" | "character_sheet";
+import { usePromptEditor } from "@/composables/home/usePromptEditor";
+import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
+import { useGenerationForm, type ModeValue, type RatioOptionValue } from "@/composables/home/useGenerationForm";
+import { useActiveTasks } from "@/composables/home/useActiveTasks";
+
 type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention" | "seed";
-type AspectRatioValue = "16:9" | "9:16";
-type RatioOptionValue = "智能" | "1:1" | "21:9" | "16:9" | "3:2" | "4:3" | "3:4" | "2:3" | "9:16";
 
-interface ReferenceImageItem {
-  id: string;
-  label: string;
-  fileUrl: string;
-  fileName: string;
-}
-
-type WorkbenchForm = Omit<CreateGenerationTaskRequest, "aspectRatio"> & {
-  aspectRatio: RatioOptionValue;
-  imageSize?: string | null;
-};
+// ---------------------------------------------------------------------------
+// Local state (not extracted to composables)
+// ---------------------------------------------------------------------------
 
 const authState = useAuthSessionState();
-
 const activeMenu = ref<MenuKey>("");
-const selectedModeValue = ref<ModeValue>("image");
-const loadingOptions = ref(false);
-const submitting = ref(false);
-const uploadingReference = ref(false);
-const credits = ref<CreditSummary | null>(null);
-const referenceDevelopingDialogOpen = ref(false);
 const statusText = ref("参数加载中...");
-const promptText = ref("");
-const referenceExpanded = ref(false);
-const composingPrompt = ref(false);
-const syncingPromptFromEditor = ref(false);
-const promptEditorFocused = ref(false);
-const promptEditor = ref<HTMLDivElement | null>(null);
-const textFileInput = ref<HTMLInputElement | null>(null);
-const referenceImages = ref<ReferenceImageItem[]>([]);
+const submitting = ref(false);
 const createdTaskId = ref("");
 const taskToastTaskId = ref("");
 let taskToastTimer: number | null = null;
-const seedMode = ref<"auto" | "manual">("auto");
-const seedInput = ref("");
-const autoSeed = ref(createRandomSeed());
-const durationMode = ref<"auto" | "manual">("auto");
-const selectedDurationSeconds = ref<number | null>(null);
-const imageOutputCount = ref(1);
-const options = ref<GenerationOptionsResponse | null>(null);
-const activeTasks = ref<TaskListItem[]>([]);
-const form = ref<WorkbenchForm>({
-  title: "工作台生成任务",
-  creativePrompt: "",
-  aspectRatio: "16:9",
-  textAnalysisModel: null,
-  imageModel: null,
-  videoModel: null,
-  videoSize: null,
-  imageSize: null,
-  outputCount: "auto",
-  seed: null,
-  videoDurationSeconds: "auto",
-  transcriptText: "",
+
+// ---------------------------------------------------------------------------
+// Composables
+// ---------------------------------------------------------------------------
+
+// usePromptEditor needs referenceImages (returned by useReferenceImages).
+// useReferenceImages needs renderPromptEditor / focusPromptEditorToEnd (returned by usePromptEditor).
+// Break the circular dependency with a bridge ref that is synced after both are initialized.
+const referenceImagesBridge = ref<ReferenceImageItem[]>([]);
+
+const {
+  promptEditor,
+  promptText,
+  composingPrompt,
+  syncingPromptFromEditor,
+  promptEditorFocused,
+  showPromptPlaceholder,
+  renderPromptEditor,
+  focusPromptEditorToEnd,
+  handlePromptEditorInput,
+  handlePromptEditorFocus,
+  handlePromptEditorBlur,
+  handlePromptEditorCompositionStart,
+  handlePromptEditorCompositionEnd,
+  handlePromptEditorBeforeInput,
+  handlePromptEditorKeydown,
+  handlePromptEditorPaste,
+} = usePromptEditor(referenceImagesBridge);
+
+const {
+  form,
+  selectedModeValue,
+  selectedMode,
+  seedMode,
+  seedInput,
+  autoSeed,
+  durationMode,
+  selectedDurationSeconds,
+  imageOutputCount,
+  options,
+  loadingOptions,
+  credits,
+  promptLabel,
+  textModelOptions,
+  imageModelOptions,
+  videoModelOptions,
+  selectedImageModelOption,
+  selectedVideoModelOption,
+  selectedPrimaryModelLabel,
+  creditLabel,
+  ratioOptions,
+  availableImageRatios,
+  imageSizeOptions,
+  videoSizeOptions,
+  durationOptions,
+  durationLabel,
+  outputCountLabel,
+  selectedImageSizeOption,
+  selectedImageSizeDimensions,
+  selectedVideoSizeOption,
+  selectedVideoSizeDimensions,
+  selectedMaterialAssetType,
+  ratioToolLabel,
+  parsedManualSeed,
+  seedCapabilityHint,
+  isSeedReady,
+  isFormReady,
+  modeOptions,
+  videoOutputCountOptions,
+  imageOutputCountOptions,
+  modelOptionDescription,
+  refreshAutoSeed,
+  formatImageSizeOptionLabel,
+  resolvedImageAspectRatioForSubmit,
+  loadOptions,
+  loadCredits,
+  videoAspectRatio,
+} = useGenerationForm({ promptText });
+
+const {
+  referenceImages,
+  uploadingReference,
+  referenceDevelopingDialogOpen,
+  referenceExpanded,
+  textFileInput,
+  handleReferenceEntryClick,
+  handleReferenceUploadPointerEnter,
+  handleReferenceUploadPointerLeave,
+  referenceUploadSceneStyle,
+  referencePreviewImageStyle,
+  referenceAddCardStyle,
+  handleReferenceFileChange,
+  removeReferenceImage,
+  insertMention,
+} = useReferenceImages({
+  selectedMode: selectedMode as any,
+  statusText,
+  promptText,
+  form,
+  activeMenu,
+  renderPromptEditor,
+  focusPromptEditorToEnd,
 });
 
-const modeIconSvgs = {
-  video: `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4.5" y="5.5" width="10" height="13" rx="3" />
-      <path d="m14.5 10 4.5-2.8v9.6L14.5 14" />
-    </svg>
-  `,
-  image: `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4.5" y="5.5" width="15" height="13" rx="3" />
-      <path d="M8 14.5 10.8 11.7 13.3 14.2 15.3 12.2 18 14.9" />
-      <circle cx="10" cy="9.4" r="1.3" />
-    </svg>
-  `,
-  character_sheet: `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7.2 7.6a2.8 2.8 0 1 1 5.6 0a2.8 2.8 0 0 1-5.6 0Z" />
-      <path d="M4.8 17.2c.8-2.4 2.7-3.6 5.2-3.6s4.4 1.2 5.2 3.6" />
-      <path d="M17.6 6.7v10.6" />
-      <path d="M15.8 8.6h3.6" />
-      <path d="M15.8 11.9h3.6" />
-      <path d="M15.8 15.2h3.6" />
-    </svg>
-  `,
-} as const;
+const {
+  activeTasks,
+  activeTaskStageLabel,
+  activeTaskProgress,
+  formatActiveTaskTime,
+  loadActiveTasks,
+} = useActiveTasks();
 
-const ACTIVE_TASK_STATUSES = new Set<TaskStatus>(["PENDING", "ANALYZING", "PLANNING", "RENDERING"]);
+// Sync referenceImages from useReferenceImages -> bridge ref used by usePromptEditor
+watch(referenceImages, (val) => {
+  referenceImagesBridge.value = val;
+}, { immediate: true });
 
-const modeOptions = [
-  {
-    value: "video" as const,
-    kind: "video" as const,
-    label: "视频生成",
-    description: "输入文本，自动拆分脚本、关键帧和视频",
-    iconSvg: modeIconSvgs.video,
-  },
-  {
-    value: "image" as const,
-    kind: "image" as const,
-    label: "图片生成",
-    description: "素材中心自由模式，支持参考图再创作",
-    iconSvg: modeIconSvgs.image,
-  },
-  {
-    value: "character_sheet" as const,
-    kind: "image" as const,
-    label: "角色三视图",
-    description: "生成同一角色正面、侧面、背面设定图",
-    iconSvg: modeIconSvgs.character_sheet,
-  },
-];
+// ---------------------------------------------------------------------------
+// submitLabel (overrides composable version to include submitting state)
+// ---------------------------------------------------------------------------
 
-const selectedMode = computed(() => modeOptions.find((item) => item.value === selectedModeValue.value) ?? modeOptions[0]);
-const promptLabel = computed(() => selectedMode.value.kind === "video" ? "文本 / 小说正文" : "图片提示词");
-const showPromptPlaceholder = computed(() => !promptText.value.trim() && !promptEditorFocused.value && !composingPrompt.value);
-const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.textAnalysisModels ?? []);
-const imageModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.imageModels ?? []);
-const videoModelOptions = computed<GenerationVideoModelInfo[]>(() => options.value?.videoModels ?? []);
-
-const selectedImageModelOption = computed(() => {
-  const selected = normalizeModelName(form.value.imageModel);
-  return imageModelOptions.value.find((item) => normalizeModelName(item.value) === selected) ?? null;
-});
-const selectedVideoModelOption = computed(() => {
-  const selected = normalizeModelName(form.value.videoModel);
-  return videoModelOptions.value.find((item) => normalizeModelName(item.value) === selected) ?? null;
-});
-const selectedPrimaryModelLabel = computed(() => {
-  if (selectedMode.value.kind === "video") {
-    return selectedVideoModelOption.value?.label || selectedVideoModelOption.value?.value || "视频模型";
-  }
-  return selectedImageModelOption.value?.label || selectedImageModelOption.value?.value || "图片模型";
-});
-const creditLabel = computed(() => {
-  if (!authState.isAuthenticated.value || !credits.value) {
-    return "";
-  }
-  if (credits.value.exempt) {
-    return "积分免扣";
-  }
-  return `积分 ${formatCreditBalance(credits.value.balance ?? 0)}`;
-});
-
-const REFERENCE_PREVIEW_WIDTH = 68;
-const REFERENCE_PREVIEW_HEIGHT = 98;
-const REFERENCE_COLLAPSED_WIDTH = 58;
-const REFERENCE_COLLAPSED_HEIGHT = 84;
-const REFERENCE_EXPANDED_MAX_TILT_DEG = 30;
-const REFERENCE_EXPANDED_GAP = 8;
-const REFERENCE_EXPANDED_BOTTOM = 8;
-const REFERENCE_ADD_CARD_OFFSET = 86;
-
-function modelOptionDescription(model: { description?: string | null; provider?: string | null; family?: string | null; value: string }) {
-  return model.description || model.provider || model.family || model.value;
-}
-
-function formatCreditBalance(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
-}
-
-const ratioDisplayOrder: RatioOptionValue[] = ["智能", "21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"];
-const sizeRatioCandidates: RatioOptionValue[] = ["21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"];
-
-const ratioOptions = computed(() => {
-  const values = selectedMode.value.kind === "image" ? availableImageRatios.value : availableVideoRatios.value;
-  return [...values]
-    .sort((a, b) => ratioDisplayOrder.indexOf(a) - ratioDisplayOrder.indexOf(b))
-    .map((value) => ({
-      value,
-      label: value,
-      shortLabel: value === "智能" ? "智能" : value,
-      shape: ratioShape(value),
-    }));
-});
-
-const availableVideoRatios = computed<RatioOptionValue[]>(() => {
-  const catalog = options.value?.aspectRatios ?? [];
-  const values = catalog
-    .map((item) => item.value)
-    .filter((value): value is AspectRatioValue => value === "16:9" || value === "9:16");
-  return values.length ? [...new Set(values)] : ["16:9", "9:16"];
-});
-
-const availableImageRatios = computed<RatioOptionValue[]>(() => {
-  const ratios = imageCandidateSizes.value
-    .map((item) => sizeRatioLabel(item))
-    .filter((value): value is RatioOptionValue => Boolean(value));
-  const unique = [...new Set(ratios)];
-  const available = unique.length ? unique : availableVideoRatios.value;
-  return ["智能", ...available.filter((value) => value !== "智能")];
-});
-
-const imageCandidateSizes = computed<GenerationImageSizeOption[]>(() => {
-  const source = options.value?.imageSizes ?? [];
-  const selectedSizes = selectedImageModelOption.value?.supportedSizes ?? [];
-  const normalizedSelectedSizes = selectedSizes.map(normalizeSizeValue);
-  return source.filter((item) => {
-    return !normalizedSelectedSizes.length || normalizedSelectedSizes.includes(normalizeSizeValue(item.value));
-  });
-});
-
-const imageSizeOptions = computed<GenerationImageSizeOption[]>(() => {
-  const filtered = imageCandidateSizes.value
-    .filter((item) => imageSizeMatchesRatio(item, form.value.aspectRatio))
-    .sort(compareSizeByArea);
-  return filtered;
-});
-
-const videoSizeOptions = computed<GenerationVideoSizeOption[]>(() => {
-  const selectedModel = normalizeModelName(form.value.videoModel);
-  const ratio = videoAspectRatio(form.value.aspectRatio);
-  return (options.value?.videoSizes ?? [])
-    .filter((item) => resolveVideoSizeRatio(item) === ratio)
-    .filter((item) => {
-      const supportedModels = Array.isArray(item.supportedModels) ? item.supportedModels : [];
-      return !selectedModel || !supportedModels.length || supportedModels.some((model) => normalizeModelName(model) === selectedModel);
-    })
-    .sort(compareSizeByArea);
-});
-
-const durationOptions = computed<GenerationVideoDurationOption[]>(() => {
-  const modelDurations = selectedVideoModelOption.value?.supportedDurations ?? [];
-  if (modelDurations.length) {
-    return [...new Set(modelDurations)]
-      .filter((item) => Number.isFinite(item) && item > 0)
-      .sort((a, b) => a - b)
-      .map((item) => ({ value: Math.trunc(item), label: `${Math.trunc(item)} 秒` }));
-  }
-  return [...(options.value?.videoDurations ?? [])].sort((a, b) => a.value - b.value);
-});
-
-const durationLabel = computed(() => {
-  if (durationMode.value === "auto") {
-    return "自动时长";
-  }
-  return selectedDurationSeconds.value ? `${selectedDurationSeconds.value}s` : "选择时长";
-});
-
-const videoOutputCountOptions = [1, 2, 3, 4, 6, 8, 10, 12];
-const imageOutputCountOptions = [1, 2, 3, 4];
-const outputCountLabel = computed(() => form.value.outputCount === "auto" ? "自动分镜" : `${form.value.outputCount} 段`);
-const selectedImageSizeOption = computed(() => {
-  return imageSizeOptions.value.find((item) => item.value === form.value.imageSize) ?? null;
-});
-const selectedImageSizeDimensions = computed(() => {
-  return selectedImageSizeOption.value ? parseSize(selectedImageSizeOption.value) : null;
-});
-const selectedVideoSizeOption = computed(() => {
-  return videoSizeOptions.value.find((item) => item.value === form.value.videoSize) ?? null;
-});
-const selectedVideoSizeDimensions = computed(() => {
-  return selectedVideoSizeOption.value ? parseSize(selectedVideoSizeOption.value) : null;
-});
-const selectedMaterialAssetType = computed(() => selectedMode.value.value === "character_sheet" ? "character_sheet" : "free");
-const ratioToolLabel = computed(() => {
-  if (selectedMode.value.kind === "image") {
-    const quality = selectedImageSizeOption.value ? imageQualityLabel(selectedImageSizeOption.value) : "";
-    return [form.value.aspectRatio, quality].filter(Boolean).join(" | ") || form.value.aspectRatio;
-  }
-  return form.value.aspectRatio;
-});
-
-const parsedManualSeed = computed(() => parseSeed(seedInput.value));
-const seedCapabilityHint = computed(() => {
-  if (selectedMode.value.kind === "image" && !selectedImageModelOption.value?.supportsSeed) {
-    return "当前图片模型未声明支持种子，提交时不会传 seed。";
-  }
-  return "当前设置会记录到本次生成任务。";
-});
-const isSeedReady = computed(() => seedMode.value === "auto" || parsedManualSeed.value !== null);
-const isFormReady = computed(() => {
-  if (!promptText.value.trim()) {
-    return false;
-  }
-  if (!form.value.textAnalysisModel || !form.value.imageModel) {
-    return false;
-  }
-  if (selectedMode.value.kind === "video" && (!form.value.videoModel || !form.value.videoSize)) {
-    return false;
-  }
-  if (selectedMode.value.kind === "image" && !form.value.imageSize) {
-    return false;
-  }
-  return isSeedReady.value;
-});
 const submitLabel = computed(() => {
   if (submitting.value) {
     return "创建中...";
   }
   return selectedMode.value.kind === "video" ? "生成视频" : selectedMode.value.value === "character_sheet" ? "生成三视图" : "生成图片";
 });
+
+// ---------------------------------------------------------------------------
+// Menu toggle logic (not extracted)
+// ---------------------------------------------------------------------------
 
 function toggleMenu(menu: Exclude<MenuKey, "">) {
   activeMenu.value = activeMenu.value === menu ? "" : menu;
@@ -868,872 +713,9 @@ function selectDuration(value: number) {
   selectedDurationSeconds.value = value;
 }
 
-function normalizeModelName(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/[\s._-]/g, "");
-}
-
-function normalizeSizeValue(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/\*/g, "x");
-}
-
-function parseSeed(value: unknown): number | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) {
-    return null;
-  }
-  const numeric = Number(raw);
-  if (!Number.isFinite(numeric) || !Number.isInteger(numeric) || numeric < 0) {
-    return null;
-  }
-  return Math.trunc(numeric);
-}
-
-function createRandomSeed() {
-  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
-    const values = new Uint32Array(1);
-    window.crypto.getRandomValues(values);
-    return Math.max(1, values[0] % 2147483647);
-  }
-  return Math.max(1, Math.floor(Math.random() * 2147483647));
-}
-
-function refreshAutoSeed() {
-  autoSeed.value = createRandomSeed();
-}
-
-function readTextFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(reader.error ?? new Error("读取文本文件失败"));
-    reader.readAsText(file, "utf-8");
-  });
-}
-
-function readImageAsDataUri(file: File): Promise<ReferenceImageItem> {
-  if (!file.type.startsWith("image/")) {
-    return Promise.reject(new Error(`${file.name || "参考图"} 不是图片文件`));
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      if (!result.startsWith("data:image/") || !result.includes(";base64,")) {
-        reject(new Error(`${file.name || "参考图"} 无法转换为 base64 图片`));
-        return;
-      }
-      const nextIndex = referenceImages.value.length + 1;
-      resolve({
-        id: `${Date.now()}-${nextIndex}-${file.name}`,
-        label: `图片${nextIndex}`,
-        fileUrl: result,
-        fileName: file.name || `图片${nextIndex}`,
-      });
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("参考图读取失败"));
-    reader.readAsDataURL(file);
-  });
-}
-
-function handleReferenceEntryClick() {
-  if (selectedMode.value.kind === "video") {
-    referenceDevelopingDialogOpen.value = true;
-    statusText.value = "视频模式添加参考图正在开发中。";
-    return;
-  }
-  textFileInput.value?.click();
-}
-
-function handleReferenceUploadPointerEnter() {
-  if (selectedMode.value.kind === "image" && referenceImages.value.length > 0) {
-    referenceExpanded.value = true;
-  }
-}
-
-function handleReferenceUploadPointerLeave() {
-  referenceExpanded.value = false;
-}
-
-function referenceUploadSceneStyle() {
-  if (referenceImages.value.length <= 1) {
-    return referenceExpanded.value
-      ? {
-          width: `${REFERENCE_PREVIEW_WIDTH + REFERENCE_ADD_CARD_OFFSET}px`,
-          height: `${REFERENCE_PREVIEW_HEIGHT}px`,
-        }
-      : undefined;
-  }
-  if (!referenceExpanded.value) {
-    return undefined;
-  }
-  const step = referenceExpandedStep();
-  const cardWidth = REFERENCE_PREVIEW_WIDTH;
-  const addCardLeft = referenceImages.value.length * step;
-  return {
-    width: `${addCardLeft + cardWidth}px`,
-    height: "112px",
-  };
-}
-
-function referencePreviewRotation(index: number, expanded: boolean) {
-  if (expanded) {
-    const expandedRotations = [-9, 6, -7, 8, -5, 7, -8, 5, -6, 9, -4, 6];
-    return expandedRotations[index % expandedRotations.length];
-  }
-  const collapsedRotations = [-7, 4, -5, 6, -4, 5];
-  return collapsedRotations[index % collapsedRotations.length];
-}
-
-function referenceExpandedStep() {
-  const radians = REFERENCE_EXPANDED_MAX_TILT_DEG * Math.PI / 180;
-  const projectedWidth = REFERENCE_PREVIEW_WIDTH * Math.cos(radians) + REFERENCE_PREVIEW_HEIGHT * Math.sin(radians);
-  return Math.ceil(projectedWidth + REFERENCE_EXPANDED_GAP);
-}
-
-function referenceRotationBottomDelta(rotateDeg: number) {
-  return Math.sin(Math.abs(rotateDeg) * Math.PI / 180) * (REFERENCE_PREVIEW_WIDTH / 2);
-}
-
-function referenceExpandedBottom(rotateDeg: number) {
-  const firstDelta = referenceRotationBottomDelta(referencePreviewRotation(0, true));
-  const currentDelta = referenceRotationBottomDelta(rotateDeg);
-  return `${REFERENCE_EXPANDED_BOTTOM - firstDelta + currentDelta}px`;
-}
-
-function referencePreviewImageStyle(index: number) {
-  const total = referenceImages.value.length;
-  if (total <= 1) {
-    const rotate = -8;
-    return {
-      left: "0px",
-      top: "0px",
-      bottom: "auto",
-      width: `${REFERENCE_PREVIEW_WIDTH}px`,
-      height: `${REFERENCE_PREVIEW_HEIGHT}px`,
-      opacity: "1",
-      zIndex: "1",
-      "--preview-rotate": `${rotate}deg`,
-      "--preview-remove-rotate": `${-rotate}deg`,
-      transformOrigin: "center bottom",
-      transform: `rotate(${rotate}deg)`,
-    };
-  }
-
-  if (referenceExpanded.value) {
-    const step = referenceExpandedStep();
-    const rotate = referencePreviewRotation(index, true);
-    return {
-      left: `${index * step}px`,
-      top: "auto",
-      bottom: referenceExpandedBottom(rotate),
-      width: `${REFERENCE_PREVIEW_WIDTH}px`,
-      height: `${REFERENCE_PREVIEW_HEIGHT}px`,
-      opacity: "1",
-      zIndex: String(index + 1),
-      "--preview-rotate": `${rotate}deg`,
-      "--preview-remove-rotate": `${-rotate}deg`,
-      transformOrigin: "center bottom",
-      transform: `rotate(${rotate}deg)`,
-    };
-  }
-
-  const visibleIndex = Math.min(index, 4);
-  const rotate = referencePreviewRotation(visibleIndex, false);
-  return {
-    left: `${-6 + visibleIndex * 8}px`,
-    top: `${4 - Math.min(visibleIndex, 2) * 2}px`,
-    bottom: "auto",
-    width: `${REFERENCE_COLLAPSED_WIDTH}px`,
-    height: `${REFERENCE_COLLAPSED_HEIGHT}px`,
-    opacity: index < 4 ? "0.96" : "0",
-    zIndex: String(index + 1),
-    "--preview-rotate": `${rotate}deg`,
-    "--preview-remove-rotate": `${-rotate}deg`,
-    transformOrigin: "center bottom",
-    transform: `rotate(${rotate}deg)`,
-  };
-}
-
-function referenceAddCardStyle() {
-  if (referenceImages.value.length <= 1) {
-    if (!referenceExpanded.value) {
-      return undefined;
-    }
-    return {
-      left: `${REFERENCE_ADD_CARD_OFFSET}px`,
-      top: "0px",
-      bottom: "auto",
-    };
-  }
-  if (!referenceExpanded.value) {
-    return undefined;
-  }
-  const firstDelta = referenceRotationBottomDelta(referencePreviewRotation(0, true));
-  return {
-    left: `${referenceImages.value.length * referenceExpandedStep()}px`,
-    top: "auto",
-    bottom: `${REFERENCE_EXPANDED_BOTTOM - firstDelta}px`,
-  };
-}
-
-async function handleReferenceFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
-  if (!files.length) {
-    return;
-  }
-  if (selectedMode.value.kind === "image") {
-    await handleImageReferenceFiles(files, input);
-    return;
-  }
-  await handleTextReferenceFile(files[0], input);
-}
-
-async function handleTextReferenceFile(file: File, input: HTMLInputElement) {
-  const authenticated = await requireAuth({
-    title: "登录后上传参考内容",
-    message: "文本上传会保存到你的账号下，请先登录或使用邀请码注册。",
-  });
-  if (!authenticated) {
-    input.value = "";
-    return;
-  }
-  uploadingReference.value = true;
-  statusText.value = "正在读取参考内容...";
-  try {
-    const [, content] = await Promise.all([uploadText(file), readTextFile(file)]);
-    if (content.trim()) {
-      promptText.value = content;
-      form.value.title = file.name.replace(/\.txt$/i, "") || form.value.title;
-    }
-    statusText.value = "参考内容已填入输入框。";
-  } catch (error) {
-    statusText.value = error instanceof Error ? error.message : "参考内容读取失败";
-  } finally {
-    uploadingReference.value = false;
-    input.value = "";
-  }
-}
-
-async function handleImageReferenceFiles(files: File[], input: HTMLInputElement) {
-  uploadingReference.value = true;
-  statusText.value = "正在读取参考图...";
-  try {
-    const items = await Promise.all(files.map(readImageAsDataUri));
-    const previousCount = referenceImages.value.length;
-    const merged = [...referenceImages.value, ...items].slice(0, 12);
-    referenceImages.value = merged.map((item, index) => ({
-      ...item,
-      label: `图片${index + 1}`,
-    }));
-    const addedCount = Math.max(referenceImages.value.length - previousCount, 0);
-    statusText.value = addedCount > 0
-      ? `已添加 ${addedCount} 张参考图，可通过 @ 引用。`
-      : "最多支持 12 张参考图。";
-  } catch (error) {
-    statusText.value = error instanceof Error ? error.message : "参考图读取失败";
-  } finally {
-    uploadingReference.value = false;
-    input.value = "";
-  }
-}
-
-function removeReferenceImage(id: string) {
-  const previousItems = referenceImages.value;
-  const nextItems = referenceImages.value
-    .filter((item) => item.id !== id)
-    .map((item, index) => ({
-      ...item,
-      label: `图片${index + 1}`,
-    }));
-  referenceImages.value = nextItems;
-  promptText.value = remapReferenceMentions(promptText.value, previousItems, nextItems);
-  if (!nextItems.length) {
-    referenceExpanded.value = false;
-  }
-}
-
-function insertMention(label: string) {
-  const mention = `@${label}`;
-  if (!promptText.value.includes(mention)) {
-    promptText.value = promptText.value.trim() ? `${promptText.value.trim()} ${mention} ` : `${mention} `;
-  }
-  activeMenu.value = "";
-  renderPromptEditor(promptText.value);
-  nextTick(() => focusPromptEditorToEnd());
-}
-
-function remapReferenceMentions(text: string, previousItems: ReferenceImageItem[], nextItems: ReferenceImageItem[]) {
-  const nextLabelById = new Map(nextItems.map((item) => [item.id, item.label]));
-  const nextLabelByPreviousLabel = new Map(
-    previousItems.map((item) => [item.label, nextLabelById.get(item.id) ?? null]),
-  );
-  return text.replace(/@图片\d+/g, (token) => {
-    const nextLabel = nextLabelByPreviousLabel.get(token.slice(1));
-    if (nextLabel === undefined) {
-      return token;
-    }
-    return nextLabel ? `@${nextLabel}` : "";
-  });
-}
-
-function serializePromptEditorNode(node: Node, parentTag = ""): string {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent ?? "";
-  }
-  if (!(node instanceof HTMLElement)) {
-    return "";
-  }
-  const mentionLabel = node.dataset.mentionLabel;
-  if (mentionLabel) {
-    return `@${mentionLabel}`;
-  }
-  if (node.tagName === "BR") {
-    return "\n";
-  }
-  let text = "";
-  node.childNodes.forEach((child) => {
-    text += serializePromptEditorNode(child, node.tagName);
-  });
-  if ((node.tagName === "DIV" || node.tagName === "P") && parentTag !== "DIV" && parentTag !== "P") {
-    return `${text}\n`;
-  }
-  return text;
-}
-
-function serializePromptEditorContent() {
-  const editor = promptEditor.value;
-  if (!editor) {
-    return promptText.value;
-  }
-  return serializePromptEditorNode(editor)
-    .replace(/\u00a0/g, " ")
-    .replace(/\u200b/g, "")
-    .replace(/\n$/, "");
-}
-
-function buildMentionChip(item: ReferenceImageItem) {
-  const chip = document.createElement("span");
-  chip.className = "home-reference-pill home-reference-pill-inline";
-  chip.setAttribute("contenteditable", "false");
-  chip.dataset.mentionLabel = item.label;
-  chip.style.display = "inline-flex";
-  chip.style.alignItems = "center";
-  chip.style.gap = "6px";
-  chip.style.maxWidth = "112px";
-  chip.style.height = "24px";
-  chip.style.margin = "0 0.2em";
-  chip.style.verticalAlign = "middle";
-  chip.style.whiteSpace = "nowrap";
-  chip.style.pointerEvents = "none";
-
-  const thumb = document.createElement("span");
-  thumb.className = "home-reference-pill__thumb";
-  thumb.style.display = "inline-block";
-  thumb.style.flex = "0 0 auto";
-  thumb.style.width = "24px";
-  thumb.style.height = "24px";
-  thumb.style.overflow = "hidden";
-  thumb.style.borderRadius = "6px";
-  const image = document.createElement("img");
-  image.src = item.fileUrl;
-  image.alt = item.label;
-  image.style.display = "block";
-  image.style.width = "100%";
-  image.style.height = "100%";
-  image.style.objectFit = "cover";
-  thumb.appendChild(image);
-
-  const label = document.createElement("span");
-  label.className = "home-reference-pill__label";
-  label.textContent = item.label;
-  label.style.display = "inline-block";
-  label.style.minWidth = "0";
-  label.style.overflow = "hidden";
-  label.style.textOverflow = "ellipsis";
-  label.style.whiteSpace = "nowrap";
-  label.style.color = "#657487";
-  label.style.fontSize = "0.78rem";
-  label.style.fontWeight = "600";
-  label.style.lineHeight = "1";
-  label.style.alignSelf = "center";
-
-  chip.appendChild(thumb);
-  chip.appendChild(label);
-  return chip;
-}
-
-function renderPromptEditor(value: string) {
-  const editor = promptEditor.value;
-  if (!editor) {
-    return;
-  }
-  const selectionOffset = getPromptSelectionOffset(editor);
-  const referenceImageByLabel = new Map(referenceImages.value.map((item) => [item.label, item]));
-  const fragment = document.createDocumentFragment();
-  const mentionPattern = /@图片\d+/g;
-  let lastIndex = 0;
-  let matched = mentionPattern.exec(value);
-  while (matched) {
-    if (matched.index > lastIndex) {
-      fragment.appendChild(document.createTextNode(value.slice(lastIndex, matched.index)));
-    }
-    const mention = matched[0];
-    const label = mention.slice(1);
-    const item = referenceImageByLabel.get(label);
-    if (item) {
-      fragment.appendChild(buildMentionChip(item));
-    } else {
-      fragment.appendChild(document.createTextNode(mention));
-    }
-    lastIndex = matched.index + mention.length;
-    matched = mentionPattern.exec(value);
-  }
-  if (lastIndex < value.length) {
-    fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
-  }
-  if (!fragment.childNodes.length) {
-    fragment.appendChild(document.createElement("br"));
-  }
-  editor.replaceChildren(fragment);
-  if (selectionOffset !== null) {
-    restorePromptSelection(editor, selectionOffset);
-  }
-}
-
-function getPromptSelectionOffset(editor: HTMLDivElement) {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount) {
-    return null;
-  }
-  const range = selection.getRangeAt(0);
-  if (!editor.contains(range.startContainer)) {
-    return null;
-  }
-  const probe = range.cloneRange();
-  probe.selectNodeContents(editor);
-  probe.setEnd(range.startContainer, range.startOffset);
-  const container = document.createElement("div");
-  container.appendChild(probe.cloneContents());
-  return serializePromptEditorNode(container).replace(/\u00a0/g, " ").replace(/\u200b/g, "").length;
-}
-
-function restorePromptSelection(editor: HTMLDivElement, targetOffset: number) {
-  const range = document.createRange();
-  const selection = window.getSelection();
-  let remaining = targetOffset;
-  let placed = false;
-  const nodes = Array.from(editor.childNodes);
-  for (let index = 0; index < nodes.length; index += 1) {
-    const node = nodes[index];
-    if (node.nodeType === Node.TEXT_NODE) {
-      const content = node.textContent ?? "";
-      if (remaining <= content.length) {
-        range.setStart(node, remaining);
-        placed = true;
-        break;
-      }
-      remaining -= content.length;
-      continue;
-    }
-    if (node instanceof HTMLElement && node.dataset.mentionLabel) {
-      const mentionLength = `@${node.dataset.mentionLabel}`.length;
-      if (remaining <= mentionLength) {
-        if (remaining === 0) {
-          range.setStartBefore(node);
-        } else {
-          range.setStartAfter(node);
-        }
-        placed = true;
-        break;
-      }
-      remaining -= mentionLength;
-      continue;
-    }
-    if (node instanceof HTMLBRElement) {
-      if (remaining <= 1) {
-        range.setStartBefore(node);
-        placed = true;
-        break;
-      }
-      remaining -= 1;
-    }
-  }
-  if (!placed) {
-    range.selectNodeContents(editor);
-    range.collapse(false);
-  }
-  range.collapse(true);
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-}
-
-function focusPromptEditorToEnd() {
-  const editor = promptEditor.value;
-  if (!editor) {
-    return;
-  }
-  editor.focus();
-  restorePromptSelection(editor, serializePromptEditorContent().length);
-}
-
-function insertPlainTextAtSelection(text: string) {
-  const editor = promptEditor.value;
-  const selection = window.getSelection();
-  if (!editor || !selection?.rangeCount) {
-    return;
-  }
-  const range = selection.getRangeAt(0);
-  if (!editor.contains(range.startContainer)) {
-    focusPromptEditorToEnd();
-    return insertPlainTextAtSelection(text);
-  }
-  range.deleteContents();
-  const node = document.createTextNode(text);
-  range.insertNode(node);
-  range.setStart(node, text.length);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
-function syncPromptTextFromEditor() {
-  syncingPromptFromEditor.value = true;
-  promptText.value = serializePromptEditorContent();
-  nextTick(() => {
-    syncingPromptFromEditor.value = false;
-  });
-}
-
-function handlePromptEditorInput(event: InputEvent) {
-  if (event?.isComposing) {
-    composingPrompt.value = true;
-    return;
-  }
-  if (event.inputType === "insertCompositionText") {
-    return;
-  }
-  if (composingPrompt.value) {
-    return;
-  }
-  syncPromptTextFromEditor();
-}
-
-function handlePromptEditorFocus() {
-  promptEditorFocused.value = true;
-}
-
-function handlePromptEditorBlur() {
-  promptEditorFocused.value = false;
-  renderPromptEditor(promptText.value);
-}
-
-function handlePromptEditorCompositionStart() {
-  composingPrompt.value = true;
-}
-
-function handlePromptEditorCompositionEnd() {
-  composingPrompt.value = false;
-  syncPromptTextFromEditor();
-}
-
-function handlePromptEditorBeforeInput(event: InputEvent) {
-  if (event.isComposing || event.inputType === "insertCompositionText") {
-    composingPrompt.value = true;
-  }
-}
-
-function handlePromptEditorKeydown(event: KeyboardEvent) {
-  if (composingPrompt.value || event.isComposing) {
-    return;
-  }
-  if (event.key !== "Enter") {
-    return;
-  }
-  event.preventDefault();
-  insertPlainTextAtSelection("\n");
-  syncPromptTextFromEditor();
-  nextTick(() => renderPromptEditor(promptText.value));
-}
-
-function handlePromptEditorPaste(event: ClipboardEvent) {
-  if (composingPrompt.value) {
-    return;
-  }
-  event.preventDefault();
-  const text = event.clipboardData?.getData("text/plain") ?? "";
-  insertPlainTextAtSelection(text);
-  syncPromptTextFromEditor();
-  nextTick(() => renderPromptEditor(promptText.value));
-}
-
-function parseSize(item: { value: string; width?: number; height?: number }) {
-  if (typeof item.width === "number" && typeof item.height === "number" && item.width > 0 && item.height > 0) {
-    return { width: item.width, height: item.height };
-  }
-  const matched = String(item.value ?? "").match(/^(\d+)\s*[xX*]\s*(\d+)$/);
-  if (!matched) {
-    return null;
-  }
-  const width = Number(matched[1]);
-  const height = Number(matched[2]);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return null;
-  }
-  return { width, height };
-}
-
-function resolveVideoSizeRatio(item: { value: string; width?: number; height?: number }): AspectRatioValue | null {
-  const parsed = parseSize(item);
-  if (!parsed || parsed.width === parsed.height) {
-    return null;
-  }
-  return parsed.width > parsed.height ? "16:9" : "9:16";
-}
-
-function imageSizeMatchesRatio(item: GenerationImageSizeOption, ratio: string) {
-  if (ratio === "智能") {
-    return true;
-  }
-  const itemRatio = sizeRatioLabel(item);
-  return itemRatio === ratio;
-}
-
-function compareSizeByArea(a: { value: string; width?: number; height?: number }, b: { value: string; width?: number; height?: number }) {
-  const aSize = parseSize(a);
-  const bSize = parseSize(b);
-  const aArea = aSize ? aSize.width * aSize.height : 0;
-  const bArea = bSize ? bSize.width * bSize.height : 0;
-  return aArea - bArea;
-}
-
-function sizeRatioLabel(item: { value: string; width?: number; height?: number }): RatioOptionValue | null {
-  const parsed = parseSize(item);
-  if (!parsed) {
-    return null;
-  }
-  const actual = parsed.width / parsed.height;
-  const best = sizeRatioCandidates
-    .map((value) => {
-      const target = ratioValue(value);
-      return target ? { value, delta: Math.abs(actual - target) / target } : null;
-    })
-    .filter((item): item is { value: RatioOptionValue; delta: number } => Boolean(item))
-    .sort((a, b) => a.delta - b.delta)[0];
-  return best && best.delta <= 0.03 ? best.value : null;
-}
-
-function ratioShape(value: RatioOptionValue) {
-  if (value === "智能") {
-    return "1 / 1";
-  }
-  return value.replace(":", " / ");
-}
-
-function ratioValue(value: RatioOptionValue) {
-  if (value === "智能") {
-    return null;
-  }
-  const [width, height] = value.split(":").map(Number);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || height <= 0) {
-    return null;
-  }
-  return width / height;
-}
-
-function videoAspectRatio(value: RatioOptionValue): AspectRatioValue {
-  return value === "9:16" ? "9:16" : "16:9";
-}
-
-function imageQualityLabel(item: { value: string; label?: string | null; width?: number; height?: number }) {
-  const label = String(item.label ?? "");
-  if (/\b4K\b/i.test(label)) {
-    return "超清 4K";
-  }
-  if (/\b2K\b/i.test(label)) {
-    return "高清 2K";
-  }
-  if (/\b1K\b/i.test(label)) {
-    return "标准 1K";
-  }
-  const size = parseSize(item);
-  if (!size) {
-    return String(item.value ?? "");
-  }
-  const longest = Math.max(size.width, size.height);
-  if (longest >= 2800) {
-    return "超清 4K";
-  }
-  if (longest >= 1800) {
-    return "高清 2K";
-  }
-  return "标准 1K";
-}
-
-function formatImageSizeOptionLabel(item: GenerationImageSizeOption) {
-  const label = imageQualityLabel(item);
-  const quality = label.includes("4K") ? `${label} ✦` : label;
-  const ratio = sizeRatioLabel(item);
-  return form.value.aspectRatio === "智能" && ratio ? `${quality} · ${ratio}` : quality;
-}
-
-function resolvedImageAspectRatioForSubmit() {
-  if (form.value.aspectRatio !== "智能") {
-    return form.value.aspectRatio;
-  }
-  return selectedImageSizeOption.value ? sizeRatioLabel(selectedImageSizeOption.value) ?? "1:1" : "1:1";
-}
-
-async function loadOptions() {
-  loadingOptions.value = true;
-  try {
-    const result = await fetchGenerationOptions();
-    options.value = result;
-    form.value.aspectRatio = (result.defaultAspectRatio as AspectRatioValue | null) || "16:9";
-    form.value.textAnalysisModel = result.defaultTextAnalysisModel || result.textAnalysisModels?.[0]?.value || null;
-    form.value.imageModel = resolveDefaultImageModel(result.imageModels ?? [], form.value.imageModel);
-    form.value.videoModel = result.defaultVideoModel || result.videoModels?.[0]?.value || null;
-    selectedDurationSeconds.value = result.defaultVideoDurationSeconds ?? result.videoDurations?.[0]?.value ?? null;
-    statusText.value = "";
-  } catch (error) {
-    statusText.value = error instanceof Error ? error.message : "加载模型配置失败";
-  } finally {
-    loadingOptions.value = false;
-  }
-}
-
-async function loadCredits() {
-  if (!authState.isAuthenticated.value) {
-    credits.value = null;
-    return;
-  }
-  try {
-    credits.value = await fetchCreditSummary();
-  } catch {
-    credits.value = null;
-  }
-}
-
-function resolveDefaultImageModel(models: GenerationTextAnalysisModelInfo[], current?: string | null) {
-  const currentValue = String(current ?? "").trim();
-  if (currentValue && models.some((item) => item.value === currentValue)) {
-    return currentValue;
-  }
-  const gptModel = models.find((item) => [item.family, item.provider, item.value, item.label].map(normalizeModelName).some((value) => value.includes("gpt")));
-  return gptModel?.value || models[0]?.value || null;
-}
-
-function taskTimestamp(value?: string | null) {
-  const timestamp = value ? new Date(value).getTime() : Number.NaN;
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function activeTaskProgress(task: TaskListItem) {
-  return Math.max(0, Math.min(100, Math.round(task.progress ?? 0)));
-}
-
-function formatActiveTaskTime(value?: string | null) {
-  if (!value) {
-    return "暂无时间";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function activeTaskStageLabel(task: TaskListItem) {
-  if (task.currentStage?.trim()) {
-    return task.currentStage.trim();
-  }
-  if (task.status === "PENDING") {
-    return typeof task.queuePosition === "number" && task.queuePosition > 0 ? `队列第 ${task.queuePosition} 位` : "等待开始";
-  }
-  return formatTaskStatus(task.status);
-}
-
-async function loadActiveTasks() {
-  if (!authState.isAuthenticated.value) {
-    activeTasks.value = [];
-    return;
-  }
-  try {
-    const tasks = await fetchTasks({ sort: "updated_desc" });
-    activeTasks.value = tasks
-      .filter((task) => ACTIVE_TASK_STATUSES.has(task.status))
-      .sort((left, right) => taskTimestamp(right.updatedAt || right.createdAt) - taskTimestamp(left.updatedAt || left.createdAt))
-      .slice(0, 12);
-  } catch {
-    activeTasks.value = [];
-  }
-}
-
-const activeTasksPolling = usePolling(loadActiveTasks, 5000);
-
-watch(
-  () => [selectedModeValue.value, imageSizeOptions.value] as const,
-  ([, items]) => {
-    if (selectedMode.value.kind !== "image") {
-      return;
-    }
-    if (!items.length) {
-      form.value.imageSize = null;
-      return;
-    }
-    const configured = options.value?.defaultImageSize;
-    const currentValid = form.value.imageSize && items.some((item) => item.value === form.value.imageSize);
-    if (!currentValid) {
-      form.value.imageSize = items.find((item) => item.value === configured)?.value ?? items[0].value;
-    }
-  },
-  { immediate: true },
-);
-
-watch(
-  videoSizeOptions,
-  (items) => {
-    if (!items.length) {
-      form.value.videoSize = null;
-      return;
-    }
-    const configured = options.value?.defaultVideoSize;
-    const currentValid = form.value.videoSize && items.some((item) => item.value === form.value.videoSize);
-    if (!currentValid) {
-      form.value.videoSize = items.find((item) => item.value === configured)?.value ?? items[0].value;
-    }
-  },
-  { immediate: true },
-);
-
-watch(seedMode, (mode, previousMode) => {
-  if (mode === "auto" && previousMode !== "auto") {
-    refreshAutoSeed();
-  }
-});
-
-watch(promptText, (value) => {
-  if (composingPrompt.value || syncingPromptFromEditor.value) {
-    return;
-  }
-  const editor = promptEditor.value;
-  if (document.activeElement === editor) {
-    return;
-  }
-  renderPromptEditor(value);
-});
-
-watch(referenceImages, () => {
-  if (composingPrompt.value) {
-    return;
-  }
-  renderPromptEditor(promptText.value);
-}, { deep: true });
+// ---------------------------------------------------------------------------
+// Form submission logic (not extracted)
+// ---------------------------------------------------------------------------
 
 async function submitComposer() {
   if (!isFormReady.value) {
@@ -1821,6 +803,10 @@ async function submitVideoGeneration() {
   void loadActiveTasks();
 }
 
+// ---------------------------------------------------------------------------
+// Toast logic (not extracted)
+// ---------------------------------------------------------------------------
+
 function showTaskToast(taskId: string) {
   taskToastTaskId.value = taskId;
   if (taskToastTimer !== null) {
@@ -1840,14 +826,37 @@ function dismissTaskToast() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Lifecycle & watches
+// ---------------------------------------------------------------------------
+
 onMounted(() => {
-  loadOptions();
+  loadOptions()
+    .then(() => { statusText.value = ""; })
+    .catch((error) => { statusText.value = error instanceof Error ? error.message : "加载模型配置失败"; });
   loadCredits();
-  void activeTasksPolling.start();
   document.addEventListener("pointerdown", handleDocumentPointerDown);
   document.addEventListener("keydown", handleDocumentKeydown);
   renderPromptEditor(promptText.value);
 });
+
+watch(promptText, (value) => {
+  if (composingPrompt.value || syncingPromptFromEditor.value) {
+    return;
+  }
+  const editor = promptEditor.value;
+  if (document.activeElement === editor) {
+    return;
+  }
+  renderPromptEditor(value);
+});
+
+watch(referenceImages, () => {
+  if (composingPrompt.value) {
+    return;
+  }
+  renderPromptEditor(promptText.value);
+}, { deep: true });
 
 watch(() => authState.isAuthenticated.value, () => {
   loadCredits();
