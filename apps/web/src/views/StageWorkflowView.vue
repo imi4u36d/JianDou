@@ -901,27 +901,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import {
-  adjustStoryboard,
-  createWorkflow,
-  deleteStageVersion,
-  deleteWorkflow,
   fetchWorkflow,
   fetchWorkflows,
-  finalizeWorkflow,
-  generateKeyframe,
-  generateKeyframeFrame,
-  generateStoryboard,
-  generateVideo,
-  selectCharacterSheetAsset,
-  selectKeyframe,
-  selectKeyframeFrame,
-  selectStoryboard,
-  selectVideo,
-  updateWorkflowSettings,
-  fetchGenerationOptions,
-  fetchMaterialAssets,
   reuseMaterialAsset,
-  uploadText,
 } from "@/features/workflows";
 import {
   normalizeWorkflowCanvasStage,
@@ -941,9 +923,6 @@ import { messageApi } from "@/composables/useMessage";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import type {
   CreateWorkflowRequest,
-  GenerationOptionsResponse,
-  GenerationVideoSizeOption,
-  MaterialAssetLibraryItem,
   StageVersion,
   UpdateWorkflowSettingsRequest,
   WorkflowCharacterSheet,
@@ -952,6 +931,21 @@ import type {
   WorkflowDetail,
   WorkflowSummary,
 } from "@/types";
+import { useWorkflowOptions } from "@/composables/workflow/useWorkflowOptions";
+import { useWorkflowList } from "@/composables/workflow/useWorkflowList";
+import { useCreateWorkflow } from "@/composables/workflow/useCreateWorkflow";
+import { useImagePreview } from "@/composables/workflow/useImagePreview";
+import { useCharacterAssetPicker } from "@/composables/workflow/useCharacterAssetPicker";
+import {
+  characterSheetKey,
+  characterSheetClipIndex,
+  characterSheetTitle,
+  characterSheetAppearanceSummary,
+  characterSheetVersions,
+  selectedCharacterSheetVersion,
+  hasMissingCharacterSheets,
+  characterSheetPreviewFrames,
+} from "@/composables/workflow/useCharacterSheetUtils";
 
 type CreateStageKey = WorkflowCreateStageKey;
 type DetailRouteStageKey = WorkflowDetailRouteStageKey;
@@ -990,53 +984,67 @@ interface ImagePreviewItem {
 const router = useRouter();
 const route = useRoute();
 
-const loadingOptions = ref(false);
-const options = ref<GenerationOptionsResponse | null>(null);
+// --- Composables ---
+const workflowOptions = useWorkflowOptions();
+const workflowList = useWorkflowList();
+const createWorkflowState = useCreateWorkflow(workflowOptions);
+const imagePreview = useImagePreview();
+const characterAssetPickerState = useCharacterAssetPicker();
 
-const loadingWorkflows = ref(false);
+const {
+  loadingOptions, options, aspectRatioOptions, stylePresetOptions,
+  textModelOptions, imageModelOptions, videoModelOptions, catalogVideoSizeOptions,
+  filterVideoSizeOptions, syncVideoSizeSelection, valueOptionLabel, keyOptionLabel, loadOptions,
+} = workflowOptions;
+
+const {
+  loadingWorkflows, workflowSearch, workflowSearchInput, workflows,
+  filteredWorkflows, focusWorkflowSearch, clearWorkflowSearch,
+  workflowCompletionPercentage, loadWorkflows,
+} = workflowList;
+
+const {
+  creatingWorkflow, createComposerVisible, createComposerMenu, createStatusText,
+  createTextFileInput, uploadingCreateText, storyboardDurationMode,
+  storyboardManualDurationSeconds, STORYBOARD_MANUAL_DURATION_MIN_SECONDS,
+  STORYBOARD_MANUAL_DURATION_MAX_SECONDS, createForm, videoSizeOptions,
+  normalizedStoryboardManualDurationSeconds, storyboardManualDurationValidationMessage,
+  isStoryboardDurationConfigured, createTranscriptCharacterCount, createModelMenuLabel,
+  createOutputMenuLabel, createDurationMenuLabel, createSeedMenuLabel,
+  createReviewSections, createReviewRequiredItems, createReviewConfiguredCount,
+  canSubmitCreateReview, toggleCreateComposerMenu,
+  startCreateWorkflow: startCreateWorkflowBase,
+  closeCreateReview: closeCreateReviewBase,
+  handleCreateTextFileChange, handleCreateWorkflow: handleCreateWorkflowBase,
+  readTextFile, optionalInteger, seedLabel,
+} = createWorkflowState;
+
+const {
+  imagePreviewOverlayRef, imagePreviewTriggerRef, imagePreviewState,
+  imagePreviewCaption, openImagePreview, closeImagePreview, switchImagePreviewFrame,
+  captureImagePreviewTrigger, focusImagePreviewOverlay, applyImagePreviewItem,
+} = imagePreview;
+
+const {
+  characterAssetPicker, materialAssetPreviewUrl, materialAssetModelLabel,
+  isCharacterAssetPickerOpen, openCharacterAssetPicker, closeCharacterAssetPicker,
+  loadCharacterAssetCandidates,
+} = characterAssetPickerState;
+
 const loadingDetail = ref(false);
-const creatingWorkflow = ref(false);
 const busyActionKey = ref("");
-const workflowSearch = ref("");
-const workflowSearchInput = ref<HTMLInputElement | null>(null);
 const activeCreateStage = ref<DetailRouteStageKey>("storyboard");
 const activeCanvasStage = ref<CanvasStageKey>("storyboard");
-const createComposerVisible = ref(false);
 const previewStoryboardVersionId = ref("");
 const previewCharacterSheetVersionIds = reactive<Record<string, string>>({});
 const selectedCanvasClipIndex = ref<number | null>(null);
 const previewKeyframeVersionIds = reactive<Record<number, string>>({});
 const previewVideoVersionIds = reactive<Record<number, string>>({});
-const createTextFileInput = ref<HTMLInputElement | null>(null);
-const imagePreviewOverlayRef = ref<HTMLElement | null>(null);
-const imagePreviewTriggerRef = ref<HTMLElement | null>(null);
-const uploadingCreateText = ref(false);
-const createComposerMenu = ref<"" | "models" | "output" | "duration" | "seed">("");
-const createStatusText = ref("参数加载中...");
-
-const characterAssetPicker = reactive({
-  openKey: "",
-  keyword: "",
-  model: "",
-  loading: false,
-  error: "",
-  assets: [] as MaterialAssetLibraryItem[],
-});
-const imagePreviewState = reactive({
-  open: false,
-  url: "",
-  alt: "",
-  caption: "",
-  gallery: [] as ImagePreviewItem[],
-  currentIndex: 0,
-});
 const characterSummaryPreviewState = reactive({
   open: false,
   title: "",
   content: "",
 });
-
-const workflows = ref<WorkflowSummary[]>([]);
 const selectedWorkflow = ref<WorkflowDetail | null>(null);
 
 const storyboardAdjustmentDrafts = reactive<Record<string, string>>({});
@@ -1216,40 +1224,10 @@ const filteredWorkflows = computed(() => {
   });
 });
 
-function focusWorkflowSearch() {
-  workflowSearchInput.value?.focus();
-}
+// focusWorkflowSearch, clearWorkflowSearch, workflowCompletionPercentage
+// are imported from @/composables/workflow/useWorkflowList
 
-function clearWorkflowSearch() {
-  workflowSearch.value = "";
-}
-
-function workflowCompletionPercentage(workflow: WorkflowSummary): number {
-  const storyboardCount = Number(workflow.storyboardVersionCount ?? 0);
-  const characterTotal = Number(workflow.characterSheetCount ?? 0);
-  const characterSelected = Number(workflow.selectedCharacterSheetCount ?? workflow.characterSheetVersionCount ?? 0);
-  const keyframeCount = Number(workflow.keyframeVersionCount ?? 0);
-  const videoCount = Number(workflow.videoVersionCount ?? 0);
-
-  const total = storyboardCount + characterTotal + keyframeCount + videoCount;
-  if (total === 0) return 0;
-
-  const completed = storyboardCount + characterSelected + keyframeCount + videoCount;
-  return Math.round((completed / total) * 100);
-}
-
-const aspectRatioOptions = computed(() => options.value?.aspectRatios ?? [
-  { value: "9:16", label: "9:16" },
-  { value: "16:9", label: "16:9" },
-]);
-const stylePresetOptions = computed(() => options.value?.stylePresets ?? []);
-const textModelOptions = computed(() => options.value?.textAnalysisModels ?? []);
-const imageModelOptions = computed(() => options.value?.imageModels ?? []);
-const videoModelOptions = computed(() => options.value?.videoModels ?? []);
-const catalogVideoSizeOptions = computed(() => options.value?.videoSizes ?? []);
-const videoSizeOptions = computed(() =>
-  filterVideoSizeOptions(catalogVideoSizeOptions.value, createForm.videoModel, createForm.aspectRatio)
-);
+// videoSizeOptions is provided by useCreateWorkflow composable
 const workflowSettingsVideoSizeOptions = computed(() =>
   filterVideoSizeOptions(catalogVideoSizeOptions.value, workflowSettingsDraft.videoModel, workflowSettingsDraft.aspectRatio)
 );
@@ -1539,82 +1517,11 @@ function selectCanvasClip(clipIndex: number) {
   selectedCanvasClipIndex.value = clipIndex;
 }
 
-function valueOptionLabel<T extends { value: string; label: string }>(options: T[], value?: string | null, fallback = "-") {
-  if (!value) {
-    return fallback;
-  }
-  return options.find((item) => item.value === value)?.label || value;
-}
+// valueOptionLabel, keyOptionLabel are imported from @/composables/workflow/useWorkflowOptions
 
-function keyOptionLabel<T extends { key: string; label: string }>(options: T[], value?: string | null, fallback = "-") {
-  if (!value) {
-    return fallback;
-  }
-  return options.find((item) => item.key === value)?.label || value;
-}
-
-function normalizeModelName(value?: string | null) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function resolveVideoSizeAspectRatio(size: GenerationVideoSizeOption): "9:16" | "16:9" | null {
-  const width = Number(size.width ?? 0);
-  const height = Number(size.height ?? 0);
-  if (width > 0 && height > 0) {
-    return width > height ? "16:9" : "9:16";
-  }
-  const normalized = String(size.value ?? "").replace(/\*/g, "x").toLowerCase();
-  const [rawWidth, rawHeight] = normalized.split("x");
-  const parsedWidth = Number(rawWidth);
-  const parsedHeight = Number(rawHeight);
-  if (parsedWidth > 0 && parsedHeight > 0) {
-    return parsedWidth > parsedHeight ? "16:9" : "9:16";
-  }
-  return null;
-}
-
-function compareVideoSizeByArea(a: GenerationVideoSizeOption, b: GenerationVideoSizeOption) {
-  const areaA = Number(a.width ?? 0) * Number(a.height ?? 0);
-  const areaB = Number(b.width ?? 0) * Number(b.height ?? 0);
-  return areaA - areaB;
-}
-
-function filterVideoSizeOptions(source: GenerationVideoSizeOption[], model: string, aspectRatio: string) {
-  const selectedModel = normalizeModelName(model);
-  const filtered = source
-    .filter((item) => {
-      const itemAspectRatio = resolveVideoSizeAspectRatio(item);
-      return !itemAspectRatio || itemAspectRatio === aspectRatio;
-    })
-    .filter((item) => {
-      if (!selectedModel) {
-        return true;
-      }
-      const supportedModels = Array.isArray(item.supportedModels) ? item.supportedModels : [];
-      if (!supportedModels.length) {
-        return true;
-      }
-      return supportedModels.some((itemModel) => normalizeModelName(itemModel) === selectedModel);
-    });
-  return [...filtered].sort(compareVideoSizeByArea);
-}
-
-function syncVideoSizeSelection(target: { videoSize: string; videoModel: string; aspectRatio: string }, preferred?: string | null) {
-  if (!catalogVideoSizeOptions.value.length) {
-    return;
-  }
-  const available = filterVideoSizeOptions(catalogVideoSizeOptions.value, target.videoModel, target.aspectRatio);
-  if (!available.length) {
-    target.videoSize = "";
-    return;
-  }
-  const preferredValue = preferred || "";
-  const next =
-    available.find((item) => item.value === preferredValue)?.value
-    ?? available.find((item) => item.value === target.videoSize)?.value
-    ?? available[0].value;
-  target.videoSize = next;
-}
+// normalizeModelName, resolveVideoSizeAspectRatio, compareVideoSizeByArea,
+// filterVideoSizeOptions, syncVideoSizeSelection
+// are imported from @/composables/workflow/useWorkflowOptions
 
 function parseStoryboardDurationSeconds(value?: string | null) {
   if (value === undefined || value === null) {
@@ -1631,30 +1538,8 @@ function parseStoryboardDurationSeconds(value?: string | null) {
   return Math.trunc(numericValue);
 }
 
-function seedLabel(value?: number | string | null) {
-  if (value === undefined || value === null || value === "") {
-    return "自动";
-  }
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? String(numericValue) : "自动";
-}
-
-function readTextFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(reader.error ?? new Error("读取文本文件失败"));
-    reader.readAsText(file, "utf-8");
-  });
-}
-
-function optionalInteger(value?: string | number | null) {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) && Number.isInteger(numericValue) ? numericValue : null;
-}
+// seedLabel, readTextFile, optionalInteger
+// are imported from @/composables/workflow/useCreateWorkflow
 
 function versionSeed(version: StageVersion) {
   const inputSummary = version.inputSummary ?? {};
@@ -1774,33 +1659,8 @@ function keyframeVersionHasSelectedFrame(version: StageVersion) {
   return Boolean(version.selected || outputSummary.selectedFirstFrame || outputSummary.selectedLastFrame);
 }
 
-function characterSheetKey(sheet: WorkflowCharacterSheet) {
-  return sheet.id || `${characterSheetTitle(sheet)}-${characterSheetClipIndex(sheet) ?? "na"}`;
-}
-
-function characterSheetClipIndex(sheet: WorkflowCharacterSheet) {
-  const candidates = [sheet.syntheticClipIndex, sheet.clipIndex];
-  for (const candidate of candidates) {
-    const numericValue = Number(candidate);
-    if (Number.isInteger(numericValue) && numericValue > 0) {
-      return numericValue;
-    }
-  }
-  return null;
-}
-
-function characterSheetTitle(sheet: WorkflowCharacterSheet) {
-  return sheet.characterName?.trim()
-    || sheet.displayName?.trim()
-    || sheet.name?.trim()
-    || `角色 #${characterSheetClipIndex(sheet) ?? "-"}`;
-}
-
-function characterSheetAppearanceSummary(sheet: WorkflowCharacterSheet) {
-  return sheet.appearanceSummary?.trim()
-    || sheet.appearance?.trim()
-    || "暂无角色外观摘要";
-}
+// characterSheetKey, characterSheetClipIndex, characterSheetTitle, characterSheetAppearanceSummary
+// are imported from @/composables/workflow/useCharacterSheetUtils
 
 function openCharacterSummaryPreview(sheet: WorkflowCharacterSheet) {
   characterSummaryPreviewState.open = true;
@@ -1814,46 +1674,8 @@ function closeCharacterSummaryPreview() {
   characterSummaryPreviewState.content = "";
 }
 
-function characterSheetVersions(sheet: WorkflowCharacterSheet) {
-  return sheet.versions?.length ? sheet.versions : (sheet.keyframeVersions ?? []);
-}
-
-function hasMissingCharacterSheets(workflow: WorkflowDetail) {
-  const sheets = workflow.characterSheets ?? [];
-  return sheets.some((sheet) => !selectedCharacterSheetVersion(sheet));
-}
-
-function characterSheetPreviewFrames(version: StageVersion): PreviewFrame[] {
-  const outputSummary = version.outputSummary ?? {};
-  const frames: PreviewFrame[] = [];
-  const namedFrames = [
-    { role: "front", label: "正面", url: summaryUrlValue(outputSummary, "frontViewUrl", "frontImageUrl", "frontUrl") },
-    { role: "side", label: "侧面", url: summaryUrlValue(outputSummary, "sideViewUrl", "sideImageUrl", "sideUrl", "profileViewUrl") },
-    { role: "back", label: "背面", url: summaryUrlValue(outputSummary, "backViewUrl", "backImageUrl", "backUrl") },
-  ].filter((frame) => frame.url);
-  if (namedFrames.length) {
-    return namedFrames;
-  }
-  const listFrames = summaryUrlListValue(outputSummary, "threeViewUrls", "viewUrls", "sheetUrls", "images");
-  if (listFrames.length) {
-    const labels = ["正面", "侧面", "背面"];
-    return listFrames.map((url, index) => ({
-      role: `view-${index + 1}`,
-      label: labels[index] || `视图 ${index + 1}`,
-      url,
-    }));
-  }
-  const previewUrl = summaryUrlValue(outputSummary, "sheetUrl", "previewUrl", "fileUrl")
-    || (typeof version.previewUrl === "string" ? version.previewUrl : "");
-  if (previewUrl) {
-    frames.push({
-      role: "sheet",
-      label: "三视图",
-      url: previewUrl,
-    });
-  }
-  return frames;
-}
+// characterSheetVersions, hasMissingCharacterSheets, characterSheetPreviewFrames
+// are imported from @/composables/workflow/useCharacterSheetUtils
 
 function selectedCharacterSheetVersion(sheet: WorkflowCharacterSheet) {
   return characterSheetVersions(sheet).find((version) => version.selected) ?? null;
@@ -1868,112 +1690,17 @@ function previewCharacterSheetVersion(sheet: WorkflowCharacterSheet) {
     ?? null;
 }
 
-function isCharacterAssetPickerOpen(sheet: WorkflowCharacterSheet) {
-  return characterAssetPicker.openKey === characterSheetKey(sheet);
-}
+// isCharacterAssetPickerOpen, openCharacterAssetPicker, closeCharacterAssetPicker,
+// materialAssetPreviewUrl, materialAssetModelLabel, isCharacterSheetSelectableAsset,
+// loadCharacterAssetCandidates, characterAssetPicker
+// are imported from @/composables/workflow/useCharacterAssetPicker
 
-async function openCharacterAssetPicker(sheet: WorkflowCharacterSheet) {
-  const authenticated = await requireAuth({
-    title: "登录后选择素材",
-    message: "素材库只展示你的个人素材，请先登录或使用邀请码注册。",
-  });
-  if (!authenticated) {
-    messageApi.warning("登录后可继续选择素材。");
-    return;
-  }
-  characterAssetPicker.openKey = characterSheetKey(sheet);
-  characterAssetPicker.keyword = characterSheetTitle(sheet);
-  characterAssetPicker.model = "";
-  await loadCharacterAssetCandidates(sheet);
-}
-
-function closeCharacterAssetPicker() {
-  characterAssetPicker.openKey = "";
-  characterAssetPicker.error = "";
-  characterAssetPicker.assets = [];
-}
-
-function materialAssetPreviewUrl(asset: MaterialAssetLibraryItem) {
-  return asset.previewUrl || asset.fileUrl || asset.remoteUrl || "";
-}
-
-function materialAssetModelLabel(asset: MaterialAssetLibraryItem) {
-  return asset.originModel || asset.originProvider || "未记录模型";
-}
-
-function isCharacterSheetSelectableAsset(asset: MaterialAssetLibraryItem) {
-  const assetType = typeof asset.assetType === "string" ? asset.assetType.trim().toLowerCase() : "";
-  const isSupportedAssetType = assetType === "character_sheet" || assetType === "free";
-  const hasPreview = asset.mediaType === "image" || Boolean(materialAssetPreviewUrl(asset));
-  return isSupportedAssetType && hasPreview;
-}
-
-async function loadCharacterAssetCandidates(sheet: WorkflowCharacterSheet) {
-  const authenticated = await requireAuth({
-    title: "登录后搜索素材",
-    message: "素材库只展示你的个人素材，请先登录或使用邀请码注册。",
-  });
-  if (!authenticated) {
-    characterAssetPicker.error = "登录后可搜索素材库。";
-    return;
-  }
-  const expectedKey = characterSheetKey(sheet);
-  characterAssetPicker.openKey = expectedKey;
-  characterAssetPicker.loading = true;
-  characterAssetPicker.error = "";
-  try {
-    const assets = await fetchMaterialAssets({
-      q: characterAssetPicker.keyword.trim() || characterSheetTitle(sheet),
-      model: characterAssetPicker.model.trim() || undefined,
-    });
-    if (characterAssetPicker.openKey !== expectedKey) {
-      return;
-    }
-    characterAssetPicker.assets = assets.filter(isCharacterSheetSelectableAsset);
-  } catch (error) {
-    characterAssetPicker.error = error instanceof Error ? error.message : "角色三视图素材加载失败";
-    characterAssetPicker.assets = [];
-  } finally {
-    if (characterAssetPicker.openKey === expectedKey) {
-      characterAssetPicker.loading = false;
-    }
-  }
-}
-
-function applyImagePreviewItem(item: ImagePreviewItem, index: number) {
-  imagePreviewState.url = item.url;
-  imagePreviewState.alt = item.alt;
-  imagePreviewState.caption = item.caption;
-  imagePreviewState.currentIndex = index;
-}
-
-function captureImagePreviewTrigger() {
-  const active = document.activeElement;
-  imagePreviewTriggerRef.value = active instanceof HTMLElement ? active : null;
-}
-
-function focusImagePreviewOverlay() {
-  void nextTick(() => {
-    imagePreviewOverlayRef.value?.focus();
-  });
-}
-
-function openImagePreview(url: string, alt: string) {
-  if (!url) {
-    return;
-  }
-  captureImagePreviewTrigger();
-  const item = { url, alt, caption: alt };
-  imagePreviewState.open = true;
-  imagePreviewState.gallery = [item];
-  applyImagePreviewItem(item, 0);
-  focusImagePreviewOverlay();
-}
+// openImagePreview, closeImagePreview, switchImagePreviewFrame,
+// imagePreviewState, imagePreviewOverlayRef, imagePreviewTriggerRef, imagePreviewCaption
+// are imported from @/composables/workflow/useImagePreview
 
 function openKeyframeImagePreview(version: StageVersion, frame: PreviewFrame) {
-  if (!frame.url) {
-    return;
-  }
+  if (!frame.url) return;
   const frames = keyframePreviewFrames(version).filter((item) => item.url);
   const gallery = frames.map((item) => ({
     url: item.url,
@@ -1986,30 +1713,11 @@ function openKeyframeImagePreview(version: StageVersion, frame: PreviewFrame) {
     openImagePreview(frame.url, `${stageVersionDisplayTitle(version)}${frame.label}`);
     return;
   }
-  captureImagePreviewTrigger();
+  imagePreview.captureImagePreviewTrigger();
   imagePreviewState.open = true;
   imagePreviewState.gallery = gallery;
-  applyImagePreviewItem(currentItem, currentIndex);
-  focusImagePreviewOverlay();
-}
-
-function closeImagePreview() {
-  imagePreviewTriggerRef.value?.blur();
-  imagePreviewTriggerRef.value = null;
-  imagePreviewState.open = false;
-  imagePreviewState.url = "";
-  imagePreviewState.alt = "";
-  imagePreviewState.caption = "";
-  imagePreviewState.gallery = [];
-  imagePreviewState.currentIndex = 0;
-}
-
-function switchImagePreviewFrame(direction: 1 | -1) {
-  if (!imagePreviewState.open || imagePreviewState.gallery.length < 2) {
-    return;
-  }
-  const nextIndex = (imagePreviewState.currentIndex + direction + imagePreviewState.gallery.length) % imagePreviewState.gallery.length;
-  applyImagePreviewItem(imagePreviewState.gallery[nextIndex], nextIndex);
+  imagePreview.applyImagePreviewItem(currentItem, currentIndex);
+  imagePreview.focusImagePreviewOverlay();
 }
 
 function handleImagePreviewKeydown(event: KeyboardEvent) {
@@ -2018,23 +1726,10 @@ function handleImagePreviewKeydown(event: KeyboardEvent) {
     closeCharacterSummaryPreview();
     return;
   }
-  if (!imagePreviewState.open) {
-    return;
-  }
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeImagePreview();
-    return;
-  }
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    switchImagePreviewFrame(-1);
-    return;
-  }
-  if (event.key === "ArrowRight") {
-    event.preventDefault();
-    switchImagePreviewFrame(1);
-  }
+  if (!imagePreviewState.open) return;
+  if (event.key === "Escape") { event.preventDefault(); closeImagePreview(); return; }
+  if (event.key === "ArrowLeft") { event.preventDefault(); switchImagePreviewFrame(-1); return; }
+  if (event.key === "ArrowRight") { event.preventDefault(); switchImagePreviewFrame(1); }
 }
 
 function selectedKeyframeVersion(slot: WorkflowClipSlot) {
