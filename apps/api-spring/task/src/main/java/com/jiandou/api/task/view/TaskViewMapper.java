@@ -3,6 +3,7 @@ package com.jiandou.api.task.view;
 import com.jiandou.api.config.JiandouStorageProperties;
 import com.jiandou.api.media.LocalMediaArtifactService;
 import com.jiandou.api.task.TaskRecord;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import com.jiandou.api.task.domain.GenerationRequestSnapshot;
 import com.jiandou.api.task.domain.TaskArtifactNaming;
 import com.jiandou.api.task.domain.TaskResultTypes;
@@ -85,6 +86,53 @@ public class TaskViewMapper {
         row.put("failureClipIndex", failure.clipIndex());
         row.put("thumbnailUrl", taskThumbnailUrl(task, monitoring));
         return row;
+    }
+
+    public TaskListItemResponse toListItemResponse(TaskRecord task, String ownerUserId, String ownerUsername, String ownerDisplayName, String ownerRole) {
+        Map<String, Object> row = toListItem(task);
+        return new TaskListItemResponse(
+            (String) row.get("id"),
+            (String) row.get("taskType"),
+            (String) row.get("title"),
+            (String) row.get("status"),
+            (int) row.get("progress"),
+            (String) row.get("createdAt"),
+            (String) row.get("updatedAt"),
+            (String) row.get("sourceFileName"),
+            (String) row.get("aspectRatio"),
+            (int) row.get("minDurationSeconds"),
+            (int) row.get("maxDurationSeconds"),
+            (int) row.get("retryCount"),
+            (String) row.get("startedAt"),
+            (String) row.get("finishedAt"),
+            (int) row.get("completedOutputCount"),
+            (Integer) row.get("taskSeed"),
+            (Integer) row.get("effectRating"),
+            (String) row.get("effectRatingNote"),
+            (String) row.get("ratedAt"),
+            (boolean) row.get("hasTranscript"),
+            (boolean) row.get("hasTimedTranscript"),
+            (int) row.get("sourceAssetCount"),
+            (String) row.get("editingMode"),
+            (boolean) row.get("isQueued"),
+            (Integer) row.get("queuePosition"),
+            (String) row.get("currentStage"),
+            (String) row.get("activeWorkerInstanceId"),
+            (int) row.get("plannedClipCount"),
+            (int) row.get("renderedClipCount"),
+            (String) row.get("diagnosisSeverity"),
+            (String) row.get("diagnosisCode"),
+            (String) row.get("diagnosisHint"),
+            (String) row.get("recommendedAction"),
+            (String) row.get("failureReason"),
+            (String) row.get("failureStage"),
+            (Integer) row.get("failureClipIndex"),
+            (String) row.get("thumbnailUrl"),
+            ownerUserId != null ? Long.parseLong(ownerUserId) : null,
+            ownerUsername,
+            ownerDisplayName,
+            ownerRole
+        );
     }
 
     /**

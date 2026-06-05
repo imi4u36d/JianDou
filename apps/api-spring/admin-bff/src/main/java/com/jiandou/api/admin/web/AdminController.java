@@ -8,6 +8,7 @@ import com.jiandou.api.config.ApiPathConstants;
 import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.task.application.TaskApplicationService;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -82,7 +83,7 @@ public class AdminController {
     }
 
     @GetMapping("/tasks")
-    public List<Map<String, Object>> listTasks(
+    public List<TaskListItemResponse> listTasks(
         @RequestParam(value = "q", required = false) String q,
         @RequestParam(value = "status", required = false) String status,
         @RequestParam(value = "sort", required = false) String sort

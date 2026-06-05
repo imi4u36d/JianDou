@@ -8,6 +8,7 @@ import com.jiandou.api.generation.video.VideoModelProviderRegistry;
 import com.jiandou.api.task.web.dto.CreateGenerationTaskRequest;
 import com.jiandou.api.task.web.dto.GenerateCreativePromptRequest;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +82,7 @@ public class TaskApplicationServiceImpl implements TaskApplicationService {
      * @return 处理结果
      */
     @Override
-    public List<Map<String, Object>> listTasks(String q, String status, String sort) {
+    public List<TaskListItemResponse> listTasks(String q, String status, String sort) {
         return taskQueryService.listTasks(q, status, sort);
     }
 
@@ -93,7 +94,7 @@ public class TaskApplicationServiceImpl implements TaskApplicationService {
      * @return 处理结果
      */
     @Override
-    public List<Map<String, Object>> adminListTasks(String q, String status, String sort) {
+    public List<TaskListItemResponse> adminListTasks(String q, String status, String sort) {
         return taskQueryService.adminListTasks(q, status, sort);
     }
 

@@ -1,0 +1,48 @@
+package com.jiandou.api.task.web.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "任务列表项")
+public record TaskListItemResponse(
+    @Schema(description = "任务ID") String id,
+    @Schema(description = "任务类型") String taskType,
+    @Schema(description = "任务标题") String title,
+    @Schema(description = "任务状态") String status,
+    @Schema(description = "进度百分比") int progress,
+    @Schema(description = "创建时间") String createdAt,
+    @Schema(description = "更新时间") String updatedAt,
+    @Schema(description = "源文件名") String sourceFileName,
+    @Schema(description = "画幅比例") String aspectRatio,
+    @Schema(description = "最小时长(秒)") int minDurationSeconds,
+    @Schema(description = "最大时长(秒)") int maxDurationSeconds,
+    @Schema(description = "重试次数") int retryCount,
+    @Schema(description = "开始时间") String startedAt,
+    @Schema(description = "完成时间") String finishedAt,
+    @Schema(description = "已完成输出数") int completedOutputCount,
+    @Schema(description = "任务种子") Integer taskSeed,
+    @Schema(description = "效果评分") Integer effectRating,
+    @Schema(description = "评分备注") String effectRatingNote,
+    @Schema(description = "评分时间") String ratedAt,
+    @Schema(description = "有转录文本") boolean hasTranscript,
+    @Schema(description = "有带时间轴转录") boolean hasTimedTranscript,
+    @Schema(description = "素材数量") int sourceAssetCount,
+    @Schema(description = "编辑模式") String editingMode,
+    @Schema(description = "是否排队中") boolean isQueued,
+    @Schema(description = "队列位置") Integer queuePosition,
+    @Schema(description = "当前阶段") String currentStage,
+    @Schema(description = "活跃Worker实例ID") String activeWorkerInstanceId,
+    @Schema(description = "计划镜头数") int plannedClipCount,
+    @Schema(description = "已渲染镜头数") int renderedClipCount,
+    @Schema(description = "诊断严重度") String diagnosisSeverity,
+    @Schema(description = "诊断代码") String diagnosisCode,
+    @Schema(description = "诊断提示") String diagnosisHint,
+    @Schema(description = "建议操作") String recommendedAction,
+    @Schema(description = "失败原因") String failureReason,
+    @Schema(description = "失败阶段") String failureStage,
+    @Schema(description = "失败镜头索引") Integer failureClipIndex,
+    @Schema(description = "缩略图URL") String thumbnailUrl,
+    @Schema(description = "所有者用户ID") Long ownerUserId,
+    @Schema(description = "所有者用户名") String ownerUsername,
+    @Schema(description = "所有者显示名") String ownerDisplayName,
+    @Schema(description = "所有者角色") String ownerRole
+) {}

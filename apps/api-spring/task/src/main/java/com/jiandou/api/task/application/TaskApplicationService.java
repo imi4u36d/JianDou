@@ -3,6 +3,7 @@ package com.jiandou.api.task.application;
 import com.jiandou.api.task.web.dto.CreateGenerationTaskRequest;
 import com.jiandou.api.task.web.dto.GenerateCreativePromptRequest;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +34,7 @@ public interface TaskApplicationService {
      * @param sort 排序方式
      * @return 处理结果
      */
-    List<Map<String, Object>> listTasks(String q, String status, String sort);
+    List<TaskListItemResponse> listTasks(String q, String status, String sort);
 
     /**
      * 管理端列出全部任务。
@@ -42,7 +43,7 @@ public interface TaskApplicationService {
      * @param sort 排序方式
      * @return 处理结果
      */
-    List<Map<String, Object>> adminListTasks(String q, String status, String sort);
+    List<TaskListItemResponse> adminListTasks(String q, String status, String sort);
 
     /**
      * 返回公开案例展示。

@@ -10,6 +10,7 @@ import com.jiandou.api.task.domain.WorkerStatus;
 import com.jiandou.api.task.exception.TaskNotFoundException;
 import com.jiandou.api.task.persistence.TaskRepository;
 import com.jiandou.api.task.view.TaskViewMapper;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -67,7 +68,7 @@ public class TaskQueryService {
      * @param sort 排序方式
      * @return 处理结果
      */
-    public List<Map<String, Object>> listTasks(String q, String status, String sort) {
+    public List<TaskListItemResponse> listTasks(String q, String status, String sort) {
         Long ownerUserId = requiredUserId();
         List<TaskRecord> tasks = new ArrayList<>(taskRepository.findAll());
         executionCoordinator.recomputeQueuePositions(tasks);
@@ -77,10 +78,7 @@ public class TaskQueryService {
             .filter(item -> q == null || q.isBlank() || containsIgnoreCase(item.title(), q) || containsIgnoreCase(item.creativePrompt(), q))
             .filter(item -> matchesStatus(item, status))
             .toList();
-        List<Map<String, Object>> rows = filteredTasks.stream()
-            .map(taskViewMapper::toListItem)
-            .collect(Collectors.toList());
-        return enrichTaskRows(filteredTasks, rows);
+        return toListItemResponses(filteredTasks);
     }
 
     /**
@@ -90,7 +88,7 @@ public class TaskQueryService {
      * @param sort 排序方式
      * @return 处理结果
      */
-    public List<Map<String, Object>> adminListTasks(String q, String status, String sort) {
+    public List<TaskListItemResponse> adminListTasks(String q, String status, String sort) {
         List<TaskRecord> tasks = new ArrayList<>(taskRepository.findAll());
         executionCoordinator.recomputeQueuePositions(tasks);
         List<TaskRecord> filteredTasks = tasks.stream()
@@ -101,10 +99,7 @@ public class TaskQueryService {
                 || containsIgnoreCase(item.sourceFileName(), q))
             .filter(item -> matchesStatus(item, status))
             .toList();
-        List<Map<String, Object>> rows = filteredTasks.stream()
-            .map(taskViewMapper::toListItem)
-            .collect(Collectors.toList());
-        return enrichTaskRows(filteredTasks, rows);
+        return toListItemResponses(filteredTasks);
     }
 
     /**
@@ -272,6 +267,19 @@ public class TaskQueryService {
         payload.put("recentRunningTasks", recentRunning);
         payload.put("recentTraceCount", taskRepository.listTraces(null, null, null, null, taskOpsProperties.getRecentTraceScanLimit()).size());
         return payload;
+    }
+
+    private List<TaskListItemResponse> toListItemResponses(List<TaskRecord> tasks) {
+        Map<Long, SysUserEntity> ownerMap = loadOwners(tasks);
+        return tasks.stream().map(task -> {
+            Long ownerUserId = task.ownerUserId();
+            SysUserEntity owner = ownerUserId == null ? null : ownerMap.get(ownerUserId);
+            return taskViewMapper.toListItemResponse(task,
+                ownerUserId != null ? String.valueOf(ownerUserId) : null,
+                owner == null ? "" : stringValue(owner.getUsername()),
+                owner == null ? "" : stringValue(owner.getDisplayName()),
+                owner == null ? "" : stringValue(owner.getRole()));
+        }).collect(Collectors.toList());
     }
 
     private List<Map<String, Object>> enrichTaskRows(List<TaskRecord> tasks, List<Map<String, Object>> rows) {

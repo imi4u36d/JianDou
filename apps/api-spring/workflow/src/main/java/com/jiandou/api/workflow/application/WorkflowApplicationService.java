@@ -25,6 +25,7 @@ import com.jiandou.api.workflow.web.dto.ReuseMaterialRequest;
 import com.jiandou.api.workflow.web.dto.SelectCharacterSheetAssetRequest;
 import com.jiandou.api.workflow.web.dto.UpdateMaterialAssetRatingRequest;
 import com.jiandou.api.workflow.web.dto.UpdateWorkflowSettingsRequest;
+import com.jiandou.api.workflow.web.dto.WorkflowSummaryResponse;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -123,14 +124,14 @@ public class WorkflowApplicationService {
         return getWorkflow(workflow.getWorkflowId());
     }
 
-    public List<Map<String, Object>> listWorkflows() {
+    public List<WorkflowSummaryResponse> listWorkflows() {
         Long ownerUserId = requiredUserId();
         List<StageWorkflowEntity> workflows = workflowRepository.listWorkflows(ownerUserId);
         Map<String, List<StageVersionEntity>> versionMap = new LinkedHashMap<>();
         for (StageWorkflowEntity workflow : workflows) {
             versionMap.put(workflow.getWorkflowId(), workflowRepository.listStageVersions(workflow.getWorkflowId()));
         }
-        return workflows.stream().map(workflow -> toWorkflowSummary(workflow, versionMap.getOrDefault(workflow.getWorkflowId(), List.of()))).toList();
+        return workflows.stream().map(workflow -> toWorkflowSummaryResponse(workflow, versionMap.getOrDefault(workflow.getWorkflowId(), List.of()))).toList();
     }
 
     public Map<String, Object> getWorkflow(String workflowId) {
@@ -1604,6 +1605,41 @@ public class WorkflowApplicationService {
         row.put("keyframeVersionCount", keyframeVersionCount);
         row.put("videoVersionCount", versions.stream().filter(item -> WorkflowConstants.STAGE_VIDEO.equals(item.getStageType())).count());
         return row;
+    }
+
+    private WorkflowSummaryResponse toWorkflowSummaryResponse(StageWorkflowEntity workflow, List<StageVersionEntity> versions) {
+        long characterSheetVersionCount = versions.stream()
+            .filter(item -> WorkflowConstants.STAGE_KEYFRAME.equals(item.getStageType()))
+            .filter(item -> VARIANT_KIND_CHARACTER_SHEET.equals(stageVariantKind(item)))
+            .count();
+        long keyframeVersionCount = versions.stream()
+            .filter(item -> WorkflowConstants.STAGE_KEYFRAME.equals(item.getStageType()))
+            .filter(item -> !VARIANT_KIND_CHARACTER_SHEET.equals(stageVariantKind(item)))
+            .count();
+        long characterSheetCount = selectedWorkflowStoryboard(versions, workflow)
+            .map(storyboard -> (long) characterSheetSlots(storyboard).size())
+            .orElse(0L);
+        long selectedCharacterSheetCount = versions.stream()
+            .filter(item -> WorkflowConstants.STAGE_KEYFRAME.equals(item.getStageType()))
+            .filter(item -> VARIANT_KIND_CHARACTER_SHEET.equals(stageVariantKind(item)))
+            .filter(item -> intValue(item.getSelected(), 0) == 1)
+            .count();
+        return new WorkflowSummaryResponse(
+            workflow.getWorkflowId(),
+            workflow.getTitle(),
+            workflow.getStatus(),
+            workflow.getCurrentStage(),
+            workflow.getAspectRatio(),
+            workflow.getEffectRating(),
+            format(workflow.getCreateTime()),
+            format(workflow.getUpdateTime()),
+            versions.stream().filter(item -> WorkflowConstants.STAGE_STORYBOARD.equals(item.getStageType())).count(),
+            characterSheetCount,
+            selectedCharacterSheetCount,
+            characterSheetVersionCount,
+            keyframeVersionCount,
+            versions.stream().filter(item -> WorkflowConstants.STAGE_VIDEO.equals(item.getStageType())).count()
+        );
     }
 
     private Optional<StageVersionEntity> selectedWorkflowStoryboard(List<StageVersionEntity> versions, StageWorkflowEntity workflow) {

@@ -8,6 +8,7 @@ import com.jiandou.api.workflow.web.dto.RateStageVersionRequest;
 import com.jiandou.api.workflow.web.dto.RateWorkflowRequest;
 import com.jiandou.api.workflow.web.dto.SelectCharacterSheetAssetRequest;
 import com.jiandou.api.workflow.web.dto.UpdateWorkflowSettingsRequest;
+import com.jiandou.api.workflow.web.dto.WorkflowSummaryResponse;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,7 +42,7 @@ public class WorkflowController {
 
     @Operation(summary = "查询工作流列表")
     @GetMapping
-    public List<Map<String, Object>> listWorkflows() {
+    public List<WorkflowSummaryResponse> listWorkflows() {
         return workflowService.listWorkflows();
     }
 
