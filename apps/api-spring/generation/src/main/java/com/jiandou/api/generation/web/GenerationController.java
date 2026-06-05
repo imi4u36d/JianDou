@@ -19,10 +19,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.server.ResponseStatusException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 生成控制器。
  */
+@Tag(name = "Generation", description = "AI 内容生成")
 @RestController
 @RequestMapping(ApiPathConstants.GENERATION)
 public class GenerationController {
@@ -43,6 +46,7 @@ public class GenerationController {
      * 处理目录。
      * @return 处理结果
      */
+    @Operation(summary = "获取生成能力目录")
     @GetMapping("/catalog")
     public Map<String, Object> catalog() {
         return generationService.catalog();
@@ -53,6 +57,7 @@ public class GenerationController {
      * @param request 请求体
      * @return 处理结果
      */
+    @Operation(summary = "创建生成运行")
     @PostMapping("/runs")
     public Map<String, Object> createRun(@RequestBody Map<String, Object> request) {
         try {
@@ -88,6 +93,7 @@ public class GenerationController {
      * 列出Runs。
      * @return 处理结果
      */
+    @Operation(summary = "查询生成运行列表")
     @GetMapping("/runs")
     public List<Map<String, Object>> listRuns() {
         return generationService.listRuns(taskOpsProperties.getGenerationRunListLimit());
@@ -98,6 +104,7 @@ public class GenerationController {
      * @param runId 运行标识值
      * @return 处理结果
      */
+    @Operation(summary = "获取生成运行状态")
     @GetMapping("/runs/{runId}")
     public Map<String, Object> getRun(@PathVariable String runId) {
         try {
@@ -111,6 +118,7 @@ public class GenerationController {
      * 处理usage。
      * @return 处理结果
      */
+    @Operation(summary = "获取使用统计")
     @GetMapping("/usage")
     public Map<String, Object> usage() {
         return generationService.usage();

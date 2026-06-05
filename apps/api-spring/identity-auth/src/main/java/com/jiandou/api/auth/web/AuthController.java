@@ -15,10 +15,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 认证控制器。
  */
+@Tag(name = "Auth", description = "认证与会话")
 @RestController
 @RequestMapping(ApiPathConstants.AUTH)
 public class AuthController {
@@ -34,6 +37,7 @@ public class AuthController {
      * @param authentication 当前认证
      * @return 处理结果
      */
+    @Operation(summary = "获取当前会话")
     @GetMapping("/session")
     public AuthSessionResponse session(Authentication authentication) {
         return authApplicationService.session(authentication);
@@ -46,6 +50,7 @@ public class AuthController {
      * @param httpResponse servlet 响应
      * @return 处理结果
      */
+    @Operation(summary = "用户登录")
     @PostMapping("/login")
     public AuthSessionResponse login(
         @Valid @RequestBody LoginRequest request,
@@ -62,6 +67,7 @@ public class AuthController {
      * @param httpResponse servlet 响应
      * @return 处理结果
      */
+    @Operation(summary = "用户登出")
     @PostMapping("/logout")
     public Map<String, Object> logout(
         Authentication authentication,
@@ -79,6 +85,7 @@ public class AuthController {
      * @param httpResponse servlet 响应
      * @return 处理结果
      */
+    @Operation(summary = "激活邀请码注册")
     @PostMapping("/activate-invite")
     public AuthSessionResponse activateInvite(
         @Valid @RequestBody ActivateInviteRequest request,
