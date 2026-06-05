@@ -58,6 +58,9 @@ __pycache__/
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# Generated OpenAPI artifact (derive from running backend via npm run generate:api)
+docs/openapi.json
+
 # Local AI/tooling state
 .claude/
 .codex/
