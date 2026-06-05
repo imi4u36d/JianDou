@@ -403,26 +403,7 @@
           </div>
         </header>
 
-        <nav class="workflow-stage-pipeline" aria-label="阶段流水线">
-          <button
-            v-for="stage in canvasStageItems"
-            :key="stage.key"
-            type="button"
-            class="workflow-stage-step"
-            :class="{
-              'workflow-stage-step-active': activeCanvasStage === stage.key,
-              'workflow-stage-step-ready': stage.ready,
-            }"
-            @click="switchCanvasStage(stage.key)"
-          >
-            <span class="workflow-stage-step__index">{{ stage.index }}</span>
-            <span class="workflow-stage-step__text">
-              <strong>{{ stage.label }}</strong>
-              <small>{{ stage.status }}</small>
-            </span>
-            <span class="workflow-stage-step__count">{{ stage.count }}</span>
-          </button>
-        </nav>
+        <WorkflowStagePipeline :stages="canvasStageItems" :active-stage="activeCanvasStage" @switch="switchCanvasStage" />
 
         <section class="workflow-canvas-grid">
           <main class="workflow-stage-canvas">
@@ -946,6 +927,8 @@ import {
   hasMissingCharacterSheets,
   characterSheetPreviewFrames,
 } from "@/composables/workflow/useCharacterSheetUtils";
+import WorkflowStagePipeline from "./workflow/components/WorkflowStagePipeline.vue";
+import ImagePreviewOverlay from "./workflow/components/ImagePreviewOverlay.vue";
 
 type CreateStageKey = WorkflowCreateStageKey;
 type DetailRouteStageKey = WorkflowDetailRouteStageKey;
