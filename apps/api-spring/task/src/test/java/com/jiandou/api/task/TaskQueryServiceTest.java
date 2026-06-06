@@ -17,6 +17,7 @@ import com.jiandou.api.task.exception.TaskNotFoundException;
 import com.jiandou.api.task.persistence.TaskPersistenceMutation;
 import com.jiandou.api.task.persistence.TaskRepository;
 import com.jiandou.api.task.view.TaskViewMapper;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -68,11 +69,11 @@ class TaskQueryServiceTest {
         TaskRecord pending = task("task_pending", "PENDING", "2026-04-14T00:00:00Z");
         taskRepository.tasks = List.of(running, planning, pending);
 
-        List<Map<String, Object>> rows = service.listTasks(null, "RUNNING", "updated_desc");
+        List<TaskListItemResponse> rows = service.listTasks(null, "RUNNING", "updated_desc");
 
         assertEquals(2, rows.size());
-        assertEquals("task_running", rows.get(0).get("id"));
-        assertEquals("task_planning", rows.get(1).get("id"));
+        assertEquals("task_running", rows.get(0).id());
+        assertEquals("task_planning", rows.get(1).id());
         assertEquals(1, executionCoordinator.recomputeCalls);
     }
 
@@ -88,10 +89,10 @@ class TaskQueryServiceTest {
         taskRepository.tasks = List.of(queued, pending);
         executionCoordinator.snapshot = List.of("task_queued");
 
-        List<Map<String, Object>> rows = service.listTasks(null, "queued", "updated_desc");
+        List<TaskListItemResponse> rows = service.listTasks(null, "queued", "updated_desc");
 
         assertEquals(1, rows.size());
-        assertEquals("task_queued", rows.get(0).get("id"));
+        assertEquals("task_queued", rows.get(0).id());
     }
 
     /**
@@ -127,10 +128,10 @@ class TaskQueryServiceTest {
         legacy.setOwnerUserId(null);
         taskRepository.tasks = List.of(own, other, legacy);
 
-        List<Map<String, Object>> rows = service.listTasks(null, null, "updated_desc");
+        List<TaskListItemResponse> rows = service.listTasks(null, null, "updated_desc");
 
         assertEquals(1, rows.size());
-        assertEquals("task_own", rows.get(0).get("id"));
+        assertEquals("task_own", rows.get(0).id());
     }
 
     @Test
@@ -155,10 +156,10 @@ class TaskQueryServiceTest {
         other.setSourceFileName("other-source.md");
         taskRepository.tasks = List.of(own, other);
 
-        List<Map<String, Object>> rows = service.adminListTasks("source", null, "updated_desc");
+        List<TaskListItemResponse> rows = service.adminListTasks("source", null, "updated_desc");
 
         assertEquals(1, rows.size());
-        assertEquals("task_other", rows.get(0).get("id"));
+        assertEquals("task_other", rows.get(0).id());
         assertEquals("task_other", service.adminGetTask("task_other").get("id"));
     }
 

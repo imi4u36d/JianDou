@@ -14,6 +14,7 @@ import com.jiandou.api.admin.dto.AdminModelConfigValidationResponse;
 import com.jiandou.api.config.JiandouTaskOpsProperties;
 import com.jiandou.api.task.application.TaskApplicationService;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,11 @@ class AdminControllerTest {
         AdminController controller = new AdminController(service, ops, modelConfigService);
         Map<String, Object> row = Map.of("id", "task_1");
         List<Map<String, Object>> rows = List.of(row);
+        List<TaskListItemResponse> taskRows = List.of(new TaskListItemResponse(
+            "task_1", null, null, null, 0, null, null, null, null, 0, 0, 0, null, null,
+            0, null, null, null, null, false, false, 0, null, false, null, null, null,
+            0, 0, null, null, null, null, null, null, null, null, null, null, null, null
+        ));
         RateTaskEffectRequest rateRequest = new RateTaskEffectRequest(4, "nice");
         AdminModelConfigResponse configResponse = new AdminModelConfigResponse("cfg", null, null, List.of(), List.of(), List.of());
         AdminModelConfigKeyUpdateRequest draftRequest = new AdminModelConfigKeyUpdateRequest(
@@ -39,7 +45,7 @@ class AdminControllerTest {
         );
         AdminModelConfigValidationResponse validationResponse = new AdminModelConfigValidationResponse(true, configResponse);
         when(service.adminOverview()).thenReturn(row);
-        when(service.adminListTasks("q", "FAILED", "updatedAt")).thenReturn(rows);
+        when(service.adminListTasks("q", "FAILED", "updatedAt")).thenReturn(taskRows);
         when(service.adminGetTask("task_1")).thenReturn(row);
         when(service.getTrace("task_1", 11)).thenReturn(rows);
         when(service.adminTraces("task_1", "render", "WARN", "q", 12)).thenReturn(rows);
@@ -61,7 +67,7 @@ class AdminControllerTest {
         assertSame(configResponse, controller.modelConfig());
         assertSame(validationResponse, controller.validateModelConfig(draftRequest));
         assertSame(configResponse, controller.saveModelConfigKeys(draftRequest));
-        assertSame(rows, controller.listTasks("q", "FAILED", "updatedAt"));
+        assertSame(taskRows, controller.listTasks("q", "FAILED", "updatedAt"));
         assertSame(row, controller.getTask("task_1"));
         assertSame(rows, controller.getTaskTrace("task_1", null));
         assertSame(rows, controller.listTraces("task_1", "render", "WARN", "q", null));

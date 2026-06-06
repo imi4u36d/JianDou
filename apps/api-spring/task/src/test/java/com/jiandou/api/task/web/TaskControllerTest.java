@@ -11,6 +11,7 @@ import com.jiandou.api.task.application.TaskApplicationService;
 import com.jiandou.api.task.web.dto.CreateGenerationTaskRequest;
 import com.jiandou.api.task.web.dto.GenerateCreativePromptRequest;
 import com.jiandou.api.task.web.dto.RateTaskEffectRequest;
+import com.jiandou.api.task.web.dto.TaskListItemResponse;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -32,9 +33,14 @@ class TaskControllerTest {
         RateTaskEffectRequest rateRequest = new RateTaskEffectRequest(5, "good");
         Map<String, Object> row = Map.of("id", "task_1");
         List<Map<String, Object>> rows = List.of(row);
+        List<TaskListItemResponse> taskRows = List.of(new TaskListItemResponse(
+            "task_1", null, null, null, 0, null, null, null, null, 0, 0, 0, null, null,
+            0, null, null, null, null, false, false, 0, null, false, null, null, null,
+            0, 0, null, null, null, null, null, null, null, null, null, null, null, null
+        ));
         when(service.createGenerationTask(createRequest)).thenReturn(row);
         when(service.generateCreativePrompt(promptRequest)).thenReturn(row);
-        when(service.listTasks("q", "PENDING", "updatedAt")).thenReturn(rows);
+        when(service.listTasks("q", "PENDING", "updatedAt")).thenReturn(taskRows);
         when(service.showcaseCases()).thenReturn(row);
         when(service.getTask("task_1")).thenReturn(row);
         when(service.getTrace("task_1", 123)).thenReturn(rows);
@@ -53,7 +59,7 @@ class TaskControllerTest {
 
         assertSame(row, controller.createGenerationTask(createRequest));
         assertSame(row, controller.generateCreativePrompt(promptRequest));
-        assertSame(rows, controller.listTasks("q", "PENDING", "updatedAt"));
+        assertSame(taskRows, controller.listTasks("q", "PENDING", "updatedAt"));
         assertSame(row, controller.showcaseCases());
         assertSame(row, controller.getTask("task_1"));
         assertSame(rows, controller.getTrace("task_1", null));

@@ -882,9 +882,24 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import {
+  adjustStoryboard,
+  createWorkflow,
+  deleteStageVersion,
+  deleteWorkflow,
   fetchWorkflow,
   fetchWorkflows,
+  finalizeWorkflow,
+  generateKeyframe,
+  generateKeyframeFrame,
+  generateStoryboard,
+  generateVideo,
   reuseMaterialAsset,
+  selectCharacterSheetAsset,
+  selectKeyframe,
+  selectKeyframeFrame,
+  selectStoryboard,
+  selectVideo,
+  updateWorkflowSettings,
 } from "@/features/workflows";
 import {
   normalizeWorkflowCanvasStage,
@@ -996,7 +1011,7 @@ const {
   createOutputMenuLabel, createDurationMenuLabel, createSeedMenuLabel,
   createReviewSections, createReviewRequiredItems, createReviewConfiguredCount,
   canSubmitCreateReview, toggleCreateComposerMenu,
-  startCreateWorkflow: startCreateWorkflowBase,
+  startCreateWorkflow,
   closeCreateReview: closeCreateReviewBase,
   handleCreateTextFileChange, handleCreateWorkflow: handleCreateWorkflowBase,
   readTextFile, optionalInteger, seedLabel,
@@ -1045,23 +1060,6 @@ const workflowSettingsDraft = reactive({
   minDurationSeconds: "5",
   maxDurationSeconds: "12",
 });
-const storyboardDurationMode = ref<"auto" | "manual">("auto");
-const storyboardManualDurationSeconds = ref("8");
-const STORYBOARD_MANUAL_DURATION_MIN_SECONDS = 5;
-const STORYBOARD_MANUAL_DURATION_MAX_SECONDS = 12;
-
-const createForm = reactive({
-  title: "",
-  transcriptText: "",
-  aspectRatio: "16:9",
-  stylePreset: "",
-  textAnalysisModel: "",
-  imageModel: "",
-  videoModel: "",
-  videoSize: "",
-  keyframeSeed: "",
-  videoSeed: "",
-});
 const selectedWorkflowId = computed(() => {
   const workflowId = route.params.workflowId;
   return typeof workflowId === "string" ? workflowId : "";
@@ -1075,7 +1073,6 @@ const workflowCharacterSheets = computed(() => selectedWorkflow.value?.character
 const missingCharacterSheets = computed(() =>
   workflowCharacterSheets.value.filter((sheet) => !selectedCharacterSheetVersion(sheet))
 );
-const imagePreviewCaption = computed(() => imagePreviewState.caption || imagePreviewState.alt || "图片预览");
 const selectedStoryboardVersion = computed(() => {
   const versions = selectedWorkflow.value?.storyboardVersions ?? [];
   if (!versions.length) {
@@ -1191,22 +1188,6 @@ const canvasStageItems = computed(() => {
   ];
 });
 
-const filteredWorkflows = computed(() => {
-  const keyword = workflowSearch.value.trim().toLowerCase();
-  if (!keyword) {
-    return workflows.value;
-  }
-  return workflows.value.filter((item) => {
-    const haystack = [
-      item.title,
-      item.status,
-      item.currentStage,
-      item.aspectRatio,
-    ].join(" ").toLowerCase();
-    return haystack.includes(keyword);
-  });
-});
-
 // focusWorkflowSearch, clearWorkflowSearch, workflowCompletionPercentage
 // are imported from @/composables/workflow/useWorkflowList
 
@@ -1250,37 +1231,6 @@ const workflowParameterTags = computed(() => {
     },
   ];
 });
-const createTranscriptCharacterCount = computed(() => createForm.transcriptText.trim().length);
-const createModelMenuLabel = computed(() => {
-  const labels = [
-    valueOptionLabel(textModelOptions.value, createForm.textAnalysisModel, ""),
-    valueOptionLabel(imageModelOptions.value, createForm.imageModel, ""),
-    valueOptionLabel(videoModelOptions.value, createForm.videoModel, ""),
-  ].filter(Boolean);
-  return labels.length ? `模型 · ${labels[labels.length - 1]}` : "模型链路";
-});
-const createOutputMenuLabel = computed(() => {
-  const ratio = valueOptionLabel(aspectRatioOptions.value, createForm.aspectRatio, createForm.aspectRatio || "未设置");
-  const size = valueOptionLabel(videoSizeOptions.value, createForm.videoSize, createForm.videoSize || "未设置");
-  return `输出 · ${ratio} · ${size}`;
-});
-const createDurationMenuLabel = computed(() => {
-  if (storyboardDurationMode.value === "auto") {
-    return "时长 · 自动";
-  }
-  return normalizedStoryboardManualDurationSeconds.value === null
-    ? "时长 · 手动"
-    : `时长 · ${normalizedStoryboardManualDurationSeconds.value}s`;
-});
-const createSeedMenuLabel = computed(() => {
-  const keyframeSeed = seedLabel(createForm.keyframeSeed);
-  const videoSeed = seedLabel(createForm.videoSeed);
-  if (keyframeSeed === "自动" && videoSeed === "自动") {
-    return "Seed · 自动";
-  }
-  return `Seed · K ${keyframeSeed} / V ${videoSeed}`;
-});
-
 const canFinalize = computed(() => {
   const workflow = selectedWorkflow.value;
   if (!workflow || !workflow.clipSlots.length) {
@@ -1335,128 +1285,6 @@ const workflowSettingsValidationMessage = computed(() => {
   return "";
 });
 
-const createReviewSections = computed<CreateReviewSection[]>(() => [
-  {
-    key: "base",
-    eyebrow: "Workflow Base",
-    title: "基础信息",
-    items: [
-      {
-        key: "title",
-        label: "标题",
-        valueLabel: createForm.title.trim() || "未填写",
-        configured: Boolean(createForm.title.trim()),
-        required: true,
-      },
-      {
-        key: "transcriptText",
-        label: "正文",
-        valueLabel: createForm.transcriptText.trim() ? "已填写" : "未填写",
-        configured: Boolean(createForm.transcriptText.trim()),
-        required: true,
-      },
-    ],
-  },
-  {
-    key: "storyboard",
-    eyebrow: "Stage 1",
-    title: "文本分镜",
-    items: [
-      {
-        key: "textAnalysisModel",
-        label: "文本模型",
-        valueLabel: valueOptionLabel(textModelOptions.value, createForm.textAnalysisModel, "未设置"),
-        configured: Boolean(createForm.textAnalysisModel),
-        required: true,
-      },
-      {
-        key: "storyboardDurationSeconds",
-        label: "镜头时长",
-        valueLabel: storyboardDurationMode.value === "auto"
-          ? "自动"
-          : (normalizedStoryboardManualDurationSeconds.value === null ? "未设置" : `${normalizedStoryboardManualDurationSeconds.value} 秒`),
-        configured: isStoryboardDurationConfigured.value,
-        required: true,
-      },
-    ],
-  },
-  {
-    key: "keyframe",
-    eyebrow: "Stage 2",
-    title: "关键帧",
-    items: [
-      {
-        key: "imageModel",
-        label: "关键帧模型",
-        valueLabel: valueOptionLabel(imageModelOptions.value, createForm.imageModel, "未设置"),
-        configured: Boolean(createForm.imageModel),
-        required: true,
-      },
-      {
-        key: "stylePreset",
-        label: "风格预设",
-        valueLabel: keyOptionLabel(stylePresetOptions.value, createForm.stylePreset, "未设置"),
-        configured: Boolean(createForm.stylePreset),
-        required: true,
-      },
-      {
-        key: "aspectRatio",
-        label: "长宽比",
-        valueLabel: valueOptionLabel(aspectRatioOptions.value, createForm.aspectRatio, "未设置"),
-        configured: Boolean(createForm.aspectRatio),
-        required: true,
-      },
-      {
-        key: "keyframeSeed",
-        label: "关键帧 Seed",
-        valueLabel: createForm.keyframeSeed === "" ? "自动" : createForm.keyframeSeed,
-        configured: true,
-        required: false,
-      },
-    ],
-  },
-  {
-    key: "video",
-    eyebrow: "Stage 3",
-    title: "视频生成",
-    items: [
-      {
-        key: "videoModel",
-        label: "视频模型",
-        valueLabel: valueOptionLabel(videoModelOptions.value, createForm.videoModel, "未设置"),
-        configured: Boolean(createForm.videoModel),
-        required: true,
-      },
-      {
-        key: "videoSize",
-        label: "输出尺寸",
-        valueLabel: valueOptionLabel(videoSizeOptions.value, createForm.videoSize, "未设置"),
-        configured: Boolean(createForm.videoSize),
-        required: true,
-      },
-      {
-        key: "videoSeed",
-        label: "视频 Seed",
-        valueLabel: createForm.videoSeed === "" ? "自动" : createForm.videoSeed,
-        configured: true,
-        required: false,
-      },
-    ],
-  },
-]);
-
-const createReviewRequiredItems = computed(() =>
-  createReviewSections.value.flatMap((section) => section.items.filter((item) => item.required))
-);
-
-const createReviewConfiguredCount = computed(() =>
-  createReviewRequiredItems.value.filter((item) => item.configured).length
-);
-
-const canSubmitCreateReview = computed(() =>
-  createReviewRequiredItems.value.every((item) => item.configured)
-);
-
 function workflowCanvasStageFromCurrent(workflow: WorkflowDetail): CanvasStageKey {
   return resolveWorkflowCanvasStageFromCurrent(workflow, hasMissingCharacterSheets);
 }
@@ -1490,10 +1318,6 @@ function stageVersionDisplayTitle(version: StageVersion) {
   const versionPrefixPattern = new RegExp(`^V${version.versionNo}[.、\\-_:：·\\s]*`, "i");
   const dedupedTitle = rawTitle.replace(versionPrefixPattern, "").trim();
   return dedupedTitle || rawTitle || "未命名版本";
-}
-
-function toggleCreateComposerMenu(menu: "" | "models" | "output" | "duration" | "seed") {
-  createComposerMenu.value = createComposerMenu.value === menu ? "" : menu;
 }
 
 function selectCanvasClip(clipIndex: number) {
@@ -1660,10 +1484,6 @@ function closeCharacterSummaryPreview() {
 // characterSheetVersions, hasMissingCharacterSheets, characterSheetPreviewFrames
 // are imported from @/composables/workflow/useCharacterSheetUtils
 
-function selectedCharacterSheetVersion(sheet: WorkflowCharacterSheet) {
-  return characterSheetVersions(sheet).find((version) => version.selected) ?? null;
-}
-
 function previewCharacterSheetVersion(sheet: WorkflowCharacterSheet) {
   const versions = characterSheetVersions(sheet);
   const previewId = previewCharacterSheetVersionIds[characterSheetKey(sheet)] || "";
@@ -1739,31 +1559,6 @@ function selectedKeyframePreviewFrames(slot: WorkflowClipSlot) {
   return frames;
 }
 
-const normalizedStoryboardManualDurationSeconds = computed(() => parseStoryboardDurationSeconds(storyboardManualDurationSeconds.value));
-const storyboardManualDurationValidationMessage = computed(() => {
-  if (storyboardDurationMode.value === "auto") {
-    return "";
-  }
-  if (!storyboardManualDurationSeconds.value.trim()) {
-    return `请先填写合法的镜头时长（${STORYBOARD_MANUAL_DURATION_MIN_SECONDS}-${STORYBOARD_MANUAL_DURATION_MAX_SECONDS} 秒）`;
-  }
-  if (normalizedStoryboardManualDurationSeconds.value === null) {
-    return `请先填写合法的镜头时长（${STORYBOARD_MANUAL_DURATION_MIN_SECONDS}-${STORYBOARD_MANUAL_DURATION_MAX_SECONDS} 秒）`;
-  }
-  if (
-    normalizedStoryboardManualDurationSeconds.value < STORYBOARD_MANUAL_DURATION_MIN_SECONDS
-    || normalizedStoryboardManualDurationSeconds.value > STORYBOARD_MANUAL_DURATION_MAX_SECONDS
-  ) {
-    return `手动模式的镜头时长需在 ${STORYBOARD_MANUAL_DURATION_MIN_SECONDS}-${STORYBOARD_MANUAL_DURATION_MAX_SECONDS} 秒之间`;
-  }
-  return "";
-});
-const isStoryboardDurationConfigured = computed(() => {
-  if (storyboardDurationMode.value === "auto") {
-    return true;
-  }
-  return Boolean(normalizedStoryboardManualDurationSeconds.value !== null && !storyboardManualDurationValidationMessage.value);
-});
 
 async function closeCreateReview() {
   createComposerVisible.value = false;
@@ -1772,12 +1567,6 @@ async function closeCreateReview() {
   if (selectedWorkflowId.value) {
     await router.push("/workflows");
   }
-}
-
-function startCreateWorkflow() {
-  createComposerVisible.value = true;
-  createComposerMenu.value = "";
-  createStatusText.value = "在这里输入正文，创建一个新的阶段画布。";
 }
 
 function syncWorkflowSettingsDraft(workflow: WorkflowDetail) {
@@ -1870,89 +1659,6 @@ function switchWorkflowStage(stage: DetailRouteStageKey) {
       stage,
     },
   });
-}
-
-async function loadOptions() {
-  loadingOptions.value = true;
-  try {
-    const result = await fetchGenerationOptions();
-    options.value = result;
-    if (!createForm.stylePreset) {
-      createForm.stylePreset = result.defaultStylePreset || result.stylePresets[0]?.key || "cinematic";
-    }
-    if (!createForm.textAnalysisModel) {
-      createForm.textAnalysisModel = result.defaultTextAnalysisModel || result.textAnalysisModels?.[0]?.value || "";
-    }
-    if (!createForm.imageModel) {
-      createForm.imageModel = result.imageModels?.[0]?.value || "";
-    }
-    if (!createForm.videoModel) {
-      createForm.videoModel = result.defaultVideoModel || result.videoModels[0]?.value || "";
-    }
-    if (!createForm.videoSize) {
-      syncVideoSizeSelection(createForm, result.defaultVideoSize);
-    }
-    if (!createForm.aspectRatio) {
-      createForm.aspectRatio = (result.defaultAspectRatio as "9:16" | "16:9" | null) || "16:9";
-    }
-    createStatusText.value = "正文准备好后即可创建画布。";
-  } finally {
-    loadingOptions.value = false;
-  }
-}
-
-async function handleCreateTextFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) {
-    return;
-  }
-  const authenticated = await requireAuth({
-    title: "登录后上传正文",
-    message: "正文上传会保存到你的账号下，请先登录或使用邀请码注册。",
-  });
-  if (!authenticated) {
-    input.value = "";
-    return;
-  }
-  uploadingCreateText.value = true;
-  createStatusText.value = "正在读取正文...";
-  try {
-    const [, content] = await Promise.all([uploadText(file), readTextFile(file)]);
-    if (content.trim()) {
-      createForm.transcriptText = content;
-      if (!createForm.title.trim()) {
-        createForm.title = file.name.replace(/\.txt$/i, "");
-      }
-    }
-    createStatusText.value = "正文已填入画布输入框。";
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "正文上传失败";
-    createStatusText.value = message;
-  } finally {
-    uploadingCreateText.value = false;
-    input.value = "";
-  }
-}
-
-async function loadWorkflows() {
-  const authenticated = await requireAuth({
-    title: "登录后查看工作流",
-    message: "阶段工作流只展示你的个人数据，请先登录或使用邀请码注册。",
-  });
-  if (!authenticated) {
-    workflows.value = [];
-    messageApi.warning("登录后可查看阶段工作流。");
-    return;
-  }
-  loadingWorkflows.value = true;
-  try {
-    workflows.value = await fetchWorkflows();
-  } catch (error) {
-    messageApi.error(error instanceof Error ? error.message : "工作流列表加载失败");
-  } finally {
-    loadingWorkflows.value = false;
-  }
 }
 
 async function loadWorkflowDetail(workflowId: string) {

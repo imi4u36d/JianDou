@@ -252,8 +252,8 @@ export interface UseGenerationFormOptions {
   promptText: Ref<string>;
 }
 
-export function useGenerationForm(options: UseGenerationFormOptions) {
-  const { promptText } = options;
+export function useGenerationForm(formOptions: UseGenerationFormOptions) {
+  const { promptText } = formOptions;
 
   // ---------------------------------------------------------------------------
   // Auth
