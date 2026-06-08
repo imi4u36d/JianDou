@@ -72,15 +72,25 @@
               <span class="task-list__progress" aria-hidden="true"><i :style="{ width: `${taskProgress(task)}%` }"></i></span>
             </span>
             <span class="task-list__side">
-              <button
-                v-if="task.status === 'FAILED'"
-                class="task-list__retry"
-                type="button"
-                :disabled="managingTaskId === task.id"
-                @click.stop="handleRetry(task)"
-              >
-                重试
-              </button>
+              <span class="task-list__side-actions">
+                <button
+                  v-if="task.status === 'FAILED'"
+                  class="task-list__retry"
+                  type="button"
+                  :disabled="managingTaskId === task.id"
+                  @click.stop="handleRetry(task)"
+                >
+                  重试
+                </button>
+                <button
+                  class="task-list__delete"
+                  type="button"
+                  :disabled="managingTaskId === task.id"
+                  @click.stop="handleDelete(task)"
+                >
+                  删除
+                </button>
+              </span>
               <strong>{{ taskProgress(task) }}%</strong>
             </span>
           </article>
@@ -223,6 +233,7 @@
           <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="btn-warning btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">终止</button>
           <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="btn-primary btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">继续</button>
           <button class="btn-secondary btn-sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">刷新</button>
+          <button v-if="selectedTaskActionTask" class="btn-danger btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">删除任务</button>
         </div>
       </section>
     </main>
@@ -237,7 +248,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import { usePolling } from "@/composables/usePolling";
-import { continueTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, retryTask, terminateTask } from "@/features/tasks";
+import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, retryTask, terminateTask } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import {
@@ -897,6 +908,37 @@ async function handleTerminate(task: TaskListItem) {
   }
 }
 
+async function handleDelete(task: TaskListItem) {
+  if (managingTaskId.value) {
+    return;
+  }
+  const authenticated = await requireAuth({
+    title: "登录后操作任务",
+    message: "任务删除后无法恢复，请先登录或使用邀请码注册。",
+  });
+  if (!authenticated) {
+    messageApi.error("登录后可继续操作任务");
+    return;
+  }
+  const ok = window.confirm(`确认删除任务"${task.title || '未命名任务'}"吗？删除后无法恢复。`);
+  if (!ok) {
+    return;
+  }
+  managingTaskId.value = task.id;
+  try {
+    await deleteTask(task.id);
+    tasks.value = tasks.value.filter((t) => t.id !== task.id);
+    if (selectedTaskId.value === task.id) {
+      clearSelectedTask();
+    }
+    messageApi.success("任务已删除");
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "删除任务失败");
+  } finally {
+    managingTaskId.value = "";
+  }
+}
+
 /**
  * 格式化日期时间。
  * @param value 待处理的值
@@ -1367,22 +1409,31 @@ onUnmounted(() => {
   font-size: 0.78rem;
 }
 
-.task-list__retry {
+.task-list__side-actions {
+  display: flex;
+  gap: 4px;
+  align-self: start;
+}
+
+.task-list__retry,
+.task-list__delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: start;
-  min-width: 54px;
-  height: 28px;
-  padding: 0 10px;
+  min-width: 42px;
+  height: 26px;
+  padding: 0 8px;
   border: 0;
   border-radius: 999px;
-  background: rgba(229, 72, 101, 0.1);
-  color: var(--accent-danger);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.task-list__retry {
+  background: rgba(229, 72, 101, 0.1);
+  color: var(--accent-danger);
 }
 
 .task-list__retry:hover:not(:disabled),
@@ -1391,7 +1442,19 @@ onUnmounted(() => {
   background: rgba(255, 118, 150, 0.1);
 }
 
-.task-list__retry:disabled {
+.task-list__delete {
+  background: rgba(15, 20, 25, 0.06);
+  color: var(--text-muted);
+}
+
+.task-list__delete:hover:not(:disabled),
+.task-list__delete:focus-visible {
+  background: rgba(229, 72, 101, 0.1);
+  color: var(--accent-danger);
+}
+
+.task-list__retry:disabled,
+.task-list__delete:disabled {
   cursor: not-allowed;
   opacity: 0.58;
 }

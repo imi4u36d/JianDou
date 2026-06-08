@@ -1,5 +1,6 @@
 export {
   continueTask,
+  deleteTask,
   fetchTask,
   fetchTaskTrace,
   fetchTasks,
