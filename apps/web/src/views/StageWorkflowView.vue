@@ -2278,7 +2278,7 @@ onBeforeUnmount(() => {
   color: #fff;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 12px 28px rgba(0, 161, 194, 0.2);
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.2);
 }
 
 .workflow-new-button span {
@@ -2308,9 +2308,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-search-box__control:focus-within {
-  border-color: rgba(0, 161, 194, 0.42);
+  border-color: rgba(124, 58, 237, 0.42);
   box-shadow:
-    0 0 0 3px rgba(0, 161, 194, 0.1),
+    0 0 0 3px rgba(124, 58, 237, 0.1),
     0 10px 26px rgba(15, 20, 25, 0.06);
 }
 
@@ -2439,9 +2439,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-search-box__control:focus-within {
-  border-color: rgba(0, 161, 194, 0.42);
+  border-color: rgba(124, 58, 237, 0.42);
   box-shadow:
-    0 0 0 3px rgba(0, 161, 194, 0.1),
+    0 0 0 3px rgba(124, 58, 237, 0.1),
     0 10px 26px rgba(15, 20, 25, 0.06);
 }
 
@@ -2470,7 +2470,7 @@ onBeforeUnmount(() => {
 }
 
 .workflow-project-card:hover {
-  border-color: rgba(0, 161, 194, 0.2);
+  border-color: rgba(124, 58, 237, 0.2);
   box-shadow:
     0 8px 20px rgba(15, 20, 25, 0.06),
     0 2px 6px rgba(15, 20, 25, 0.04);
@@ -2478,9 +2478,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-project-card-active {
-  border-color: rgba(0, 161, 194, 0.35);
+  border-color: rgba(124, 58, 237, 0.35);
   box-shadow: var(--shadow-glow);
-  background: linear-gradient(180deg, rgba(0, 161, 194, 0.03) 0%, #fff 0%);
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.03) 0%, #fff 0%);
 }
 
 .workflow-project-card__open {
@@ -2496,11 +2496,11 @@ onBeforeUnmount(() => {
 }
 
 .workflow-project-card:hover .workflow-project-card__open {
-  background: rgba(0, 161, 194, 0.03);
+  background: rgba(124, 58, 237, 0.03);
 }
 
 .workflow-project-card__open:active {
-  background: rgba(0, 161, 194, 0.06);
+  background: rgba(124, 58, 237, 0.06);
 }
 
 .workflow-project-card__header {
@@ -2518,7 +2518,7 @@ onBeforeUnmount(() => {
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(0, 161, 194, 0.12) 0%, rgba(0, 102, 255, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(0, 102, 255, 0.08) 100%);
   color: var(--accent-cyan);
   padding: 8px;
   display: grid;
@@ -2603,7 +2603,7 @@ onBeforeUnmount(() => {
 .workflow-progress-bar__fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent-cyan) 0%, rgba(0, 161, 194, 0.6) 100%);
+  background: linear-gradient(90deg, var(--accent-cyan) 0%, rgba(124, 58, 237, 0.6) 100%);
   transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -2708,7 +2708,7 @@ onBeforeUnmount(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: rgba(0, 161, 194, 0.06);
+  background: rgba(124, 58, 237, 0.06);
   color: var(--accent-cyan);
   margin: 0 auto 4px;
 }
@@ -3045,7 +3045,7 @@ onBeforeUnmount(() => {
   min-height: 360px;
   padding: 22px;
   background:
-    radial-gradient(circle at top left, rgba(0, 161, 194, 0.08), transparent 24%),
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.94));
 }
 
@@ -3249,9 +3249,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-create-popover .field-input:focus {
-  border-color: rgba(0, 161, 194, 0.22);
+  border-color: rgba(124, 58, 237, 0.22);
   box-shadow:
-    0 0 0 3px rgba(0, 161, 194, 0.08),
+    0 0 0 3px rgba(124, 58, 237, 0.08),
     0 8px 18px rgba(15, 20, 25, 0.04);
 }
 
@@ -3297,7 +3297,7 @@ onBeforeUnmount(() => {
   background: var(--accent-cyan);
   color: #fff;
   font-size: 1.2rem;
-  box-shadow: 0 12px 28px rgba(0, 161, 194, 0.24);
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.24);
 }
 
 .workflow-composer-submit-inline {
@@ -3360,8 +3360,8 @@ button:disabled {
 
 .workflow-stage-step-active,
 .workflow-stage-step:hover {
-  border-color: rgba(0, 161, 194, 0.28);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(124, 58, 237, 0.08);
   color: var(--accent-cyan);
 }
 
@@ -3520,8 +3520,8 @@ button:disabled {
 }
 
 .version-switcher__tab-active {
-  border-color: rgba(0, 161, 194, 0.28);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(124, 58, 237, 0.08);
 }
 
 .version-switcher__tab-main {
@@ -3590,8 +3590,8 @@ button:disabled {
 
 .compact-version-card-active,
 .video-version-card-active {
-  border-color: rgba(0, 161, 194, 0.28);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(124, 58, 237, 0.08);
 }
 
 .video-version-card__title {
@@ -3641,8 +3641,8 @@ button:disabled {
 }
 
 .missing-clip-card:hover {
-  border-color: rgba(0, 161, 194, 0.28);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(124, 58, 237, 0.08);
 }
 
 .compact-version-card__badge,
@@ -3660,7 +3660,7 @@ button:disabled {
 }
 
 .compact-version-card__badge {
-  background: rgba(0, 161, 194, 0.1);
+  background: rgba(124, 58, 237, 0.1);
   color: var(--accent-cyan);
 }
 
@@ -3740,7 +3740,7 @@ button:disabled {
   gap: 8px;
   min-height: 108px;
   padding: 12px 14px;
-  border: 1px solid rgba(0, 161, 194, 0.14);
+  border: 1px solid rgba(124, 58, 237, 0.14);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(246, 250, 252, 0.98), rgba(239, 245, 248, 0.92));
   text-align: left;
@@ -3748,8 +3748,8 @@ button:disabled {
 }
 
 .character-mini-card__summary:hover {
-  border-color: rgba(0, 161, 194, 0.24);
-  box-shadow: 0 10px 24px rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.24);
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.08);
 }
 
 .character-mini-card__summary-label,
@@ -3896,8 +3896,8 @@ button:disabled {
 
 .clip-timeline__item-active,
 .clip-timeline__item:hover {
-  border-color: rgba(0, 161, 194, 0.28);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(124, 58, 237, 0.08);
 }
 
 .clip-timeline__item span {
@@ -4083,8 +4083,8 @@ button:disabled {
 
 .stage-toggle-chip-active,
 .rating-pill-active {
-  border-color: rgba(0, 161, 194, 0.24);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.24);
+  background: rgba(124, 58, 237, 0.08);
   color: var(--accent-cyan);
 }
 

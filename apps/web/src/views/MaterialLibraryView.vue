@@ -827,8 +827,8 @@ watch(
 }
 
 .material-filter-button-active {
-  border-color: rgba(0, 161, 194, 0.24);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.24);
+  background: rgba(124, 58, 237, 0.08);
   color: var(--accent-cyan);
 }
 
@@ -963,7 +963,7 @@ watch(
 
 .material-card:hover,
 .material-card-selected {
-  border-color: rgba(0, 161, 194, 0.26);
+  border-color: rgba(124, 58, 237, 0.26);
   box-shadow: var(--shadow-glow);
 }
 

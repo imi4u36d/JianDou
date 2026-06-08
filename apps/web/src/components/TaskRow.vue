@@ -201,11 +201,11 @@ function handleSelect() {
 }
 .neo-row:hover {
   transform: translateY(-2px);
-  border-color: rgba(0, 161, 194, 0.2);
+  border-color: rgba(124, 58, 237, 0.2);
   box-shadow: var(--shadow-soft);
 }
 .neo-row-selected {
-  border-color: rgba(0, 161, 194, 0.28);
+  border-color: rgba(124, 58, 237, 0.28);
   box-shadow: var(--shadow-glow);
 }
 .task-row__rail {
@@ -291,7 +291,7 @@ function handleSelect() {
 .neo-button-accent {
   background: var(--bg-accent);
   color: #fff;
-  box-shadow: 0 12px 28px rgba(0, 161, 194, 0.18);
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.18);
 }
 .neo-button-accent:active {
   box-shadow: var(--shadow-glow);

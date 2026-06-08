@@ -398,15 +398,15 @@ onBeforeUnmount(() => {
 }
 
 .app-select--field .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(0, 161, 194, 0.24);
+  border-color: rgba(124, 58, 237, 0.24);
   box-shadow: 0 8px 20px rgba(15, 20, 25, 0.04);
 }
 
 .app-select--field.app-select--open .app-select__trigger,
 .app-select--field .app-select__trigger:focus-visible {
-  border-color: rgba(0, 161, 194, 0.42);
+  border-color: rgba(124, 58, 237, 0.42);
   box-shadow:
-    0 0 0 3px rgba(0, 161, 194, 0.1),
+    0 0 0 3px rgba(124, 58, 237, 0.1),
     0 10px 26px rgba(15, 20, 25, 0.06);
 }
 
@@ -430,7 +430,7 @@ onBeforeUnmount(() => {
 
 .app-select--toolbar.app-select--open .app-select__trigger,
 .app-select--toolbar .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(0, 161, 194, 0.24);
+  border-color: rgba(124, 58, 237, 0.24);
   box-shadow: var(--shadow-soft);
 }
 
@@ -576,13 +576,13 @@ onBeforeUnmount(() => {
 
 .app-select__option:hover:not(:disabled),
 .app-select__option-highlighted {
-  border-color: rgba(0, 161, 194, 0.18);
-  background: rgba(0, 161, 194, 0.07);
+  border-color: rgba(124, 58, 237, 0.18);
+  background: rgba(124, 58, 237, 0.07);
 }
 
 .app-select__option-selected {
-  border-color: rgba(0, 161, 194, 0.24);
-  background: rgba(0, 161, 194, 0.1);
+  border-color: rgba(124, 58, 237, 0.24);
+  background: rgba(124, 58, 237, 0.1);
 }
 
 .app-select__menu--admin .app-select__option {

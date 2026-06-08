@@ -1324,7 +1324,7 @@ onUnmounted(() => {
   background: var(--accent-cyan);
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 12px 28px rgba(0, 161, 194, 0.24);
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.24);
 }
 
 .composer-submit:disabled {
@@ -1445,8 +1445,8 @@ onUnmounted(() => {
 }
 
 .ratio-toggle__item-active {
-  border-color: rgba(0, 161, 194, 0.22);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.22);
+  background: rgba(124, 58, 237, 0.08);
   color: var(--accent-cyan);
 }
 
@@ -1525,12 +1525,12 @@ onUnmounted(() => {
 
 .seed-library__item:hover {
   transform: translateY(-1px);
-  border-color: rgba(0, 161, 194, 0.22);
+  border-color: rgba(124, 58, 237, 0.22);
 }
 
 .seed-library__item-active {
-  border-color: rgba(0, 161, 194, 0.3);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.08);
 }
 
 .seed-library__item strong {
@@ -1625,7 +1625,7 @@ onUnmounted(() => {
   place-items: center;
   background:
     radial-gradient(circle at center, #fff 56%, transparent 57%),
-    conic-gradient(from 220deg, rgba(15, 20, 25, 0.08) 0 25%, #00a1c2 45%, #246bfe 100%);
+    conic-gradient(from 220deg, rgba(15, 20, 25, 0.08) 0 25%, #7c3aed 45%, #6366f1 100%);
   box-shadow: var(--shadow-soft);
 }
 
@@ -1635,7 +1635,7 @@ onUnmounted(() => {
   inset: 18px;
   border-radius: 50%;
   background:
-    conic-gradient(from 220deg, rgba(0, 161, 194, 0.16) 0 var(--progress), rgba(15, 20, 25, 0.05) var(--progress) 100%);
+    conic-gradient(from 220deg, rgba(124, 58, 237, 0.16) 0 var(--progress), rgba(15, 20, 25, 0.05) var(--progress) 100%);
   mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 15px));
 }
 

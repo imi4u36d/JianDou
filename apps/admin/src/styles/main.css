@@ -14,23 +14,23 @@
   font-weight: 400;
   color: #17202a;
   background:
-    radial-gradient(circle at top left, rgba(238, 168, 85, 0.2), transparent 24%),
-    radial-gradient(circle at 82% 16%, rgba(77, 167, 182, 0.18), transparent 24%),
-    linear-gradient(180deg, #f4efe7 0%, #eef3f1 100%);
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 24%),
+    radial-gradient(circle at 82% 16%, rgba(99, 102, 241, 0.1), transparent 24%),
+    linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --jd-bg: #f4efe7;
+  --jd-bg: #f5f3ff;
   --jd-surface: rgba(255, 255, 255, 0.78);
   --jd-surface-strong: rgba(255, 255, 255, 0.92);
   --jd-border: rgba(23, 32, 42, 0.08);
   --jd-text: #17202a;
   --jd-text-soft: #5c6773;
-  --jd-accent: #c46b2f;
-  --jd-accent-soft: rgba(196, 107, 47, 0.12);
-  --jd-secondary: #2f7a88;
-  --jd-secondary-soft: rgba(47, 122, 136, 0.12);
+  --jd-accent: #7c3aed;
+  --jd-accent-soft: rgba(124, 58, 237, 0.12);
+  --jd-secondary: #6366f1;
+  --jd-secondary-soft: rgba(99, 102, 241, 0.12);
   --jd-danger: #bf4e4e;
 }
 
@@ -78,8 +78,8 @@ select {
 .page-shell {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 8% 0%, rgba(196, 107, 47, 0.14), transparent 22%),
-    radial-gradient(circle at 100% 0%, rgba(47, 122, 136, 0.12), transparent 26%),
+    radial-gradient(circle at 8% 0%, rgba(124, 58, 237, 0.1), transparent 22%),
+    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.08), transparent 26%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.1));
 }
 
@@ -93,10 +93,10 @@ select {
 .el-button--primary {
   --el-button-bg-color: var(--jd-accent);
   --el-button-border-color: var(--jd-accent);
-  --el-button-hover-bg-color: #b76027;
-  --el-button-hover-border-color: #b76027;
-  --el-button-active-bg-color: #9e5422;
-  --el-button-active-border-color: #9e5422;
+  --el-button-hover-bg-color: #6d28d9;
+  --el-button-hover-border-color: #6d28d9;
+  --el-button-active-bg-color: #5b21b6;
+  --el-button-active-border-color: #5b21b6;
 }
 
 .el-menu {
@@ -104,7 +104,7 @@ select {
   --el-menu-border-color: transparent;
   --el-menu-text-color: var(--jd-text-soft);
   --el-menu-active-color: var(--jd-accent);
-  --el-menu-hover-bg-color: rgba(196, 107, 47, 0.08);
+  --el-menu-hover-bg-color: rgba(124, 58, 237, 0.08);
 }
 
 .el-input__wrapper,

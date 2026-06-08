@@ -1919,7 +1919,7 @@ onBeforeUnmount(() => {
 
 .home-active-task-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(0, 161, 194, 0.22);
+  border-color: rgba(124, 58, 237, 0.22);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.96) inset,
     0 12px 30px rgba(20, 28, 36, 0.07);

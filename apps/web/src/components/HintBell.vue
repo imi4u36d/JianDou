@@ -246,8 +246,8 @@ onBeforeUnmount(() => {
 }
 
 .hint-bell-active {
-  border-color: rgba(0, 161, 194, 0.24);
-  background: rgba(0, 161, 194, 0.08);
+  border-color: rgba(124, 58, 237, 0.24);
+  background: rgba(124, 58, 237, 0.08);
   color: var(--accent-cyan);
 }
 

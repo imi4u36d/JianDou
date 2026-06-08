@@ -1283,12 +1283,12 @@ onUnmounted(() => {
 }
 
 .task-list__item:focus-visible {
-  outline: 2px solid rgba(0, 161, 194, 0.34);
+  outline: 2px solid rgba(124, 58, 237, 0.34);
   outline-offset: 3px;
 }
 
 .task-list__item-active {
-  background: linear-gradient(90deg, rgba(0, 161, 194, 0.1), rgba(0, 161, 194, 0));
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.1), rgba(124, 58, 237, 0));
 }
 
 .task-list__item:hover {
@@ -1693,7 +1693,7 @@ onUnmounted(() => {
   color: var(--accent-cyan);
   font-size: 0.82rem;
   font-weight: 800;
-  border-bottom: 1px solid rgba(0, 161, 194, 0.28);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.28);
 }
 
 .detail-note-block {
