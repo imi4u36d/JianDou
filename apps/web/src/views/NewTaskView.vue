@@ -57,10 +57,7 @@
           </div>
 
           <button class="composer-submit" type="submit" :disabled="submitting || !isFormReady || loadingOptions" :title="submitLabel">
-            <svg v-if="!submitting" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 19V5" />
-              <path d="m5 12 7-7 7 7" />
-            </svg>
+            <IconUpload v-if="!submitting" />
             <span v-else>...</span>
           </button>
         </section>
@@ -334,6 +331,7 @@ import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
 import { useTaskProgress } from "@/components/generate/useTaskProgress";
 import HintBell from "@/components/HintBell.vue";
+import { IconUpload } from "@/components/icons";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { formatVideoSizeLabel } from "@/utils/presentation";
 import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";

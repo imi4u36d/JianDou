@@ -8,10 +8,7 @@
       :aria-label="title || '查看提示'"
       @click="toggle"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M15 17H9a2 2 0 0 1-2-2v-3.2c0-1.5-.4-2.9-1.2-4.2A5.9 5.9 0 0 1 11 4h2a5.9 5.9 0 0 1 5.2 3.6c.5 1 .8 2.1.8 3.2V15a2 2 0 0 1-2 2Z" />
-        <path d="M10 20a2.5 2.5 0 0 0 4 0" />
-      </svg>
+      <IconBell />
       <span v-if="pinned" class="hint-bell-dot"></span>
     </button>
   </div>
@@ -41,6 +38,7 @@
  * 提示组件。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { IconBell } from "@/components/icons";
 
 const props = withDefaults(
   defineProps<{

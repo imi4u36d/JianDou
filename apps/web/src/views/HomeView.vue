@@ -92,7 +92,7 @@
           <div class="home-composer__toolbar">
             <div class="home-menu">
               <button type="button" class="home-tool home-tool-accent" :class="{ 'home-tool-active': activeMenu === 'mode' }" @click="toggleMenu('mode')">
-                <span class="home-tool__icon" v-html="selectedMode.iconSvg"></span>
+                <span class="home-tool__icon"><IconVideo v-if="selectedMode.iconName === 'video'" /><IconImage v-else-if="selectedMode.iconName === 'image'" /><IconCharacter v-else /></span>
                 {{ selectedMode.label }}
               </button>
               <transition name="home-popover-float">
@@ -106,15 +106,13 @@
                     :class="{ 'home-popover__item-active': selectedModeValue === option.value }"
                     @click="selectMode(option.value)"
                   >
-                    <span class="home-popover__icon" v-html="option.iconSvg"></span>
+                    <span class="home-popover__icon"><IconVideo v-if="option.iconName === 'video'" /><IconImage v-else-if="option.iconName === 'image'" /><IconCharacter v-else /></span>
                     <span>
                       <strong>{{ option.label }}</strong>
                       <small>{{ option.description }}</small>
                     </span>
                     <span v-if="selectedModeValue === option.value" class="home-popover__check" aria-hidden="true">
-                      <svg viewBox="0 0 20 20" fill="none">
-                        <path d="M4.5 10.5 8.2 14.2 15.5 5.8" />
-                      </svg>
+                      <IconCheck size="sm" />
                     </span>
                   </button>
                 </div>
@@ -522,6 +520,7 @@ import { usePromptEditor } from "@/composables/home/usePromptEditor";
 import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
 import { useGenerationForm, type ModeValue, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
+import { IconCheck, IconVideo, IconImage, IconCharacter } from "@/components/icons";
 
 type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention" | "seed";
 
@@ -873,6 +872,7 @@ onBeforeUnmount(() => {
 .home-page {
   min-height: 100%;
   padding: 72px 48px 56px;
+  background: #fff;
   color: var(--text-strong);
 }
 

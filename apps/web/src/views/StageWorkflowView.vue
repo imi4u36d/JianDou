@@ -2,20 +2,16 @@
   <section class="workflow-canvas-view" :class="{ 'workflow-canvas-view-detail': selectedWorkflowId }">
     <aside class="workflow-project-drawer">
       <button
-        class="workflow-new-button"
+        class="btn-primary btn-sm"
         type="button"
         :disabled="creatingWorkflow || loadingOptions"
         @click="startCreateWorkflow"
       >
-        <span>+</span>
         {{ creatingWorkflow ? "创建中..." : "新建画布" }}
       </button>
 
       <label class="workflow-search-box">
-        <svg class="workflow-search-box__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
+        <span class="workflow-search-box__icon"><IconSearch size="sm" /></span>
         <input
           ref="workflowSearchInput"
           v-model="workflowSearch"
@@ -30,28 +26,20 @@
           @click="clearWorkflowSearch"
           aria-label="清除搜索"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+          <IconClose size="xs" />
         </button>
       </label>
 
       <div v-if="loadingWorkflows" class="workflow-empty-state">
         <div class="workflow-empty-state__icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-          </svg>
+          <IconLoading size="2xl" />
         </div>
         <p class="workflow-empty-state__text">正在加载工作流...</p>
       </div>
 
       <div v-else-if="!filteredWorkflows.length" class="workflow-empty-state">
         <div class="workflow-empty-state__icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-          </svg>
+          <IconEmpty size="2xl" />
         </div>
         <p class="workflow-empty-state__text">
           {{ workflows.length ? "没有找到匹配的工作流" : "还没有创建阶段工作流" }}
@@ -65,111 +53,27 @@
         <article
           v-for="item in filteredWorkflows"
           :key="item.id"
-          class="workflow-project-card"
-          :class="{ 'workflow-project-card-active': item.id === selectedWorkflowId }"
+          class="workflow-nav-item"
+          :class="{ 'workflow-nav-item-active': item.id === selectedWorkflowId }"
+          @click="openWorkflow(item.id, workflowSummaryCanvasStage(item))"
         >
-          <button
-            type="button"
-            class="workflow-project-card__open"
-            @click="openWorkflow(item.id, workflowSummaryCanvasStage(item))"
-          >
-            <div class="workflow-project-card__header">
-              <div class="workflow-project-card__icon-wrapper">
-                <svg
-                  class="workflow-project-card__icon"
-                  width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round"
-                >
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                </svg>
-                <span
-                  v-if="item.id === selectedWorkflowId"
-                  class="workflow-project-card__active-indicator"
-                ></span>
-              </div>
-              <div class="workflow-project-card__text-content">
-                <div class="workflow-project-card__title">
-                  <strong>{{ item.title }}</strong>
-                </div>
-                <div class="workflow-project-card__meta">
-                  <span class="workflow-project-card__stage">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                    </svg>
-                    {{ workflowStageLabel(workflowSummaryCanvasStage(item)) }}
-                  </span>
-                  <span class="workflow-project-card__divider">•</span>
-                  <span class="workflow-project-card__date">{{ formatDateTime(item.updatedAt) }}</span>
-                </div>
-              </div>
+          <span class="workflow-nav-item__dot" :class="{ 'workflow-nav-item__dot-active': item.id === selectedWorkflowId }"></span>
+          <span class="workflow-nav-item__title">{{ item.title }}</span>
+          <div class="workflow-more-menu workflow-nav-item__menu">
+            <button type="button" class="workflow-more-menu__trigger" aria-label="更多操作" :popovertarget="`wfm-${item.id}`" @click.stop>
+              <IconMore size="sm" />
+            </button>
+            <div :id="`wfm-${item.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
+              <button
+                type="button"
+                class="workflow-menu-danger"
+                :disabled="busyActionKey === `delete-workflow-${item.id}`"
+                @click="handleDeleteWorkflow(item)"
+              >
+                {{ busyActionKey === `delete-workflow-${item.id}` ? "删除中..." : "删除工作流" }}
+              </button>
             </div>
-
-            <div class="workflow-project-card__progress">
-              <div class="workflow-progress-bar">
-                <div
-                  class="workflow-progress-bar__fill"
-                  :style="{ width: workflowCompletionPercentage(item) + '%' }"
-                ></div>
-              </div>
-              <span class="workflow-progress-bar__text">{{ workflowCompletionPercentage(item) }}%</span>
-            </div>
-
-            <div class="workflow-project-card__stats">
-              <span class="workflow-project-card__stat-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="3" y1="9" x2="21" y2="9"></line>
-                  <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg>
-                <span>分镜 {{ item.storyboardVersionCount }}</span>
-              </span>
-              <span class="workflow-project-card__stat-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                <span>角色 {{ workflowSummaryCharacterCountLabel(item) }}</span>
-              </span>
-              <span class="workflow-project-card__stat-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <line x1="8" y1="21" x2="16" y2="21"></line>
-                  <line x1="12" y1="17" x2="12" y2="21"></line>
-                </svg>
-                <span>关键帧 {{ item.keyframeVersionCount }}</span>
-              </span>
-              <span class="workflow-project-card__stat-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                </svg>
-                <span>视频 {{ item.videoVersionCount }}</span>
-              </span>
-            </div>
-
-            <div class="workflow-project-card__footer">
-              <span class="workflow-project-card__ratio">{{ item.aspectRatio }}</span>
-              <details class="workflow-more-menu workflow-more-menu-project">
-                <summary aria-label="更多操作">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="1"></circle>
-                    <circle cx="19" cy="12" r="1"></circle>
-                    <circle cx="5" cy="12" r="1"></circle>
-                  </svg>
-                </summary>
-                <div class="workflow-more-menu__panel workflow-more-menu__panel-project">
-                  <button
-                    type="button"
-                    class="workflow-menu-danger"
-                    :disabled="busyActionKey === `delete-workflow-${item.id}`"
-                    @click="handleDeleteWorkflow(item)"
-                  >
-                    {{ busyActionKey === `delete-workflow-${item.id}` ? "删除中..." : "删除工作流" }}
-                  </button>
-                </div>
-              </details>
-            </div>
-          </button>
+          </div>
         </article>
       </div>
     </aside>
@@ -211,10 +115,6 @@
             </div>
 
             <div class="workflow-composer-toolbar workflow-composer-toolbar-chat">
-              <span class="tool-pill">分镜</span>
-              <span class="tool-pill">关键帧</span>
-              <span class="tool-pill">视频</span>
-
               <div class="workflow-create-menu">
                 <button
                   type="button"
@@ -944,6 +844,7 @@ import {
 } from "@/composables/workflow/useCharacterSheetUtils";
 import WorkflowStagePipeline from "./workflow/components/WorkflowStagePipeline.vue";
 import ImagePreviewOverlay from "./workflow/components/ImagePreviewOverlay.vue";
+import { IconSearch, IconClose, IconMore, IconLoading, IconEmpty } from "@/components/icons";
 
 type CreateStageKey = WorkflowCreateStageKey;
 type DetailRouteStageKey = WorkflowDetailRouteStageKey;
@@ -2154,26 +2055,17 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   padding: 22px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 28px;
   color: var(--text-strong);
   overflow: hidden;
-  box-shadow: var(--shadow-soft);
   background: #fff;
-}
-
-.workflow-canvas-view:not(.workflow-canvas-view-detail) {
-  background: var(--bg-base);
 }
 
 .workflow-project-drawer,
 .workflow-inspector,
 .workflow-stage-board,
-.workflow-composer-card,
 .workflow-create-inspector,
 .workflow-canvas-header,
 .workflow-stage-pipeline,
-.workflow-project-card,
 .character-mini-card,
 .clip-detail-card,
 .storyboard-preview-card,
@@ -2191,7 +2083,6 @@ onBeforeUnmount(() => {
   min-height: 0;
   padding: 12px;
   border: 0;
-  border-right: 1px solid rgba(15, 20, 25, 0.07);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -2203,7 +2094,6 @@ onBeforeUnmount(() => {
 .inspector-section__head,
 .clip-detail-card__head,
 .workflow-create-title,
-.workflow-project-card__title,
 .video-version-card__head,
 .final-result-card-v2__meta {
   display: flex;
@@ -2264,26 +2154,6 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 50%;
   cursor: pointer;
-}
-
-.workflow-new-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  border: 0;
-  border-radius: 16px;
-  background: var(--bg-accent);
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.2);
-}
-
-.workflow-new-button span {
-  font-size: 1.25rem;
-  line-height: 1;
 }
 
 .workflow-search-box,
@@ -2453,245 +2323,67 @@ onBeforeUnmount(() => {
   padding-right: 2px;
 }
 
-.workflow-project-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
-  align-items: start;
-  border-radius: 20px;
-  overflow: visible;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  background: #fff;
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease,
-    background 180ms ease;
+.workflow-project-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
 }
 
-.workflow-project-card:hover {
-  border-color: rgba(124, 58, 237, 0.2);
-  box-shadow:
-    0 8px 20px rgba(15, 20, 25, 0.06),
-    0 2px 6px rgba(15, 20, 25, 0.04);
-  transform: translateY(-2px);
-}
-
-.workflow-project-card-active {
-  border-color: rgba(124, 58, 237, 0.35);
-  box-shadow: var(--shadow-glow);
-  background: linear-gradient(180deg, rgba(124, 58, 237, 0.03) 0%, #fff 0%);
-}
-
-.workflow-project-card__open {
-  display: grid;
+.workflow-nav-item {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 12px;
-  border: 0;
-  background: transparent;
-  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
   cursor: pointer;
-  border-radius: 20px;
-  transition: background 180ms ease;
-}
-
-.workflow-project-card:hover .workflow-project-card__open {
-  background: rgba(124, 58, 237, 0.03);
-}
-
-.workflow-project-card__open:active {
-  background: rgba(124, 58, 237, 0.06);
-}
-
-.workflow-project-card__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.workflow-project-card__icon-wrapper {
+  transition: background 150ms ease;
   position: relative;
+}
+
+.workflow-nav-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.workflow-nav-item-active {
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.workflow-nav-item__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
+  transition: background 150ms ease;
 }
 
-.workflow-project-card__icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(0, 102, 255, 0.08) 100%);
-  color: var(--accent-cyan);
-  padding: 8px;
-  display: grid;
-  place-items: center;
-}
-
-.workflow-project-card__active-indicator {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
+.workflow-nav-item__dot-active {
   background: var(--accent-cyan);
-  border: 2px solid #fff;
 }
 
-.workflow-project-card__text-content {
+.workflow-nav-item__title {
   flex: 1;
-  display: grid;
-  gap: 4px;
   min-width: 0;
-}
-
-.workflow-project-card__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.workflow-project-card__title strong {
-  font-size: 0.98rem;
+  font-size: 0.88rem;
+  font-weight: 500;
   color: var(--text-strong);
-  line-height: 1.35;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.workflow-project-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.workflow-project-card__stage {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--accent-cyan);
-  font-size: 0.76rem;
-  font-weight: 600;
-}
-
-.workflow-project-card__divider {
-  color: rgba(15, 20, 25, 0.15);
-  font-size: 0.6rem;
-}
-
-.workflow-project-card__date {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-
-.workflow-project-card__progress {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 4px;
-}
-
-.workflow-progress-bar {
-  flex: 1;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(15, 20, 25, 0.06);
-  overflow: hidden;
-}
-
-.workflow-progress-bar__fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent-cyan) 0%, rgba(124, 58, 237, 0.6) 100%);
-  transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.workflow-progress-bar__text {
-  color: var(--accent-cyan);
-  font-size: 0.7rem;
+.workflow-nav-item-active .workflow-nav-item__title {
   font-weight: 700;
-  min-width: 32px;
-  text-align: right;
 }
 
-.workflow-project-card__stats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+.workflow-nav-item__menu {
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
-.workflow-project-card__stat-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  background: rgba(15, 20, 25, 0.04);
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.workflow-project-card__stat-item svg {
-  color: var(--accent-cyan);
-  flex-shrink: 0;
-}
-
-.workflow-project-card__stat-item span {
-  color: var(--text-strong);
-  font-size: 0.74rem;
-}
-
-.workflow-project-card__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px 10px;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
-  margin-top: 4px;
-}
-
-.workflow-project-card__ratio {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(15, 20, 25, 0.04);
-}
-
-.workflow-more-menu-project > summary {
-  list-style: none;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(15, 20, 25, 0.04);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 180ms ease;
-}
-
-.workflow-more-menu-project > summary:hover {
-  background: rgba(15, 20, 25, 0.08);
-  color: var(--text-strong);
-}
-
-.workflow-more-menu-project > summary::-webkit-details-marker {
-  display: none;
-}
-
-.workflow-more-menu-project > summary:active {
-  background: rgba(15, 20, 25, 0.12);
-}
-
-.workflow-more-menu__panel-project {
-  top: 100%;
-  right: 0;
-  margin-top: 6px;
+.workflow-nav-item:hover .workflow-nav-item__menu {
+  opacity: 1;
 }
 
 .workflow-empty-state {
@@ -2725,8 +2417,6 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.workflow-project-card__stats,
-.workflow-project-card__meta,
 .workflow-summary__meta,
 .readiness-strip,
 .character-mini-card__actions,
@@ -2923,47 +2613,6 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-panel);
 }
 
-.workflow-more-menu-project {
-  padding-top: 6px;
-  padding-right: 6px;
-}
-
-.workflow-more-menu__panel-project {
-  position: absolute;
-  top: 30px;
-  right: 2px;
-  z-index: 12;
-  min-width: 136px;
-  padding: 6px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(14px);
-}
-
-.workflow-more-menu__panel-project button {
-  display: flex;
-  width: 100%;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.workflow-more-menu__panel-project button:hover {
-  background: rgba(220, 38, 38, 0.08);
-}
-
-.workflow-more-menu-project:not([open]) .workflow-more-menu__panel-project {
-  display: none;
-}
-
 .workflow-menu-danger {
   color: var(--accent-danger) !important;
 }
@@ -3035,7 +2684,13 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 16px;
   width: 100%;
-  border-radius: 26px;
+  border-radius: 28px;
+  border: 1px solid rgba(15, 20, 25, 0.06);
+  background: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.96) inset,
+    0 1px 2px rgba(15, 20, 25, 0.03),
+    0 12px 28px rgba(20, 28, 36, 0.04);
 }
 
 .workflow-composer-card-chat {
@@ -3044,9 +2699,6 @@ onBeforeUnmount(() => {
   gap: 18px;
   min-height: 360px;
   padding: 22px;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.94));
 }
 
 .workflow-composer-upload {
@@ -3161,17 +2813,15 @@ onBeforeUnmount(() => {
 .tool-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 20px;
-  background: linear-gradient(180deg, #fff 0%, #fcfcfc 100%);
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(15, 20, 25, 0.1);
+  border-radius: 10px;
+  background: #fff;
   color: var(--text-strong);
-  font-size: 0.84rem;
-  font-weight: 760;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.95) inset,
-    0 2px 8px rgba(15, 20, 25, 0.03);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: none;
 }
 
 .tool-pill-accent {
@@ -3181,15 +2831,18 @@ onBeforeUnmount(() => {
 .tool-pill-interactive {
   position: relative;
   cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.tool-pill-interactive:hover {
+  border-color: rgba(124, 58, 237, 0.3);
 }
 
 .tool-pill-active {
-  border-color: rgba(15, 20, 25, 0.06);
-  background: linear-gradient(180deg, #f4f4f4 0%, #ececec 100%);
+  border-color: rgba(124, 58, 237, 0.35);
+  background: rgba(124, 58, 237, 0.06);
   color: var(--accent-cyan);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 8px 20px rgba(15, 20, 25, 0.04);
+  box-shadow: none;
 }
 
 .workflow-create-menu {
@@ -3199,19 +2852,16 @@ onBeforeUnmount(() => {
 .workflow-create-popover {
   position: absolute;
   left: 0;
-  top: calc(100% + 10px);
+  top: calc(100% + 8px);
   z-index: 12;
   display: grid;
-  gap: 12px;
-  min-width: 324px;
-  padding: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 16px 44px rgba(20, 28, 36, 0.12),
-    0 3px 10px rgba(20, 28, 36, 0.05);
-  backdrop-filter: blur(16px);
+  gap: 10px;
+  min-width: 300px;
+  padding: 12px;
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 .workflow-create-popover-grid {
@@ -3231,28 +2881,26 @@ onBeforeUnmount(() => {
 }
 
 .workflow-create-popover .workflow-field span {
-  margin: 0 4px;
-  color: #a4b0bd;
+  margin: 0 2px;
+  color: #6b7280;
   font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-weight: 600;
 }
 
 .workflow-create-popover .field-input {
-  min-height: 44px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 16px;
-  background: #f7f8f9;
+  min-height: 40px;
+  border: 1px solid rgba(15, 20, 25, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
   box-shadow: none;
-  font-size: 0.88rem;
-  padding: 0 14px;
+  font-size: 0.84rem;
+  padding: 0 12px;
 }
 
 .workflow-create-popover .field-input:focus {
-  border-color: rgba(124, 58, 237, 0.22);
-  box-shadow:
-    0 0 0 3px rgba(124, 58, 237, 0.08),
-    0 8px 18px rgba(15, 20, 25, 0.04);
+  border-color: rgba(124, 58, 237, 0.4);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
 }
 
 .composer-required-count {
@@ -3310,7 +2958,6 @@ onBeforeUnmount(() => {
 }
 
 .workflow-composer-submit:disabled,
-.workflow-new-button:disabled,
 button:disabled {
   cursor: not-allowed;
   opacity: 0.54;
@@ -4070,22 +3717,23 @@ button:disabled {
 
 .stage-toggle-chip,
 .rating-pill {
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 12px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 999px;
+  border: 1px solid rgba(15, 20, 25, 0.1);
+  border-radius: 8px;
   background: #fff;
   color: var(--text-body);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
 }
 
 .stage-toggle-chip-active,
 .rating-pill-active {
-  border-color: rgba(124, 58, 237, 0.24);
-  background: rgba(124, 58, 237, 0.08);
-  color: var(--accent-cyan);
+  border-color: rgba(124, 58, 237, 0.4);
+  background: var(--accent-cyan);
+  color: #fff;
 }
 
 .workflow-empty,

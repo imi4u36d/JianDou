@@ -25,9 +25,7 @@
       <span class="app-select__label" :class="{ 'app-select__label-placeholder': !selectedOption }">
         {{ selectedOption?.label || placeholder }}
       </span>
-      <svg class="app-select__chevron" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <path d="M3 5.25L7 9.25L11 5.25" />
-      </svg>
+      <span class="app-select__chevron"><IconChevronDown size="xs" /></span>
     </button>
   </div>
 
@@ -66,9 +64,7 @@
             <span class="app-select__option-label">{{ option.label }}</span>
             <span v-if="option.description" class="app-select__option-description">{{ option.description }}</span>
           </span>
-          <svg v-if="isSelected(option)" class="app-select__check" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-          </svg>
+          <span v-if="isSelected(option)" class="app-select__check"><IconCheck size="xs" /></span>
         </button>
       </div>
     </transition>
@@ -78,6 +74,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { AppSelectOption } from "./app-select";
+import { IconChevronDown, IconCheck } from "@/components/icons";
 
 const props = withDefaults(
   defineProps<{

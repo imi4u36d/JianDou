@@ -683,7 +683,7 @@ watch(
   padding: 22px 36px 36px;
   overflow-y: auto;
   overflow-x: hidden;
-  background: var(--bg-base);
+  background: #fff;
   color: var(--text-strong);
 }
 

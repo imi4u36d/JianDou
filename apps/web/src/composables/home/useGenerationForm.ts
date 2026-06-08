@@ -30,36 +30,12 @@ export interface ModeOption {
   kind: "video" | "image";
   label: string;
   description: string;
-  iconSvg: string;
+  iconName: "video" | "image" | "character";
 }
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const modeIconSvgs: Record<ModeValue, string> = {
-  video: `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4.5" y="5.5" width="10" height="13" rx="3" />
-      <path d="m14.5 10 4.5-2.8v9.6L14.5 14" />
-    </svg>
-  `,
-  image: `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4.5" y="5.5" width="15" height="13" rx="3" />
-      <path d="M8 14.5 10.8 11.7 13.3 14.2 15.3 12.2 18 14.9" />
-      <circle cx="10" cy="9.4" r="1.3" />
-    </svg>
-  `,
-  character_sheet: `
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7.2 7.6a2.8 2.8 0 1 1 5.6 0a2.8 2.8 0 0 1-5.6 0Z" />
-      <path d="M4.8 17.2c.8-2.4 2.7-3.6 5.2-3.6s4.4 1.2 5.2 3.6" />
-      <path d="M17.6 6.7v10.6" />
-      <path d="M17.6 6.7c1 0 1.8.8 1.8 1.8s-.8 1.8-1.8 1.8" />
-    </svg>
-  `,
-};
 
 const modeOptions: ModeOption[] = [
   {
@@ -67,21 +43,21 @@ const modeOptions: ModeOption[] = [
     kind: "video",
     label: "视频生成",
     description: "输入文本，自动拆分脚本、关键帧和视频",
-    iconSvg: modeIconSvgs.video,
+    iconName: "video",
   },
   {
     value: "image",
     kind: "image",
     label: "图片生成",
     description: "素材中心自由模式，支持参考图再创作",
-    iconSvg: modeIconSvgs.image,
+    iconName: "image",
   },
   {
     value: "character_sheet",
     kind: "image",
     label: "角色三视图",
     description: "生成同一角色正面、侧面、背面设定图",
-    iconSvg: modeIconSvgs.character_sheet,
+    iconName: "character",
   },
 ];
 

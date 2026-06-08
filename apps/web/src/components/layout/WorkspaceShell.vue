@@ -21,7 +21,7 @@
             :class="{ 'sidebar-nav__item-active': isActive(item.to) }"
             :to="item.to"
           >
-            <span class="sidebar-nav__icon" v-html="item.icon"></span>
+            <span class="sidebar-nav__icon"><component :is="iconComponentMap[item.icon]" /></span>
             <span class="sidebar-nav__label">{{ item.label }}</span>
           </RouterLink>
         </nav>
@@ -123,59 +123,19 @@ import { fetchCreditSummary } from "@/api/credits";
 import { getRuntimeConfig } from "@/api/runtime-config";
 import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import type { CreditSummary } from "@/types";
+import { iconComponentMap } from "@/components/icons";
+import type { IconName } from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
 const authState = useAuthSessionState();
 const adminPortalUrl = getRuntimeConfig().adminBaseUrl;
 
-const navItems = [
-  {
-    to: "/workspace",
-    label: "工作",
-    icon: `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path class="sidebar-nav__fill" d="M5.2 10.8 12 5.15l6.8 5.65V19a1.2 1.2 0 0 1-1.2 1.2h-3.45v-4.45a2.15 2.15 0 0 0-4.3 0v4.45H6.4A1.2 1.2 0 0 1 5.2 19v-8.2Z" />
-        <path d="M4.3 10.7 12 4.25l7.7 6.45V19a2 2 0 0 1-2 2h-3.55a1 1 0 0 1-1-1v-4.25a1.15 1.15 0 0 0-2.3 0V20a1 1 0 0 1-1 1H6.3a2 2 0 0 1-2-2v-8.3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-      </svg>
-    `,
-  },
-  {
-    to: "/workflows",
-    label: "阶段",
-    icon: `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path class="sidebar-nav__fill" d="M12 2.9c1.2 4.05 3.12 5.96 7.2 7.1-4.08 1.14-6 3.05-7.2 7.1-1.2-4.05-3.12-5.96-7.2-7.1 4.08-1.14 6-3.05 7.2-7.1Z" />
-        <path class="sidebar-nav__fill" d="M18.15 15.15c.55 1.78 1.42 2.65 3.1 3.15-1.68.5-2.55 1.37-3.1 3.15-.55-1.78-1.42-2.65-3.1-3.15 1.68-.5 2.55-1.37 3.1-3.15Z" />
-        <path d="M12 2.9c1.2 4.05 3.12 5.96 7.2 7.1-4.08 1.14-6 3.05-7.2 7.1-1.2-4.05-3.12-5.96-7.2-7.1 4.08-1.14 6-3.05 7.2-7.1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-        <path d="M18.15 15.15c.55 1.78 1.42 2.65 3.1 3.15-1.68.5-2.55 1.37-3.1 3.15-.55-1.78-1.42-2.65-3.1-3.15 1.68-.5 2.55-1.37 3.1-3.15Z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round" />
-      </svg>
-    `,
-  },
-  {
-    to: "/tasks",
-    label: "任务",
-    icon: `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path class="sidebar-nav__fill" d="M7 4.8h10a2 2 0 0 1 2 2v11.6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.8a2 2 0 0 1 2-2Z" />
-        <path d="M7 4.8h10a2 2 0 0 1 2 2v11.6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.8a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-        <path d="M8.5 9h7" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" />
-        <path d="M8.5 12.4h7" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" />
-        <path d="M8.5 15.8h4.6" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" />
-      </svg>
-    `,
-  },
-  {
-    to: "/materials",
-    label: "素材",
-    icon: `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path class="sidebar-nav__fill" d="M4 9.95a2 2 0 0 1 2-2h5.7l1.85 2H18a2 2 0 0 1 2 2v5.45a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.95Z" />
-        <path d="M4 9.95a2 2 0 0 1 2-2h5.7l1.85 2H18a2 2 0 0 1 2 2v5.45a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9.95Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-        <path d="M5 10.2V7.7a2 2 0 0 1 2-2h3.2l1.85 2H17a2 2 0 0 1 2 2v.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-      </svg>
-    `,
-  },
+const navItems: { to: string; label: string; icon: IconName }[] = [
+  { to: "/workspace", label: "工作", icon: "home" },
+  { to: "/workflows", label: "阶段", icon: "workflow" },
+  { to: "/tasks", label: "任务", icon: "task" },
+  { to: "/materials", label: "素材", icon: "material" },
 ];
 
 const sidebarOpen = ref(false);
@@ -436,13 +396,13 @@ watch(
   aspect-ratio: 1 / 1;
 }
 
-.sidebar-nav__icon :deep(.sidebar-nav__fill) {
+.sidebar-nav__icon :deep(.icon__fill) {
   fill: currentColor;
   opacity: 0;
   transition: opacity 180ms ease;
 }
 
-.sidebar-nav__item-active .sidebar-nav__icon :deep(.sidebar-nav__fill) {
+.sidebar-nav__item-active .sidebar-nav__icon :deep(.icon__fill) {
   opacity: 1;
 }
 

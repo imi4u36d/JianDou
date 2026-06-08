@@ -3,9 +3,14 @@
     <div class="message-container" role="status" aria-live="polite">
       <TransitionGroup name="message-slide">
         <div v-for="entry in entries" :key="entry.id" class="message-toast" :class="`message-toast--${entry.type}`">
-          <span class="message-toast__icon">{{ typeIcons[entry.type] }}</span>
+          <span class="message-toast__icon">
+            <IconSuccess v-if="entry.type === 'success'" size="sm" />
+            <IconError v-else-if="entry.type === 'error'" size="sm" />
+            <IconWarning v-else-if="entry.type === 'warning'" size="sm" />
+            <IconInfo v-else size="sm" />
+          </span>
           <span class="message-toast__content">{{ entry.content }}</span>
-          <button type="button" class="message-toast__close" aria-label="关闭" @click="remove(entry.id)">&times;</button>
+          <button type="button" class="message-toast__close" aria-label="关闭" @click="remove(entry.id)"><IconClose size="xs" /></button>
         </div>
       </TransitionGroup>
     </div>
@@ -14,15 +19,9 @@
 
 <script setup lang="ts">
 import { useMessage } from "@/composables/useMessage";
+import { IconSuccess, IconError, IconWarning, IconInfo, IconClose } from "@/components/icons";
 
 const { entries, remove } = useMessage();
-
-const typeIcons: Record<string, string> = {
-  success: "✓",
-  error: "✕",
-  warning: "!",
-  info: "i",
-};
 </script>
 
 <style scoped>
