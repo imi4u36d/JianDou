@@ -491,11 +491,11 @@ function clearSelection() {
 }
 
 async function loadTasks() {
-  tasks.value = await fetchAdminTasks({
+  tasks.value = (await fetchAdminTasks({
     q: searchText.value.trim() || undefined,
     status: statusFilter.value,
     sort: sortMode.value,
-  });
+  })) ?? [];
 }
 
 async function refreshAll() {

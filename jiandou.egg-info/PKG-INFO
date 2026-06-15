@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: jiandou
+Version: 0.1.0
+Summary: JianDou - AI video generation platform
+Requires-Python: >=3.12
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: alembic
+Requires-Dist: pydantic-settings
+Requires-Dist: python-multipart
+Requires-Dist: httpx
+Requires-Dist: python-jose[cryptography]
+Requires-Dist: passlib[bcrypt]
+Requires-Dist: bcrypt<4.1,>=4.0
+Requires-Dist: aiosqlite
+Requires-Dist: greenlet>=3.1.0
+Requires-Dist: click>=8.1
+Requires-Dist: rich>=13.0

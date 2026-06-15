@@ -1,0 +1,41 @@
+[project]
+name = "jiandou"
+version = "0.1.0"
+description = "JianDou - AI video generation platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]",
+    "sqlalchemy>=2.0",
+    "alembic",
+    "pydantic-settings",
+    "python-multipart",
+    "httpx",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "bcrypt>=4.0,<4.1",
+    "aiosqlite",
+    "greenlet>=3.1.0",
+    "click>=8.1",
+    "rich>=13.0",
+]
+
+[project.scripts]
+jiandou = "app.__main__:cli"
+
+[build-system]
+requires = ["setuptools>=75.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+dev-dependencies = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[tool.setuptools.packages.find]
+include = ["app*", "tests*"]
+
+[tool.setuptools.package-data]
+"app" = ["static/**/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

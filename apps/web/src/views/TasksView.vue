@@ -675,9 +675,9 @@ async function loadTasks() {
   loading.value = tasks.value.length === 0;
   try {
     // 将筛选保留在前端本地，避免输入和视图切换时额外触发请求。
-    const nextTasks = await fetchTasks({
+    const nextTasks = (await fetchTasks({
       sort: sortMode.value,
-    });
+    })) ?? [];
     tasks.value = reconcileTaskList(tasks.value, nextTasks);
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "加载任务列表失败");

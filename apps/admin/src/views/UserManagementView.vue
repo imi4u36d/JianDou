@@ -322,7 +322,7 @@ function resetEditorForm() {
 async function loadUsers() {
   loading.value = true;
   try {
-    users.value = await fetchAdminUsers(filters);
+    users.value = (await fetchAdminUsers(filters)) ?? [];
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取用户列表失败");
   } finally {

@@ -185,7 +185,7 @@ function statusTagType(status: InviteStatus) {
 async function loadInvites() {
   loading.value = true;
   try {
-    invites.value = await fetchAdminInvites();
+    invites.value = (await fetchAdminInvites()) ?? [];
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取邀请码列表失败");
   } finally {

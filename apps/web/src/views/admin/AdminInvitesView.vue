@@ -173,7 +173,7 @@ function statusClass(status: AdminInvite["status"]) {
 async function loadInvites() {
   loading.value = true;
   try {
-    invites.value = await fetchAdminInvites();
+    invites.value = (await fetchAdminInvites()) ?? [];
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "读取邀请码失败");
   } finally {

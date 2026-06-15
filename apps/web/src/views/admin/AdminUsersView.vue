@@ -138,7 +138,7 @@ function formatDateTime(value?: string | null) {
 async function loadUsers() {
   loading.value = true;
   try {
-    users.value = await fetchAdminUsers();
+    users.value = (await fetchAdminUsers()) ?? [];
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "读取用户列表失败");
   } finally {

@@ -258,7 +258,7 @@ async function loadCreditUsers() {
   loadingUsers.value = true;
   userErrorMessage.value = "";
   try {
-    creditUsers.value = await fetchAdminCreditUsers(userFilters);
+    creditUsers.value = (await fetchAdminCreditUsers(userFilters)) ?? [];
   } catch (error) {
     userErrorMessage.value = error instanceof Error ? error.message : "读取用户积分失败";
   } finally {
@@ -270,7 +270,7 @@ async function loadCreditRules() {
   loadingRules.value = true;
   ruleErrorMessage.value = "";
   try {
-    creditRules.value = await fetchAdminCreditRules();
+    creditRules.value = (await fetchAdminCreditRules()) ?? [];
   } catch (error) {
     ruleErrorMessage.value = error instanceof Error ? error.message : "读取积分规则失败";
   } finally {
@@ -298,7 +298,7 @@ async function openTransactionDialog(user: AdminCreditUser) {
   transactions.value = [];
   loadingTransactions.value = true;
   try {
-    transactions.value = await fetchAdminCreditTransactions(user.id);
+    transactions.value = (await fetchAdminCreditTransactions(user.id)) ?? [];
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取积分流水失败");
   } finally {

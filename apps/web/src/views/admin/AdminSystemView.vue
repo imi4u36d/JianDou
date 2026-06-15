@@ -137,13 +137,13 @@ function logLevelClass(level: string) {
 async function loadTraces() {
   loading.value = true;
   try {
-    traces.value = await fetchAdminTraces({
+    traces.value = (await fetchAdminTraces({
       limit: 30,
       taskId: taskIdFilter.value || undefined,
       level: levelFilter.value || undefined,
       stage: stageFilter.value || undefined,
       q: keywordFilter.value || undefined,
-    });
+    })) ?? [];
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "读取日志失败");
   } finally {

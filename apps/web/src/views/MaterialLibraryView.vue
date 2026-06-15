@@ -429,9 +429,9 @@ async function loadAssets() {
     if (requestId !== assetLoadRequestId) {
       return;
     }
-    assets.value = page.items;
-    nextAssetOffset.value = page.nextOffset ?? page.items.length;
-    hasMoreAssets.value = page.hasMore;
+    assets.value = page?.items ?? [];
+    nextAssetOffset.value = page?.nextOffset ?? assets.value.length;
+    hasMoreAssets.value = page?.hasMore ?? false;
     selectedAssetIds.value = selectedAssetIds.value.filter((id) => assets.value.some((asset) => asset.id === id));
   } catch (error) {
     if (requestId === assetLoadRequestId) {
@@ -458,10 +458,10 @@ async function loadMoreAssets() {
     const existingIds = new Set(assets.value.map((asset) => asset.id));
     assets.value = [
       ...assets.value,
-      ...page.items.filter((asset) => !existingIds.has(asset.id)),
+      ...(page?.items ?? []).filter((asset) => !existingIds.has(asset.id)),
     ];
-    nextAssetOffset.value = page.nextOffset ?? assets.value.length;
-    hasMoreAssets.value = page.hasMore;
+    nextAssetOffset.value = page?.nextOffset ?? assets.value.length;
+    hasMoreAssets.value = page?.hasMore ?? false;
   } catch (error) {
     if (requestId === assetLoadRequestId) {
       messageApi.error(error instanceof Error ? error.message : "更多素材加载失败");

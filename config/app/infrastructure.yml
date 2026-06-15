@@ -1,5 +1,5 @@
 database:
-  url: "jdbc:mysql://127.0.0.1:3306/jiandou?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
+  url: "jdbc:sqlite:${JIANDOU_SQLITE_PATH:-./data/jiandou.db}"
   echo: false
 
 redis:

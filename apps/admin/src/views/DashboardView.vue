@@ -199,8 +199,8 @@ const pulseItems = computed(() => {
     { label: "活跃用户", value: activeUsers, note: "当前可登录账号" },
     { label: "管理员账号", value: adminUsers, note: "可访问后台的人数" },
     { label: "禁用账号", value: disabledUsers, note: "已暂停后台访问" },
-    { label: "在线 Worker", value: overview.value?.workers.onlineCount ?? 0, note: "运行中的工作节点" },
-    { label: "队列积压", value: overview.value?.queue.queueLength ?? 0, note: "尚未开始执行的任务" },
+    { label: "在线 Worker", value: overview.value?.workers?.onlineCount ?? 0, note: "运行中的工作节点" },
+    { label: "队列积压", value: overview.value?.queue?.queueLength ?? 0, note: "尚未开始执行的任务" },
     { label: "高风险任务", value: counts?.highRiskTasks ?? 0, note: "建议立即关注" },
     { label: "最近 Trace", value: overview.value?.recentTraceCount ?? 0, note: "近期开启的跟踪记录" },
     { label: "平均进度", value: `${counts?.averageProgress ?? 0}%`, note: "整体任务平均完成度" }
@@ -209,7 +209,7 @@ const pulseItems = computed(() => {
 
 const recentTasks = computed<AdminTaskListItem[]>(() => overview.value?.recentTasks ?? []);
 const recentFailures = computed<AdminTaskListItem[]>(() => overview.value?.recentFailures ?? []);
-const userQueues = computed(() => overview.value?.queue.userQueues ?? []);
+const userQueues = computed(() => overview.value?.queue?.userQueues ?? []);
 const lastUpdatedLabel = computed(() => formatDateTime(overview.value?.generatedAt));
 
 function formatDateTime(value?: string | null) {
@@ -300,13 +300,13 @@ async function loadDashboard() {
   const errors: string[] = [];
 
   if (overviewResult.status === "fulfilled") {
-    overview.value = overviewResult.value;
+    overview.value = overviewResult.value ?? null;
   } else {
     errors.push(overviewResult.reason instanceof Error ? overviewResult.reason.message : "读取任务概览失败");
   }
 
   if (usersResult.status === "fulfilled") {
-    users.value = usersResult.value;
+    users.value = usersResult.value ?? [];
   } else {
     errors.push(usersResult.reason instanceof Error ? usersResult.reason.message : "读取用户统计失败");
   }

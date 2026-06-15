@@ -292,7 +292,7 @@ async function loadTasks() {
   loading.value = true;
   successMessage.value = "";
   try {
-    tasks.value = await fetchAdminTasks(filters);
+    tasks.value = (await fetchAdminTasks(filters)) ?? [];
     selectedTasks.value = selectedTasks.value.filter((selected) => tasks.value.some((task) => task.id === selected.id));
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取任务列表失败");
