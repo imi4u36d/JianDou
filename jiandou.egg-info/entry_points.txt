@@ -1,2 +1,0 @@
-[console_scripts]
-jiandou = app.__main__:cli

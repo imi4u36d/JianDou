@@ -1,5 +1,5 @@
 {
-  "name": "jiandou-admin",
+  "name": "@jiandou/admin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
-    "@jiandou/api-client": "file:../../packages/api-client",
-    "@jiandou/frontend-domain": "file:../../packages/frontend-domain",
-    "@jiandou/frontend-ui": "file:../../packages/frontend-ui",
+    "@jiandou/api": "file:../../packages/api",
+    "@jiandou/domain": "file:../../packages/domain",
+    "@jiandou/ui": "file:../../packages/ui",
     "element-plus": "^2.9.8",
     "vue": "^3.4.38",
     "vue-router": "^4.4.3"

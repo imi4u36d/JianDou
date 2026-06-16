@@ -35,6 +35,10 @@
           <el-icon><Coin /></el-icon>
           <span>积分管理</span>
         </el-menu-item>
+        <el-menu-item index="/system">
+          <el-icon><Setting /></el-icon>
+          <span>系统配置</span>
+        </el-menu-item>
       </el-menu>
 
       <div class="admin-layout__aside-footer">

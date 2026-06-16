@@ -3,7 +3,7 @@ import {
   createApiClient,
   type ApiAuthFailureHandler,
   type ApiRequestInit,
-} from "@jiandou/api-client";
+} from "@jiandou/api";
 import { getRuntimeConfig } from "./runtime-config";
 
 const apiClient = createApiClient({

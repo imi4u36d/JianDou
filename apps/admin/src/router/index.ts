@@ -6,6 +6,8 @@ import DashboardView from "@/views/DashboardView.vue";
 import ForbiddenView from "@/views/ForbiddenView.vue";
 import InviteManagementView from "@/views/InviteManagementView.vue";
 import LoginView from "@/views/LoginView.vue";
+import SystemView from "@/views/SystemView.vue";
+import TaskDetailView from "@/views/TaskDetailView.vue";
 import TaskManagementView from "@/views/TaskManagementView.vue";
 import UserManagementView from "@/views/UserManagementView.vue";
 
@@ -19,7 +21,7 @@ function normalizeRedirectTarget(value: unknown) {
 const authState = useAuthSessionState();
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory("/admin/"),
   routes: [
     {
       path: "/login",
@@ -83,6 +85,22 @@ const router = createRouter({
           component: TaskManagementView,
           meta: {
             title: "任务管理"
+          }
+        },
+        {
+          path: "tasks/:id",
+          name: "task-detail",
+          component: TaskDetailView,
+          meta: {
+            title: "任务详情"
+          }
+        },
+        {
+          path: "system",
+          name: "system",
+          component: SystemView,
+          meta: {
+            title: "系统配置"
           }
         }
       ]

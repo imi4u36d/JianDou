@@ -5,14 +5,14 @@ export {
   TASK_LIFECYCLE_GROUP_LABELS,
   TASK_STATUS_LABELS,
   TERMINAL_TASK_STATUSES,
-} from "@jiandou/frontend-domain";
+} from "@jiandou/domain";
 import {
   formatTaskProgress as sharedFormatTaskProgress,
   formatTaskRange as sharedFormatTaskRange,
   formatTaskStatus as sharedFormatTaskStatus,
   getTaskLifecycleGroup as sharedGetTaskLifecycleGroup,
   isTerminalTaskStatus as sharedIsTerminalTaskStatus,
-} from "@jiandou/frontend-domain";
+} from "@jiandou/domain";
 import type { TaskStatus } from "@/types";
 
 /**

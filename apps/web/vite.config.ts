@@ -12,10 +12,10 @@ export default defineConfig({
     alias: {
       // 使用 @/ 作为 src 目录的统一别名。
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@jiandou/api-client": fileURLToPath(new URL("../../packages/api-client/src/index.ts", import.meta.url)),
-      "@jiandou/api-client/generated": fileURLToPath(new URL("../../packages/api-client/src/generated/index.ts", import.meta.url)),
-      "@jiandou/frontend-domain": fileURLToPath(new URL("../../packages/frontend-domain/src/index.ts", import.meta.url)),
-      "@jiandou/frontend-ui": fileURLToPath(new URL("../../packages/frontend-ui/src/index.ts", import.meta.url))
+      "@jiandou/api": fileURLToPath(new URL("../../packages/api/src/index.ts", import.meta.url)),
+      "@jiandou/api/generated": fileURLToPath(new URL("../../packages/api/src/generated/index.ts", import.meta.url)),
+      "@jiandou/domain": fileURLToPath(new URL("../../packages/domain/src/index.ts", import.meta.url)),
+      "@jiandou/ui": fileURLToPath(new URL("../../packages/ui/src/index.ts", import.meta.url))
     }
   },
   server: {

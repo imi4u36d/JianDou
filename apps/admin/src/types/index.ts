@@ -235,7 +235,7 @@ export interface AdminTaskBatchFailure {
 }
 
 export interface AdminTaskBatchResult {
-  action: "terminate";
+  action: "terminate" | "retry" | "delete";
   requestedCount: number;
   succeededTaskIds: string[];
   failed: AdminTaskBatchFailure[];
@@ -296,4 +296,243 @@ export interface AdminOverviewResponse {
   modelReady: boolean;
   primaryModel?: string | null;
   textModel?: string | null;
+}
+
+// --- Task Detail types ---
+
+export interface TaskPlanClip {
+  clipIndex: number;
+  title: string;
+  reason: string;
+  startSeconds: number;
+  endSeconds: number;
+  durationSeconds: number;
+  sourceAssetId?: string | null;
+  sourceFileName?: string | null;
+}
+
+export interface TaskTraceEvent {
+  timestamp: string;
+  level: string;
+  stage: string;
+  event: string;
+  message: string;
+  payload: Record<string, unknown>;
+}
+
+export interface AdminTraceEvent extends TaskTraceEvent {
+  taskId: string;
+  taskTitle?: string | null;
+  taskStatus?: string | null;
+}
+
+export interface TaskArtifactDirectories {
+  storageRoot?: string | null;
+  baseRelativeDir?: string | null;
+  baseAbsoluteDir?: string | null;
+  runningRelativeDir?: string | null;
+  runningAbsoluteDir?: string | null;
+  joinedRelativeDir?: string | null;
+  joinedAbsoluteDir?: string | null;
+  runningPublicBaseUrl?: string | null;
+  joinedPublicBaseUrl?: string | null;
+  storyboardFileName?: string | null;
+  firstFramePattern?: string | null;
+  lastFramePattern?: string | null;
+  clipPattern?: string | null;
+  joinPattern?: string | null;
+}
+
+export interface TaskDurationDiagnosticClip {
+  clipIndex: number;
+  durationSource?: string | null;
+  scriptMinDurationSeconds?: number | null;
+  scriptMaxDurationSeconds?: number | null;
+  plannedTargetDurationSeconds?: number | null;
+  plannedMinDurationSeconds?: number | null;
+  plannedMaxDurationSeconds?: number | null;
+  requestedDurationSeconds?: number | null;
+  appliedDurationSeconds?: number | null;
+  actualDurationSeconds?: number | null;
+  status?: "pending" | "rendered" | string | null;
+}
+
+export interface TaskMonitoringSummary {
+  currentStage?: string | null;
+  activeAttemptStatus?: string | null;
+  activeWorkerInstanceId?: string | null;
+  resumeFromStage?: string | null;
+  resumeFromClipIndex?: number | null;
+  plannedClipCount?: number;
+  renderedClipCount?: number;
+  contiguousRenderedClipCount?: number;
+  latestRenderedClipIndex?: number;
+  latestJoinName?: string | null;
+  artifactDirectories?: TaskArtifactDirectories;
+}
+
+export interface TaskRequestSnapshot {
+  taskType?: string | null;
+  assetType?: string | null;
+  title?: string | null;
+  creativePrompt?: string | null;
+  aspectRatio?: string | null;
+  imageSize?: string | null;
+  stylePreset?: string | null;
+  textAnalysisModel?: string | null;
+  imageModel?: string | null;
+  videoModel?: string | null;
+  videoSize?: string | null;
+  seed?: number | null;
+  videoDurationSeconds?: number | "auto" | null;
+  outputCount?: number | "auto" | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
+  transcriptText?: string | null;
+  stopBeforeVideoGeneration?: boolean | null;
+  referenceImageUrls?: string[] | null;
+  referenceAssetIds?: string[] | null;
+}
+
+export interface TaskOutput {
+  id: string;
+  clipIndex: number;
+  title: string;
+  reason: string;
+  startSeconds: number;
+  endSeconds: number;
+  durationSeconds: number;
+  previewUrl: string;
+  downloadUrl: string;
+  thumbnailUrl?: string | null;
+}
+
+export interface TaskSourceAssetSummary {
+  assetId: string;
+  originalFileName: string;
+  storedFileName?: string;
+  fileUrl: string;
+  thumbnailUrl?: string | null;
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  hasAudio?: boolean;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  sha256?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskMaterial {
+  id: string;
+  kind: "source" | "output" | string;
+  mediaType: "video" | "image" | "text" | string;
+  title: string;
+  fileUrl: string;
+  previewUrl?: string | null;
+  thumbnailUrl?: string | null;
+  mimeType?: string | null;
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  sizeBytes?: number | null;
+  createdAt?: string | null;
+}
+
+export interface TaskDetail extends AdminTaskListItem {
+  sourceFileName: string;
+  sourceFileNames?: string[];
+  sourceAssetIds?: string[];
+  aspectRatio: string;
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+  introTemplate: string;
+  outroTemplate: string;
+  creativePrompt?: string;
+  errorMessage?: string | null;
+  failureReason?: string | null;
+  failureStage?: string | null;
+  failureClipIndex?: number | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  completedOutputCount?: number;
+  transcriptPreview?: string | null;
+  hasTranscript?: boolean;
+  hasTimedTranscript?: boolean;
+  transcriptCueCount?: number;
+  source?: TaskSourceAssetSummary | null;
+  sourceAssets?: TaskSourceAssetSummary[];
+  storyboardScript?: string | null;
+  materials?: TaskMaterial[];
+  artifactDirectories?: TaskArtifactDirectories;
+  executionContext?: Record<string, unknown>;
+  requestSnapshot?: TaskRequestSnapshot;
+  durationDiagnostics?: TaskDurationDiagnosticClip[];
+  plan?: TaskPlanClip[];
+  monitoring?: TaskMonitoringSummary;
+  outputs: TaskOutput[];
+}
+
+export interface AdminTaskDiagnosisFinding {
+  code: string;
+  severity: "info" | "low" | "medium" | "high";
+  title: string;
+  detail: string;
+}
+
+export interface AdminTaskDiagnosis {
+  taskId: string;
+  title: string;
+  status: TaskStatus;
+  severity: "info" | "low" | "medium" | "high";
+  summary: string;
+  findings: AdminTaskDiagnosisFinding[];
+  recovery: Record<string, unknown>;
+  continuity: Record<string, unknown>;
+  outputs: Record<string, unknown>;
+  queue: Record<string, unknown>;
+}
+
+// --- Health types ---
+
+export interface HealthModelSummary {
+  provider: string | null;
+  primary_model: string | null;
+  text_analysis_provider?: string | null;
+  text_analysis_model?: string | null;
+  endpoint_host?: string;
+  api_key_present: boolean;
+  ready: boolean;
+  temperature: number;
+  max_tokens: number;
+  config_errors: string[];
+}
+
+export interface HealthPlanningCapabilities {
+  timed_transcript_supported: boolean;
+  transcript_semantic_planning: boolean;
+  visual_content_analysis: boolean;
+  visual_event_reasoning: boolean;
+  subtitle_visual_fusion: boolean;
+  audio_peak_signal: boolean;
+  scene_boundary_signal: boolean;
+  fusion_timeline_planning: boolean;
+  fallback_heuristic_enabled: boolean;
+}
+
+export interface HealthRuntimeSummary {
+  name: string;
+  env: string;
+  execution_mode: string;
+  database_url: string;
+  model_provider: string | null;
+  storage_root: string;
+  model: HealthModelSummary;
+  planning_capabilities: HealthPlanningCapabilities;
+}
+
+export interface HealthResponse {
+  ok: boolean;
+  runtime: HealthRuntimeSummary;
 }

@@ -27,10 +27,10 @@
     "paths": {
       // 将 @/foo 映射到 src/foo。
       "@/*": ["src/*"],
-      "@jiandou/api-client": ["../../packages/api-client/src/index.ts"],
-      "@jiandou/api-client/generated": ["../../packages/api-client/src/generated/index.ts"],
-      "@jiandou/frontend-domain": ["../../packages/frontend-domain/src/index.ts"],
-      "@jiandou/frontend-ui": ["../../packages/frontend-ui/src/index.ts"]
+      "@jiandou/api": ["../../packages/api/src/index.ts"],
+      "@jiandou/api/generated": ["../../packages/api/src/generated/index.ts"],
+      "@jiandou/domain": ["../../packages/domain/src/index.ts"],
+      "@jiandou/ui": ["../../packages/ui/src/index.ts"]
     }
   },
   // 由 vue-tsc / TypeScript 编译检查的应用源码范围。
@@ -39,9 +39,9 @@
     "src/**/*.tsx",
     "src/**/*.d.ts",
     "src/**/*.vue",
-    "../../packages/api-client/src/**/*.ts",
-    "../../packages/frontend-domain/src/**/*.ts",
-    "../../packages/frontend-ui/src/**/*.ts"
+    "../../packages/api/src/**/*.ts",
+    "../../packages/domain/src/**/*.ts",
+    "../../packages/ui/src/**/*.ts"
   ],
   // 单独给 vite.config.ts 这类 Node 侧文件使用的配置。
   "references": [
