@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from app.config import settings
+from backend.config import settings
 
 
 @pytest.mark.asyncio

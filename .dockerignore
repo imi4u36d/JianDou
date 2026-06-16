@@ -5,11 +5,10 @@
 **/.pytest_cache
 **/.mypy_cache
 **/.DS_Store
-apps/web/node_modules
-apps/web/dist
-apps/admin/node_modules
-apps/admin/dist
-apps/api-spring/target
+frontends/web/node_modules
+frontends/web/dist
+frontends/admin/node_modules
+frontends/admin/dist
 storage/mysql
 storage/mysql.bak_*
 storage/redis

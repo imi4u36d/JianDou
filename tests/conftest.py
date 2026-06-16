@@ -7,8 +7,8 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
-from app.config import settings
+from backend.database import Base, get_db
+from backend.config import settings
 
 
 @pytest_asyncio.fixture
@@ -29,7 +29,7 @@ async def db_session():
 @pytest_asyncio.fixture
 async def client(db_session):
     """FastAPI test client with overridden db dependency."""
-    from app.main import create_app
+    from backend.main import create_app
 
     app = create_app()
 

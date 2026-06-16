@@ -3,28 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "apps/web",
-    "apps/admin",
+    "frontends/web",
+    "frontends/admin",
     "packages/*"
   ],
   "scripts": {
     "dev": "npm run web:dev",
     "web:dev": "npm --workspace @jiandou/web run dev",
-    "web:build": "npm --workspace @jiandou/web run build && cp -r apps/web/dist/* static/web/",
+    "web:build": "npm --workspace @jiandou/web run build && cp -r frontends/web/dist/* static/web/",
     "web:typecheck": "npm --workspace @jiandou/web run typecheck",
     "admin:dev": "npm --workspace @jiandou/admin run dev",
-    "admin:build": "npm --workspace @jiandou/admin run build && cp -r apps/admin/dist/* static/admin/",
+    "admin:build": "npm --workspace @jiandou/admin run build && cp -r frontends/admin/dist/* static/admin/",
     "admin:typecheck": "npm --workspace @jiandou/admin run typecheck",
     "packages:build": "npm --workspaces --if-present run build --workspace @jiandou/api --workspace @jiandou/domain --workspace @jiandou/ui",
     "packages:typecheck": "npm --workspaces --if-present run typecheck --workspace @jiandou/api --workspace @jiandou/domain --workspace @jiandou/ui",
-    "api:dev": "uv run app/__main__.py serve",
+    "api:dev": "uv run backend/__main__.py serve",
     "api:test": "uv run pytest tests/ -v",
-    "compose": "bash scripts/compose-stack.sh up",
-    "compose:down": "bash scripts/compose-stack.sh down",
-    "compose:build": "bash scripts/compose-stack.sh build",
-    "compose:logs": "bash scripts/compose-stack.sh logs",
     "test": "uv run pytest tests/ -v",
-    "serve": "npm run packages:build && npm run admin:build && npm run web:build && uv run app/__main__.py serve"
+    "serve": "npm run packages:build && npm run admin:build && npm run web:build && uv run backend/__main__.py serve"
   },
   "devDependencies": {
     "openapi-fetch": "0.17.0",

@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-jiandou = "app.__main__:cli"
+jiandou = "backend.__main__:cli"
 
 [build-system]
 requires = ["setuptools>=75.1"]
@@ -31,10 +31,10 @@ build-backend = "setuptools.build_meta"
 dev-dependencies = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [tool.setuptools.packages.find]
-include = ["app*", "tests*"]
+include = ["backend*", "tests*"]
 
 [tool.setuptools.package-data]
-"app" = ["static/**/*"]
+"backend" = ["static/**/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
