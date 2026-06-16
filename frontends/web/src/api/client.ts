@@ -36,6 +36,10 @@ export function patchJson<T>(path: string, body: unknown, init?: Omit<ApiRequest
   return apiClient.patchJson<T>(path, body, init);
 }
 
+export function putJson<T>(path: string, body: unknown, init?: Omit<ApiRequestInit, "body" | "method" | "headers">) {
+  return apiClient.putJson<T>(path, body, init);
+}
+
 export function deleteJson<T>(path: string, init?: Omit<ApiRequestInit, "method">) {
   return apiClient.deleteJson<T>(path, init);
 }

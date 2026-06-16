@@ -7,8 +7,6 @@
 **/.DS_Store
 frontends/web/node_modules
 frontends/web/dist
-frontends/admin/node_modules
-frontends/admin/dist
 storage/mysql
 storage/mysql.bak_*
 storage/redis

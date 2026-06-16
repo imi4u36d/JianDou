@@ -1365,3 +1365,153 @@ export interface UpdateMaterialAssetRatingRequest {
 export interface ReuseMaterialRequest {
   mode: "clone";
 }
+
+// ── Admin types (merged from admin frontend) ──
+
+export interface AdminTaskListItem extends TaskListItem {
+  ownerUserId?: number | null;
+  ownerUsername?: string | null;
+  ownerDisplayName?: string | null;
+  ownerRole?: UserRole | null | string;
+  ownerStatus?: UserStatus | null | string;
+  taskConcurrencyLimit?: number | null;
+  runningTaskCount?: number | null;
+  queuedTaskCount?: number | null;
+}
+
+export type AdminTaskSortMode =
+  | "updated_desc"
+  | "created_desc"
+  | "progress_desc"
+  | "status_desc"
+  | "effect_rating_desc";
+
+export interface AdminTaskQuery {
+  q?: string;
+  status?: TaskStatus | "";
+  sort?: AdminTaskSortMode;
+}
+
+export interface AdminUserQuery {
+  q?: string;
+  role?: UserRole | "";
+  status?: UserStatus | "";
+}
+
+export interface CreateAdminUserRequest {
+  username: string;
+  displayName: string;
+  password: string;
+  role: UserRole;
+  status: UserStatus;
+  taskConcurrencyLimit: number;
+}
+
+export interface UpdateAdminUserRequest {
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  taskConcurrencyLimit: number;
+}
+
+export interface UpdateAdminUserPasswordRequest {
+  password: string;
+}
+
+export interface AdminCreditUser {
+  id: number;
+  userId?: number;
+  username: string;
+  displayName: string;
+  role?: UserRole | string | null;
+  status?: UserStatus | string | null;
+  balance: number;
+  totalConsumed: number;
+  totalAdjusted: number;
+  imageGenerationCount: number;
+  videoGenerationCount: number;
+  lastUsedAt?: string | null;
+}
+
+export interface AdminCreditUserQuery {
+  q?: string;
+}
+
+export interface AdminCreditAdjustmentRequest {
+  amount: number;
+  reason: string;
+}
+
+export type AdminCreditTransactionType = "ADJUST" | "CONSUME" | "USAGE" | "REFUND" | string;
+
+export interface AdminCreditTransaction {
+  transactionId: string;
+  userId: number;
+  featureCode: string;
+  transactionType: AdminCreditTransactionType;
+  amountDelta: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  relatedRunId?: string | null;
+  relatedTaskId?: string | null;
+  relatedWorkflowId?: string | null;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface AdminCreditRule {
+  id: number;
+  featureCode: string;
+  displayName: string;
+  cost: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminCreditRuleUpdateRequest {
+  cost: number;
+}
+
+export interface AdminOverviewQueue {
+  generatedAt: string;
+  queueLength: number;
+  queueSnapshot: string[];
+  runningWorkers: number;
+  userQueues: AdminUserQueueOverview[];
+  latestEvents: Array<Record<string, unknown>>;
+  oldestQueuedTaskId: string;
+  oldestQueuedTaskTitle: string;
+  oldestQueuedTaskCreatedAt?: string | null;
+}
+
+export interface AdminUserQueueOverview {
+  ownerUserId?: number | null;
+  ownerUsername: string;
+  ownerDisplayName: string;
+  ownerRole: UserRole | "SYSTEM" | string;
+  taskConcurrencyLimit: number;
+  runningTaskCount: number;
+  queuedTaskCount: number;
+  oldestQueuedTaskId: string;
+  oldestQueuedTaskTitle: string;
+  oldestQueuedTaskCreatedAt?: string | null;
+}
+
+export interface AdminOverviewWorkers {
+  items: Array<Record<string, unknown>>;
+  onlineCount: number;
+}
+
+export interface AdminOverviewResponse {
+  generatedAt: string;
+  counts: AdminOverviewCounts;
+  queue: AdminOverviewQueue;
+  workers: AdminOverviewWorkers;
+  recentTasks: AdminTaskListItem[];
+  recentFailures: AdminTaskListItem[];
+  recentRunningTasks: AdminTaskListItem[];
+  recentTraceCount: number;
+  modelReady: boolean;
+  primaryModel?: string | null;
+  textModel?: string | null;
+}

@@ -1,6 +1,3 @@
-/**
- * Web 客户端应用启动入口。
- */
 import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
@@ -26,6 +23,29 @@ async function bootstrap() {
     // Allow the public landing page to render even when the API is temporarily unavailable.
   }
   const app = createApp(App);
+
+  // Lazy register Element Plus — only loaded when visiting admin routes.
+  let epRegistered = false;
+  router.beforeEach(async (to) => {
+    if (to.path.startsWith("/admin") && !epRegistered) {
+      epRegistered = true;
+      await Promise.all([
+        import("element-plus/dist/index.css"),
+        (async () => {
+          const [{ default: ElementPlus }, { default: zhCn }, icons] = await Promise.all([
+            import("element-plus"),
+            import("element-plus/es/locale/lang/zh-cn"),
+            import("@element-plus/icons-vue"),
+          ]);
+          app.use(ElementPlus, { locale: zhCn, size: "small" });
+          for (const [key, component] of Object.entries(icons)) {
+            app.component(key, component);
+          }
+        })(),
+      ]);
+    }
+  });
+
   app.use(router);
   await router.isReady();
   app.mount("#app");

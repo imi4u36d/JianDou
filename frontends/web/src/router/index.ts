@@ -3,6 +3,18 @@
  */
 import { createRouter, createWebHistory } from "vue-router";
 import WorkspaceShell from "@/components/layout/WorkspaceShell.vue";
+
+// ── Admin routes (lazy-loaded) ──
+const AdminLoginView = () => import("@/admin/views/LoginView.vue");
+const AdminForbiddenView = () => import("@/admin/views/ForbiddenView.vue");
+const AdminLayout = () => import("@/admin/layouts/AdminLayout.vue");
+const DashboardView = () => import("@/admin/views/DashboardView.vue");
+const UserManagementView = () => import("@/admin/views/UserManagementView.vue");
+const InviteManagementView = () => import("@/admin/views/InviteManagementView.vue");
+const CreditManagementView = () => import("@/admin/views/CreditManagementView.vue");
+const TaskManagementView = () => import("@/admin/views/TaskManagementView.vue");
+const TaskDetailView = () => import("@/admin/views/TaskDetailView.vue");
+const SystemView = () => import("@/admin/views/SystemView.vue");
 import { ensureAuthSession, useAuthSessionState } from "@/auth/session";
 import ActivateInviteView from "@/views/ActivateInviteView.vue";
 import ForbiddenView from "@/views/ForbiddenView.vue";
@@ -16,7 +28,7 @@ import TasksView from "@/views/TasksView.vue";
 
 function normalizeRedirectTarget(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/workspace";
+    return authState.isAdmin.value ? "/admin" : "/workspace";
   }
   return value;
 }
@@ -130,6 +142,89 @@ const router = createRouter({
         }
       ]
     },
+    // ── Admin routes ──
+    {
+      path: "/admin/login",
+      name: "admin-login",
+      component: AdminLoginView,
+      meta: {
+        title: "管理员登录",
+        guestOnly: true
+      }
+    },
+    {
+      path: "/admin/403",
+      name: "admin-forbidden",
+      component: AdminForbiddenView,
+      meta: {
+        title: "无权限访问"
+      }
+    },
+    {
+      path: "/admin",
+      component: AdminLayout,
+      meta: {
+        requiresAdmin: true
+      },
+      children: [
+        {
+          path: "",
+          name: "admin-dashboard",
+          component: DashboardView,
+          meta: {
+            title: "首页概览"
+          }
+        },
+        {
+          path: "users",
+          name: "admin-users",
+          component: UserManagementView,
+          meta: {
+            title: "用户管理"
+          }
+        },
+        {
+          path: "invites",
+          name: "admin-invites",
+          component: InviteManagementView,
+          meta: {
+            title: "邀请码管理"
+          }
+        },
+        {
+          path: "credits",
+          name: "admin-credits",
+          component: CreditManagementView,
+          meta: {
+            title: "积分管理"
+          }
+        },
+        {
+          path: "tasks",
+          name: "admin-tasks",
+          component: TaskManagementView,
+          meta: {
+            title: "任务管理"
+          }
+        },
+        {
+          path: "tasks/:id",
+          name: "admin-task-detail",
+          component: TaskDetailView,
+          meta: {
+            title: "任务详情"
+          }
+        },
+        {
+          path: "system",
+          name: "admin-system",
+          component: SystemView,
+          meta: {
+            title: "系统配置"
+          }
+        }
+      ]
+    },
     {
       path: "/:pathMatch(.*)*",
       redirect: "/"
@@ -160,7 +255,7 @@ router.beforeEach(async (to) => {
   }
   if (requiresAdmin && !isAuthenticated) {
     return {
-      path: "/login",
+      path: "/admin/login",
       query: {
         redirect: to.fullPath
       }
@@ -168,7 +263,7 @@ router.beforeEach(async (to) => {
   }
   if (requiresAdmin && isAuthenticated && !isAdmin) {
     return {
-      path: "/403"
+      path: "/admin/403"
     };
   }
   return true;

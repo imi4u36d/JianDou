@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import settings
@@ -51,14 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
 
     # Redirect /admin to /admin/
-    @app.get("/admin")
-    async def admin_redirect():
-        return RedirectResponse(url="/admin/", status_code=301)
-
     # Mount static files
-    admin_static = Path("static/admin")
-    if admin_static.is_dir():
-        app.mount("/admin", StaticFiles(directory=str(admin_static), html=True), name="admin")
     web_static = Path("static/web")
     if web_static.is_dir():
         app.mount("/", StaticFiles(directory=str(web_static), html=True), name="web")
@@ -71,7 +64,7 @@ def create_app() -> FastAPI:
         @app.exception_handler(404)
         async def spa_fallback(request: Request, exc):
             path = request.url.path
-            if path.startswith("/api/") or path.startswith("/admin/") or path.startswith("/docs") or path.startswith("/openapi"):
+            if path.startswith("/api/") or path.startswith("/docs") or path.startswith("/openapi"):
                 return JSONResponse(status_code=404, content={"detail": "Not Found"})
             return FileResponse(str(_web_index))
 

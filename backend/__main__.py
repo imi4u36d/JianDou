@@ -28,7 +28,7 @@ def serve(host, port, reload):
     """Start the FastAPI server."""
     from backend.config import settings
     import uvicorn
-    uvicorn.run("app.main:app", host=host, port=port, reload=reload)
+    uvicorn.run("backend.main:app", host=host, port=port, reload=reload)
 
 
 @cli.command()
