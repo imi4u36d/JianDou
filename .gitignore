@@ -54,3 +54,10 @@ docs/openapi.json
 # Local AI/tooling state
 .claude/
 .codex/
+
+# Database files
+data/*.db
+data/*.db-journal
+
+# Secrets (API keys)
+config/secrets/
