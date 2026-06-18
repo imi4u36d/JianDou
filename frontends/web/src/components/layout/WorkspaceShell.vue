@@ -101,7 +101,11 @@
 
     <div class="workspace-main">
       <header class="workspace-mobile-bar">
-        <button class="shell-ghost-btn" type="button" @click="sidebarOpen = true">菜单</button>
+        <button class="shell-ghost-btn shell-menu-btn" type="button" aria-label="打开导航" @click="sidebarOpen = true">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
         <p class="workspace-mobile-bar__title">{{ currentTitle }}</p>
         <span class="workspace-mobile-bar__placeholder"></span>
       </header>
@@ -162,9 +166,9 @@ const roleLabel = computed(() => {
 const accountTitle = computed(() => currentUser.value?.displayName || currentUser.value?.username || "未登录");
 const accountMeta = computed(() => {
   if (!currentUser.value) {
-    return "登录后可查看账号信息";
+    return "未登录";
   }
-  return `${currentUser.value.username} · ${roleLabel.value}`;
+  return roleLabel.value;
 });
 const creditValue = computed(() => {
   if (!currentUser.value) {
@@ -707,13 +711,26 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 0 12px;
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
   border-radius: 999px;
   border: 0;
   background: #fff;
   color: var(--text-strong);
   box-shadow: 0 8px 18px rgba(21, 27, 32, 0.08);
+}
+
+.shell-menu-btn {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shell-menu-btn span {
+  width: 15px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .workspace-mobile-bar__title {
@@ -724,7 +741,7 @@ watch(
 }
 
 .workspace-mobile-bar__placeholder {
-  width: 56px;
+  width: 38px;
 }
 
 @media (max-width: 1024px) {

@@ -34,6 +34,26 @@
           </div>
         </label>
 
+        <div class="tasks-filter-strip" aria-label="任务筛选">
+          <button
+            v-for="item in statusFilterOptions"
+            :key="item.value"
+            type="button"
+            class="tasks-filter-chip"
+            :class="{ 'tasks-filter-chip-active': statusFilter === item.value }"
+            @click="statusFilter = item.value"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+
+        <label class="tasks-sort-field">
+          <span>排序</span>
+          <select v-model="sortMode">
+            <option v-for="item in sortModeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+
         <div v-if="loading" class="tasks-loading">正在加载任务...</div>
 
         <div v-else-if="filteredTasks.length === 0" class="tasks-empty-board">
@@ -52,25 +72,27 @@
             :key="task.id"
             class="task-list__item"
             :class="{ 'task-list__item-active': task.id === selectedTaskId }"
-            role="button"
-            tabindex="0"
-            :aria-label="`查看任务 ${task.title || '未命名任务'}`"
-            @click="handleSelectTask(task)"
-            @keydown="handleTaskItemKeydown(task, $event)"
           >
-            <span class="task-list__thumb">
-              <img v-if="taskThumbnailUrl(task)" :src="taskThumbnailUrl(task)" alt="" />
-              <span v-else>{{ taskTypeShortLabel(task) }}</span>
-            </span>
-            <span class="task-list__main">
-              <span class="task-list__title">{{ task.title || "未命名任务" }}</span>
-              <span class="task-list__meta">
-                <span>{{ taskTypeLabel(task) }}</span>
-                <span>{{ formatTaskStatus(task.status) }}</span>
-                <span>{{ formatDateTime(task.updatedAt || task.createdAt) }}</span>
+            <button
+              type="button"
+              class="task-list__main-button"
+              :aria-label="`查看任务 ${task.title || '未命名任务'}`"
+              @click="handleSelectTask(task)"
+            >
+              <span class="task-list__thumb">
+                <img v-if="taskThumbnailUrl(task)" :src="taskThumbnailUrl(task)" alt="" />
+                <span v-else>{{ taskTypeShortLabel(task) }}</span>
               </span>
-              <span class="task-list__progress" aria-hidden="true"><i :style="{ width: `${taskProgress(task)}%` }"></i></span>
-            </span>
+              <span class="task-list__main">
+                <span class="task-list__title">{{ task.title || "未命名任务" }}</span>
+                <span class="task-list__meta">
+                  <span>{{ taskTypeLabel(task) }}</span>
+                  <span>{{ formatTaskStatus(task.status) }}</span>
+                  <span>{{ formatDateTime(task.updatedAt || task.createdAt) }}</span>
+                </span>
+                <span class="task-list__progress" aria-hidden="true"><i :style="{ width: `${taskProgress(task)}%` }"></i></span>
+              </span>
+            </button>
             <span class="task-list__side">
               <span class="task-list__side-actions">
                 <button
@@ -271,6 +293,20 @@ const router = useRouter();
 type TaskSortMode = "status_desc" | "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc";
 
 const DEFAULT_SORT_MODE: TaskSortMode = "status_desc";
+const statusFilterOptions: Array<{ label: string; value: TaskStatus | "all" }> = [
+  { label: "全部", value: "all" },
+  { label: "进行中", value: "RENDERING" },
+  { label: "排队", value: "PENDING" },
+  { label: "已完成", value: "COMPLETED" },
+  { label: "失败", value: "FAILED" },
+];
+const sortModeOptions: Array<{ label: string; value: TaskSortMode }> = [
+  { label: "智能优先", value: "status_desc" },
+  { label: "最近更新", value: "updated_desc" },
+  { label: "最新创建", value: "created_desc" },
+  { label: "进度最高", value: "progress_desc" },
+  { label: "有脚本优先", value: "semantic_desc" },
+];
 const STATUS_SORT_PRIORITY: Record<TaskStatus, number> = {
   RENDERING: 0,
   ANALYZING: 1,
@@ -798,17 +834,6 @@ function handleSelectTask(task: TaskListItem) {
   void loadSelectedTaskDetails();
 }
 
-function handleTaskItemKeydown(task: TaskListItem, event: KeyboardEvent) {
-  if (event.target !== event.currentTarget) {
-    return;
-  }
-  if (event.key !== "Enter" && event.key !== " ") {
-    return;
-  }
-  event.preventDefault();
-  handleSelectTask(task);
-}
-
 async function handleRetry(task: TaskListItem) {
   if (managingTaskId.value) {
     return;
@@ -1252,6 +1277,93 @@ onUnmounted(() => {
   color: #9aa5ad;
 }
 
+.tasks-filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.tasks-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 169, 187, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-body);
+  font-size: 0.78rem;
+  font-weight: 780;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.tasks-filter-chip:hover,
+.tasks-filter-chip:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(0, 169, 187, 0.26);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+}
+
+.tasks-filter-chip-active {
+  border-color: rgba(27, 124, 255, 0.2);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
+  color: var(--accent-blue);
+  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.08);
+}
+
+.tasks-sort-field {
+  display: grid;
+  gap: 8px;
+}
+
+.tasks-sort-field span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.tasks-sort-field select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(0, 169, 187, 0.12);
+  border-radius: 14px;
+  padding: 0 40px 0 14px;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%) calc(100% - 20px) 50% / 6px 6px no-repeat,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 252, 255, 0.58));
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 760;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.tasks-sort-field select:focus {
+  border-color: rgba(0, 169, 187, 0.42);
+  background:
+    linear-gradient(45deg, transparent 50%, var(--accent-blue) 50%) calc(100% - 20px) 50% / 6px 6px no-repeat,
+    #fff;
+  box-shadow:
+    0 0 0 3px rgba(0, 169, 187, 0.1),
+    0 10px 24px rgba(27, 124, 255, 0.08);
+}
+
 .tasks-alert,
 .tasks-loading,
 .tasks-empty-board {
@@ -1317,7 +1429,7 @@ onUnmounted(() => {
 
 .task-list__item {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-height: 82px;
@@ -1325,20 +1437,13 @@ onUnmounted(() => {
   border: 1px solid transparent;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.64);
-  text-align: left;
   color: var(--text-strong);
-  cursor: pointer;
   transition:
     background 180ms ease,
     border-color 180ms ease,
     box-shadow 180ms ease,
     color 180ms ease,
     transform 180ms ease;
-}
-
-.task-list__item:focus-visible {
-  outline: 2px solid rgba(124, 58, 237, 0.34);
-  outline-offset: 3px;
 }
 
 .task-list__item-active {
@@ -1351,6 +1456,27 @@ onUnmounted(() => {
   transform: translateY(-1px);
   border-color: rgba(0, 169, 187, 0.16);
   background: rgba(255, 255, 255, 0.9);
+}
+
+.task-list__main-button {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-list__main-button:focus-visible {
+  outline: 2px solid rgba(0, 169, 187, 0.34);
+  outline-offset: 5px;
+  border-radius: 12px;
 }
 
 .task-list__thumb {
@@ -1536,6 +1662,14 @@ onUnmounted(() => {
   flex-wrap: wrap;
   margin-top: 10px;
   gap: 8px;
+  min-width: 0;
+}
+
+.task-detail-header__meta .surface-chip {
+  max-width: min(100%, 280px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-details-panel__empty,

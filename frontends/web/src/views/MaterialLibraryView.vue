@@ -16,10 +16,12 @@
 
       <div class="material-topbar__tools">
         <label class="material-search">
-          <span aria-hidden="true">⌕</span>
+          <span aria-hidden="true"><IconSearch size="sm" /></span>
           <input v-model="filters.q" type="search" placeholder="搜索" @keyup.enter="loadAssets" />
         </label>
-        <button class="material-search-button" type="button" :disabled="loading" @click="loadAssets">搜索</button>
+        <button class="material-search-button" type="button" :disabled="loading" aria-label="搜索素材" @click="loadAssets">
+          <IconSearch size="sm" />
+        </button>
         <span class="material-toolbar-divider"></span>
         <button
           class="material-toolbar-link"
@@ -27,9 +29,12 @@
           :class="{ 'material-toolbar-link-active': batchMode }"
           @click="batchMode = !batchMode"
         >
-          批量操作
+          批量
         </button>
-        <RouterLink class="material-toolbar-primary" to="/workspace">新建素材</RouterLink>
+        <RouterLink class="material-toolbar-primary" to="/workspace">
+          <IconPlus size="sm" />
+          新建
+        </RouterLink>
       </div>
     </header>
 
@@ -105,7 +110,7 @@
             @click="openVideoAsset(asset)"
           >
             <img :src="assetVideoPosterUrl(asset)" :alt="asset.title" loading="lazy" decoding="async" fetchpriority="low" />
-            <span class="material-video-play">播放</span>
+            <span class="material-video-play" aria-hidden="true">▶</span>
           </button>
           <button
             v-else-if="asset.mediaType === 'video'"
@@ -156,7 +161,7 @@
 
           <div class="material-card__footer">
             <details class="material-more-menu">
-              <summary aria-label="更多操作">•••</summary>
+              <summary aria-label="更多操作"><IconMore size="sm" /></summary>
               <div class="material-more-menu__panel">
                 <button type="button" :disabled="busyActionKey === `upload-${asset.id}` || Boolean(asset.remoteUrl)" @click="handleUploadAsset(asset.id)">
                   {{ busyActionKey === `upload-${asset.id}` ? "上传中..." : (asset.remoteUrl ? "已上传" : "上传") }}
@@ -218,6 +223,7 @@ import type { AppSelectOption } from "@/components/common/app-select";
 import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
+import { IconMore, IconPlus, IconSearch } from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
@@ -746,6 +752,12 @@ watch(
   color: var(--text-muted);
 }
 
+.material-search > span,
+.material-search-button {
+  display: inline-grid;
+  place-items: center;
+}
+
 .material-search input {
   width: 100%;
   min-height: 32px;
@@ -772,8 +784,11 @@ watch(
 }
 
 .material-search-button {
+  width: 36px;
+  padding: 0;
   background: #effcff;
-  color: var(--text-muted);
+  color: var(--accent-blue);
+  cursor: pointer;
 }
 
 .material-toolbar-link {
@@ -788,6 +803,7 @@ watch(
 }
 
 .material-toolbar-primary {
+  gap: 6px;
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
   color: #fff;
   box-shadow: 0 10px 22px rgba(27, 124, 255, 0.16);
@@ -1047,12 +1063,13 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 8px;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 999px;
   background: rgba(15, 20, 25, 0.72);
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
@@ -1066,6 +1083,10 @@ watch(
 
 .material-preview-trigger-placeholder span {
   position: static;
+  width: auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
   background: rgba(15, 20, 25, 0.08);
   color: var(--text-muted);
 }
@@ -1163,11 +1184,11 @@ watch(
 }
 
 .material-more-menu summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0 10px;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
   border-radius: 999px;
   color: var(--text-muted);
   font-size: 0.78rem;

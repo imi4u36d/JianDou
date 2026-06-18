@@ -34,14 +34,14 @@
                   @click.stop
                 >
                   <img :src="item.fileUrl" :alt="item.label" />
-                  <span
+                  <button
+                    type="button"
                     class="home-composer__upload-preview-image-remove"
-                    role="button"
                     :aria-label="`移除${item.label}`"
                     @click.stop="removeReferenceImage(item.id)"
                   >
                     ×
-                  </span>
+                  </button>
                 </span>
               </span>
               <span class="home-composer__upload-add-card" :style="referenceAddCardStyle()">
@@ -64,9 +64,9 @@
         <div class="home-composer__body">
           <label class="home-composer__prompt">
             <div v-if="showPromptPlaceholder" class="home-composer__placeholder" aria-hidden="true">
-              <span>输入想法、剧本或上传参考，支持 "/" 使用技能，</span>
+              <span>输入想法、剧本或参考图，</span>
               <span class="home-composer__placeholder-tag">@</span>
-              <span> 添加主体，和Agent一起创作</span>
+              <span> 添加主体</span>
             </div>
             <div
               ref="promptEditor"
@@ -904,7 +904,10 @@ onBeforeUnmount(() => {
 .hero-mode-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
+  min-height: 34px;
+  margin: -2px 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1049,12 +1052,15 @@ onBeforeUnmount(() => {
   place-items: center;
   width: 28px;
   height: 28px;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
   background: rgba(41, 46, 53, 0.94);
   color: #fff;
   font-size: 0.9rem;
   font-weight: 500;
   line-height: 1;
+  cursor: pointer;
   transform: rotate(var(--preview-remove-rotate, 0deg)) scale(0.84);
   transform-origin: center;
   opacity: 0;
@@ -2017,6 +2023,11 @@ onBeforeUnmount(() => {
 
   .home-hero {
     gap: 28px;
+  }
+
+  .home-hero h1 {
+    gap: 4px 8px;
+    line-height: 1.24;
   }
 
   .home-composer {

@@ -55,13 +55,16 @@
           :key="item.id"
           class="workflow-nav-item"
           :class="{ 'workflow-nav-item-active': item.id === selectedWorkflowId }"
-          role="button"
-          tabindex="0"
-          @click="openWorkflow(item.id, workflowSummaryCanvasStage(item))"
-          @keydown="handleWorkflowNavItemKeydown(item, $event)"
         >
-          <span class="workflow-nav-item__dot" :class="{ 'workflow-nav-item__dot-active': item.id === selectedWorkflowId }"></span>
-          <span class="workflow-nav-item__title">{{ item.title }}</span>
+          <button
+            type="button"
+            class="workflow-nav-item__main"
+            :aria-label="`打开工作流 ${item.title}`"
+            @click="openWorkflow(item.id, workflowSummaryCanvasStage(item))"
+          >
+            <span class="workflow-nav-item__dot" :class="{ 'workflow-nav-item__dot-active': item.id === selectedWorkflowId }"></span>
+            <span class="workflow-nav-item__title">{{ item.title }}</span>
+          </button>
           <div class="workflow-more-menu workflow-nav-item__menu">
             <button type="button" class="workflow-more-menu__trigger" aria-label="更多操作" :popovertarget="`wfm-${item.id}`" @click.stop>
               <IconMore size="sm" />
@@ -337,7 +340,9 @@
                           <span class="compact-version-card__status">{{ version.selected ? "已选中" : version.status }}</span>
                         </button>
                         <div class="workflow-more-menu compact-version-menu">
-                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">
+                            <IconMore size="sm" />
+                          </button>
                           <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                             <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectStoryboard(version.id)">
                               {{ version.selected ? "已选中" : "设为当前" }}
@@ -522,7 +527,9 @@
                           <span v-if="keyframeVersionHasSelectedFrame(version)" class="surface-chip">当前</span>
                         </button>
                         <div class="workflow-more-menu compact-version-menu">
-                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">
+                            <IconMore size="sm" />
+                          </button>
                           <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                             <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectKeyframe(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
                             <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
@@ -636,7 +643,9 @@
                             <span v-if="version.selected" class="surface-chip">当前</span>
                           </button>
                           <div class="workflow-more-menu compact-version-menu">
-                            <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+                            <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">
+                              <IconMore size="sm" />
+                            </button>
                             <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                               <button type="button" :disabled="!canSelectVideoVersion(version) || version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
                               <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
@@ -663,7 +672,9 @@
                       <div class="version-card__actions">
                         <button class="btn-secondary btn-sm" type="button" :disabled="!canSelectVideoVersion(previewVideoVersion) || previewVideoVersion.selected || busyActionKey === previewVideoVersion.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, previewVideoVersion.id)">选中继续</button>
                         <div class="workflow-more-menu compact-version-menu">
-                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-card-${previewVideoVersion.id}`">•••</button>
+                          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-card-${previewVideoVersion.id}`">
+                            <IconMore size="sm" />
+                          </button>
                           <div :id="`vsm-card-${previewVideoVersion.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                             <button type="button" :disabled="!previewVideoVersion.asset || busyActionKey === `reuse-${previewVideoVersion.id}`" @click="handleReuseAsset(previewVideoVersion.asset?.id || '', previewVideoVersion.id)">复用</button>
                             <a v-if="previewVideoVersion.downloadUrl" :href="previewVideoVersion.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
@@ -704,7 +715,7 @@
                   <section v-if="videoReadiness.missing.length" class="missing-clip-list">
                     <div class="missing-clip-list__head">
                       <strong>待补齐镜头</strong>
-                      <span class="missing-clip-list__hint">这些分镜还没有选中视频版本，补齐后才能重新拼接完整视频。</span>
+                      <span class="missing-clip-list__hint">选中视频版本后可重新拼接。</span>
                     </div>
                     <div class="missing-clip-list__chips">
                       <button v-for="slot in videoReadiness.missing" :key="`missing-${slot.clipIndex}`" type="button" class="missing-clip-card" @click="selectCanvasClip(slot.clipIndex); switchCanvasStage('video')">
@@ -713,7 +724,7 @@
                     </div>
                   </section>
                   <div class="final-result-card-v2__actions">
-                    <a class="btn-primary btn-sm" :href="selectedWorkflow.finalResult.fileUrl" download target="_blank" rel="noopener noreferrer">下载结果视频</a>
+                    <a class="btn-primary btn-sm" :href="selectedWorkflow.finalResult.fileUrl" download target="_blank" rel="noopener noreferrer">下载成片</a>
                   </div>
                 </div>
               </article>
@@ -724,7 +735,7 @@
               <section v-if="!selectedWorkflow.finalResult && videoReadiness.missing.length" class="missing-clip-list">
                 <div class="missing-clip-list__head">
                   <strong>待补齐镜头</strong>
-                  <span class="missing-clip-list__hint">先为这些分镜选中一个视频版本，才能进行完整视频拼接。</span>
+                  <span class="missing-clip-list__hint">点选镜头，回到视频阶段补齐。</span>
                 </div>
                 <div class="missing-clip-list__chips">
                   <button v-for="slot in videoReadiness.missing" :key="`missing-${slot.clipIndex}`" type="button" class="missing-clip-card" @click="selectCanvasClip(slot.clipIndex); switchCanvasStage('video')">
@@ -1110,10 +1121,6 @@ const workflowParameterTags = computed(() => {
   }
   return [
     {
-      label: "文本模型",
-      value: valueOptionLabel(textModelOptions.value, workflow.textAnalysisModel, workflow.textAnalysisModel || "未设置"),
-    },
-    {
       label: "关键帧模型",
       value: valueOptionLabel(imageModelOptions.value, workflow.imageModel, workflow.imageModel || "未设置"),
     },
@@ -1128,14 +1135,6 @@ const workflowParameterTags = computed(() => {
     {
       label: "尺寸",
       value: valueOptionLabel(catalogVideoSizeOptions.value, workflow.videoSize, workflow.videoSize || "未设置"),
-    },
-    {
-      label: "关键帧 Seed",
-      value: seedLabel(workflow.keyframeSeed),
-    },
-    {
-      label: "视频 Seed",
-      value: seedLabel(workflow.videoSeed),
     },
   ];
 });
@@ -1152,12 +1151,12 @@ const finalizeButtonLabel = computed(() => selectedWorkflow.value?.finalResult ?
 const finalizeHint = computed(() => {
   const workflow = selectedWorkflow.value;
   if (!workflow || !(workflow.clipSlots ?? []).length) {
-    return "先生成并选中每个分镜的视频版本，才能按分镜顺序拼接成完整视频。";
+    return "等待镜头";
   }
   if (canFinalize.value) {
-    return "会按当前选中的视频版本，依照分镜顺序拼接为完整视频。";
+    return "可拼接";
   }
-  return "所有分镜都需要先有一个选中的视频版本，之后才能进行拼接。";
+  return `缺 ${videoReadiness.value.missing.length}`;
 });
 
 const workflowSettingsValidationMessage = computed(() => {
@@ -1600,17 +1599,6 @@ function openWorkflow(workflowId: string, preferredStage?: string | null) {
     path: `/workflows/${workflowId}`,
     query: { stage: nextStage },
   });
-}
-
-function handleWorkflowNavItemKeydown(item: WorkflowSummary, event: KeyboardEvent) {
-  if (event.target !== event.currentTarget) {
-    return;
-  }
-  if (event.key !== "Enter" && event.key !== " ") {
-    return;
-  }
-  event.preventDefault();
-  openWorkflow(item.id, workflowSummaryCanvasStage(item));
 }
 
 function switchWorkflowStage(stage: DetailRouteStageKey) {
@@ -2427,14 +2415,13 @@ onBeforeUnmount(() => {
 .workflow-nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-height: 54px;
   padding: 10px 10px 10px 12px;
   border: 1px solid transparent;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.58);
   color: var(--text-strong);
-  cursor: pointer;
   outline: none;
   transition:
     transform 150ms ease,
@@ -2456,6 +2443,27 @@ onBeforeUnmount(() => {
   border-color: rgba(27, 124, 255, 0.18);
   background: linear-gradient(90deg, rgba(237, 245, 255, 0.96), rgba(239, 252, 255, 0.86));
   box-shadow: 0 10px 22px rgba(27, 124, 255, 0.08);
+}
+
+.workflow-nav-item__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workflow-nav-item__main:focus-visible {
+  outline: 2px solid rgba(0, 169, 187, 0.34);
+  outline-offset: 4px;
+  border-radius: 10px;
 }
 
 .workflow-nav-item__dot {
@@ -2553,6 +2561,13 @@ onBeforeUnmount(() => {
   flex: 1;
   flex-wrap: nowrap;
   overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent 100%);
+}
+
+.workflow-summary__parameter-tags-header::-webkit-scrollbar {
+  display: none;
 }
 
 .workflow-canvas-header__settings-button {
@@ -2564,11 +2579,12 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   min-height: 30px;
+  flex: 0 0 auto;
   max-width: 100%;
   padding: 6px 10px;
   border: 1px solid rgba(0, 169, 187, 0.1);
   border-radius: 999px;
-  background: #f7fbff;
+  background: linear-gradient(135deg, #f7fbff, #f4fffb);
 }
 
 .workflow-summary__meta-compact {
@@ -2592,7 +2608,11 @@ onBeforeUnmount(() => {
   color: var(--text-strong);
   font-size: 0.74rem;
   font-weight: 800;
+  max-width: 16rem;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workflow-header-settings {
@@ -4167,6 +4187,7 @@ button:disabled {
   .workflow-summary__parameter-tags-header {
     flex-wrap: wrap;
     overflow-x: visible;
+    mask-image: none;
   }
 
   .stage-board__meta {

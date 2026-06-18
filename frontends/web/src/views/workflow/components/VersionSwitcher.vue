@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { StageVersion } from "@/types";
+import { IconMore } from "@/components/icons";
 
 const props = defineProps<{
   versions: StageVersion[];
@@ -52,7 +53,9 @@ function positionMenu(event: ToggleEvent) {
           <span v-else class="compact-version-card__status">{{ version.status }}</span>
         </button>
         <div v-if="showMenu !== false" class="workflow-more-menu compact-version-menu">
-          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
+          <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">
+            <IconMore size="sm" />
+          </button>
           <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionMenu">
             <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="emit('select', version.id)">
               {{ version.selected ? "已选中" : "设为当前" }}
