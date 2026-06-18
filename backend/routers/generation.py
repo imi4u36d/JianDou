@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 import yaml
 
+from backend.routers.auth import get_current_user
 from backend.services.generation_service import GenerationRunNotFoundException, UnsupportedGenerationKindException
 
 router = APIRouter(prefix="/api/v3/generation", tags=["generation"])
@@ -159,10 +160,18 @@ async def generation_catalog():
 
 @router.post("/runs")
 async def create_generation_run(request: Request):
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="unauthenticated")
     body = await request.json()
+    if not isinstance(body, dict):
+        body = {}
+    auth = body.get("auth") if isinstance(body.get("auth"), dict) else {}
+    auth["userId"] = user["id"]
+    body["auth"] = auth
     service = request.app.state.generation_application_service
     try:
-        return await service.create_run(body if isinstance(body, dict) else {})
+        return await service.create_run(body)
     except UnsupportedGenerationKindException as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except ValueError as exc:

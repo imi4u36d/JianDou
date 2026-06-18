@@ -869,7 +869,7 @@ class GenerationRunFactory:
             "textAnalysisModel",
             "",
         )
-        profile = self._resolve_text_profile(requested_model)
+        profile = self._resolve_text_profile(requested_model, _user_id)
         call_chain: list[dict[str, Any]] = []
         metadata: dict[str, Any] = {
             "requestedModel": requested_model,
@@ -935,7 +935,7 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel", "",
         )
-        profile = self._resolve_text_profile(requested_model)
+        profile = self._resolve_text_profile(requested_model, _user_id)
         if not source_text.strip():
             raise ValueError("")
 
@@ -1066,7 +1066,7 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel", "",
         )
-        profile = self._resolve_text_profile(requested_model)
+        profile = self._resolve_text_profile(requested_model, self._user_id_from_request(request))
         if not script_markdown.strip():
             raise ValueError("")
 
@@ -1173,8 +1173,8 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "providerModel", ""),
             "providerModel", "",
         )
-        _text_profile = self._resolve_text_profile(_text_model)
-        image_profile = self._resolve_media_profile(requested_image_model, GenerationModelKinds.IMAGE)
+        _text_profile = self._resolve_text_profile(_text_model, _user_id)
+        image_profile = self._resolve_media_profile(requested_image_model, GenerationModelKinds.IMAGE, _user_id)
         _applied_image_seed = _requested_seed if image_profile.get("supportsSeed", False) else None
 
         call_chain: list[dict[str, Any]] = []
@@ -1286,7 +1286,7 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "providerModel", ""),
             "providerModel", "",
         )
-        video_profile = self._resolve_media_profile(requested_video_model, GenerationModelKinds.VIDEO)
+        video_profile = self._resolve_media_profile(requested_video_model, GenerationModelKinds.VIDEO, _user_id)
         duration = self._normalize_video_duration(video_profile, _requested_duration, _requested_min_duration, _requested_max_duration)
 
         _first_frame_url = self._resolve_video_frame_input(
@@ -1297,7 +1297,7 @@ class GenerationRunFactory:
         )
         _generate_audio = self._support.nested_boolean(request, "input", "generateAudio", True)
         _return_last_frame = self._support.nested_boolean(request, "input", "returnLastFrame", True)
-        _text_profile = self._resolve_text_profile(_text_model)
+        _text_profile = self._resolve_text_profile(_text_model, _user_id)
         _applied_video_seed = _requested_seed if video_profile.get("supportsSeed", False) else None
 
         call_chain: list[dict[str, Any]] = []
@@ -1430,7 +1430,7 @@ class GenerationRunFactory:
             return run
 
         _user_id = self._user_id_from_run(run)
-        _profile_dict = self._resolve_media_profile(requested_model, GenerationModelKinds.VIDEO)
+        _profile_dict = self._resolve_media_profile(requested_model, GenerationModelKinds.VIDEO, _user_id)
         call_chain = self._mutable_call_chain(result.get("callChain"))
 
         # Real video task query
@@ -1527,11 +1527,13 @@ class GenerationRunFactory:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_text_profile(self, requested_model: str) -> dict[str, Any]:
+    def _resolve_text_profile(self, requested_model: str, user_id: Optional[int] = None) -> dict[str, Any]:
         """Resolve text model profile using the real config resolver."""
         try:
-            profile = self._config_resolver.resolve_text_profile(requested_model)
+            profile = self._config_resolver.resolve_text_profile(requested_model, user_id)
             return {
+                "userId": user_id,
+                "requestedModel": requested_model,
                 "modelName": profile.config.provider_model or requested_model,
                 "provider": profile.provider,
                 "endpointHost": profile.endpoint_host,
@@ -1560,7 +1562,8 @@ class GenerationRunFactory:
         from backend.services.model_invocation import TextModelInvocation
 
         profile = self._config_resolver.resolve_text_profile(
-            profile_dict.get("modelName", "")
+            profile_dict.get("requestedModel", "") or profile_dict.get("modelName", ""),
+            profile_dict.get("userId"),
         )
         invocation = TextModelInvocation(
             system_prompt=system_prompt,
@@ -1581,11 +1584,18 @@ class GenerationRunFactory:
             "responsesApi": result.responses_api,
         }
 
-    def _resolve_media_profile(self, requested_model: str, media_kind: str) -> dict[str, Any]:
+    def _resolve_media_profile(
+        self,
+        requested_model: str,
+        media_kind: str,
+        user_id: Optional[int] = None,
+    ) -> dict[str, Any]:
         """Resolve media model profile using the real config resolver."""
         try:
-            profile = self._config_resolver.resolve_media_profile(requested_model, media_kind)
+            profile = self._config_resolver.resolve_media_profile(requested_model, media_kind, user_id)
             return {
+                "userId": user_id,
+                "requestedModel": requested_model,
                 "modelName": profile.config.provider_model or requested_model,
                 "provider": profile.provider,
                 "endpointHost": profile.endpoint_host,
@@ -1617,7 +1627,8 @@ class GenerationRunFactory:
         from backend.services.model_invocation import ImageGenerationRequest
 
         profile = self._config_resolver.resolve_image_profile(
-            profile_dict.get("modelName", "")
+            profile_dict.get("requestedModel", "") or profile_dict.get("modelName", ""),
+            profile_dict.get("userId"),
         )
         request = ImageGenerationRequest(
             requested_model=profile_dict.get("modelName", ""),
@@ -1660,7 +1671,8 @@ class GenerationRunFactory:
         from backend.services.model_invocation import VideoGenerationRequest
 
         profile = self._config_resolver.resolve_video_profile(
-            profile_dict.get("modelName", "")
+            profile_dict.get("requestedModel", "") or profile_dict.get("modelName", ""),
+            profile_dict.get("userId"),
         )
         request = VideoGenerationRequest(
             requested_model=profile_dict.get("modelName", ""),
@@ -1919,11 +1931,13 @@ class DefaultGenerationApplicationService:
         catalog_service: Optional[GenerationCatalogService] = None,
         generation_run_factory: Optional[GenerationRunFactory] = None,
         support: Optional[GenerationRunSupport] = None,
+        config_resolver: Optional[ModelRuntimePropertiesResolver] = None,
     ) -> None:
         self._store = generation_run_store or LocalGenerationRunStore()
         self._catalog_service = catalog_service or GenerationCatalogService()
         self._factory = generation_run_factory or GenerationRunFactory(
-            support or GenerationRunSupport()
+            support or GenerationRunSupport(),
+            config_resolver=config_resolver,
         )
         self._support = support or GenerationRunSupport()
 

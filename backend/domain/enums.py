@@ -95,7 +95,6 @@ class QueueEventType(str, Enum):
         mapping = {
             AttemptStatus.QUEUED: cls.ENQUEUED,
             AttemptStatus.RUNNING: cls.CLAIMED,
-            AttemptStatus.COMPLETED: cls.COMPLETED,
             AttemptStatus.FINISHED: cls.COMPLETED,
             AttemptStatus.FAILED: cls.FAILED,
             AttemptStatus.TERMINATED: cls.FAILED,

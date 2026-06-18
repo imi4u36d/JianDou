@@ -363,6 +363,7 @@ export interface GenerationOptionsResponse {
   textAnalysisModels?: GenerationTextAnalysisModelInfo[];
   defaultTextAnalysisModel?: string | null;
   imageModels?: GenerationTextAnalysisModelInfo[];
+  defaultImageModel?: string | null;
   videoSizes: GenerationVideoSizeOption[];
   videoDurations: GenerationVideoDurationOption[];
   defaultStylePreset?: string | null;

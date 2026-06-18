@@ -111,6 +111,23 @@ def _biz_task_from_record(record: TaskRecord) -> BizTask:
 
 def _record_from_biz_task(row: BizTask) -> TaskRecord:
     """Convert a BizTask ORM row into a TaskRecord."""
+    request_snapshot: dict[str, Any] = {}
+    execution_context: dict[str, Any] = {}
+    if row.request_payload_json:
+        try:
+            parsed = json.loads(row.request_payload_json)
+            if isinstance(parsed, dict):
+                request_snapshot = parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if row.context_json:
+        try:
+            parsed = json.loads(row.context_json)
+            if isinstance(parsed, dict):
+                execution_context = parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     rec = TaskRecord(
         id=row.task_id or "",
         owner_user_id=row.owner_user_id,
@@ -122,9 +139,9 @@ def _record_from_biz_task(row: BizTask) -> TaskRecord:
         retry_count=row.retry_count or 0,
         started_at=row.started_at,
         finished_at=row.finished_at,
-        completed_output_count=0,
+        completed_output_count=_int_value(execution_context.get("completedOutputCount"), 0),
         current_attempt_no=0,
-        has_transcript=False,
+        has_transcript=bool(_string_value(request_snapshot.get("transcriptText"))),
         has_timed_transcript=False,
         source_asset_count=0,
         editing_mode=row.editing_mode or "",
@@ -139,27 +156,16 @@ def _record_from_biz_task(row: BizTask) -> TaskRecord:
         effect_rating_note=row.effect_rating_note or "",
         rated_at=row.rated_at,
         error_message=row.error_message or "",
-        transcript_text="",
-        storyboard_script="",
+        transcript_text=_string_value(request_snapshot.get("transcriptText")),
+        storyboard_script=_string_value(execution_context.get("analysisScriptText")),
         status=row.status or "",
         progress=row.progress or 0,
         created_at=row.create_time or "",
         updated_at=row.update_time or "",
         source_file_name=row.source_file_name or "",
-        execution_context={},
-        request_snapshot={},
+        execution_context=execution_context,
+        request_snapshot=request_snapshot,
     )
-    # Parse JSON fields
-    if row.context_json:
-        try:
-            rec.execution_context = json.loads(row.context_json)
-        except (json.JSONDecodeError, TypeError):
-            pass
-    if row.request_payload_json:
-        try:
-            rec.request_snapshot = json.loads(row.request_payload_json)
-        except (json.JSONDecodeError, TypeError):
-            pass
     return rec
 
 
@@ -323,39 +329,7 @@ class TaskRepository:
 
                 # 6. Model calls
                 for row in mutation.model_call_rows:
-                    self.session.add(BizTaskModelCall(
-                        task_model_call_id=_string_value(row.get("modelCallId", row.get("id", ""))),
-                        task_id=task_id,
-                        call_kind=_string_value(row.get("callKind", "")),
-                        stage=_string_value(row.get("stage", "")),
-                        operation=_string_value(row.get("operation", "")),
-                        provider=_string_value(row.get("provider", "")),
-                        provider_model=_string_value(row.get("providerModel", "")),
-                        requested_model=_string_value(row.get("requestedModel", "")),
-                        resolved_model=_string_value(row.get("resolvedModel", "")),
-                        model_name=_string_value(row.get("modelName", "")),
-                        model_alias=_string_value(row.get("modelAlias", "")),
-                        endpoint_host=_string_value(row.get("endpointHost", "")),
-                        request_id=_string_value(row.get("requestId", "")),
-                        request_payload_json=json.dumps(row.get("requestPayload", {}), ensure_ascii=False),
-                        response_payload_json=json.dumps(row.get("responsePayload", {}), ensure_ascii=False),
-                        http_status=_int_value(row.get("httpStatus"), 0),
-                        response_status_code=_int_value(row.get("responseStatusCode"), 0),
-                        success=_int_value(row.get("success"), 0),
-                        error_code=_string_value(row.get("errorCode", "")),
-                        error_message=_string_value(row.get("errorMessage", "")),
-                        latency_ms=_int_value(row.get("latencyMs"), 0),
-                        duration_ms=_int_value(row.get("durationMs"), 0),
-                        input_tokens=_int_value(row.get("inputTokens"), 0),
-                        output_tokens=_int_value(row.get("outputTokens"), 0),
-                        started_at=_string_value(row.get("startedAt", _now_iso())),
-                        finished_at=_string_value(row.get("finishedAt", _now_iso())),
-                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
-                        create_time=_now_iso(),
-                        update_time=_now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    await self._upsert_model_call(task_id, row)
 
                 # 7. Materials -> store as BizTaskModelCall (simplified)
                 for row in mutation.material_rows:
@@ -735,6 +709,9 @@ class TaskRepository:
             if a.status in ("RUNNING", "QUEUED", "PENDING"):
                 rec.active_attempt_id = a.task_attempt_id
                 rec.current_attempt_no = a.attempt_no
+            if a.status in ("QUEUED", "PENDING"):
+                rec.is_queued = True
+                rec.queue_position = 1 if rec.queue_position is None else rec.queue_position
 
         # Load status history (trace rows from BizTaskStatusHistory)
         stmt = (
@@ -939,6 +916,58 @@ class TaskRepository:
                 is_deleted=0,
                 remark="",
             ))
+
+    async def _upsert_model_call(self, task_id: str, row: dict[str, Any]) -> None:
+        model_call_id = _string_value(row.get("modelCallId", row.get("id", "")))
+        if not model_call_id:
+            return
+        result = await self.session.execute(
+            select(BizTaskModelCall).where(BizTaskModelCall.task_model_call_id == model_call_id)
+        )
+        existing = result.scalars().first()
+        now = _now_iso()
+        values = {
+            "task_id": task_id,
+            "call_kind": _string_value(row.get("callKind", "")),
+            "stage": _string_value(row.get("stage", "")),
+            "operation": _string_value(row.get("operation", "")),
+            "provider": _string_value(row.get("provider", "")),
+            "provider_model": _string_value(row.get("providerModel", "")),
+            "requested_model": _string_value(row.get("requestedModel", "")),
+            "resolved_model": _string_value(row.get("resolvedModel", "")),
+            "model_name": _string_value(row.get("modelName", "")),
+            "model_alias": _string_value(row.get("modelAlias", "")),
+            "endpoint_host": _string_value(row.get("endpointHost", "")),
+            "request_id": _string_value(row.get("requestId", "")),
+            "request_payload_json": json.dumps(row.get("requestPayload", {}), ensure_ascii=False),
+            "response_payload_json": json.dumps(row.get("responsePayload", {}), ensure_ascii=False),
+            "http_status": _int_value(row.get("httpStatus"), 0),
+            "response_status_code": _int_value(
+                row.get("responseStatusCode", row.get("responseCode")), 0
+            ),
+            "success": 1 if bool(row.get("success")) else 0,
+            "error_code": _string_value(row.get("errorCode", "")),
+            "error_message": _string_value(row.get("errorMessage", "")),
+            "latency_ms": _int_value(row.get("latencyMs"), 0),
+            "duration_ms": _int_value(row.get("durationMs"), 0),
+            "input_tokens": _int_value(row.get("inputTokens"), 0),
+            "output_tokens": _int_value(row.get("outputTokens"), 0),
+            "started_at": _string_value(row.get("startedAt", now)),
+            "finished_at": _string_value(row.get("finishedAt", now)),
+            "timezone_offset_minutes": _int_value(row.get("timezoneOffsetMinutes"), 0),
+            "update_time": now,
+            "is_deleted": 0,
+            "remark": _string_value(row.get("remark", "")),
+        }
+        if existing:
+            for key, value in values.items():
+                setattr(existing, key, value)
+            return
+        self.session.add(BizTaskModelCall(
+            task_model_call_id=model_call_id,
+            create_time=now,
+            **values,
+        ))
 
     async def _upsert_worker_instance(self, row: dict[str, Any]) -> None:
         worker_id = _string_value(row.get("workerInstanceId", ""))

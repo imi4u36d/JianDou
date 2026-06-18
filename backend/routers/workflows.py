@@ -15,8 +15,16 @@ from backend.services.workflow_service import WorkflowService
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
 
 
-def _service(db: AsyncSession) -> WorkflowService:
-    return WorkflowService(db)
+def _service(db: AsyncSession, request: Request | None = None) -> WorkflowService:
+    generation_service = getattr(request.app.state, "generation_application_service", None) if request else None
+    return WorkflowService(db, generation_service=generation_service)
+
+
+async def _run_action(action):
+    try:
+        return await action()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # ------------------------------------------------------------------
@@ -33,7 +41,7 @@ async def list_workflows(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     return await svc.list_workflows(owner_user_id=user["id"])
 
 
@@ -47,8 +55,8 @@ async def create_workflow(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
-    svc = _service(db)
-    result = await svc.create_workflow(body, owner_user_id=user["id"])
+    svc = _service(db, request)
+    result = await _run_action(lambda: svc.create_workflow(body, owner_user_id=user["id"]))
     if result is None:
         raise HTTPException(status_code=400, detail="Failed to create workflow")
     return result
@@ -64,7 +72,7 @@ async def get_workflow(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.get_workflow(workflow_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -81,7 +89,7 @@ async def delete_workflow(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.delete_workflow(workflow_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -99,8 +107,8 @@ async def update_workflow_settings(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
-    svc = _service(db)
-    result = await svc.update_workflow_settings(workflow_id, body)
+    svc = _service(db, request)
+    result = await _run_action(lambda: svc.update_workflow_settings(workflow_id, body))
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
     return result
@@ -121,8 +129,8 @@ async def generate_storyboard(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
-    result = await svc.generate_storyboard(workflow_id)
+    svc = _service(db, request)
+    result = await _run_action(lambda: svc.generate_storyboard(workflow_id, owner_user_id=user["id"]))
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
     return result
@@ -139,7 +147,7 @@ async def select_storyboard(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.select_storyboard(workflow_id, version_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
@@ -160,7 +168,7 @@ async def adjust_storyboard(
     raw_body = await request.body()
     body = await request.json() if raw_body else {}
     prompt = body.get("prompt", "")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.adjust_storyboard(workflow_id, version_id, prompt)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
@@ -183,7 +191,7 @@ async def generate_keyframe(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.generate_keyframe(workflow_id, clip_index)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -202,7 +210,7 @@ async def generate_keyframe_frame(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.generate_keyframe_frame(workflow_id, clip_index, frame_role)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -221,7 +229,7 @@ async def select_keyframe(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.select_keyframe(workflow_id, clip_index, version_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
@@ -241,7 +249,7 @@ async def select_keyframe_frame(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.select_keyframe_frame(workflow_id, clip_index, version_id, frame_role)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
@@ -268,7 +276,7 @@ async def select_character_sheet_asset(
     asset_id = body.get("assetId", "")
     if not asset_id:
         raise HTTPException(status_code=400, detail="assetId is required")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.select_character_sheet_asset(workflow_id, clip_index, asset_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -291,7 +299,7 @@ async def generate_video(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.generate_video(workflow_id, clip_index)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -310,7 +318,7 @@ async def select_video(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.select_video(workflow_id, clip_index, version_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
@@ -332,7 +340,7 @@ async def finalize_workflow(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.finalize_workflow(workflow_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -350,7 +358,7 @@ async def rate_workflow(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.rate_workflow(workflow_id, body)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -369,7 +377,7 @@ async def rate_stage_version(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.rate_stage_version(workflow_id, version_id, body)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
@@ -387,7 +395,7 @@ async def delete_stage_version(
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    svc = _service(db)
+    svc = _service(db, request)
     result = await svc.delete_stage_version(workflow_id, version_id)
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_or_version_not_found")

@@ -142,15 +142,63 @@ def _dimensions_from_aspect_ratio(aspect_ratio: str | None) -> tuple[int, int]:
 class WorkflowService:
     """Multi-stage creative workflow service."""
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, generation_service: Any | None = None) -> None:
         self.db = db
-        self._generation_service = None
+        self._generation_service = generation_service
 
     def _get_generation_service(self):
         if self._generation_service is None:
-            from backend.services.generation_service import DefaultGenerationApplicationService
-            self._generation_service = DefaultGenerationApplicationService()
+            raise RuntimeError("generation service not configured")
         return self._generation_service
+
+    async def _validate_generation_models(
+        self,
+        owner_user_id: int,
+        text_model: str,
+        image_model: str,
+        video_model: str,
+    ) -> None:
+        gen_service = self._get_generation_service()
+        factory = getattr(gen_service, "_factory", None)
+        resolver = getattr(factory, "_config_resolver", None)
+        if resolver is None:
+            raise ValueError("模型配置服务未初始化，请重启服务后重试。")
+
+        checks = [
+            ("文本模型", text_model, "text"),
+            ("关键帧模型", image_model, "image"),
+            ("视频模型", video_model, "video"),
+        ]
+        for label, model, kind in checks:
+            value = _trim(model)
+            if not value:
+                raise ValueError(f"请先选择{label}。")
+            try:
+                if kind == "text":
+                    profile = resolver.resolve_text_profile(value, owner_user_id)
+                    provider = getattr(profile, "provider", "")
+                    api_key = getattr(profile, "api_key", "")
+                    base_url = getattr(profile, "base_url", "")
+                    task_base_url = True
+                else:
+                    profile = resolver.resolve_media_profile(value, kind, owner_user_id)
+                    provider = getattr(profile, "provider", "")
+                    api_key = getattr(profile, "api_key", "")
+                    base_url = getattr(profile, "base_url", "")
+                    task_base_url = kind != "video" or bool(getattr(profile, "task_base_url", ""))
+                ready = getattr(profile, "ready", False)
+            except Exception as exc:
+                raise ValueError(f"{label}不可用：{value}") from exc
+            if not provider:
+                raise ValueError(f"{label}不可用：{value}")
+            if not api_key:
+                raise ValueError(f"当前用户未设置{label} Key，请先在用户管理中配置 Key。")
+            if not base_url:
+                raise ValueError(f"{label}缺少 base_url，请检查模型配置。")
+            if not task_base_url:
+                raise ValueError(f"{label}缺少 task_base_url，请检查模型配置。")
+            if not ready:
+                raise ValueError(f"{label}配置未就绪，请检查用户 Key 和模型配置。")
 
     # ------------------------------------------------------------------
     # Workflow CRUD
@@ -181,6 +229,10 @@ class WorkflowService:
             if duration_mode == "auto"
             else max(_safe_int(request.get("maxDurationSeconds", min_dur)), min_dur)
         )
+        text_model = _trim(request.get("textAnalysisModel"), "")
+        image_model = _trim(request.get("imageModel"), "")
+        video_model = _trim(request.get("videoModel"), "")
+        await self._validate_generation_models(owner_user_id or 0, text_model, image_model, video_model)
         now = _now_iso()
         workflow = BizStageWorkflow(
             workflow_id=workflow_id,
@@ -189,9 +241,9 @@ class WorkflowService:
             transcript_text=_trim(request.get("transcriptText"), ""),
             aspect_ratio=aspect_ratio,
             style_preset=_trim(request.get("stylePreset"), "cinematic"),
-            text_analysis_model=_trim(request.get("textAnalysisModel"), ""),
-            image_model=_trim(request.get("imageModel"), ""),
-            video_model=_trim(request.get("videoModel"), ""),
+            text_analysis_model=text_model,
+            image_model=image_model,
+            video_model=video_model,
             video_size=_trim(request.get("videoSize"), _default_video_size(aspect_ratio)),
             keyframe_seed=keyframe_seed,
             video_seed=video_seed,
@@ -300,11 +352,15 @@ class WorkflowService:
             if duration_mode == "auto"
             else max(_safe_int(request.get("maxDurationSeconds"), min_dur), min_dur)
         )
+        text_model = _trim(request.get("textAnalysisModel"), "")
+        image_model = _trim(request.get("imageModel"), "")
+        video_model = _trim(request.get("videoModel"), "")
+        await self._validate_generation_models(wf.owner_user_id, text_model, image_model, video_model)
         wf.aspect_ratio = aspect_ratio
         wf.style_preset = _trim(request.get("stylePreset"), "cinematic")
-        wf.text_analysis_model = _trim(request.get("textAnalysisModel"), "")
-        wf.image_model = _trim(request.get("imageModel"), "")
-        wf.video_model = _trim(request.get("videoModel"), "")
+        wf.text_analysis_model = text_model
+        wf.image_model = image_model
+        wf.video_model = video_model
         wf.video_size = _trim(request.get("videoSize"), _default_video_size(aspect_ratio))
         wf.keyframe_seed = request.get("keyframeSeed")
         wf.video_seed = request.get("videoSeed")
@@ -322,10 +378,13 @@ class WorkflowService:
     async def generate_storyboard(
         self,
         workflow_id: str,
+        owner_user_id: int | None = None,
     ) -> dict[str, Any] | None:
         """Generate a storyboard version."""
         wf = await self._require_workflow(workflow_id)
         if wf is None:
+            return None
+        if owner_user_id is not None and wf.owner_user_id != owner_user_id:
             return None
 
         # Check if transcript text exists
@@ -348,7 +407,9 @@ class WorkflowService:
 
         # Call real AI generation for storyboard
         gen_service = self._get_generation_service()
-        text_model = _trim(getattr(wf, 'text_analysis_model', ''), 'deepseek-v4-flash')
+        text_model = _trim(getattr(wf, 'text_analysis_model', ''))
+        if not text_model:
+            raise ValueError("请先选择文本模型。")
         visual_style = _trim(getattr(wf, 'style_preset', ''), 'cinematic')
 
         generation_request = {
@@ -395,7 +456,10 @@ class WorkflowService:
         except Exception as ex:
             import logging
             logging.getLogger(__name__).warning("Storyboard generation failed: %s", ex)
-            script_markdown = f"【分镜脚本】生成出错：{ex}"
+            raw_error = str(ex)
+            if "missing api key" in raw_error.lower() or "missing api key or base url" in raw_error.lower():
+                raw_error = "当前用户未设置对应模型 Key，请先在用户管理中配置 Key。"
+            script_markdown = f"【分镜脚本】生成出错：{raw_error}"
             output_summary = {"scriptMarkdown": script_markdown, "error": str(ex)}
             model_call_summary = {}
 

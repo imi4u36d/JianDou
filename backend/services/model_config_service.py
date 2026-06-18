@@ -9,9 +9,11 @@ Provides:
 from __future__ import annotations
 
 import os
+import sqlite3
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -51,6 +53,14 @@ def _first_non_blank(*values: str | None) -> str:
     for v in values:
         if v is not None and v.strip():
             return v.strip()
+    return ""
+
+
+def _first_valid_secret(*values: str | None) -> str:
+    for v in values:
+        value = _trim_to_empty(v)
+        if value and value not in {"1", "changeme", "placeholder"}:
+            return value
     return ""
 
 
@@ -719,7 +729,7 @@ class ModelRuntimePropertiesResolver:
     ) -> str:
         if user_id is not None:
             return self._resolve_user_api_key(current, user_id, provider, vendor)
-        return _first_non_blank(
+        return _first_valid_secret(
             _env("JIANDOU_MODEL_API_KEY"),
             _provider_property(provider, "API_KEY"),
             _vendor_property(vendor, "API_KEY"),
@@ -734,7 +744,7 @@ class ModelRuntimePropertiesResolver:
     ) -> str:
         if self._credential_provider is None:
             return ""
-        return _trim_to_empty(
+        return _first_valid_secret(
             self._credential_provider.find_runtime_api_key(
                 user_id, self._preferred_api_key_scopes(current, provider, vendor)
             )
@@ -755,7 +765,7 @@ class ModelRuntimePropertiesResolver:
     ) -> str:
         for sibling in self._same_vendor_provider_keys(current, provider, vendor):
             ak = current.value(f"model.providers.{sibling}", "api_key")
-            if ak:
+            if _first_valid_secret(ak):
                 return ak
         return ""
 
@@ -908,14 +918,17 @@ class ModelRuntimePropertiesResolver:
         provider = _first_non_blank(_string_value(model_values.get("provider")), "")
         provider_section = f"model.providers.{provider}"
         vendor = _first_non_blank(_string_value(model_values.get("vendor")), current.value(provider_section, "vendor"))
+        vendor_section = f"model.providers.{vendor}" if vendor else ""
         base_url = self._normalize_base_url(_first_non_blank(
             _provider_property(provider, "BASE_URL"),
             _provider_property(provider, "ENDPOINT"),
             current.value(provider_section, "base_url"),
+            current.value(vendor_section, "base_url") if vendor_section else "",
         ))
         task_base_url = self._normalize_base_url(_first_non_blank(
             _provider_property(provider, "TASK_BASE_URL"),
             current.value(f"{provider_section}.extras", "task_base_url"),
+            current.value(f"{vendor_section}.extras", "task_base_url") if vendor_section else "",
         ))
         api_key = self._resolve_api_key(current, user_id, provider, vendor, provider_section)
         source = self._resolve_config_source(user_scoped, api_key, provider, vendor, current.source, False)
@@ -925,6 +938,7 @@ class ModelRuntimePropertiesResolver:
                 _provider_property(provider, "TIMEOUT_SECONDS"),
                 current.value(model_section, "timeout_seconds"),
                 current.value(f"{provider_section}.extras", "timeout_seconds"),
+                current.value(f"{vendor_section}.extras", "timeout_seconds") if vendor_section else "",
                 current.value("model", "timeout_seconds"),
                 "120",
             ),
@@ -940,12 +954,22 @@ class ModelRuntimePropertiesResolver:
             ),
             MediaProviderCapabilities(
                 supports_seed=_bool_value(_string_value(model_values.get("supports_seed"))),
-                prompt_extend=_bool_value(current.value(f"{provider_section}.extras", "prompt_extend")),
-                camera_fixed=_bool_value(current.value(f"{provider_section}.extras", "camera_fixed")),
-                watermark=self._resolve_watermark_default(actual_kind, current.value(f"{provider_section}.extras", "watermark")),
+                prompt_extend=_bool_value(_first_non_blank(
+                    current.value(f"{provider_section}.extras", "prompt_extend"),
+                    current.value(f"{vendor_section}.extras", "prompt_extend") if vendor_section else "",
+                )),
+                camera_fixed=_bool_value(_first_non_blank(
+                    current.value(f"{provider_section}.extras", "camera_fixed"),
+                    current.value(f"{vendor_section}.extras", "camera_fixed") if vendor_section else "",
+                )),
+                watermark=self._resolve_watermark_default(actual_kind, _first_non_blank(
+                    current.value(f"{provider_section}.extras", "watermark"),
+                    current.value(f"{vendor_section}.extras", "watermark") if vendor_section else "",
+                )),
                 poll_interval_seconds=_int_value(
                     _first_non_blank(
                         current.value(f"{provider_section}.extras", "poll_interval_seconds"),
+                        current.value(f"{vendor_section}.extras", "poll_interval_seconds") if vendor_section else "",
                         "8" if is_video else "5",
                     ),
                     8 if is_video else 5,
@@ -953,6 +977,7 @@ class ModelRuntimePropertiesResolver:
                 poll_timeout_seconds=_int_value(
                     _first_non_blank(
                         current.value(f"{provider_section}.extras", "poll_timeout_seconds"),
+                        current.value(f"{vendor_section}.extras", "poll_timeout_seconds") if vendor_section else "",
                         "600" if is_video else "120",
                     ),
                     600 if is_video else 120,
@@ -1494,6 +1519,47 @@ class AdminModelConfigSecretsService:
         raise NotImplementedError
 
 
+class LocalAdminModelConfigSecretsService(AdminModelConfigSecretsService):
+    """Persist platform API keys into config/model/providers.secrets.yml."""
+
+    def __init__(self, config_dir: str | Path = "./config") -> None:
+        self._config_dir = Path(config_dir)
+
+    def save_api_keys(self, api_keys: dict[str, str]) -> None:
+        if not api_keys:
+            return
+        path = self._config_dir / "model" / "providers.secrets.yml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        root: dict[str, Any] = {}
+        if path.exists():
+            with open(path) as f:
+                loaded = yaml.safe_load(f)
+            if isinstance(loaded, dict):
+                root = loaded
+
+        model = root.setdefault("model", {})
+        if not isinstance(model, dict):
+            model = {}
+            root["model"] = model
+        providers = model.setdefault("providers", {})
+        if not isinstance(providers, dict):
+            providers = {}
+            model["providers"] = providers
+
+        for provider, api_key in api_keys.items():
+            provider_key = _normalize(provider)
+            if not provider_key or not api_key:
+                continue
+            section = providers.setdefault(provider_key, {})
+            if not isinstance(section, dict):
+                section = {}
+                providers[provider_key] = section
+            section["api_key"] = api_key
+
+        with open(path, "w") as f:
+            yaml.safe_dump(root, f, allow_unicode=True, sort_keys=False)
+
+
 # ---------------------------------------------------------------------------
 # ApiKeyUpdateBatch (internal helper)
 # ---------------------------------------------------------------------------
@@ -1955,6 +2021,100 @@ class MybatisUserModelCredentialRepository:
 
     def save_api_keys(self, user_id: int, api_keys: dict[str, str]) -> None:
         raise NotImplementedError
+
+
+class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialRepository, RuntimeModelCredentialProvider):
+    """Persist and resolve per-user model API keys from sys_user_model_credential."""
+
+    def __init__(self, database_url: str) -> None:
+        self._database_path = self._sqlite_path(database_url)
+
+    def find_runtime_api_key(self, user_id: int, preferred_scopes: list[str]) -> str:
+        keys = self.find_api_keys_by_user_id(user_id)
+        for scope in preferred_scopes:
+            normalized = _normalize(scope)
+            for provider_key, api_key in keys.items():
+                if _normalize(provider_key) == normalized:
+                    return _first_valid_secret(api_key)
+        return ""
+
+    def find_api_keys_by_user_id(self, user_id: int) -> dict[str, str]:
+        self._ensure_table()
+        keys: dict[str, str] = OrderedDict()
+        with sqlite3.connect(self._database_path) as conn:
+            rows = conn.execute(
+                "select provider_key, encrypted_api_key from sys_user_model_credential where user_id = ?",
+                (user_id,),
+            ).fetchall()
+        for provider_key, api_key in rows:
+            key = _normalize(provider_key)
+            valid_api_key = _first_valid_secret(api_key)
+            if key and valid_api_key:
+                keys[key] = valid_api_key
+        return keys
+
+    def save_api_keys(self, user_id: int, api_keys: dict[str, str]) -> None:
+        normalized_updates = {
+            _normalize(provider): _first_valid_secret(api_key)
+            for provider, api_key in (api_keys or {}).items()
+            if _normalize(provider) and _first_valid_secret(api_key)
+        }
+        if not normalized_updates:
+            return
+        self._ensure_table()
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(self._database_path) as conn:
+            for provider_key, api_key in normalized_updates.items():
+                existing = conn.execute(
+                    "select id from sys_user_model_credential where user_id = ? and provider_key = ?",
+                    (user_id, provider_key),
+                ).fetchone()
+                if existing:
+                    conn.execute(
+                        "update sys_user_model_credential set encrypted_api_key = ?, updated_at = ? where id = ?",
+                        (api_key, now, existing[0]),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        insert into sys_user_model_credential
+                            (user_id, provider_key, encrypted_api_key, created_at, updated_at)
+                        values (?, ?, ?, ?, ?)
+                        """,
+                        (user_id, provider_key, api_key, now, now),
+                    )
+            conn.commit()
+
+    def _ensure_table(self) -> None:
+        with sqlite3.connect(self._database_path) as conn:
+            conn.execute(
+                """
+                create table if not exists sys_user_model_credential (
+                    id integer primary key autoincrement,
+                    user_id integer not null,
+                    provider_key varchar(64) not null,
+                    encrypted_api_key text not null,
+                    created_at varchar(32) not null,
+                    updated_at varchar(32) not null
+                )
+                """
+            )
+            conn.execute(
+                """
+                create unique index if not exists ux_sys_user_model_credential_user_provider
+                on sys_user_model_credential(user_id, provider_key)
+                """
+            )
+            conn.commit()
+
+    @staticmethod
+    def _sqlite_path(database_url: str) -> str:
+        prefix = "sqlite+aiosqlite:///"
+        if database_url.startswith(prefix):
+            return database_url[len(prefix):]
+        if database_url.startswith("sqlite:///"):
+            return database_url[len("sqlite:///"):]
+        return "./data/jiandou.db"
 
 
 class _ProviderCatalogItem:

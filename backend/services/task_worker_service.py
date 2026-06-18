@@ -27,7 +27,10 @@ from backend.services.task_execution_coordinator import (
     TaskExecutionCoordinator,
     TaskStateTransition,
 )
-from backend.services.generation_service import DefaultGenerationApplicationService
+from backend.services.generation_service import (
+    GenerationProviderException,
+)
+from backend.domain.task_storyboard_planner import TaskStoryboardPlanner
 
 # ---------------------------------------------------------------------------
 # Module-level utility helpers (mirrors Java stringValue/intValue/firstNonBlank)
@@ -386,6 +389,48 @@ class TaskStoryboardPlannerStub:
         return []
 
 
+class TaskStoryboardPlannerAdapter:
+    """Adapts the real storyboard planner to the worker's shot-plan interface."""
+
+    def __init__(self, planner: TaskStoryboardPlanner | None = None) -> None:
+        self._planner = planner or TaskStoryboardPlanner()
+
+    def build_storyboard_shot_plans(self, task: TaskRecord, storyboard_markdown: str) -> list[TaskStoryboardPlannerStub.StoryboardShotPlan]:
+        plans: list[TaskStoryboardPlannerStub.StoryboardShotPlan] = []
+        for plan in self._planner.build_storyboard_shot_plans(task, storyboard_markdown):
+            plans.append(TaskStoryboardPlannerStub.StoryboardShotPlan(
+                sequential_index=_int_value(getattr(plan, "sequential_index", 0), len(plans) + 1),
+                shot_label=_string_value(getattr(plan, "shot_label", "")),
+                scene=_string_value(getattr(plan, "scene", "")),
+                video_prompt=_string_value(getattr(plan, "video_prompt", "")),
+                image_prompt=_string_value(getattr(plan, "image_prompt", "")),
+                first_frame_prompt=_string_value(getattr(plan, "first_frame_prompt", "")),
+                last_frame_prompt=_string_value(getattr(plan, "last_frame_prompt", "")),
+                motion=_string_value(getattr(plan, "motion", "")),
+                camera_movement=_string_value(getattr(plan, "camera_movement", "")),
+                duration_hint=_string_value(getattr(plan, "duration_hint", "")),
+            ))
+        return plans
+
+    def resolve_requested_output_count(self, task: TaskRecord, storyboard_clip_count: int) -> int:
+        return self._planner.resolve_requested_output_count(task, storyboard_clip_count)
+
+    def extract_storyboard_shot_duration_ranges(self, storyboard_markdown: str) -> list[list[int]]:
+        return self._planner.extract_storyboard_shot_duration_ranges(storyboard_markdown)
+
+    def build_clip_duration_plan(self, task: TaskRecord, duration_seconds: int, clip_count: int, storyboard_markdown: str) -> list[list[int]]:
+        return self._planner.build_clip_duration_plan(task, duration_seconds, clip_count, storyboard_markdown)
+
+    def normalize_clip_duration_plan(self, video_model: str, clip_duration_plan: list[list[int]]) -> list[list[int]]:
+        return self._planner.normalize_clip_duration_plan(video_model, clip_duration_plan)
+
+    def request_snapshot_output_count(self, task: TaskRecord) -> Any:
+        return self._planner.request_snapshot_output_count(task)
+
+    def build_clip_duration_plan_context(self, clip_duration_plan: list[list[int]], duration_ranges: list[list[int]]) -> list[dict[str, Any]]:
+        return self._planner.build_clip_duration_plan_context(clip_duration_plan, duration_ranges)
+
+
 class ModelRuntimePropertiesResolverStub:
     """Stub for model runtime properties resolver."""
 
@@ -409,28 +454,6 @@ class TaskExecutionAbortedException(Exception):
     @property
     def task_status(self) -> str:
         return self._task_status
-
-
-class GenerationProviderException(Exception):
-    """Raised when a generation provider returns an error."""
-
-    def __init__(self, message: str = "", http_status: int = 0, provider_request: Any = None, provider_response: Any = None) -> None:
-        super().__init__(message)
-        self._http_status = http_status
-        self._provider_request = provider_request
-        self._provider_response = provider_response
-
-    @property
-    def http_status(self) -> int:
-        return self._http_status
-
-    @property
-    def provider_request(self) -> Any:
-        return self._provider_request
-
-    @property
-    def provider_response(self) -> Any:
-        return self._provider_response
 
 
 # ===================================================================
@@ -1478,14 +1501,14 @@ class TaskWorkerStatusStageService:
             {"lastTaskId": task.id, "lastTaskStatus": task_status},
         )
 
-    def fail_task(self, task: TaskRecord, run_context: TaskWorkerExecutionContext, ex: Exception) -> None:
+    def fail_task(self, task: TaskRecord, run_context: TaskWorkerExecutionContext, ex: Exception) -> dict[str, Any]:
         try:
             if self._task_queue_port:
                 self._task_queue_port.remove(task.id)
             task.is_queued = False
             task.queue_position = None
             error_message = str(ex) if ex else "Spring worker 执行失败"
-            self._execution_coordinator.transition_task(
+            result = self._execution_coordinator.transition_task(
                 task,
                 TaskStateTransition.error(
                     "FAILED",
@@ -1496,14 +1519,21 @@ class TaskWorkerStatusStageService:
                     {"error": error_message},
                 ).with_attempt(AttemptStatus.FAILED.value, error_message),
             )
-            self._execution_coordinator.touch_worker_instance(
+            worker_result = self._execution_coordinator.touch_worker_instance(
                 run_context.worker_instance_id,
                 run_context.worker_type,
                 WorkerStatus.RUNNING.value,
                 {"lastTaskId": task.id, "lastTaskStatus": "FAILED"},
             )
+            mutation = result.get("mutation", TaskPersistenceMutation())
+            worker_mutation = worker_result.get("mutation") if isinstance(worker_result, dict) else None
+            if isinstance(worker_mutation, TaskPersistenceMutation):
+                for row in worker_mutation.worker_instance_rows:
+                    mutation = mutation.add_worker_instance(row)
+            result["mutation"] = mutation
+            return result
         except Exception:
-            self._execution_coordinator.touch_worker_instance(
+            return self._execution_coordinator.touch_worker_instance(
                 run_context.worker_instance_id,
                 run_context.worker_type,
                 WorkerStatus.FAILED.value,
@@ -1542,7 +1572,9 @@ class TaskWorkerRenderStageService:
     ) -> None:
         self._task_repository = task_repository
         self._execution_coordinator = execution_coordinator or TaskExecutionCoordinator()
-        self._generation_application_service = generation_application_service or DefaultGenerationApplicationService()
+        if generation_application_service is None:
+            raise RuntimeError("generation application service not configured")
+        self._generation_application_service = generation_application_service
         self._runtime_support = runtime_support or TaskExecutionRuntimeSupport()
         self._artifact_assembler = artifact_assembler or TaskExecutionArtifactAssembler()
         self._status_stage_service = status_stage_service or TaskWorkerStatusStageService(
@@ -2236,7 +2268,7 @@ class TaskWorkerPipelineHandler:
         generation_application_service: GenerationApplicationServiceStub | None = None,
         runtime_support: TaskExecutionRuntimeSupport | None = None,
         artifact_assembler: TaskExecutionArtifactAssembler | None = None,
-        storyboard_planner: TaskStoryboardPlannerStub | None = None,
+        storyboard_planner: TaskStoryboardPlannerStub | TaskStoryboardPlannerAdapter | None = None,
         status_stage_service: TaskWorkerStatusStageService | None = None,
         render_stage_service: TaskWorkerRenderStageService | None = None,
         join_stage_service: JoinOutputService | None = None,
@@ -2244,10 +2276,12 @@ class TaskWorkerPipelineHandler:
         self._task_repository = task_repository
         self._task_queue_port = task_queue_port
         self._execution_coordinator = execution_coordinator or TaskExecutionCoordinator()
-        self._generation_application_service = generation_application_service or DefaultGenerationApplicationService()
+        if generation_application_service is None:
+            raise RuntimeError("generation application service not configured")
+        self._generation_application_service = generation_application_service
         self._runtime_support = runtime_support or TaskExecutionRuntimeSupport()
         self._artifact_assembler = artifact_assembler or TaskExecutionArtifactAssembler()
-        self._storyboard_planner = storyboard_planner or TaskStoryboardPlannerStub()
+        self._storyboard_planner = storyboard_planner or TaskStoryboardPlannerAdapter()
         self._status_stage_service = status_stage_service or TaskWorkerStatusStageService(
             task_repository=task_repository, execution_coordinator=self._execution_coordinator,
         )

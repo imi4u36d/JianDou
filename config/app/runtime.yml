@@ -3,7 +3,7 @@ app:
   env: "local"
   api_host: "0.0.0.0"
   api_port: 8100
-  web_origin: "http://localhost:5173"
+  web_origin: "http://127.0.0.1:8100"
   execution_mode: "queue"
 
 prompt:

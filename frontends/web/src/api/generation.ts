@@ -136,6 +136,7 @@ function normalizeOptions(raw: unknown): GenerationOptionsResponse {
     imageModels: Array.isArray(record.imageModels)
       ? (record.imageModels as GenerationOptionsResponse["imageModels"])
       : [],
+    defaultImageModel: asString(record.defaultImageModel) || null,
     videoModels: Array.isArray(record.videoModels) ? (record.videoModels as GenerationOptionsResponse["videoModels"]) : [],
     defaultVideoModel: asString(record.defaultVideoModel) || null,
     videoSizes: Array.isArray(record.videoSizes) ? (record.videoSizes as GenerationOptionsResponse["videoSizes"]) : [],

@@ -52,77 +52,79 @@
         </el-form-item>
       </el-form>
 
-      <el-table v-loading="loading" :data="users" class="user-page__table">
-        <el-table-column label="用户名" min-width="140" prop="username" />
-        <el-table-column label="显示名" min-width="140" prop="displayName" />
-        <el-table-column label="角色" min-width="110">
-          <template #default="{ row }">
-            <el-tag :type="row.role === 'ADMIN' ? 'warning' : 'info'" effect="plain">
-              {{ row.role === "ADMIN" ? "管理员" : "普通用户" }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" min-width="110">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="light">
-              {{ row.status === "ACTIVE" ? "启用" : "禁用" }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="并发额度" min-width="100">
-          <template #default="{ row }">
-            {{ row.taskConcurrencyLimit ?? 1 }}
-          </template>
-        </el-table-column>
-        <el-table-column label="运行中" min-width="90">
-          <template #default="{ row }">
-            {{ row.runningTaskCount ?? 0 }}
-          </template>
-        </el-table-column>
-        <el-table-column label="排队中" min-width="90">
-          <template #default="{ row }">
-            {{ row.queuedTaskCount ?? 0 }}
-          </template>
-        </el-table-column>
-        <el-table-column label="最近登录" min-width="180">
-          <template #default="{ row }">
-            {{ formatDateTime(row.lastLoginAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" min-width="180">
-          <template #default="{ row }">
-            {{ formatDateTime(row.createdAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column align="right" fixed="right" label="操作" min-width="330">
-          <template #default="{ row }">
-            <div class="user-page__actions">
-              <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
-              <el-button link type="warning" @click="openPasswordDialog(row)">改密码</el-button>
-              <el-button v-if="row.username === 'admin'" link type="primary" @click="openModelKeyDialog(row)">
-                平台默认 Key
-              </el-button>
-              <el-button
-                v-if="row.status === 'ACTIVE'"
-                link
-                type="warning"
-                @click="toggleUserStatus(row, 'disable')"
-              >
-                禁用
-              </el-button>
-              <el-button
-                v-else
-                link
-                type="success"
-                @click="toggleUserStatus(row, 'enable')"
-              >
-                启用
-              </el-button>
-              <el-button link type="danger" @click="removeUser(row)">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="user-page__table-scroll">
+        <el-table v-loading="loading" :data="users" class="user-page__table">
+          <el-table-column label="用户名" min-width="140" prop="username" />
+          <el-table-column label="显示名" min-width="140" prop="displayName" />
+          <el-table-column label="角色" min-width="110">
+            <template #default="{ row }">
+              <el-tag :type="row.role === 'ADMIN' ? 'warning' : 'info'" effect="plain">
+                {{ row.role === "ADMIN" ? "管理员" : "普通用户" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" min-width="110">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="light">
+                {{ row.status === "ACTIVE" ? "启用" : "禁用" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="并发额度" min-width="100">
+            <template #default="{ row }">
+              {{ row.taskConcurrencyLimit ?? 1 }}
+            </template>
+          </el-table-column>
+          <el-table-column label="运行中" min-width="90">
+            <template #default="{ row }">
+              {{ row.runningTaskCount ?? 0 }}
+            </template>
+          </el-table-column>
+          <el-table-column label="排队中" min-width="90">
+            <template #default="{ row }">
+              {{ row.queuedTaskCount ?? 0 }}
+            </template>
+          </el-table-column>
+          <el-table-column label="最近登录" min-width="180">
+            <template #default="{ row }">
+              {{ formatDateTime(row.lastLoginAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="创建时间" min-width="180">
+            <template #default="{ row }">
+              {{ formatDateTime(row.createdAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column align="right" label="操作" min-width="300">
+            <template #default="{ row }">
+              <div class="user-page__actions">
+                <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+                <el-button link type="warning" @click="openPasswordDialog(row)">改密码</el-button>
+                <el-button v-if="row.username === 'admin'" link type="primary" @click="openModelKeyDialog(row)">
+                  平台默认 Key
+                </el-button>
+                <el-button
+                  v-if="row.status === 'ACTIVE'"
+                  link
+                  type="warning"
+                  @click="toggleUserStatus(row, 'disable')"
+                >
+                  禁用
+                </el-button>
+                <el-button
+                  v-else
+                  link
+                  type="success"
+                  @click="toggleUserStatus(row, 'enable')"
+                >
+                  启用
+                </el-button>
+                <el-button link type="danger" @click="removeUser(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
 
     <el-dialog v-model="editorVisible" :title="editorMode === 'create' ? '新建用户' : '编辑用户'" width="520px">
@@ -608,7 +610,28 @@ onMounted(async () => {
 }
 
 .user-page__table {
+  min-width: 1420px;
   width: 100%;
+}
+
+.user-page__table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
+}
+
+.user-page__table-scroll :deep(.el-table__body-wrapper),
+.user-page__table-scroll :deep(.el-table__header-wrapper) {
+  overflow: visible;
+}
+
+.user-page__actions {
+  justify-content: flex-end;
+}
+
+.user-page__actions :deep(.el-button) {
+  margin-left: 0;
 }
 
 .user-page__dialog-grid {

@@ -94,17 +94,17 @@ async def admin_list_traces(request: Request):
 
 @router.get("/model-config")
 async def admin_get_model_config(request: Request):
-    await require_admin(request)
-    config_service = request.app.state.admin_model_config_service
-    result = config_service.read()
+    user = await require_admin(request)
+    config_service = request.app.state.user_model_config_service
+    result = config_service.read(user["id"])
     return result
 
 
 @router.put("/model-config/keys")
 async def admin_update_model_config_keys(request: Request):
-    await require_admin(request)
+    user = await require_admin(request)
     body = await request.json()
-    config_service = request.app.state.admin_model_config_service
+    config_service = request.app.state.user_model_config_service
     from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest
     providers_raw = body.get("providers", [])
     provider_inputs = [
@@ -115,15 +115,15 @@ async def admin_update_model_config_keys(request: Request):
         for p in providers_raw
     ]
     update_request = AdminModelConfigKeyUpdateRequest(providers=provider_inputs)
-    result = config_service.save_keys(update_request)
+    result = config_service.save_keys(user["id"], update_request)
     return result
 
 
 @router.post("/model-config/validate")
 async def admin_validate_model_config_keys(request: Request):
-    await require_admin(request)
+    user = await require_admin(request)
     body = await request.json()
-    config_service = request.app.state.admin_model_config_service
+    config_service = request.app.state.user_model_config_service
     from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest
     providers_raw = body.get("providers", [])
     provider_inputs = [
@@ -134,7 +134,7 @@ async def admin_validate_model_config_keys(request: Request):
         for p in providers_raw
     ]
     update_request = AdminModelConfigKeyUpdateRequest(providers=provider_inputs)
-    return config_service.validate_keys(update_request)
+    return config_service.validate_keys(user["id"], update_request)
 
 
 @router.get("/users")

@@ -151,6 +151,10 @@ class TaskCommandService:
             "videoModel": _trimmed(video_model, ""),
             "textAnalysisModel": _trimmed(text_analysis_model, ""),
             "imageSize": _trimmed(image_size, ""),
+            "videoSize": _trimmed(kwargs.get("video_size"), ""),
+            "videoDurationSeconds": kwargs.get("video_duration_seconds"),
+            "outputCount": self._normalize_output_count(kwargs.get("output_count")),
+            "stopBeforeVideoGeneration": bool(kwargs.get("stop_before_video_generation")),
             "referenceImageUrls": self._normalize_string_list(reference_image_urls),
             "referenceAssetIds": self._normalize_string_list(reference_asset_ids),
         }
@@ -380,6 +384,22 @@ class TaskCommandService:
         if seed < 0:
             raise ValueError("seed must be >= 0")
         return seed
+
+    @staticmethod
+    def _normalize_output_count(value: Any) -> dict[str, Any]:
+        if value is None or value == "":
+            return {"auto": True}
+        if isinstance(value, str) and value.strip().lower() == "auto":
+            return {"auto": True}
+        if isinstance(value, dict):
+            if value.get("auto"):
+                return {"auto": True}
+            value = value.get("count")
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            return {"auto": True}
+        return {"auto": False, "count": max(1, count)}
 
     @staticmethod
     def _normalize_effect_rating(rating: int | None) -> int:

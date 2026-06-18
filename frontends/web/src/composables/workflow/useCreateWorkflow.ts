@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import { formatApiErrorMessage } from "@/utils/api-error";
@@ -178,6 +178,20 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   );
   const canSubmitCreateReview = computed(() =>
     createReviewRequiredItems.value.every((item) => item.configured)
+  );
+
+  watch(
+    options,
+    (next) => {
+      if (!next) return;
+      createForm.aspectRatio ||= next.defaultAspectRatio || "16:9";
+      createForm.stylePreset ||= next.defaultStylePreset || stylePresetOptions.value[0]?.key || "";
+      createForm.textAnalysisModel ||= next.defaultTextAnalysisModel || textModelOptions.value[0]?.value || "";
+      createForm.imageModel ||= next.defaultImageModel || imageModelOptions.value[0]?.value || "";
+      createForm.videoModel ||= next.defaultVideoModel || videoModelOptions.value[0]?.value || "";
+      syncVideoSizeSelection(createForm, next.defaultVideoSize);
+    },
+    { immediate: true }
   );
 
   function readTextFile(file: File): Promise<string> {

@@ -286,6 +286,18 @@ class TaskExecutionCoordinator:
 
         task.status = transition.next_status
         task.progress = transition.progress
+        if transition.next_status == "FAILED":
+            task.error_message = transition.attempt_error_message or transition.message
+            task.finished_at = _now_iso()
+            task.is_queued = False
+            task.queue_position = None
+        elif transition.next_status in ("COMPLETED", "CANCELLED"):
+            task.error_message = ""
+            task.finished_at = _now_iso()
+            task.is_queued = False
+            task.queue_position = None
+        elif transition.next_status in ("PENDING", "ANALYZING", "PLANNING", "RENDERING"):
+            task.error_message = ""
 
         trace = self._new_trace_row(
             transition.stage,
@@ -522,6 +534,7 @@ class TaskExecutionCoordinator:
         # Stale running claims recovery
         from backend.domain.task_record import _string_value as _sv
 
+        stale_str = stale_before.isoformat() if hasattr(stale_before, "isoformat") else str(stale_before)
         stale_claims = task_repository.list_stale_running_claims(stale_before, limit)
         if hasattr(stale_claims, "__await__"):
             stale_claims = await stale_claims
