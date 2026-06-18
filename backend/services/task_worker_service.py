@@ -27,6 +27,7 @@ from backend.services.task_execution_coordinator import (
     TaskExecutionCoordinator,
     TaskStateTransition,
 )
+from backend.services.generation_service import DefaultGenerationApplicationService
 
 # ---------------------------------------------------------------------------
 # Module-level utility helpers (mirrors Java stringValue/intValue/firstNonBlank)
@@ -1541,7 +1542,7 @@ class TaskWorkerRenderStageService:
     ) -> None:
         self._task_repository = task_repository
         self._execution_coordinator = execution_coordinator or TaskExecutionCoordinator()
-        self._generation_application_service = generation_application_service or GenerationApplicationServiceStub()
+        self._generation_application_service = generation_application_service or DefaultGenerationApplicationService()
         self._runtime_support = runtime_support or TaskExecutionRuntimeSupport()
         self._artifact_assembler = artifact_assembler or TaskExecutionArtifactAssembler()
         self._status_stage_service = status_stage_service or TaskWorkerStatusStageService(
@@ -2243,14 +2244,22 @@ class TaskWorkerPipelineHandler:
         self._task_repository = task_repository
         self._task_queue_port = task_queue_port
         self._execution_coordinator = execution_coordinator or TaskExecutionCoordinator()
-        self._generation_application_service = generation_application_service or GenerationApplicationServiceStub()
+        self._generation_application_service = generation_application_service or DefaultGenerationApplicationService()
         self._runtime_support = runtime_support or TaskExecutionRuntimeSupport()
         self._artifact_assembler = artifact_assembler or TaskExecutionArtifactAssembler()
         self._storyboard_planner = storyboard_planner or TaskStoryboardPlannerStub()
         self._status_stage_service = status_stage_service or TaskWorkerStatusStageService(
             task_repository=task_repository, execution_coordinator=self._execution_coordinator,
         )
-        self._render_stage_service = render_stage_service
+        self._render_stage_service = render_stage_service or TaskWorkerRenderStageService(
+            task_repository=task_repository,
+            execution_coordinator=self._execution_coordinator,
+            generation_application_service=self._generation_application_service,
+            runtime_support=self._runtime_support,
+            artifact_assembler=self._artifact_assembler,
+            status_stage_service=self._status_stage_service,
+            join_stage_service=join_stage_service,
+        )
         self._join_stage_service = join_stage_service
 
     async def _save_result(self, result: dict[str, Any] | None) -> None:

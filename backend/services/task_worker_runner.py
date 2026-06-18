@@ -138,6 +138,18 @@ class TaskWorkerRunner:
         self._poll_tasks: list[asyncio.Task] = []
         self._maintenance_task: asyncio.Task | None = None
 
+    @property
+    def _task_repository(self) -> Any:
+        return getattr(self._task_queue_port, "_task_repository", self._task_queue_port)
+
+    async def _save_coordinator_result(self, result: Any) -> None:
+        mutation = result.get("mutation") if isinstance(result, dict) else None
+        if mutation is None:
+            return
+        save_result = self._task_repository.save_mutation(mutation)
+        if inspect.isawaitable(save_result):
+            await save_result
+
     # -- Lifecycle ----------------------------------------------------------
 
     @property
@@ -158,12 +170,12 @@ class TaskWorkerRunner:
         for index in range(concurrency):
             worker_id = f"python_worker_{index}_{uuid.uuid4().hex}"
             self._worker_instance_ids.append(worker_id)
-            self._execution_coordinator.upsert_worker_instance(
+            await self._save_coordinator_result(self._execution_coordinator.upsert_worker_instance(
                 worker_id,
                 self.WORKER_TYPE,
                 WorkerStatus.RUNNING.value,
                 {"executionMode": self._execution_mode, "slotIndex": index, "workerConcurrency": concurrency},
-            )
+            ))
 
         # Start poll tasks
         for worker_id in self._worker_instance_ids:
@@ -187,12 +199,12 @@ class TaskWorkerRunner:
         # Mark workers as stopped
         for worker_id in self._worker_instance_ids:
             try:
-                self._execution_coordinator.touch_worker_instance(
+                await self._save_coordinator_result(self._execution_coordinator.touch_worker_instance(
                     worker_id,
                     self.WORKER_TYPE,
                     WorkerStatus.STOPPED.value,
                     {"executionMode": self._execution_mode},
-                )
+                ))
             except Exception as ex:
                 logger.warning("Failed to mark worker stopped: %s", worker_id, exc_info=ex)
 
@@ -263,7 +275,7 @@ class TaskWorkerRunner:
     async def _maintenance_tick(self) -> None:
         """Heartbeat all worker instances and recover stale claims."""
         for index, worker_id in enumerate(self._worker_instance_ids):
-            self._execution_coordinator.touch_worker_instance(
+            await self._save_coordinator_result(self._execution_coordinator.touch_worker_instance(
                 worker_id,
                 self.WORKER_TYPE,
                 WorkerStatus.RUNNING.value,
@@ -272,14 +284,13 @@ class TaskWorkerRunner:
                     "slotIndex": index,
                     "workerConcurrency": len(self._worker_instance_ids),
                 },
-            )
+            ))
 
         stale_threshold = datetime.now(timezone.utc) - timedelta(
             seconds=self._ops_config.worker_stale_timeout_seconds,
         )
-        task_repository = getattr(self._task_queue_port, "_task_repository", self._task_queue_port)
         await self._execution_coordinator.recover_stale_claims(
             stale_threshold,
             20,
-            task_repository,
+            self._task_repository,
         )

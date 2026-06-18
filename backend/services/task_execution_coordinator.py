@@ -539,6 +539,16 @@ class TaskExecutionCoordinator:
                 continue
 
             stale_worker_id = _sv(claim.get("workerInstanceId", ""))
+            worker_instance = None
+            if stale_worker_id and hasattr(task_repository, "find_worker_instance"):
+                worker_instance = task_repository.find_worker_instance(stale_worker_id)
+                if hasattr(worker_instance, "__await__"):
+                    worker_instance = await worker_instance
+            if worker_instance is not None:
+                last_heartbeat = _sv(worker_instance.get("lastHeartbeatAt", ""))
+                worker_status = _sv(worker_instance.get("status", ""))
+                if worker_status == WorkerStatus.RUNNING.value and last_heartbeat >= stale_str:
+                    continue
             previous_status = task.status
             task.status = "PENDING"
             task.progress = 0
