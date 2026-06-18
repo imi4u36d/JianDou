@@ -21,8 +21,6 @@ import ForbiddenView from "@/views/ForbiddenView.vue";
 import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
-import NewTaskView from "@/views/NewTaskView.vue";
-import OfficialDocsView from "@/views/OfficialDocsView.vue";
 import StageWorkflowView from "@/views/StageWorkflowView.vue";
 import TasksView from "@/views/TasksView.vue";
 
@@ -65,18 +63,6 @@ const router = createRouter({
       }
     },
     {
-      path: "/official",
-      redirect: "/workspace"
-    },
-    {
-      path: "/docs",
-      name: "official-docs",
-      component: OfficialDocsView,
-      meta: {
-        title: "使用文档"
-      }
-    },
-    {
       path: "/",
       component: WorkspaceShell,
       children: [
@@ -90,18 +76,6 @@ const router = createRouter({
           component: HomeView,
           meta: {
             title: "工作台"
-          }
-        },
-        {
-          path: "generate",
-          redirect: "/workspace"
-        },
-        {
-          path: "tasks/new",
-          name: "tasks-new",
-          component: NewTaskView,
-          meta: {
-            title: "新建任务"
           }
         },
         {
@@ -119,10 +93,6 @@ const router = createRouter({
           meta: {
             title: "阶段工作流"
           }
-        },
-        {
-          path: "material-center",
-          redirect: "/workspace"
         },
         {
           path: "materials",
