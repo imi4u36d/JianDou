@@ -119,6 +119,24 @@ async def admin_update_model_config_keys(request: Request):
     return result
 
 
+@router.post("/model-config/validate")
+async def admin_validate_model_config_keys(request: Request):
+    await require_admin(request)
+    body = await request.json()
+    config_service = request.app.state.admin_model_config_service
+    from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest
+    providers_raw = body.get("providers", [])
+    provider_inputs = [
+        AdminModelConfigKeyUpdateRequest.ProviderKeyInput(
+            key=p.get("key", ""),
+            apiKey=p.get("apiKey", ""),
+        )
+        for p in providers_raw
+    ]
+    update_request = AdminModelConfigKeyUpdateRequest(providers=provider_inputs)
+    return config_service.validate_keys(update_request)
+
+
 @router.get("/users")
 async def admin_list_users(request: Request, db: AsyncSession = Depends(get_db)):
     admin_user = await require_admin(request)
@@ -370,9 +388,10 @@ async def admin_create_invite(request: Request, db: AsyncSession = Depends(get_d
     admin_user = await require_admin(request)
     body = await request.json()
     role = body.get("role", "USER")
+    expires_at = body.get("expiresAt", body.get("expires_at"))
     auth_service = AuthService(db)
     try:
-        invite = await auth_service.create_invite(role, admin_user["id"])
+        invite = await auth_service.create_invite(role, admin_user["id"], expires_at)
     except (ValueError, RuntimeError) as exc:
         from fastapi import HTTPException as FastAPIHTTPException
         raise FastAPIHTTPException(status_code=400, detail=str(exc))

@@ -10,6 +10,8 @@
     "moduleResolution": "Node",
     // 对应用代码启用严格类型检查。
     "strict": true,
+    // 跳过第三方声明文件检查，避免依赖包类型与当前 Vue/TS 组合产生噪音。
+    "skipLibCheck": true,
     // 保留 JSX 语法，供 Vue 相关工具处理。
     "jsx": "preserve",
     // 输出 Source Map，便于本地调试。

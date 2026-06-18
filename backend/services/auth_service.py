@@ -261,14 +261,12 @@ class AuthService:
 
     # ── 邀请码 CRUD ──────────────────────────────────────────────
 
-    async def create_invite(self, role: str, created_by: int) -> dict:
-        from backend.config import settings
-
+    async def create_invite(self, role: str, created_by: int, expires_at: str | None = None) -> dict:
         role = role.upper()
         if role not in ("USER", "ADMIN"):
             raise ValueError("invalid_user_role")
 
-        expires_at = _now_str()  # expires_at stored as ISO string
+        normalized_expires_at = expires_at.strip() if isinstance(expires_at, str) and expires_at.strip() else None
 
         # 尝试生成不重复的邀请码，最多 10 次
         for _attempt in range(10):
@@ -286,7 +284,7 @@ class AuthService:
             code=code,
             role=role,
             status="UNUSED",
-            expires_at=expires_at,
+            expires_at=normalized_expires_at,
             created_by=created_by,
             created_at=now,
             updated_at=now,

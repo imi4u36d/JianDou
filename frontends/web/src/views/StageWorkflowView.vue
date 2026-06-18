@@ -1190,12 +1190,13 @@ function workflowCanvasStageFromCurrent(workflow: WorkflowDetail): CanvasStageKe
   return resolveWorkflowCanvasStageFromCurrent(workflow, hasMissingCharacterSheets);
 }
 
-function switchCanvasStage(stage: CanvasStageKey) {
-  activeCanvasStage.value = stage;
-  if (stage === "final") {
+function switchCanvasStage(stage: string) {
+  const normalizedStage = normalizeWorkflowCanvasStage(stage) ?? "storyboard";
+  activeCanvasStage.value = normalizedStage;
+  if (normalizedStage === "final") {
     return;
   }
-  switchWorkflowStage(stage);
+  switchWorkflowStage(normalizedStage);
 }
 
 function setPreviewStoryboardVersion(versionId: string) {

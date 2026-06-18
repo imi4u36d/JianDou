@@ -1,4 +1,4 @@
-import type { WorkflowCharacterSheet, WorkflowDetail, StageVersion } from "@/types";
+import type { WorkflowCharacterSheet, WorkflowDetail, StageVersion, WorkflowStageOutputSummary } from "@/types";
 
 interface PreviewFrame {
   role: string;
@@ -52,17 +52,17 @@ export function hasMissingCharacterSheets(workflow: WorkflowDetail): boolean {
 
 export function characterSheetPreviewFrames(version: StageVersion): PreviewFrame[] {
   const outputSummary = version.outputSummary ?? {};
-  const summaryUrlValue = (obj: Record<string, unknown>, ...keys: string[]): string => {
+  const summaryUrlValue = (obj: WorkflowStageOutputSummary, ...keys: Array<keyof WorkflowStageOutputSummary>): string => {
     for (const key of keys) {
       const val = obj[key];
       if (typeof val === "string" && val.trim()) return val.trim();
     }
     return "";
   };
-  const summaryUrlListValue = (obj: Record<string, unknown>, ...keys: string[]): string[] => {
+  const summaryUrlListValue = (obj: WorkflowStageOutputSummary, ...keys: Array<keyof WorkflowStageOutputSummary>): string[] => {
     for (const key of keys) {
       const val = obj[key];
-      if (Array.isArray(val)) return val.filter((item): item is string => typeof item === "string" && item.trim());
+      if (Array.isArray(val)) return val.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
     }
     return [];
   };
@@ -71,7 +71,7 @@ export function characterSheetPreviewFrames(version: StageVersion): PreviewFrame
     { role: "front", label: "正面", url: summaryUrlValue(outputSummary, "frontViewUrl", "frontImageUrl", "frontUrl") },
     { role: "side", label: "侧面", url: summaryUrlValue(outputSummary, "sideViewUrl", "sideImageUrl", "sideUrl", "profileViewUrl") },
     { role: "back", label: "背面", url: summaryUrlValue(outputSummary, "backViewUrl", "backImageUrl", "backUrl") },
-  ].filter((frame) => frame.url);
+  ].filter((frame): frame is { role: string; label: string; url: string } => Boolean(frame.url));
   if (namedFrames.length) {
     return namedFrames;
   }

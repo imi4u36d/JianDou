@@ -431,6 +431,7 @@ export interface AdminModelConfigModelItem {
   description: string;
   supportsSeed: boolean;
   supportsResponsesApi: boolean;
+  prefersChatCompletionsForVision?: boolean;
   generationMode: string;
   supportedSizes: string[];
   supportedDurations: number[];

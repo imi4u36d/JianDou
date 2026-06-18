@@ -1,7 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query, Request
 import yaml
+
+from backend.services.generation_service import GenerationRunNotFoundException, UnsupportedGenerationKindException
 
 router = APIRouter(prefix="/api/v3/generation", tags=["generation"])
 
@@ -153,3 +155,36 @@ async def generation_options():
 @router.get("/catalog")
 async def generation_catalog():
     return _build_catalog()
+
+
+@router.post("/runs")
+async def create_generation_run(request: Request):
+    body = await request.json()
+    service = request.app.state.generation_application_service
+    try:
+        return await service.create_run(body if isinstance(body, dict) else {})
+    except UnsupportedGenerationKindException as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/runs")
+async def list_generation_runs(request: Request, limit: int = Query(100, ge=1, le=200)):
+    service = request.app.state.generation_application_service
+    return await service.list_runs(limit)
+
+
+@router.get("/runs/{run_id}")
+async def get_generation_run(run_id: str, request: Request):
+    service = request.app.state.generation_application_service
+    try:
+        return await service.get_run(run_id)
+    except GenerationRunNotFoundException:
+        raise HTTPException(status_code=404, detail="generation_run_not_found")
+
+
+@router.get("/usage")
+async def generation_usage(request: Request):
+    service = request.app.state.generation_application_service
+    return await service.usage()

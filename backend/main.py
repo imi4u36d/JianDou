@@ -17,6 +17,7 @@ from backend.services.task_command_service import TaskCommandService
 from backend.services.task_application_service import TaskApplicationServiceImpl
 from backend.services.model_config_service import ModelRuntimePropertiesResolver, AdminModelConfigService
 from backend.services.structured_application_logger import StructuredApplicationLogger
+from backend.services.generation_service import DefaultGenerationApplicationService
 
 
 def create_app() -> FastAPI:
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.state.admin_model_config_service = admin_config_service
     app.state.model_resolver = model_resolver
     app.state.structured_logger = StructuredApplicationLogger
+    app.state.generation_application_service = DefaultGenerationApplicationService()
 
     # Register routers
     from backend.routers import (

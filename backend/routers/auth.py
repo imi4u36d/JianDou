@@ -9,6 +9,7 @@ from backend.config import settings
 from backend.database import get_db
 from backend.services.auth_service import AuthService
 from backend.auth import hash_password
+from backend.schemas.auth import ActivateInviteRequest
 
 router = APIRouter(prefix="/api/v3/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -60,6 +61,39 @@ async def login(request: Request, response: Response, db: AsyncSession = Depends
 
     if not user:
         raise HTTPException(status_code=401, detail="invalid_credentials")
+
+    token_data = _create_token_data(user["id"], user["username"], user["role"])
+    access_token = jwt.encode(token_data, settings.secret_key, algorithm=ALGORITHM)
+    response.set_cookie(
+        key="access_token", value=access_token, httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    return {
+        "authenticated": True,
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "displayName": user.get("displayName", ""),
+            "role": user["role"],
+        },
+    }
+
+
+@router.post("/activate-invite")
+async def activate_invite(payload: ActivateInviteRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    auth_service = AuthService(db)
+    try:
+        user = await auth_service.activate_invite(
+            payload.code,
+            payload.username,
+            payload.display_name,
+            payload.password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not user:
+        raise HTTPException(status_code=400, detail="invite_activation_failed")
 
     token_data = _create_token_data(user["id"], user["username"], user["role"])
     access_token = jwt.encode(token_data, settings.secret_key, algorithm=ALGORITHM)

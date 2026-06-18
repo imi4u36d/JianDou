@@ -42,6 +42,8 @@ async def health(request: Request):
 
     return {
         "ok": True,
+        "healthy": True,
+        "env": settings.app_env,
         "runtime": {
             "name": "jiandou-api",
             "env": settings.app_env,
