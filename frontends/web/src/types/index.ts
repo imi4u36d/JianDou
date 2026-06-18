@@ -1206,6 +1206,10 @@ export interface WorkflowStageOutputSummary {
   selectedFirstFrame?: boolean | null;
   selectedLastFrame?: boolean | null;
   frameFailures?: WorkflowFrameFailureSummary[] | null;
+  taskId?: string | null;
+  taskStatus?: string | null;
+  error?: string | null;
+  taskMessage?: string | null;
   remoteSourceUrl?: string | null;
   characterName?: string | null;
   characterDefinition?: string | null;

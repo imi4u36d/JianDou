@@ -592,7 +592,7 @@
                     @click="selectCanvasClip(slot.clipIndex)"
                   >
                     <strong>{{ slot.shotLabel || `镜头 #${slot.clipIndex}` }}</strong>
-                    <span>{{ slot.videoVersions.some((version) => version.selected) ? '已选中' : (slot.videoVersions.length ? '待选择' : '未生成') }}</span>
+                    <span>{{ videoSlotStatusLabel(slot) }}</span>
                   </button>
                 </nav>
 
@@ -635,7 +635,7 @@
                           <div class="workflow-more-menu compact-version-menu">
                             <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-${version.id}`">•••</button>
                             <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
-                              <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
+                              <button type="button" :disabled="!canSelectVideoVersion(version) || version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)">选中继续</button>
                               <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
                               <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
                               <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除版本</button>
@@ -652,9 +652,13 @@
                         </div>
                         <span v-if="previewVideoVersion.selected" class="surface-chip">当前选中</span>
                       </div>
-                      <video v-if="previewVideoVersion.previewUrl" class="version-card__video" :src="previewVideoVersion.previewUrl" controls playsinline preload="metadata"></video>
+                      <div v-if="videoVersionErrorMessage(previewVideoVersion)" class="workflow-error video-version-card__error">
+                        {{ videoVersionErrorMessage(previewVideoVersion) }}
+                      </div>
+                      <video v-else-if="previewVideoVersion.previewUrl && canSelectVideoVersion(previewVideoVersion)" class="version-card__video" :src="previewVideoVersion.previewUrl" controls playsinline preload="metadata"></video>
+                      <div v-else class="workflow-empty workflow-empty-nested">{{ videoVersionStatusLabel(previewVideoVersion) }}</div>
                       <div class="version-card__actions">
-                        <button class="btn-secondary btn-sm" type="button" :disabled="previewVideoVersion.selected || busyActionKey === previewVideoVersion.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, previewVideoVersion.id)">选中继续</button>
+                        <button class="btn-secondary btn-sm" type="button" :disabled="!canSelectVideoVersion(previewVideoVersion) || previewVideoVersion.selected || busyActionKey === previewVideoVersion.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, previewVideoVersion.id)">选中继续</button>
                         <div class="workflow-more-menu compact-version-menu">
                           <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-card-${previewVideoVersion.id}`">•••</button>
                           <div :id="`vsm-card-${previewVideoVersion.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
@@ -1034,7 +1038,7 @@ const videoReadiness = computed(() => {
   const slots = selectedWorkflow.value?.clipSlots ?? [];
   return {
     total: slots.length,
-    generated: slots.filter((slot) => slot.videoVersions.length > 0).length,
+    generated: slots.filter((slot) => slot.videoVersions.some((version) => canSelectVideoVersion(version))).length,
     selected: slots.filter((slot) => slot.videoVersions.some((version) => version.selected)).length,
     missing: slots.filter((slot) => !slot.videoVersions.some((version) => version.selected)),
   };
@@ -1220,6 +1224,56 @@ function stageVersionDisplayTitle(version: StageVersion) {
   const versionPrefixPattern = new RegExp(`^V${version.versionNo}[.、\\-_:：·\\s]*`, "i");
   const dedupedTitle = rawTitle.replace(versionPrefixPattern, "").trim();
   return dedupedTitle || rawTitle || "未命名版本";
+}
+
+function normalizedStageVersionStatus(version: StageVersion) {
+  return (version.status || "").trim().toUpperCase();
+}
+
+function videoVersionErrorMessage(version: StageVersion) {
+  const outputSummary = version.outputSummary ?? {};
+  const message = outputSummary.error || outputSummary.taskMessage || "";
+  return typeof message === "string" ? message.trim() : "";
+}
+
+function canSelectVideoVersion(version: StageVersion) {
+  const status = normalizedStageVersionStatus(version);
+  return status === "COMPLETED" && Boolean(version.downloadUrl || version.outputSummary?.fileUrl || version.asset?.fileUrl);
+}
+
+function videoVersionStatusLabel(version: StageVersion) {
+  const error = videoVersionErrorMessage(version);
+  if (error) {
+    return "生成失败";
+  }
+  const taskStatus = typeof version.outputSummary?.taskStatus === "string" ? version.outputSummary.taskStatus.trim() : "";
+  const status = normalizedStageVersionStatus(version);
+  if (canSelectVideoVersion(version)) {
+    return version.selected ? "当前选中" : "可选中";
+  }
+  if (status === "FAILED" || taskStatus.toUpperCase() === "FAILED") {
+    return "生成失败";
+  }
+  if (status === "RUNNING" || taskStatus) {
+    return taskStatus ? `生成中：${taskStatus}` : "生成中";
+  }
+  return "未完成";
+}
+
+function videoSlotStatusLabel(slot: WorkflowClipSlot) {
+  if (slot.videoVersions.some((version) => version.selected)) {
+    return "已选中";
+  }
+  if (slot.videoVersions.some((version) => canSelectVideoVersion(version))) {
+    return "待选择";
+  }
+  if (slot.videoVersions.some((version) => normalizedStageVersionStatus(version) === "FAILED" || videoVersionErrorMessage(version))) {
+    return "生成失败";
+  }
+  if (slot.videoVersions.length) {
+    return "生成中";
+  }
+  return "未生成";
 }
 
 function selectCanvasClip(clipIndex: number) {

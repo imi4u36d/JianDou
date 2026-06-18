@@ -524,10 +524,10 @@ class ModelRuntimePropertiesResolver:
         )
 
     def resolve_image_profile(self, requested_model: str, user_id: int | None = None) -> MediaProviderProfile:
-        return self._resolve_media_profile(requested_model, GenerationModelKinds.IMAGE, user_id)
+        return self._resolve_media_profile(requested_model, GenerationModelKinds.IMAGE, user_id=user_id)
 
     def resolve_video_profile(self, requested_model: str, user_id: int | None = None) -> MediaProviderProfile:
-        return self._resolve_media_profile(requested_model, GenerationModelKinds.VIDEO, user_id)
+        return self._resolve_media_profile(requested_model, GenerationModelKinds.VIDEO, user_id=user_id)
 
     def resolve_media_profile(
         self, requested_model: str, expected_kind: str | None = None, user_id: int | None = None

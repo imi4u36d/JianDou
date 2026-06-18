@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
 from backend.routers.auth import get_current_user
+from backend.services.generation_service import GenerationProviderException
 from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
@@ -25,6 +26,9 @@ async def _run_action(action):
         return await action()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GenerationProviderException as exc:
+        detail = str(exc) or exc.__class__.__name__
+        raise HTTPException(status_code=502, detail=f"模型服务请求失败：{detail}") from exc
 
 
 # ------------------------------------------------------------------
@@ -192,7 +196,7 @@ async def generate_keyframe(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     svc = _service(db, request)
-    result = await svc.generate_keyframe(workflow_id, clip_index)
+    result = await _run_action(lambda: svc.generate_keyframe(workflow_id, clip_index))
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
     return result
@@ -211,7 +215,7 @@ async def generate_keyframe_frame(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     svc = _service(db, request)
-    result = await svc.generate_keyframe_frame(workflow_id, clip_index, frame_role)
+    result = await _run_action(lambda: svc.generate_keyframe_frame(workflow_id, clip_index, frame_role))
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
     return result
@@ -300,7 +304,7 @@ async def generate_video(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     svc = _service(db, request)
-    result = await svc.generate_video(workflow_id, clip_index)
+    result = await _run_action(lambda: svc.generate_video(workflow_id, clip_index))
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
     return result
@@ -341,7 +345,7 @@ async def finalize_workflow(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     svc = _service(db, request)
-    result = await svc.finalize_workflow(workflow_id)
+    result = await _run_action(lambda: svc.finalize_workflow(workflow_id))
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
     return result

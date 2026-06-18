@@ -240,6 +240,7 @@ class BizMaterialAsset(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     material_asset_id = Column(String(64), nullable=False, unique=True)
+    remark = Column(String(512), nullable=False, default="")
     owner_user_id = Column(Integer, nullable=False)
     task_id = Column(String(64), nullable=True)
     workflow_id = Column(String(64), nullable=True)
@@ -281,4 +282,3 @@ class BizMaterialAsset(Base):
     create_time = Column(String(32), default=None)
     update_time = Column(String(32), default=None)
     is_deleted = Column(Integer, default=0)
-

@@ -1073,8 +1073,9 @@ class ImageProviderTransport:
                 timeout=timeout,
             )
         except httpx.RequestError as ex:
+            message = str(ex) or ex.__class__.__name__
             raise GenerationProviderException(
-                f"provider request failed: {ex}",
+                f"provider request failed: {message}",
                 provider_request=request_payload,
                 http_status=0,
             )
@@ -1521,8 +1522,9 @@ class VideoProviderTransport:
                 timeout=timeout,
             )
         except httpx.RequestError as ex:
+            message = str(ex) or ex.__class__.__name__
             raise GenerationProviderException(
-                f"provider request failed: {ex}",
+                f"provider request failed: {message}",
                 provider_request=request_payload,
                 http_status=0,
             )
@@ -1576,10 +1578,10 @@ class VideoProviderTransport:
             self._string_value(payload.get("task_id")),
             self._string_value(payload.get("taskId")),
             self._string_value(payload.get("id")),
-            self._string_value(self._map_value(payload.get("output")).get("task_id")),
-            self._string_value(self._map_value(payload.get("output")).get("taskId")),
-            self._string_value(self._map_value(payload.get("data")).get("task_id")),
-            self._string_value(self._map_value(payload.get("data")).get("taskId")),
+            self._string_value(self.map_value(payload.get("output")).get("task_id")),
+            self._string_value(self.map_value(payload.get("output")).get("taskId")),
+            self._string_value(self.map_value(payload.get("data")).get("task_id")),
+            self._string_value(self.map_value(payload.get("data")).get("taskId")),
         )
 
     def extract_video_url(self, payload: dict[str, Any]) -> str:
@@ -1592,8 +1594,8 @@ class VideoProviderTransport:
         """Extract task status from response payload."""
         status = self._first_non_blank(
             self.extract_first_string(payload, "task_status", "taskStatus", "status", "state"),
-            self.extract_first_string(self._map_value(payload.get("output")), "task_status", "taskStatus", "status", "state"),
-            self.extract_first_string(self._map_value(payload.get("data")), "task_status", "taskStatus", "status", "state"),
+            self.extract_first_string(self.map_value(payload.get("output")), "task_status", "taskStatus", "status", "state"),
+            self.extract_first_string(self.map_value(payload.get("data")), "task_status", "taskStatus", "status", "state"),
             "UNKNOWN",
         )
         return status.upper()
@@ -1602,8 +1604,8 @@ class VideoProviderTransport:
         """Extract task message/error from response payload."""
         return self._first_non_blank(
             self.extract_first_string(payload, "message", "error"),
-            self.extract_first_string(self._map_value(payload.get("output")), "message", "error"),
-            self.extract_first_string(self._map_value(payload.get("data")), "message", "error"),
+            self.extract_first_string(self.map_value(payload.get("output")), "message", "error"),
+            self.extract_first_string(self.map_value(payload.get("data")), "message", "error"),
         )
 
     def encode_path_segment(self, value: str) -> str:

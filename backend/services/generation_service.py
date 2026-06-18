@@ -353,6 +353,24 @@ class GenerationRunSupport:
                 return v.strip()
         return ""
 
+    def find_nested_string(self, value: Any, *keys: str) -> str:
+        wanted = {k for k in keys if k}
+        if isinstance(value, dict):
+            for key in wanted:
+                direct = value.get(key)
+                if isinstance(direct, str) and direct.strip():
+                    return direct.strip()
+            for nested in value.values():
+                resolved = self.find_nested_string(nested, *keys)
+                if resolved:
+                    return resolved
+        elif isinstance(value, list):
+            for item in value:
+                resolved = self.find_nested_string(item, *keys)
+                if resolved:
+                    return resolved
+        return ""
+
     def required_model(self, value: str, field_name: str, label: str) -> str:
         normalized = value.strip() if value else ""
         if normalized:
@@ -1219,9 +1237,9 @@ class GenerationRunFactory:
                 "outputUrl": image_artifact["publicUrl"],
                 "fileUrl": image_artifact["publicUrl"],
                 "source": f"remote:{remote_image['providerModel']}",
-                "remoteSourceUrl": "",
+                "remoteSourceUrl": remote_image["remoteSourceUrl"],
                 "artifactRemoteSourceUrl": self._support.build_externally_accessible_url(image_artifact["publicUrl"]),
-                "providerRemoteSourceUrl": "",
+                "providerRemoteSourceUrl": remote_image["remoteSourceUrl"],
                 "frameRole": frame_role,
                 "keyframePrompt": prompt,
                 "textAnalysisProvider": _text_profile.get("provider", ""),
@@ -1343,6 +1361,7 @@ class GenerationRunFactory:
             "textAnalysisProvider": _text_profile.get("provider", ""),
             "textAnalysisModel": _text_profile.get("modelName", ""),
             "configSource": video_profile.get("source", ""),
+            "userId": _user_id,
             "remoteSourceUrl": "",
             "provider": submission["provider"],
             "providerModel": submission["providerModel"],
@@ -1438,20 +1457,29 @@ class GenerationRunFactory:
             query_result = await self._call_video_query(_profile_dict, task_id)
             query_status = query_result["taskStatus"]
             video_url = query_result["videoUrl"]
+            task_message = self._support.string_value(query_result.get("taskMessage"))
+            provider_response = query_result.get("providerResponse", {})
+            provider_request = query_result.get("providerRequest", {"task_id": task_id})
+            query_http_status = query_result.get("httpStatus", 200)
         except Exception as ex:
             logger.warning("Video task query failed for %s: %s", task_id, ex)
             query_status = "UNKNOWN"
             video_url = ""
+            task_message = str(ex)
+            provider_response = {"error": task_message}
+            provider_request = {"task_id": task_id}
+            query_http_status = 0
 
         metadata["taskStatus"] = query_status
-        metadata["providerPayload"] = {"task_id": task_id}
+        metadata["taskMessage"] = task_message
+        metadata["providerPayload"] = provider_response
         self._append_provider_query_history(metadata, {
             "step": "video.query",
-            "providerRequest": {"task_id": task_id},
-            "providerResponse": metadata["providerPayload"],
-            "httpStatus": 200,
+            "providerRequest": provider_request,
+            "providerResponse": provider_response,
+            "httpStatus": query_http_status,
             "endpointHost": _profile_dict.get("taskEndpointHost", ""),
-            "success": True,
+            "success": query_status in self._VIDEO_SUCCESS_STATES,
         })
 
         if query_status in self._VIDEO_SUCCESS_STATES:
@@ -1492,8 +1520,13 @@ class GenerationRunFactory:
             return run
 
         if query_status in self._VIDEO_FAILED_STATES:
-            error_msg = " "
+            error_msg = self._support.first_non_blank(
+                task_message,
+                self._support.find_nested_string(provider_response, "message", "error", "reason", "detail"),
+                query_status,
+            )
             result["error"] = error_msg
+            metadata["error"] = error_msg
             metadata["nextPollAt"] = None
             call_chain.append(
                 self._support.call_log("generation", "video.failed", "error", "", {
@@ -1711,7 +1744,8 @@ class GenerationRunFactory:
     ) -> dict[str, Any]:
         """Query video task status from the real provider."""
         profile = self._config_resolver.resolve_video_profile(
-            profile_dict.get("modelName", "")
+            profile_dict.get("requestedModel", "") or profile_dict.get("modelName", ""),
+            user_id=profile_dict.get("userId"),
         )
         result = await self._video_provider.query(profile, task_id)
         return {
@@ -1778,7 +1812,30 @@ class GenerationRunFactory:
 
     @staticmethod
     def _user_id_from_run(run: dict[str, Any]) -> Optional[int]:
-        return None  # stub
+        request = run.get("request")
+        if isinstance(request, dict):
+            user_id = GenerationRunFactory._user_id_from_request(request)
+            if user_id is not None:
+                return user_id
+        user_id = GenerationRunFactory._user_id_from_request(run)
+        if user_id is not None:
+            return user_id
+        for key in ("resultVideo", "result"):
+            result = run.get(key)
+            if not isinstance(result, dict):
+                continue
+            metadata = result.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            uid = metadata.get("userId")
+            if isinstance(uid, (int, float)):
+                return int(uid)
+            if isinstance(uid, str) and uid.strip():
+                try:
+                    return int(uid.strip())
+                except (ValueError, TypeError):
+                    pass
+        return None
 
     @staticmethod
     def _request_metadata(request: dict[str, Any]) -> dict[str, Any]:
