@@ -431,37 +431,34 @@ class WorkflowService:
 
         try:
             gen_result = await gen_service.create_run(generation_request)
-            script_markdown = ""
-            output_summary = {}
-            model_call_summary = {}
-
-            # Extract script markdown from generation result
-            result_script = gen_result.get("resultScript", gen_result.get("result", {}))
-            if isinstance(result_script, dict):
-                script_markdown = result_script.get("scriptMarkdown", "")
-                output_summary = {
-                    "scriptMarkdown": script_markdown,
-                    "markdownUrl": result_script.get("markdownUrl", ""),
-                    "runId": result_script.get("runId", ""),
-                }
-                model_call_summary = {
-                    "modelInfo": result_script.get("modelInfo", {}),
-                    "callChain": result_script.get("callChain", []),
-                }
-
-            if not script_markdown:
-                script_markdown = "【分镜脚本】生成失败，请重试。"
-                output_summary = {"scriptMarkdown": script_markdown, "error": "empty_response"}
-
         except Exception as ex:
             import logging
             logging.getLogger(__name__).warning("Storyboard generation failed: %s", ex)
             raw_error = str(ex)
             if "missing api key" in raw_error.lower() or "missing api key or base url" in raw_error.lower():
-                raw_error = "当前用户未设置对应模型 Key，请先在用户管理中配置 Key。"
-            script_markdown = f"【分镜脚本】生成出错：{raw_error}"
-            output_summary = {"scriptMarkdown": script_markdown, "error": str(ex)}
-            model_call_summary = {}
+                raise ValueError("当前用户未设置对应模型 Key，请先在用户管理中配置 Key。") from ex
+            raise ValueError(f"分镜生成失败：{raw_error}") from ex
+
+        script_markdown = ""
+        output_summary = {}
+        model_call_summary = {}
+
+        # Extract script markdown from generation result
+        result_script = gen_result.get("resultScript", gen_result.get("result", {}))
+        if isinstance(result_script, dict):
+            script_markdown = result_script.get("scriptMarkdown", "")
+            output_summary = {
+                "scriptMarkdown": script_markdown,
+                "markdownUrl": result_script.get("markdownUrl", ""),
+                "runId": result_script.get("runId", ""),
+            }
+            model_call_summary = {
+                "modelInfo": result_script.get("modelInfo", {}),
+                "callChain": result_script.get("callChain", []),
+            }
+
+        if not script_markdown:
+            raise ValueError("分镜生成失败：模型返回为空，请重试。")
 
         storyboard_version = BizStageVersion(
             stage_version_id=version_id,
