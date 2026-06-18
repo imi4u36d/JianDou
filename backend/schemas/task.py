@@ -1,6 +1,12 @@
 from __future__ import annotations
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import AliasGenerator, BaseModel, ConfigDict
+from typing import Any, Optional
+
+
+def _to_camel(name: str) -> str:
+    parts = name.split("_")
+    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+
 
 class TaskListItemResponse(BaseModel):
     id: str = ""
@@ -84,6 +90,11 @@ class TaskDetailResponse(BaseModel):
     source_assets: list = []
 
 class CreateGenerationTaskRequest(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(validation_alias=_to_camel),
+        populate_by_name=True,
+    )
+
     title: str
     task_type: Optional[str] = None
     asset_type: Optional[str] = None
@@ -95,8 +106,8 @@ class CreateGenerationTaskRequest(BaseModel):
     video_model: Optional[str] = None
     video_size: Optional[str] = None
     seed: Optional[int] = None
-    video_duration_seconds: Optional[dict] = None
-    output_count: Optional[dict] = None
+    video_duration_seconds: Optional[Any] = None
+    output_count: Optional[Any] = None
     min_duration_seconds: Optional[int] = None
     max_duration_seconds: Optional[int] = None
     transcript_text: Optional[str] = None
@@ -105,6 +116,11 @@ class CreateGenerationTaskRequest(BaseModel):
     reference_asset_ids: Optional[list[str]] = None
 
 class GenerateCreativePromptRequest(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(validation_alias=_to_camel),
+        populate_by_name=True,
+    )
+
     title: str
     aspect_ratio: Optional[str] = None
     min_duration_seconds: Optional[int] = None
@@ -114,6 +130,11 @@ class GenerateCreativePromptRequest(BaseModel):
     transcript_text: Optional[str] = None
 
 class RateTaskEffectRequest(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(validation_alias=_to_camel),
+        populate_by_name=True,
+    )
+
     effect_rating: Optional[int] = None
     effect_rating_note: Optional[str] = None
 

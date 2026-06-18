@@ -68,12 +68,12 @@ def _biz_task_from_record(record: TaskRecord) -> BizTask:
         task_type=record.task_type or "video_generation",
         title=record.title or "",
         description=None,
-        aspect_ratio=record.aspect_ratio,
-        min_duration_seconds=record.min_duration_seconds,
-        max_duration_seconds=record.max_duration_seconds,
-        output_count=None,
-        source_primary_asset_id=None,
-        source_file_name=record.source_file_name,
+        aspect_ratio=record.aspect_ratio or "",
+        min_duration_seconds=record.min_duration_seconds or 0,
+        max_duration_seconds=record.max_duration_seconds or 0,
+        output_count=record.completed_output_count or 0,
+        source_primary_asset_id="",
+        source_file_name=record.source_file_name or "",
         source_asset_ids_json=None,
         source_file_names_json=None,
         request_payload_json=json.dumps(record.request_snapshot, ensure_ascii=False)
@@ -82,28 +82,29 @@ def _biz_task_from_record(record: TaskRecord) -> BizTask:
         context_json=json.dumps(record.execution_context, ensure_ascii=False)
         if record.execution_context
         else None,
-        intro_template=record.intro_template,
-        outro_template=record.outro_template,
+        intro_template=record.intro_template or "",
+        outro_template=record.outro_template or "",
         creative_prompt=record.creative_prompt,
         task_seed=record.task_seed,
         effect_rating=record.effect_rating,
-        effect_rating_note=record.effect_rating_note,
+        effect_rating_note=record.effect_rating_note or "",
         rated_at=record.rated_at,
-        model_provider=None,
-        execution_mode=None,
-        editing_mode=record.editing_mode,
+        model_provider="",
+        execution_mode="",
+        editing_mode=record.editing_mode or "",
         status=record.status or "",
-        progress=record.progress,
-        error_code=None,
+        progress=record.progress or 0,
+        error_code="",
         error_message=record.error_message,
         plan_json=None,
-        retry_count=record.retry_count,
-        timezone_offset_minutes=None,
+        retry_count=record.retry_count or 0,
+        timezone_offset_minutes=0,
         started_at=record.started_at,
         finished_at=record.finished_at,
-        create_time=record.created_at,
-        update_time=record.updated_at,
+        create_time=record.created_at or "",
+        update_time=record.updated_at or "",
         is_deleted=0,
+        remark="",
     )
 
 
@@ -177,7 +178,7 @@ class TaskRepository:
     @property
     def session(self) -> AsyncSession:
         if self._session is None:
-            raise RuntimeError("No SQLAlchemy session available")
+            self._session = async_session_factory()
         return self._session
 
     # ------------------------------------------------------------------

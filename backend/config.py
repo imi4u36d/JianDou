@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/jiandou.db"
 
     # Server
-    server_port: int = 8000
+    server_port: int = 8100
     server_address: str = "0.0.0.0"
 
     # App

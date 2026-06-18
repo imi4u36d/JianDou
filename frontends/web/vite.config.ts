@@ -3,7 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
 
 // 允许在 Docker 或本地开发环境中把代理指向非默认后端地址。
-const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000";
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8100";
 
 export default defineConfig({
   // 启用 Vue 单文件组件支持。

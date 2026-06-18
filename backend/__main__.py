@@ -22,13 +22,60 @@ def cli():
 
 @cli.command()
 @click.option("--host", default="0.0.0.0", help="Host to bind to")
-@click.option("--port", default=8000, type=int, help="Port to listen on")
+@click.option("--port", default=8100, type=int, help="Port to listen on")
 @click.option("--reload", is_flag=True, help="Enable hot reload")
-def serve(host, port, reload):
-    """Start the FastAPI server."""
+@click.option("--skip-build", is_flag=True, help="Skip frontend build")
+def serve(host, port, reload, skip_build):
+    """Start the FastAPI server (auto-builds frontend)."""
+    if not skip_build:
+        _build_frontend()
     from backend.config import settings
     import uvicorn
     uvicorn.run("backend.main:app", host=host, port=port, reload=reload)
+
+
+def _build_frontend() -> None:
+    """Build the frontend SPA via Vite."""
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontends" / "web"
+    if not frontend_dir.is_dir():
+        console.print("[yellow]Frontend directory not found, skipping build[/yellow]")
+        return
+    npm = "npm.cmd" if sys.platform == "win32" else "npm"
+    console.print("[blue]Building frontend...[/blue]")
+    import subprocess
+    result = subprocess.run(
+        [npm, "run", "build"],
+        cwd=str(frontend_dir),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        console.print(f"[red]Frontend build failed:[/red]")
+        console.print(result.stderr)
+        console.print("[yellow]Continuing with existing static files (if any)[/yellow]")
+        return
+
+    # Copy built files to static/web/
+    dist_dir = frontend_dir / "dist"
+    static_dir = Path(__file__).resolve().parent.parent / "static" / "web"
+    static_dir.mkdir(parents=True, exist_ok=True)
+
+    import shutil
+    # Remove old static files
+    for item in static_dir.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+    # Copy new build
+    for item in dist_dir.iterdir():
+        if item.is_dir():
+            shutil.copytree(item, static_dir / item.name, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, static_dir / item.name)
+
+    console.print("[green]Frontend built successfully[/green]")
 
 
 @cli.command()

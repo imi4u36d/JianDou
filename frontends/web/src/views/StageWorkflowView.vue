@@ -315,7 +315,7 @@
                 </button>
               </div>
 
-              <div v-if="!selectedWorkflow.storyboardVersions.length" class="workflow-empty workflow-empty-large">
+              <div v-if="!(selectedWorkflow.storyboardVersions ?? []).length" class="workflow-empty workflow-empty-large">
                 还没有分镜版本，先执行一次分镜生成。
               </div>
               <div v-else class="storyboard-layout">
@@ -1041,9 +1041,9 @@ const videoReadiness = computed(() => {
 });
 const canvasStageItems = computed(() => {
   const workflow = selectedWorkflow.value;
-  const storyboardCount = workflow?.storyboardVersions.length ?? 0;
-  const keyframeCount = workflow?.clipSlots.reduce((sum, slot) => sum + slot.keyframeVersions.length, 0) ?? 0;
-  const videoCount = workflow?.clipSlots.reduce((sum, slot) => sum + slot.videoVersions.length, 0) ?? 0;
+  const storyboardCount = workflow?.storyboardVersions?.length ?? 0;
+  const keyframeCount = workflow?.clipSlots?.reduce((sum, slot) => sum + (slot.keyframeVersions?.length ?? 0), 0) ?? 0;
+  const videoCount = workflow?.clipSlots?.reduce((sum, slot) => sum + (slot.videoVersions?.length ?? 0), 0) ?? 0;
   const selectedCharacterCount = workflowCharacterSheets.value.filter((sheet) => Boolean(selectedCharacterSheetVersion(sheet))).length;
   return [
     {
@@ -1134,17 +1134,17 @@ const workflowParameterTags = computed(() => {
 });
 const canFinalize = computed(() => {
   const workflow = selectedWorkflow.value;
-  if (!workflow || !workflow.clipSlots.length) {
+  if (!workflow || !(workflow.clipSlots ?? []).length) {
     return false;
   }
-  return workflow.clipSlots.every((slot) => slot.videoVersions.some((version) => version.selected));
+  return (workflow.clipSlots ?? []).every((slot) => (slot.videoVersions ?? []).some((version) => version.selected));
 });
 
 const finalizeButtonLabel = computed(() => selectedWorkflow.value?.finalResult ? "重新拼接完整视频" : "拼接完整视频");
 
 const finalizeHint = computed(() => {
   const workflow = selectedWorkflow.value;
-  if (!workflow || !workflow.clipSlots.length) {
+  if (!workflow || !(workflow.clipSlots ?? []).length) {
     return "先生成并选中每个分镜的视频版本，才能按分镜顺序拼接成完整视频。";
   }
   if (canFinalize.value) {
@@ -1498,13 +1498,14 @@ function applyWorkflowDrafts(workflow: WorkflowDetail | null) {
     return;
   }
   syncWorkflowSettingsDraft(workflow);
-  for (const version of workflow.storyboardVersions) {
+  const storyboardVersions = workflow.storyboardVersions ?? [];
+  for (const version of storyboardVersions) {
     storyboardAdjustmentDrafts[version.id] ??= "";
   }
   previewStoryboardVersionId.value =
-    workflow.storyboardVersions.find((version) => version.id === previewStoryboardVersionId.value)?.id
-    ?? workflow.storyboardVersions.find((version) => version.selected)?.id
-    ?? workflow.storyboardVersions[0]?.id
+    storyboardVersions.find((version) => version.id === previewStoryboardVersionId.value)?.id
+    ?? storyboardVersions.find((version) => version.selected)?.id
+    ?? storyboardVersions[0]?.id
     ?? "";
   for (const sheet of workflow.characterSheets ?? []) {
     const sheetKey = characterSheetKey(sheet);
@@ -1580,14 +1581,16 @@ async function loadWorkflowDetail(workflowId: string) {
       });
     }
     applyWorkflowDrafts(selectedWorkflow.value);
+    const storyboardVersions = selectedWorkflow.value.storyboardVersions ?? [];
     previewStoryboardVersionId.value =
-      selectedWorkflow.value.storyboardVersions.find((version) => version.selected)?.id
-      ?? selectedWorkflow.value.storyboardVersions[0]?.id
+      storyboardVersions.find((version) => version.selected)?.id
+      ?? storyboardVersions[0]?.id
       ?? "";
-    if (selectedWorkflow.value.clipSlots.length) {
-      const currentClipExists = selectedWorkflow.value.clipSlots.some((slot) => slot.clipIndex === selectedCanvasClipIndex.value);
+    if ((selectedWorkflow.value.clipSlots ?? []).length) {
+      const clipSlots = selectedWorkflow.value.clipSlots ?? [];
+      const currentClipExists = clipSlots.some((slot) => slot.clipIndex === selectedCanvasClipIndex.value);
       if (!currentClipExists) {
-        selectedCanvasClipIndex.value = selectedWorkflow.value.clipSlots[0].clipIndex;
+        selectedCanvasClipIndex.value = clipSlots[0].clipIndex;
       }
     } else {
       selectedCanvasClipIndex.value = null;

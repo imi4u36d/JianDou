@@ -45,6 +45,7 @@ class BizTask(Base):
     create_time = Column(String(32), default=None)
     update_time = Column(String(32), default=None)
     is_deleted = Column(Integer, default=0)
+    remark = Column(String(512), nullable=False, default="")
 
 
 class BizTaskStatusHistory(Base):

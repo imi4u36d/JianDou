@@ -112,3 +112,33 @@ select {
 .el-textarea__inner {
   box-shadow: none !important;
 }
+
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* Skeleton card style */
+.skeleton-card {
+  border-radius: 24px;
+  padding: 22px;
+  border: 1px solid var(--jd-border);
+  background: var(--jd-surface);
+}
+.skeleton-card + .skeleton-card {
+  margin-top: 0;
+}
+
+/* Skeleton pulse item */
+.skeleton-pulse-item {
+  padding: 16px;
+  border: 1px solid var(--jd-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.66);
+}

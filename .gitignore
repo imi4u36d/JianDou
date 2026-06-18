@@ -7,6 +7,11 @@ coverage/
 .vite/
 *.tsbuildinfo
 
+# Auto-built SPA static files (built by `jiandou serve`)
+static/web/assets/
+static/web/index.html
+static/web/vite.svg
+
 # Java build artifacts
 target/
 *.class

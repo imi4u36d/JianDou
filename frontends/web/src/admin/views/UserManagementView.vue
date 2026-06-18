@@ -8,7 +8,15 @@
       </el-card>
     </div>
 
-    <el-card class="surface-card" shadow="never">
+    <div v-if="initialLoading" class="user-page__summary">
+      <div v-for="n in 4" :key="n" class="skeleton-card">
+        <el-skeleton :rows="3" animated />
+      </div>
+    </div>
+
+    <transition name="fade" mode="out-in">
+      <div v-show="!initialLoading" key="content">
+        <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="user-page__toolbar">
           <div>
@@ -200,6 +208,8 @@
         </el-button>
       </template>
     </el-dialog>
+      </div>
+    </transition>
   </section>
 </template>
 
@@ -227,7 +237,9 @@ import type {
   UserStatus
 } from "@/types";
 
+const initialLoading = ref(true);
 const loading = ref(false);
+const refreshing = ref(false);
 const submittingEditor = ref(false);
 const submittingPassword = ref(false);
 const loadingModelConfig = ref(false);
@@ -327,6 +339,7 @@ async function loadUsers() {
     ElMessage.error(error instanceof Error ? error.message : "读取用户列表失败");
   } finally {
     loading.value = false;
+    initialLoading.value = false;
   }
 }
 

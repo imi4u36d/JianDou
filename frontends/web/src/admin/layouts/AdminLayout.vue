@@ -15,27 +15,27 @@
       </div>
 
       <el-menu :default-active="activeMenu" class="admin-layout__menu" router>
-        <el-menu-item index="/">
+        <el-menu-item index="/admin">
           <el-icon><DataAnalysis /></el-icon>
           <span>首页概览</span>
         </el-menu-item>
-        <el-menu-item index="/tasks">
+        <el-menu-item index="/admin/tasks">
           <el-icon><Tickets /></el-icon>
           <span>任务管理</span>
         </el-menu-item>
-        <el-menu-item index="/users">
+        <el-menu-item index="/admin/users">
           <el-icon><UserFilled /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
-        <el-menu-item index="/invites">
+        <el-menu-item index="/admin/invites">
           <el-icon><Ticket /></el-icon>
           <span>邀请码管理</span>
         </el-menu-item>
-        <el-menu-item index="/credits">
+        <el-menu-item index="/admin/credits">
           <el-icon><Coin /></el-icon>
           <span>积分管理</span>
         </el-menu-item>
-        <el-menu-item index="/system">
+        <el-menu-item index="/admin/system">
           <el-icon><Setting /></el-icon>
           <span>系统配置</span>
         </el-menu-item>
@@ -82,20 +82,14 @@ const authState = useAuthSessionState();
 
 const currentUser = computed(() => authState.user.value);
 const activeMenu = computed(() => {
-  if (route.path === "/") {
-    return "/";
-  }
-  if (route.path.startsWith("/tasks")) {
-    return "/tasks";
-  }
-  if (route.path.startsWith("/users")) {
-    return "/users";
-  }
-  if (route.path.startsWith("/invites")) {
-    return "/invites";
-  }
-  if (route.path.startsWith("/credits")) {
-    return "/credits";
+  if (route.path === "/admin" || route.path.startsWith("/admin/")) {
+    // Highlight the correct menu item based on the sub-path
+    for (const prefix of ["/admin/tasks", "/admin/users", "/admin/invites", "/admin/credits", "/admin/system"]) {
+      if (route.path.startsWith(prefix)) {
+        return prefix;
+      }
+    }
+    return "/admin";
   }
   return route.path;
 });

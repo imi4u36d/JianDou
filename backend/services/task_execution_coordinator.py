@@ -154,7 +154,7 @@ class TaskExecutionCoordinator:
         if isinstance(trigger_type, AttemptTriggerType):
             trigger_str = trigger_type.value
         else:
-            trigger_str = AttemptTriggerType.from(trigger_type)
+            trigger_str = AttemptTriggerType._missing_(trigger_type)
             if trigger_str is None:
                 trigger_str = _string_value(trigger_type).lower()
 
@@ -167,7 +167,7 @@ class TaskExecutionCoordinator:
             "taskId": task.id,
             "attemptNo": task.current_attempt_no,
             "triggerType": trigger_str,
-            "status": AttemptStatus.PENDING.value,
+            "status": AttemptStatus.CREATED.value,
             "queueName": "default",
             "workerInstanceId": "",
             "queueEnteredAt": None,
@@ -234,7 +234,7 @@ class TaskExecutionCoordinator:
         error_message: str | None = None,
     ) -> dict[str, Any] | None:
         if isinstance(status, str):
-            attempt_status = AttemptStatus.from(status)
+            attempt_status = AttemptStatus._missing_(status)
             if attempt_status is None:
                 attempt_status = AttemptStatus.FINISHED
         else:
@@ -798,8 +798,8 @@ class TaskStateTransition:
 
     @property
     def attempt_status_enum(self) -> AttemptStatus:
-        result = AttemptStatus.from(self._attempt_status)
-        return result if result is not None else AttemptStatus.PENDING
+        result = AttemptStatus._missing_(self._attempt_status)
+        return result if result is not None else AttemptStatus.CREATED
 
     @property
     def attempt_error_message(self) -> str:

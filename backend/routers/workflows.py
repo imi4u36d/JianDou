@@ -1,161 +1,394 @@
+"""
+Workflow API router — delegates to WorkflowService.
+"""
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database import get_db
+from backend.routers.auth import get_current_user
+from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
 
-_workflows: dict[str, dict] = {}
-_next_id = 1
+
+def _service(db: AsyncSession) -> WorkflowService:
+    return WorkflowService(db)
+
+
+# ------------------------------------------------------------------
+# Workflow CRUD
+# ------------------------------------------------------------------
 
 
 @router.get("")
-async def list_workflows():
-    return list(_workflows.values())
+async def list_workflows(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """List all workflows for the current user."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    return await svc.list_workflows(owner_user_id=user["id"])
 
 
 @router.post("")
-async def create_workflow():
-    global _next_id
-    wid = str(_next_id)
-    _next_id += 1
-    wf = {
-        "workflow_id": wid,
-        "title": "stub",
-        "status": "DRAFT",
-        "storyboardVersions": [],
-        "keyframeVersions": [],
-        "videoVersions": [],
-    }
-    _workflows[wid] = wf
-    return wf
+async def create_workflow(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Create a new workflow."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    svc = _service(db)
+    result = await svc.create_workflow(body, owner_user_id=user["id"])
+    if result is None:
+        raise HTTPException(status_code=400, detail="Failed to create workflow")
+    return result
 
 
 @router.get("/{workflow_id}")
-async def get_workflow(workflow_id: str):
-    wf = _workflows.get(workflow_id)
-    if not wf:
+async def get_workflow(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Get workflow detail."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.get_workflow(workflow_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
-    return wf
+    return result
 
 
 @router.delete("/{workflow_id}")
-async def delete_workflow(workflow_id: str):
-    if workflow_id not in _workflows:
+async def delete_workflow(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Delete a workflow."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.delete_workflow(workflow_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
-    del _workflows[workflow_id]
-    return {"success": True, "workflow_id": workflow_id}
+    return result
 
 
 @router.patch("/{workflow_id}/settings")
-async def update_workflow_settings(workflow_id: str):
-    wf = _workflows.get(workflow_id)
-    if not wf:
+async def update_workflow_settings(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Update workflow settings."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    svc = _service(db)
+    result = await svc.update_workflow_settings(workflow_id, body)
+    if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
-    return {"workflow_id": workflow_id, "status": wf.get("status", "DRAFT")}
+    return result
 
 
-# --- Storyboard endpoints ---
+# ------------------------------------------------------------------
+# Storyboard endpoints
+# ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/storyboard")
-async def generate_storyboard(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
+@router.post("/{workflow_id}/storyboards/generate")
+async def generate_storyboard(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Generate a storyboard version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.generate_storyboard(workflow_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-@router.get("/{workflow_id}/storyboard/versions")
-async def list_storyboard_versions(workflow_id: str):
-    return []
+@router.post("/{workflow_id}/storyboards/{version_id}/select")
+async def select_storyboard(
+    workflow_id: str,
+    version_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Select a storyboard version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.select_storyboard(workflow_id, version_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result
 
 
-@router.get("/{workflow_id}/storyboard/versions/{version_id}")
-async def get_storyboard_version(workflow_id: str, version_id: str):
-    return {"workflow_id": workflow_id, "version_id": version_id, "message": "not yet implemented"}
+@router.post("/{workflow_id}/storyboards/{version_id}/adjust")
+async def adjust_storyboard(
+    workflow_id: str,
+    version_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Adjust a storyboard version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    raw_body = await request.body()
+    body = await request.json() if raw_body else {}
+    prompt = body.get("prompt", "")
+    svc = _service(db)
+    result = await svc.adjust_storyboard(workflow_id, version_id, prompt)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result
 
 
-@router.post("/{workflow_id}/storyboard/adjust")
-async def adjust_storyboard(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
+# ------------------------------------------------------------------
+# Keyframe endpoints
+# ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/storyboard/versions/{version_id}/select")
-async def select_storyboard_version(workflow_id: str, version_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id, "version_id": version_id}
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/generate")
+async def generate_keyframe(
+    workflow_id: str,
+    clip_index: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Generate keyframe for a clip."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.generate_keyframe(workflow_id, clip_index)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-# --- Character sheet endpoints ---
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{frame_role}/generate")
+async def generate_keyframe_frame(
+    workflow_id: str,
+    clip_index: int,
+    frame_role: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Generate single keyframe frame."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.generate_keyframe_frame(workflow_id, clip_index, frame_role)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-@router.get("/{workflow_id}/character-sheets")
-async def list_character_sheets(workflow_id: str):
-    return []
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/select")
+async def select_keyframe(
+    workflow_id: str,
+    clip_index: int,
+    version_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Select a keyframe version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.select_keyframe(workflow_id, clip_index, version_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result
 
 
-@router.post("/{workflow_id}/character-sheets/generate")
-async def generate_character_sheets(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/frames/{frame_role}/select")
+async def select_keyframe_frame(
+    workflow_id: str,
+    clip_index: int,
+    version_id: str,
+    frame_role: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Select a keyframe frame version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.select_keyframe_frame(workflow_id, clip_index, version_id, frame_role)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result
 
 
-@router.post("/{workflow_id}/character-sheets/versions/{version_id}/select")
-async def select_character_sheet_version(workflow_id: str, version_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id, "version_id": version_id}
+# ------------------------------------------------------------------
+# Character sheet endpoints
+# ------------------------------------------------------------------
 
 
-# --- Keyframe endpoints ---
+@router.post("/{workflow_id}/character-sheets/{clip_index}/select-asset")
+async def select_character_sheet_asset(
+    workflow_id: str,
+    clip_index: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Select a character sheet asset."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    asset_id = body.get("assetId", "")
+    if not asset_id:
+        raise HTTPException(status_code=400, detail="assetId is required")
+    svc = _service(db)
+    result = await svc.select_character_sheet_asset(workflow_id, clip_index, asset_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-@router.post("/{workflow_id}/keyframes")
-async def generate_keyframes(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
+# ------------------------------------------------------------------
+# Video endpoints
+# ------------------------------------------------------------------
 
 
-@router.get("/{workflow_id}/keyframes/versions")
-async def list_keyframe_versions(workflow_id: str):
-    return []
+@router.post("/{workflow_id}/clips/{clip_index}/videos/generate")
+async def generate_video(
+    workflow_id: str,
+    clip_index: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Generate video for a clip."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.generate_video(workflow_id, clip_index)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-@router.get("/{workflow_id}/keyframes/versions/{version_id}")
-async def get_keyframe_version(workflow_id: str, version_id: str):
-    return {"workflow_id": workflow_id, "version_id": version_id, "message": "not yet implemented"}
+@router.post("/{workflow_id}/clips/{clip_index}/videos/{version_id}/select")
+async def select_video(
+    workflow_id: str,
+    clip_index: int,
+    version_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Select a video version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.select_video(workflow_id, clip_index, version_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result
 
 
-@router.post("/{workflow_id}/keyframes/versions/{version_id}/select")
-async def select_keyframe_version(workflow_id: str, version_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id, "version_id": version_id}
+# ------------------------------------------------------------------
+# Finalize & Rating endpoints
+# ------------------------------------------------------------------
 
 
-# --- Video endpoints ---
+@router.post("/{workflow_id}/finalize")
+async def finalize_workflow(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Finalize a workflow."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.finalize_workflow(workflow_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-@router.post("/{workflow_id}/videos")
-async def generate_videos(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
+@router.post("/{workflow_id}/rating")
+async def rate_workflow(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Rate a workflow."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    svc = _service(db)
+    result = await svc.rate_workflow(workflow_id, body)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    return result
 
 
-@router.get("/{workflow_id}/videos/versions")
-async def list_video_versions(workflow_id: str):
-    return []
+@router.patch("/{workflow_id}/versions/{version_id}/rating")
+async def rate_stage_version(
+    workflow_id: str,
+    version_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Rate a stage version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    svc = _service(db)
+    result = await svc.rate_stage_version(workflow_id, version_id, body)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result
 
 
-@router.get("/{workflow_id}/videos/versions/{version_id}")
-async def get_video_version(workflow_id: str, version_id: str):
-    return {"workflow_id": workflow_id, "version_id": version_id, "message": "not yet implemented"}
-
-
-@router.post("/{workflow_id}/videos/versions/{version_id}/select")
-async def select_video_version(workflow_id: str, version_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id, "version_id": version_id}
-
-
-# --- Workflow rating ---
-
-
-@router.post("/{workflow_id}/effect-rating")
-async def rate_workflow(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
-
-
-# --- Retry ---
-
-
-@router.post("/{workflow_id}/retry")
-async def retry_workflow(workflow_id: str):
-    return {"message": "not yet implemented", "workflow_id": workflow_id}
+@router.delete("/{workflow_id}/versions/{version_id}")
+async def delete_stage_version(
+    workflow_id: str,
+    version_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Delete a stage version."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    svc = _service(db)
+    result = await svc.delete_stage_version(workflow_id, version_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+    return result

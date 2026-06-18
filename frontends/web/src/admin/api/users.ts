@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postJson, putJson } from "@/api/client";
+import { deleteJson, getJson, postJson, patchJson, putJson } from "@/api/client";
 import type {
   AdminModelConfigKeyUpdateRequest,
   AdminModelConfigResponse,
@@ -33,15 +33,16 @@ export async function createAdminUser(payload: CreateAdminUserRequest) {
 }
 
 export async function updateAdminUser(id: number, payload: UpdateAdminUserRequest) {
-  return putJson<AdminUser>(`/admin/users/${id}`, payload);
+  return patchJson<AdminUser>(`/admin/users/${id}`, payload);
 }
 
 export async function updateAdminUserPassword(id: number, payload: UpdateAdminUserPasswordRequest) {
-  return putJson<AdminUser>(`/admin/users/${id}/password`, payload);
+  return patchJson<AdminUser>(`/admin/users/${id}/password`, payload);
 }
 
-export async function resetAdminUserModelConfigKeys(id: number, payload: AdminModelConfigKeyUpdateRequest) {
-  return postJson<void>(`/admin/users/${id}/model-config/keys`, payload);
+export async function resetAdminUserModelConfigKeys(_id: number, payload: AdminModelConfigKeyUpdateRequest) {
+  // Platform-level model config keys (user-specific not supported)
+  return putJson<AdminModelConfigResponse>("/admin/model-config/keys", payload);
 }
 
 export async function enableAdminUser(id: number) {

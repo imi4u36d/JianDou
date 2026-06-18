@@ -990,6 +990,9 @@ export interface AdminUser {
   displayName: string;
   role: UserRole;
   status: UserStatus;
+  taskConcurrencyLimit?: number | null;
+  runningTaskCount?: number | null;
+  queuedTaskCount?: number | null;
   lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -1033,14 +1036,14 @@ export interface CreateAdminInviteRequest {
  */
 export interface AdminTaskBatchFailure {
   taskId: string;
-  reason: string;
+  error: string;
 }
 
 /**
  * 管理任务批量接口定义。
  */
 export interface AdminTaskBatchResult {
-  action: "retry" | "delete";
+  action: "retry" | "delete" | "terminate";
   requestedCount: number;
   succeededTaskIds: string[];
   failed: AdminTaskBatchFailure[];

@@ -10,6 +10,13 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import settings
+from backend.infrastructure.task_repository import TaskRepository
+from backend.services.task_execution_coordinator import TaskExecutionCoordinator
+from backend.services.task_query_service import TaskQueryService
+from backend.services.task_command_service import TaskCommandService
+from backend.services.task_application_service import TaskApplicationServiceImpl
+from backend.services.model_config_service import ModelRuntimePropertiesResolver, AdminModelConfigService
+from backend.services.structured_application_logger import StructuredApplicationLogger
 
 
 def create_app() -> FastAPI:
@@ -23,6 +30,20 @@ def create_app() -> FastAPI:
     Path("./data").mkdir(parents=True, exist_ok=True)
     for d in [settings.uploads_dir, settings.generation_runs_dir, "thumbs"]:
         Path(settings.storage_root, d).mkdir(parents=True, exist_ok=True)
+
+    # Initialize application services
+    task_repo = TaskRepository()
+    exec_coord = TaskExecutionCoordinator()
+    query_service = TaskQueryService(task_repo, exec_coord)
+    command_service = TaskCommandService(task_repo, exec_coord)
+    task_app_service = TaskApplicationServiceImpl(query_service, command_service)
+    model_resolver = ModelRuntimePropertiesResolver(config_dir="./config")
+    admin_config_service = AdminModelConfigService(model_resolver)
+
+    app.state.task_application_service = task_app_service
+    app.state.admin_model_config_service = admin_config_service
+    app.state.model_resolver = model_resolver
+    app.state.structured_logger = StructuredApplicationLogger
 
     # Register routers
     from backend.routers import (

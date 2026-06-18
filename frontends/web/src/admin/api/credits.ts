@@ -1,4 +1,4 @@
-import { getJson, postJson, putJson } from "@/api/client";
+import { getJson, postJson, patchJson } from "@/api/client";
 import type {
   AdminCreditAdjustmentRequest,
   AdminCreditRule,
@@ -30,5 +30,5 @@ export async function fetchAdminCreditRules() {
 }
 
 export async function updateAdminCreditRule(featureCode: string, payload: AdminCreditRuleUpdateRequest) {
-  return putJson<AdminCreditRule>(`/admin/credits/rules/${encodeURIComponent(featureCode)}`, payload);
+  return patchJson<AdminCreditRule>(`/admin/credits/rules/${encodeURIComponent(featureCode)}`, payload);
 }

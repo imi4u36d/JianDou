@@ -8,7 +8,15 @@
       </el-card>
     </div>
 
-    <el-card class="surface-card" shadow="never">
+    <div v-if="initialLoading" class="task-page__summary">
+      <div v-for="n in 4" :key="n" class="skeleton-card">
+        <el-skeleton :rows="3" animated />
+      </div>
+    </div>
+
+    <transition name="fade" mode="out-in">
+      <div v-show="!initialLoading" key="content">
+        <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="task-page__toolbar">
           <div>
@@ -46,14 +54,14 @@
           </el-select>
         </el-form-item>
         <el-form-item class="task-page__filters-action">
-          <el-button :loading="loading" native-type="submit" type="primary">查询</el-button>
+          <el-button :loading="refreshing" native-type="submit" type="primary">查询</el-button>
         </el-form-item>
       </el-form>
 
       <el-alert v-if="successMessage" :closable="false" class="task-page__alert" show-icon type="success" :title="successMessage" />
 
       <el-table
-        v-loading="loading"
+        v-loading="refreshing"
         :data="tasks"
         class="task-page__table"
         row-key="id"
@@ -141,6 +149,8 @@
         </el-table-column>
       </el-table>
     </el-card>
+      </div>
+    </transition>
   </section>
 </template>
 
@@ -151,7 +161,8 @@ import { Refresh } from "@element-plus/icons-vue";
 import { bulkTerminateAdminTasks, fetchAdminTasks, terminateAdminTask } from "@/admin/features/tasks/services/taskService";
 import type { AdminTaskListItem, AdminTaskSortMode, TaskStatus } from "@/types";
 
-const loading = ref(false);
+const initialLoading = ref(true);
+const refreshing = ref(false);
 const actionLoading = ref(false);
 const successMessage = ref("");
 const tasks = ref<AdminTaskListItem[]>([]);
@@ -289,7 +300,7 @@ function handleSelectionChange(selection: AdminTaskListItem[]) {
 }
 
 async function loadTasks() {
-  loading.value = true;
+  refreshing.value = true;
   successMessage.value = "";
   try {
     tasks.value = (await fetchAdminTasks(filters)) ?? [];
@@ -297,7 +308,10 @@ async function loadTasks() {
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取任务列表失败");
   } finally {
-    loading.value = false;
+    if (initialLoading.value) {
+      initialLoading.value = false;
+    }
+    refreshing.value = false;
   }
 }
 

@@ -118,7 +118,7 @@ def _build_catalog() -> dict:
     style_presets = []
     if isinstance(style_presets_raw, dict):
         for k, v in style_presets_raw.items():
-            item = {"value": k}
+            item = {"key": k}
             if isinstance(v, dict):
                 item["label"] = v.get("label", k)
                 item["description"] = v.get("description", "")
