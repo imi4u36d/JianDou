@@ -630,18 +630,42 @@ class ModelRuntimePropertiesResolver:
         return self._cache_ttl_ms > 0
 
     def _load_snapshot(self) -> ConfigSnapshot:
-        config_path = self._config_dir / "app" / "models.yml"
-        secrets_path = self._config_dir / "secrets" / "models.yml"
+        # Primary config locations (project structure: config/model/)
+        model_dir = self._config_dir / "model"
+        models_yml = model_dir / "models.yml"
+        providers_dir = model_dir / "providers"
+        secrets_yml = model_dir / "providers.secrets.yml"
+
+        # Legacy fallback locations (Java-style: config/app/, config/secrets/)
+        legacy_config_path = self._config_dir / "app" / "models.yml"
+        legacy_secrets_path = self._config_dir / "secrets" / "models.yml"
 
         files_to_load: list[Path] = []
         source_parts: list[str] = []
 
-        if config_path.exists():
-            files_to_load.append(config_path)
-            source_parts.append(f"file:{config_path.resolve()}")
+        # Load model definitions
+        if models_yml.exists():
+            files_to_load.append(models_yml)
+            source_parts.append(f"file:{models_yml.resolve()}")
+        elif legacy_config_path.exists():
+            files_to_load.append(legacy_config_path)
+            source_parts.append(f"file:{legacy_config_path.resolve()}")
 
-        if secrets_path.exists():
-            source_parts.append(f"file:{secrets_path.resolve()}")
+        # Load provider configs
+        if providers_dir.exists() and providers_dir.is_dir():
+            for provider_file in sorted(providers_dir.iterdir()):
+                if provider_file.is_file() and provider_file.suffix in (".yml", ".yaml"):
+                    if ".secrets." not in provider_file.name:
+                        files_to_load.append(provider_file)
+                        source_parts.append(f"file:{provider_file.resolve()}")
+
+        # Load secrets (overlay)
+        if secrets_yml.exists():
+            files_to_load.append(secrets_yml)
+            source_parts.append(f"file:{secrets_yml.resolve()}")
+        elif legacy_secrets_path.exists():
+            files_to_load.append(legacy_secrets_path)
+            source_parts.append(f"file:{legacy_secrets_path.resolve()}")
 
         if not files_to_load:
             msg = f"Generation config directory missing: {self._config_dir}"

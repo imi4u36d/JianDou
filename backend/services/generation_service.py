@@ -6,14 +6,20 @@ Translates the Java classes:
 - GenerationRunFactory
 - DefaultGenerationApplicationService
 
-External provider calls (text models, image models, video models) return stub
-data since those integrations are not the focus of this port.
+Wired up with real AI model providers:
+- Text (LLM): OpenAiCompatibleTextModelProvider (DeepSeek, OpenAI, etc.)
+- Image: SeedreamImageModelProvider (Volcengine Seedream)
+- Video: SeedanceVideoModelProvider (Volcengine Seedance)
+
+Provider config resolved from YAML files in config/model/.
+Stub fallbacks remain for graceful degradation when config is missing.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import uuid
@@ -24,6 +30,56 @@ from typing import Any, Optional
 
 from backend.config import settings
 from backend.infrastructure.generation_run_store import LocalGenerationRunStore
+from backend.services.model_config_service import (
+    ModelRuntimePropertiesResolver,
+    ModelRuntimeProfile,
+)
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Real model provider singletons (lazy-initialized to avoid circular imports)
+# ---------------------------------------------------------------------------
+
+_model_config_resolver = ModelRuntimePropertiesResolver(config_dir="./config")
+_text_model_provider = None
+_prompt_resolver = None
+
+
+def _get_text_model_provider():
+    global _text_model_provider
+    if _text_model_provider is None:
+        from backend.services.model_invocation import OpenAiCompatibleTextModelProvider
+        _text_model_provider = OpenAiCompatibleTextModelProvider()
+    return _text_model_provider
+
+
+def _get_prompt_resolver():
+    global _prompt_resolver
+    if _prompt_resolver is None:
+        from backend.services.model_invocation import PromptTemplateResolver
+        _prompt_resolver = PromptTemplateResolver()
+    return _prompt_resolver
+
+
+_image_model_provider = None
+_video_model_provider = None
+
+
+def _get_image_model_provider():
+    global _image_model_provider
+    if _image_model_provider is None:
+        from backend.services.model_invocation import SeedreamImageModelProvider, ImageProviderTransport
+        _image_model_provider = SeedreamImageModelProvider(transport=ImageProviderTransport())
+    return _image_model_provider
+
+
+def _get_video_model_provider():
+    global _video_model_provider
+    if _video_model_provider is None:
+        from backend.services.model_invocation import SeedanceVideoModelProvider, VideoProviderTransport
+        _video_model_provider = SeedanceVideoModelProvider(transport=VideoProviderTransport())
+    return _video_model_provider
 
 # ---------------------------------------------------------------------------
 # Constants (mirrors GenerationRunKinds, GenerationRunStatuses, GenerationModelKinds)
@@ -571,15 +627,26 @@ class GenerationRunSupport:
         file_name = f"{file_stem}.{ext}"
         file_path = os.path.join(self._storage_root, relative_dir, file_name)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        # stub: write empty placeholder
-        with open(file_path, "wb") as f:
-            f.write(b"")
+        # Download from source URL
+        size_bytes = 0
+        try:
+            import httpx
+            with httpx.Client(timeout=120.0, follow_redirects=True) as client:
+                resp = client.get(source_url)
+                resp.raise_for_status()
+                with open(file_path, "wb") as f:
+                    f.write(resp.content)
+                size_bytes = len(resp.content)
+        except Exception as ex:
+            logger.warning("Failed to download from %s: %s", source_url, ex)
+            with open(file_path, "wb") as f:
+                f.write(b"")
         public_url = f"/storage/{relative_dir}/{file_name}"
         return {
             "fileName": file_name,
             "absolutePath": os.path.abspath(file_path),
             "publicUrl": public_url,
-            "sizeBytes": 0,
+            "sizeBytes": size_bytes,
             "mimeType": self._mime_from_name(file_name),
         }
 
@@ -775,21 +842,34 @@ class GenerationRunFactory:
     _VIDEO_SUCCESS_STATES = {"SUCCEEDED", "SUCCESS", "DONE", "COMPLETED", "FINISHED"}
     _VIDEO_FAILED_STATES = {"FAILED", "FAIL", "CANCELED", "CANCELLED", "ERROR"}
 
-    def __init__(self, support: Optional[GenerationRunSupport] = None) -> None:
+    def __init__(
+        self,
+        support: Optional[GenerationRunSupport] = None,
+        config_resolver: Optional[ModelRuntimePropertiesResolver] = None,
+        text_provider: Optional[Any] = None,
+        prompt_resolver: Optional[Any] = None,
+        image_provider: Optional[Any] = None,
+        video_provider: Optional[Any] = None,
+    ) -> None:
         self._support = support or GenerationRunSupport()
+        self._config_resolver = config_resolver or _model_config_resolver
+        self._text_provider = text_provider or _get_text_model_provider()
+        self._prompt_resolver = prompt_resolver or _get_prompt_resolver()
+        self._image_provider = image_provider or _get_image_model_provider()
+        self._video_provider = video_provider or _get_video_model_provider()
 
     # ------------------------------------------------------------------
     # Public creation methods
     # ------------------------------------------------------------------
 
-    def create_probe_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    async def create_probe_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
         _user_id = self._user_id_from_request(request)
         requested_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel",
             "",
         )
-        profile = self._stub_resolve_text_profile(requested_model)
+        profile = self._resolve_text_profile(requested_model)
         call_chain: list[dict[str, Any]] = []
         metadata: dict[str, Any] = {
             "requestedModel": requested_model,
@@ -818,8 +898,12 @@ class GenerationRunFactory:
             }
             return self._support.run_envelope(run_id, GenerationRunKinds.PROBE, request, result, "resultProbe")
 
-        # Stub: call text model
-        response = _stub_text_response("OK", profile.get("modelName", "gpt-5.4"))
+        # Call real text model
+        response = await self._call_text_model(
+            profile,
+            system_prompt="You are a connectivity probe. Respond with OK.",
+            user_prompt="OK",
+        )
         metadata["latencyMs"] = response["latencyMs"]
         metadata["endpointHost"] = response["endpointHost"]
         metadata["messagePreview"] = self._support.truncate_text(response["text"], 80)
@@ -843,7 +927,7 @@ class GenerationRunFactory:
         }
         return self._support.run_envelope(run_id, GenerationRunKinds.PROBE, request, result, "resultProbe")
 
-    def create_script_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    async def create_script_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
         _user_id = self._user_id_from_request(request)
         source_text = self._support.nested_value(request, "input", "text", "")
         visual_style = self._support.nested_value(request, "options", "visualStyle", "")
@@ -851,7 +935,7 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel", "",
         )
-        profile = self._stub_resolve_text_profile(requested_model)
+        profile = self._resolve_text_profile(requested_model)
         if not source_text.strip():
             raise ValueError("")
 
@@ -859,10 +943,12 @@ class GenerationRunFactory:
         call_chain: list[dict[str, Any]] = []
         provider_interactions: list[dict[str, Any]] = []
 
-        # Stub draft
-        draft_response = _stub_text_response(
-            self._stub_script_output(source_text, visual_style),
-            profile.get("modelName", "gpt-5.4"),
+        # Real draft call
+        system_prompt = self._prompt_resolver.system_prompt("script", "short_drama_script")
+        draft_response = await self._call_text_model(
+            profile,
+            system_prompt=system_prompt,
+            user_prompt=prompt,
         )
         draft_script_markdown = self._support.strip_markdown_fence(draft_response["text"])
         provider_interactions.append(self._text_provider_interaction("draft", draft_response))
@@ -886,8 +972,13 @@ class GenerationRunFactory:
         review_applied = False
         review_fallback_reason = ""
 
-        # Stub review
-        review_response = _stub_text_response(draft_script_markdown, profile.get("modelName", "gpt-5.4"))
+        # Real review call
+        review_system_prompt = system_prompt + "\n\nPlease review and improve the script above for quality and completeness."
+        review_response = await self._call_text_model(
+            profile,
+            system_prompt=review_system_prompt,
+            user_prompt=draft_script_markdown,
+        )
         provider_interactions.append(self._text_provider_interaction("review", review_response))
         call_chain.append(
             self._support.call_log("script", "script.review_requested", "success", "", {
@@ -962,7 +1053,7 @@ class GenerationRunFactory:
         }
         return self._support.run_envelope(run_id, GenerationRunKinds.SCRIPT, request, result, "resultScript")
 
-    def create_script_adjust_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    async def create_script_adjust_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
         _user_id = self._user_id_from_request(request)
         source_text = self._support.first_non_blank(
             self._support.nested_value(request, "input", "text", ""),
@@ -975,7 +1066,7 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel", "",
         )
-        profile = self._stub_resolve_text_profile(requested_model)
+        profile = self._resolve_text_profile(requested_model)
         if not script_markdown.strip():
             raise ValueError("")
 
@@ -983,7 +1074,13 @@ class GenerationRunFactory:
         call_chain: list[dict[str, Any]] = []
         provider_interactions: list[dict[str, Any]] = []
 
-        adjust_response = _stub_text_response(script_markdown, profile.get("modelName", "gpt-5.4"))
+        # Real adjust call
+        adjust_system_prompt = self._prompt_resolver.system_prompt("script", "short_drama_script")
+        adjust_response = await self._call_text_model(
+            profile,
+            system_prompt=adjust_system_prompt,
+            user_prompt=prompt,
+        )
         provider_interactions.append(self._text_provider_interaction("adjust", adjust_response))
         call_chain.append(
             self._support.call_log("script", "script.adjust_requested", "success", "", {
@@ -1052,7 +1149,7 @@ class GenerationRunFactory:
         }
         return self._support.run_envelope(run_id, GenerationRunKinds.SCRIPT_ADJUST, request, result, "resultScript")
 
-    def create_image_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    async def create_image_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
         _user_id = self._user_id_from_request(request)
         prompt = self._support.nested_value(request, "input", "prompt", "")
         reference_image_url = self._support.nested_value(request, "input", "referenceImageUrl", "")
@@ -1076,16 +1173,19 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "providerModel", ""),
             "providerModel", "",
         )
-        _text_profile = self._stub_resolve_text_profile(_text_model)
-        image_profile = self._stub_resolve_media_profile(requested_image_model, GenerationModelKinds.IMAGE)
+        _text_profile = self._resolve_text_profile(_text_model)
+        image_profile = self._resolve_media_profile(requested_image_model, GenerationModelKinds.IMAGE)
         _applied_image_seed = _requested_seed if image_profile.get("supportsSeed", False) else None
 
         call_chain: list[dict[str, Any]] = []
         negative_prompt = self._build_negative_prompt(GenerationModelKinds.IMAGE)
         shaped_prompt = self._support.append_negative_prompt(prompt, negative_prompt)
 
-        # Stub image generation
-        remote_image = _stub_image_result(requested_image_model, width, height)
+        # Real image generation
+        remote_image = await self._call_image_model(
+            image_profile, shaped_prompt, width, height,
+            reference_image_urls, _applied_image_seed,
+        )
         image_artifact = self._support.write_binary_artifact(
             run_id, request, GenerationModelKinds.IMAGE,
             self._support.extension_from_mime_or_url(
@@ -1165,7 +1265,7 @@ class GenerationRunFactory:
         result["metadata"]["creditFeatureCode"] = "IMAGE_GENERATION"
         return self._support.run_envelope(run_id, GenerationRunKinds.IMAGE, request, result, "resultImage")
 
-    def create_video_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    async def create_video_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
         _user_id = self._user_id_from_request(request)
         prompt = self._support.nested_value(request, "input", "prompt", "")
         w, h = self._support.parse_dimensions(
@@ -1186,7 +1286,7 @@ class GenerationRunFactory:
             self._support.nested_value(request, "model", "providerModel", ""),
             "providerModel", "",
         )
-        video_profile = self._stub_resolve_media_profile(requested_video_model, GenerationModelKinds.VIDEO)
+        video_profile = self._resolve_media_profile(requested_video_model, GenerationModelKinds.VIDEO)
         duration = self._normalize_video_duration(video_profile, _requested_duration, _requested_min_duration, _requested_max_duration)
 
         _first_frame_url = self._resolve_video_frame_input(
@@ -1197,7 +1297,7 @@ class GenerationRunFactory:
         )
         _generate_audio = self._support.nested_boolean(request, "input", "generateAudio", True)
         _return_last_frame = self._support.nested_boolean(request, "input", "returnLastFrame", True)
-        _text_profile = self._stub_resolve_text_profile(_text_model)
+        _text_profile = self._resolve_text_profile(_text_model)
         _applied_video_seed = _requested_seed if video_profile.get("supportsSeed", False) else None
 
         call_chain: list[dict[str, Any]] = []
@@ -1208,8 +1308,12 @@ class GenerationRunFactory:
         _camera_fixed = self._support.infer_seedance_camera_fixed(shaped_prompt, video_profile.get("cameraFixed", False))
         _watermark = self._support.nested_boolean(request, "input", "watermark", video_profile.get("watermark", False))
 
-        # Stub video submission
-        submission = _stub_video_submission(requested_video_model)
+        # Real video submission
+        submission = await self._call_video_submit(
+            video_profile, shaped_prompt, w, h, duration,
+            _first_frame_url, _last_frame_url, _applied_video_seed,
+            _camera_fixed, _watermark, _return_last_frame, _generate_audio,
+        )
         provider_interactions.append({
             "step": "video.submit",
             "providerRequest": submission["providerRequest"],
@@ -1302,7 +1406,7 @@ class GenerationRunFactory:
 
         return self._support.run_envelope(run_id, GenerationRunKinds.VIDEO, request, result, "resultVideo", GenerationRunStatuses.RUNNING)
 
-    def refresh_video_run(self, run: dict[str, Any]) -> dict[str, Any]:
+    async def refresh_video_run(self, run: dict[str, Any]) -> dict[str, Any]:
         kind = self._support.string_value(run.get("kind"))
         if kind.lower() != GenerationRunKinds.VIDEO:
             return run
@@ -1326,12 +1430,18 @@ class GenerationRunFactory:
             return run
 
         _user_id = self._user_id_from_run(run)
-        _profile = self._stub_resolve_media_profile(requested_model, GenerationModelKinds.VIDEO)
+        _profile_dict = self._resolve_media_profile(requested_model, GenerationModelKinds.VIDEO)
         call_chain = self._mutable_call_chain(result.get("callChain"))
 
-        # Stub query — return success state
-        query_status = "SUCCEEDED"
-        video_url = "https://stub.example.com/video.mp4"
+        # Real video task query
+        try:
+            query_result = await self._call_video_query(_profile_dict, task_id)
+            query_status = query_result["taskStatus"]
+            video_url = query_result["videoUrl"]
+        except Exception as ex:
+            logger.warning("Video task query failed for %s: %s", task_id, ex)
+            query_status = "UNKNOWN"
+            video_url = ""
 
         metadata["taskStatus"] = query_status
         metadata["providerPayload"] = {"task_id": task_id}
@@ -1340,7 +1450,7 @@ class GenerationRunFactory:
             "providerRequest": {"task_id": task_id},
             "providerResponse": metadata["providerPayload"],
             "httpStatus": 200,
-            "endpointHost": _profile.get("taskEndpointHost", "api.stub.video"),
+            "endpointHost": _profile_dict.get("taskEndpointHost", ""),
             "success": True,
         })
 
@@ -1416,6 +1526,191 @@ class GenerationRunFactory:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _resolve_text_profile(self, requested_model: str) -> dict[str, Any]:
+        """Resolve text model profile using the real config resolver."""
+        try:
+            profile = self._config_resolver.resolve_text_profile(requested_model)
+            return {
+                "modelName": profile.config.provider_model or requested_model,
+                "provider": profile.provider,
+                "endpointHost": profile.endpoint_host,
+                "taskEndpointHost": "",
+                "source": profile.source,
+                "ready": profile.ready,
+                "temperature": profile.config.temperature,
+                "maxTokens": profile.config.max_tokens,
+                "supportsSeed": profile.supports_seed(),
+                "cameraFixed": False,
+                "watermark": False,
+                "supportedDurations": [],
+                "pollIntervalSeconds": 5,
+            }
+        except Exception as ex:
+            logger.warning("Failed to resolve text profile for %s: %s", requested_model, ex)
+            return self._stub_resolve_text_profile(requested_model)
+
+    async def _call_text_model(
+        self,
+        profile_dict: dict[str, Any],
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict[str, Any]:
+        """Call the real text model provider and return a response dict compatible with existing code."""
+        from backend.services.model_invocation import TextModelInvocation
+
+        profile = self._config_resolver.resolve_text_profile(
+            profile_dict.get("modelName", "")
+        )
+        invocation = TextModelInvocation(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=profile_dict.get("temperature", 0.15),
+            max_tokens=profile_dict.get("maxTokens", 4096),
+        )
+        result = await self._text_provider.generate(profile, invocation)
+        return {
+            "text": result.text,
+            "modelName": profile_dict.get("modelName", ""),
+            "latencyMs": result.latency_ms,
+            "endpointHost": result.endpoint_host,
+            "providerRequest": result.provider_request,
+            "providerResponse": result.provider_response,
+            "httpStatus": result.http_status,
+            "responseId": result.response_id,
+            "responsesApi": result.responses_api,
+        }
+
+    def _resolve_media_profile(self, requested_model: str, media_kind: str) -> dict[str, Any]:
+        """Resolve media model profile using the real config resolver."""
+        try:
+            profile = self._config_resolver.resolve_media_profile(requested_model, media_kind)
+            return {
+                "modelName": profile.config.provider_model or requested_model,
+                "provider": profile.provider,
+                "endpointHost": profile.endpoint_host,
+                "taskEndpointHost": profile.task_endpoint_host,
+                "source": profile.source,
+                "ready": profile.ready,
+                "temperature": 0.3,
+                "maxTokens": 4096,
+                "supportsSeed": profile.supports_seed(),
+                "cameraFixed": profile.capabilities.camera_fixed,
+                "watermark": profile.capabilities.watermark,
+                "supportedDurations": profile.supported_durations(),
+                "pollIntervalSeconds": profile.capabilities.poll_interval_seconds,
+            }
+        except Exception as ex:
+            logger.warning("Failed to resolve media profile for %s (%s): %s", requested_model, media_kind, ex)
+            return self._stub_resolve_media_profile(requested_model, media_kind)
+
+    async def _call_image_model(
+        self,
+        profile_dict: dict[str, Any],
+        prompt: str,
+        width: int,
+        height: int,
+        reference_image_urls: list[str],
+        seed: Optional[int],
+    ) -> dict[str, Any]:
+        """Call the real image model provider."""
+        from backend.services.model_invocation import ImageGenerationRequest
+
+        profile = self._config_resolver.resolve_image_profile(
+            profile_dict.get("modelName", "")
+        )
+        request = ImageGenerationRequest(
+            requested_model=profile_dict.get("modelName", ""),
+            prompt=prompt,
+            width=width,
+            height=height,
+            reference_image_urls=reference_image_urls,
+            seed=seed,
+        )
+        result = await self._image_provider.generate(profile, request)
+        return {
+            "provider": result.provider,
+            "providerModel": result.provider_model,
+            "mimeType": result.mime_type,
+            "data": result.data,
+            "remoteSourceUrl": result.remote_source_url,
+            "endpointHost": result.endpoint_host,
+            "providerRequest": result.provider_request,
+            "providerResponse": result.provider_response,
+            "httpStatus": result.http_status,
+            "requestedSize": result.requested_size,
+        }
+
+    async def _call_video_submit(
+        self,
+        profile_dict: dict[str, Any],
+        prompt: str,
+        width: int,
+        height: int,
+        duration_seconds: int,
+        first_frame_url: str,
+        last_frame_url: str,
+        seed: Optional[int],
+        camera_fixed: bool,
+        watermark: bool,
+        return_last_frame: bool,
+        generate_audio: bool,
+    ) -> dict[str, Any]:
+        """Call the real video model provider to submit a task."""
+        from backend.services.model_invocation import VideoGenerationRequest
+
+        profile = self._config_resolver.resolve_video_profile(
+            profile_dict.get("modelName", "")
+        )
+        request = VideoGenerationRequest(
+            requested_model=profile_dict.get("modelName", ""),
+            prompt=prompt,
+            width=width,
+            height=height,
+            duration_seconds=duration_seconds,
+            first_frame_url=first_frame_url,
+            last_frame_url=last_frame_url,
+            seed=seed,
+            camera_fixed=camera_fixed,
+            watermark=watermark,
+            return_last_frame=return_last_frame,
+            generate_audio=generate_audio,
+        )
+        result = await self._video_provider.submit(profile, request)
+        return {
+            "provider": result.provider,
+            "providerModel": result.provider_model,
+            "taskId": result.task_id,
+            "endpointHost": result.endpoint_host,
+            "taskEndpointHost": result.task_endpoint_host,
+            "providerRequest": result.provider_request,
+            "providerResponse": result.provider_response,
+            "httpStatus": result.http_status,
+            "firstFrameUrl": result.first_frame_url,
+            "requestedLastFrameUrl": result.requested_last_frame_url,
+            "returnLastFrame": result.return_last_frame,
+            "generateAudio": result.generate_audio,
+        }
+
+    async def _call_video_query(
+        self,
+        profile_dict: dict[str, Any],
+        task_id: str,
+    ) -> dict[str, Any]:
+        """Query video task status from the real provider."""
+        profile = self._config_resolver.resolve_video_profile(
+            profile_dict.get("modelName", "")
+        )
+        result = await self._video_provider.query(profile, task_id)
+        return {
+            "taskId": result.task_id,
+            "taskStatus": result.task_status,
+            "videoUrl": result.video_url,
+            "taskMessage": result.task_message,
+            "providerResponse": result.provider_response,
+            "providerRequest": result.provider_request,
+            "httpStatus": result.http_status,
+        }
 
     @staticmethod
     def _stub_resolve_text_profile(requested_model: str) -> dict[str, Any]:
@@ -1679,7 +1974,7 @@ class DefaultGenerationApplicationService:
             raise GenerationRunNotFoundException(run_id)
 
         # Refresh video runs
-        refreshed = self._factory.refresh_video_run(dict(run))
+        refreshed = await self._factory.refresh_video_run(dict(run))
         self._runs_cache[run_id] = refreshed
         await self._store.save(run_id, refreshed)
         return refreshed
@@ -1716,23 +2011,23 @@ class DefaultGenerationApplicationService:
     async def _create_run_by_kind_and_persist(
         self, run_id: str, kind: str, request: dict[str, Any]
     ) -> dict[str, Any]:
-        run = self._create_run_by_kind(run_id, kind, request)
+        run = await self._create_run_by_kind(run_id, kind, request)
         self._runs_cache[run_id] = run
         await self._store.save(run_id, run)
         return run
 
-    def _create_run_by_kind(self, run_id: str, kind: str, request: dict[str, Any]) -> dict[str, Any]:
+    async def _create_run_by_kind(self, run_id: str, kind: str, request: dict[str, Any]) -> dict[str, Any]:
         lower_kind = kind.lower()
         if lower_kind == GenerationRunKinds.PROBE:
-            return self._factory.create_probe_run(run_id, request)
+            return await self._factory.create_probe_run(run_id, request)
         elif lower_kind == GenerationRunKinds.SCRIPT:
-            return self._factory.create_script_run(run_id, request)
+            return await self._factory.create_script_run(run_id, request)
         elif lower_kind == GenerationRunKinds.SCRIPT_ADJUST:
-            return self._factory.create_script_adjust_run(run_id, request)
+            return await self._factory.create_script_adjust_run(run_id, request)
         elif lower_kind == GenerationRunKinds.IMAGE:
-            return self._factory.create_image_run(run_id, request)
+            return await self._factory.create_image_run(run_id, request)
         elif lower_kind == GenerationRunKinds.VIDEO:
-            return self._factory.create_video_run(run_id, request)
+            return await self._factory.create_video_run(run_id, request)
         else:
             raise UnsupportedGenerationKindException(kind)
 
@@ -1780,7 +2075,7 @@ class DefaultGenerationApplicationService:
         self, run_id: str, kind: str, request: dict[str, Any]
     ) -> None:
         try:
-            run = self._create_run_by_kind(run_id, kind, request)
+            run = await self._create_run_by_kind(run_id, kind, request)
             self._runs_cache[run_id] = run
             await self._store.save(run_id, run)
         except Exception as ex:

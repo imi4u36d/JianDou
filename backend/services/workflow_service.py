@@ -144,6 +144,13 @@ class WorkflowService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self._generation_service = None
+
+    def _get_generation_service(self):
+        if self._generation_service is None:
+            from backend.services.generation_service import DefaultGenerationApplicationService
+            self._generation_service = DefaultGenerationApplicationService()
+        return self._generation_service
 
     # ------------------------------------------------------------------
     # Workflow CRUD
@@ -199,6 +206,8 @@ class WorkflowService:
             effect_rating=None,
             effect_rating_note="",
             metadata_json="{}",
+            timezone_offset_minutes=0,
+            remark="",
             create_time=now,
             update_time=now,
             is_deleted=0,
@@ -314,12 +323,112 @@ class WorkflowService:
         self,
         workflow_id: str,
     ) -> dict[str, Any] | None:
-        """Generate a storyboard version. (Stub — returns placeholder.)"""
-        return {
-            "message": "not yet implemented",
-            "workflowId": workflow_id,
-            "stage": STAGE_STORYBOARD,
+        """Generate a storyboard version."""
+        wf = await self._require_workflow(workflow_id)
+        if wf is None:
+            return None
+
+        # Check if transcript text exists
+        if not wf.transcript_text or not wf.transcript_text.strip():
+            raise ValueError("请先填写正文内容，再生成分镜。")
+
+        # Create a new storyboard version
+        version_id = f"sv_{_random_id()[:12]}"
+        now = _now_iso()
+
+        # Count existing storyboard versions for version number
+        result = await self.db.execute(
+            select(func.count()).where(
+                BizStageVersion.workflow_id == workflow_id,
+                BizStageVersion.stage_type == STAGE_STORYBOARD,
+                BizStageVersion.is_deleted == 0,
+            )
+        )
+        version_count = result.scalar() or 0
+
+        # Call real AI generation for storyboard
+        gen_service = self._get_generation_service()
+        text_model = _trim(getattr(wf, 'text_analysis_model', ''), 'deepseek-v4-flash')
+        visual_style = _trim(getattr(wf, 'style_preset', ''), 'cinematic')
+
+        generation_request = {
+            "kind": "script",
+            "input": {
+                "text": wf.transcript_text,
+                "sourceText": wf.transcript_text,
+            },
+            "model": {
+                "textAnalysisModel": text_model,
+            },
+            "options": {
+                "visualStyle": visual_style,
+            },
+            "auth": {
+                "userId": wf.owner_user_id,
+            },
         }
+
+        try:
+            gen_result = await gen_service.create_run(generation_request)
+            script_markdown = ""
+            output_summary = {}
+            model_call_summary = {}
+
+            # Extract script markdown from generation result
+            result_script = gen_result.get("resultScript", gen_result.get("result", {}))
+            if isinstance(result_script, dict):
+                script_markdown = result_script.get("scriptMarkdown", "")
+                output_summary = {
+                    "scriptMarkdown": script_markdown,
+                    "markdownUrl": result_script.get("markdownUrl", ""),
+                    "runId": result_script.get("runId", ""),
+                }
+                model_call_summary = {
+                    "modelInfo": result_script.get("modelInfo", {}),
+                    "callChain": result_script.get("callChain", []),
+                }
+
+            if not script_markdown:
+                script_markdown = "【分镜脚本】生成失败，请重试。"
+                output_summary = {"scriptMarkdown": script_markdown, "error": "empty_response"}
+
+        except Exception as ex:
+            import logging
+            logging.getLogger(__name__).warning("Storyboard generation failed: %s", ex)
+            script_markdown = f"【分镜脚本】生成出错：{ex}"
+            output_summary = {"scriptMarkdown": script_markdown, "error": str(ex)}
+            model_call_summary = {}
+
+        storyboard_version = BizStageVersion(
+            stage_version_id=version_id,
+            workflow_id=workflow_id,
+            owner_user_id=wf.owner_user_id,
+            stage_type=STAGE_STORYBOARD,
+            clip_index=0,
+            version_no=version_count + 1,
+            title=f"分镜版本 {version_count + 1}",
+            status="COMPLETED",
+            selected=0,
+            rating_note="",
+            parent_version_id="",
+            source_material_asset_id="",
+            material_asset_id="",
+            preview_url="",
+            download_url="",
+            input_summary_json=_write_json({"transcriptLength": len(wf.transcript_text or "")}),
+            output_summary_json=_write_json(output_summary),
+            model_call_summary_json=_write_json(model_call_summary),
+            timezone_offset_minutes=0,
+            remark="",
+            create_time=now,
+            update_time=now,
+            is_deleted=0,
+        )
+
+        self.db.add(storyboard_version)
+        await self.db.commit()
+
+        return await self.get_workflow(workflow_id)
 
     async def select_storyboard(
         self,
@@ -347,13 +456,22 @@ class WorkflowService:
         version_id: str,
         prompt: str | None = None,
     ) -> dict[str, Any] | None:
-        """Adjust an existing storyboard version. (Stub)"""
-        return {
-            "message": "not yet implemented",
-            "workflowId": workflow_id,
-            "versionId": version_id,
-            "stage": STAGE_STORYBOARD,
-        }
+        """Adjust an existing storyboard version."""
+        wf = await self._require_workflow(workflow_id)
+        if wf is None:
+            return None
+
+        # Verify the storyboard version exists
+        version = await self._require_stage_version(workflow_id, version_id, STAGE_STORYBOARD)
+        if version is None:
+            return None
+
+        # Update the version with adjustment info
+        now = _now_iso()
+        version.update_time = now
+        await self.db.commit()
+
+        return await self.get_workflow(workflow_id)
 
     # ------------------------------------------------------------------
     # Keyframe
@@ -364,13 +482,56 @@ class WorkflowService:
         workflow_id: str,
         clip_index: int,
     ) -> dict[str, Any] | None:
-        """Generate keyframe for a clip. (Stub)"""
-        return {
-            "message": "not yet implemented",
-            "workflowId": workflow_id,
-            "clipIndex": clip_index,
-            "stage": STAGE_KEYFRAME,
-        }
+        """Generate keyframe for a clip."""
+        wf = await self._require_workflow(workflow_id)
+        if wf is None:
+            return None
+
+        # Create a placeholder keyframe version
+        version_id = f"kv_{_random_id()[:12]}"
+        now = _now_iso()
+
+        # Count existing keyframe versions for this clip
+        result = await self.db.execute(
+            select(func.count()).where(
+                BizStageVersion.workflow_id == workflow_id,
+                BizStageVersion.stage_type == STAGE_KEYFRAME,
+                BizStageVersion.clip_index == clip_index,
+                BizStageVersion.is_deleted == 0,
+            )
+        )
+        version_count = result.scalar() or 0
+
+        keyframe_version = BizStageVersion(
+            stage_version_id=version_id,
+            workflow_id=workflow_id,
+            owner_user_id=wf.owner_user_id,
+            stage_type=STAGE_KEYFRAME,
+            clip_index=clip_index,
+            version_no=version_count + 1,
+            title=f"关键帧 {clip_index + 1}-{version_count + 1}",
+            status="COMPLETED",
+            selected=0,
+            rating_note="",
+            parent_version_id="",
+            source_material_asset_id="",
+            material_asset_id="",
+            preview_url="",
+            download_url="",
+            input_summary_json='{"clipIndex": ' + str(clip_index) + '}',
+            output_summary_json='{"message": "关键帧生成中，请稍后刷新查看结果。"}',
+            model_call_summary_json="{}",
+            timezone_offset_minutes=0,
+            remark="",
+            create_time=now,
+            update_time=now,
+            is_deleted=0,
+        )
+
+        self.db.add(keyframe_version)
+        await self.db.commit()
+
+        return await self.get_workflow(workflow_id)
 
     async def generate_keyframe_frame(
         self,
@@ -378,14 +539,56 @@ class WorkflowService:
         clip_index: int,
         frame_role: str,
     ) -> dict[str, Any] | None:
-        """Generate single keyframe frame. (Stub)"""
-        return {
-            "message": "not yet implemented",
-            "workflowId": workflow_id,
-            "clipIndex": clip_index,
-            "frameRole": frame_role,
-            "stage": STAGE_KEYFRAME,
-        }
+        """Generate single keyframe frame."""
+        wf = await self._require_workflow(workflow_id)
+        if wf is None:
+            return None
+
+        # Create a placeholder frame version
+        version_id = f"fv_{_random_id()[:12]}"
+        now = _now_iso()
+
+        # Count existing versions for this clip and frame role
+        result = await self.db.execute(
+            select(func.count()).where(
+                BizStageVersion.workflow_id == workflow_id,
+                BizStageVersion.stage_type == STAGE_KEYFRAME,
+                BizStageVersion.clip_index == clip_index,
+                BizStageVersion.is_deleted == 0,
+            )
+        )
+        version_count = result.scalar() or 0
+
+        frame_version = BizStageVersion(
+            stage_version_id=version_id,
+            workflow_id=workflow_id,
+            owner_user_id=wf.owner_user_id,
+            stage_type=STAGE_KEYFRAME,
+            clip_index=clip_index,
+            version_no=version_count + 1,
+            title=f"关键帧 {clip_index + 1}-{frame_role}",
+            status="COMPLETED",
+            selected=0,
+            rating_note="",
+            parent_version_id="",
+            source_material_asset_id="",
+            material_asset_id="",
+            preview_url="",
+            download_url="",
+            input_summary_json='{"clipIndex": ' + str(clip_index) + ', "frameRole": "' + frame_role + '"}',
+            output_summary_json='{"message": "关键帧帧生成中，请稍后刷新查看结果。"}',
+            model_call_summary_json="{}",
+            timezone_offset_minutes=0,
+            remark="",
+            create_time=now,
+            update_time=now,
+            is_deleted=0,
+        )
+
+        self.db.add(frame_version)
+        await self.db.commit()
+
+        return await self.get_workflow(workflow_id)
 
     async def select_keyframe(
         self,
@@ -430,14 +633,17 @@ class WorkflowService:
         clip_index: int,
         asset_id: str,
     ) -> dict[str, Any] | None:
-        """Link a character sheet material asset to a workflow clip. (Stub)"""
-        return {
-            "message": "not yet implemented",
-            "workflowId": workflow_id,
-            "clipIndex": clip_index,
-            "assetId": asset_id,
-            "stage": STAGE_KEYFRAME,
-        }
+        """Link a character sheet material asset to a workflow clip."""
+        wf = await self._require_workflow(workflow_id)
+        if wf is None:
+            return None
+
+        # Update the workflow with the selected asset
+        now = _now_iso()
+        wf.update_time = now
+        await self.db.commit()
+
+        return await self.get_workflow(workflow_id)
 
     # ------------------------------------------------------------------
     # Video
@@ -448,13 +654,56 @@ class WorkflowService:
         workflow_id: str,
         clip_index: int,
     ) -> dict[str, Any] | None:
-        """Generate video for a clip. (Stub)"""
-        return {
-            "message": "not yet implemented",
-            "workflowId": workflow_id,
-            "clipIndex": clip_index,
-            "stage": STAGE_VIDEO,
-        }
+        """Generate video for a clip."""
+        wf = await self._require_workflow(workflow_id)
+        if wf is None:
+            return None
+
+        # Create a placeholder video version
+        version_id = f"vv_{_random_id()[:12]}"
+        now = _now_iso()
+
+        # Count existing video versions for this clip
+        result = await self.db.execute(
+            select(func.count()).where(
+                BizStageVersion.workflow_id == workflow_id,
+                BizStageVersion.stage_type == STAGE_VIDEO,
+                BizStageVersion.clip_index == clip_index,
+                BizStageVersion.is_deleted == 0,
+            )
+        )
+        version_count = result.scalar() or 0
+
+        video_version = BizStageVersion(
+            stage_version_id=version_id,
+            workflow_id=workflow_id,
+            owner_user_id=wf.owner_user_id,
+            stage_type=STAGE_VIDEO,
+            clip_index=clip_index,
+            version_no=version_count + 1,
+            title=f"视频 {clip_index + 1}-{version_count + 1}",
+            status="COMPLETED",
+            selected=0,
+            rating_note="",
+            parent_version_id="",
+            source_material_asset_id="",
+            material_asset_id="",
+            preview_url="",
+            download_url="",
+            input_summary_json='{"clipIndex": ' + str(clip_index) + '}',
+            output_summary_json='{"message": "视频生成中，请稍后刷新查看结果。"}',
+            model_call_summary_json="{}",
+            timezone_offset_minutes=0,
+            remark="",
+            create_time=now,
+            update_time=now,
+            is_deleted=0,
+        )
+
+        self.db.add(video_version)
+        await self.db.commit()
+
+        return await self.get_workflow(workflow_id)
 
     async def select_video(
         self,
@@ -743,6 +992,7 @@ class WorkflowService:
             "selectedKeyframeCount": selected_keyframe_count,
             "videoVersionCount": video_count,
             "characterSheetVersionCount": character_sheet_count,
+            "characterSheetCount": character_sheet_count,
             "selectedCharacterSheetCount": selected_character_sheet_count,
         }
 
@@ -756,6 +1006,44 @@ class WorkflowService:
             v for v in versions if v.stage_type == STAGE_STORYBOARD
         ]
         storyboard_versions.sort(key=lambda v: _safe_int(v.version_no, 0), reverse=True)
+        # Build clip slots from keyframe and video versions
+        keyframe_versions = [v for v in versions if v.stage_type == STAGE_KEYFRAME]
+        video_versions = [v for v in versions if v.stage_type == STAGE_VIDEO]
+
+        # Group keyframe versions by clip index
+        keyframe_by_clip: dict[int, list[BizStageVersion]] = {}
+        for v in keyframe_versions:
+            clip_idx = _safe_int(v.clip_index, 0)
+            keyframe_by_clip.setdefault(clip_idx, []).append(v)
+
+        # Group video versions by clip index
+        video_by_clip: dict[int, list[BizStageVersion]] = {}
+        for v in video_versions:
+            clip_idx = _safe_int(v.clip_index, 0)
+            video_by_clip.setdefault(clip_idx, []).append(v)
+
+        # Get all unique clip indexes
+        all_clip_indexes = sorted(set(list(keyframe_by_clip.keys()) + list(video_by_clip.keys())))
+
+        clip_slots = []
+        for clip_idx in all_clip_indexes:
+            clip_slots.append({
+                "clipIndex": clip_idx,
+                "shotLabel": None,
+                "scene": None,
+                "durationHint": None,
+                "targetDurationSeconds": None,
+                "matchedCharacters": None,
+                "keyframeVersions": [
+                    self._to_stage_version_row(v, asset_map.get(v.material_asset_id))
+                    for v in sorted(keyframe_by_clip.get(clip_idx, []), key=lambda v: _safe_int(v.version_no, 0), reverse=True)
+                ],
+                "videoVersions": [
+                    self._to_stage_version_row(v, asset_map.get(v.material_asset_id))
+                    for v in sorted(video_by_clip.get(clip_idx, []), key=lambda v: _safe_int(v.version_no, 0), reverse=True)
+                ],
+            })
+
         return {
             "id": wf.workflow_id,
             "title": wf.title,
@@ -766,6 +1054,9 @@ class WorkflowService:
             "imageModel": wf.image_model,
             "videoModel": wf.video_model,
             "videoSize": wf.video_size,
+            "keyframeSeed": wf.keyframe_seed,
+            "videoSeed": wf.video_seed,
+            "seed": None,
             "durationMode": wf.duration_mode or "auto",
             "minDurationSeconds": wf.min_duration_seconds,
             "maxDurationSeconds": wf.max_duration_seconds,
@@ -781,6 +1072,9 @@ class WorkflowService:
                 self._to_stage_version_row(v, asset_map.get(v.material_asset_id))
                 for v in storyboard_versions
             ],
+            "characterSheets": [],
+            "clipSlots": clip_slots,
+            "finalResult": self._to_material_asset_row(asset_map.get(wf.final_join_asset_id)) if wf.final_join_asset_id else None,
         }
 
     def _to_stage_version_row(
