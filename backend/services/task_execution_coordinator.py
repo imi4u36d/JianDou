@@ -270,12 +270,14 @@ class TaskExecutionCoordinator:
     def transition_task(
         self,
         task: TaskRecord,
-        transition: "TaskStateTransition",
+        transition: "TaskStateTransition | TaskStateTransitionBuilder",
         task_mutator: Callable[[TaskRecord], None] | None = None,
     ) -> dict[str, Any]:
         """Atomically transition task state, recording trace + status history."""
         if task is None or transition is None:
             return {"mutation": TaskPersistenceMutation()}
+        if isinstance(transition, TaskStateTransitionBuilder):
+            transition = transition.build()
 
         previous_status = task.status
 
@@ -503,7 +505,7 @@ class TaskExecutionCoordinator:
             "worker_instance": row,
         }
 
-    def recover_stale_claims(
+    async def recover_stale_claims(
         self,
         stale_before: datetime,
         limit: int,
@@ -521,11 +523,15 @@ class TaskExecutionCoordinator:
         from backend.domain.task_record import _string_value as _sv
 
         stale_claims = task_repository.list_stale_running_claims(stale_before, limit)
+        if hasattr(stale_claims, "__await__"):
+            stale_claims = await stale_claims
         for claim in stale_claims:
             tid = _sv(claim.get("taskId", ""))
             if not tid:
                 continue
             task = task_repository.find_by_id(tid)
+            if hasattr(task, "__await__"):
+                task = await task
             if task is None:
                 continue
             attempt = self._active_attempt(task)
@@ -572,7 +578,18 @@ class TaskExecutionCoordinator:
             task.add_status_history(status_history)
             self._touch(task)
 
-            # In real impl: mutation → repository.save_mutation()
+            mutation = (
+                TaskPersistenceMutation()
+                .set_task(task)
+                .add_queue_event(queue_event)
+                .add_trace(trace)
+                .add_status_history(status_history)
+            )
+            if queued_attempt is not None:
+                mutation = mutation.add_attempt(queued_attempt)
+            save_result = task_repository.save_mutation(mutation)
+            if hasattr(save_result, "__await__"):
+                await save_result
             recovered += 1
 
         return recovered
@@ -884,4 +901,15 @@ class TaskStateTransitionBuilder:
             attempt_status=status_str,
             attempt_error_message=error_message or "",
             updates_attempt=True,
+        )
+
+    def build(self) -> TaskStateTransition:
+        return TaskStateTransition(
+            next_status=self._next_status,
+            progress=self._progress,
+            stage=self._stage,
+            event=self._event,
+            message=self._message,
+            level=self._level,
+            payload=self._payload,
         )

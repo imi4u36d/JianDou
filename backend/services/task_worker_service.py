@@ -498,20 +498,9 @@ class TaskExecutionRuntimeSupport:
     def assert_task_still_active(self, task: TaskRecord) -> None:
         if self._task_repository is None:
             return
-        latest = self._task_repository.find_by_id(task.id)
-        if latest is None:
-            raise TaskExecutionAbortedException("MISSING", "任务不存在，停止执行。")
-        if TaskStatus.is_execution_active(TaskStatus(latest.status) if TaskStatus(latest.status) else None):
+        if TaskStatus.is_execution_active(TaskStatus(task.status) if TaskStatus(task.status) else None):
             return
-        task.status = latest.status
-        task.progress = latest.progress
-        task.error_message = latest.error_message
-        task.finished_at = latest.finished_at
-        task.is_queued = latest.is_queued
-        task.queue_position = latest.queue_position
-        task.active_attempt_id = latest.active_attempt_id
-        task.execution_context = latest.execution_context
-        raise TaskExecutionAbortedException(latest.status, _first_non_blank(latest.error_message, "任务已停止执行。"))
+        raise TaskExecutionAbortedException(task.status, _first_non_blank(task.error_message, "任务已停止执行。"))
 
     def build_script_run_request(self, task: TaskRecord) -> dict[str, Any]:
         source_text = _first_non_blank(
@@ -1523,18 +1512,11 @@ class TaskWorkerStatusStageService:
     def _assert_task_still_active(self, task: TaskRecord) -> None:
         if self._task_repository is None:
             return
-        latest = self._task_repository.find_by_id(task.id)
-        if latest is None:
-            raise TaskExecutionAbortedException("MISSING", "任务不存在，停止执行。")
-        if TaskStatus.is_execution_active(TaskStatus(latest.status) if TaskStatus(latest.status) else None):
+        if TaskStatus.is_execution_active(TaskStatus(task.status) if TaskStatus(task.status) else None):
             return
-        task.status = latest.status
-        task.progress = latest.progress
-        task.error_message = latest.error_message
-        task.finished_at = latest.finished_at
         raise TaskExecutionAbortedException(
-            latest.status,
-            _first_non_blank(latest.error_message, "任务已停止执行。"),
+            task.status,
+            _first_non_blank(task.error_message, "任务已停止执行。"),
         )
 
 
@@ -1735,7 +1717,7 @@ class TaskWorkerRenderStageService:
                 task, clip_index,
                 self._build_clip_frame_context(shot_plan, clip_index, clip_duration_seconds, start_frame, end_frame, "", "", "", ""),
             )
-            self._task_repository.save(task) if self._task_repository else None
+            await self._task_repository.save(task) if self._task_repository else None
 
             self._execution_coordinator.record_trace(
                 task, _TaskStage.PLANNING, "planning.clip_frames_resolved",
@@ -1762,7 +1744,7 @@ class TaskWorkerRenderStageService:
                 self._status_stage_service.update_status(task, run_context, "RENDERING", 55, _TaskStage.RENDER, "task.rendering", "任务开始按分镜生成视频输出。")
             else:
                 task.progress = min(94, 55 + int(35.0 * index / max(1, len(request.shot_plans))))
-                self._task_repository.save(task) if self._task_repository else None
+                await self._task_repository.save(task) if self._task_repository else None
 
             video_request = self._runtime_support.build_video_run_request(
                 task, clip_index, clip_prompt, request.video_size,
@@ -1826,7 +1808,7 @@ class TaskWorkerRenderStageService:
                     resolved_last_frame_url, resolved_last_frame_source_type,
                 ),
             )
-            self._task_repository.save(task) if self._task_repository else None
+            await self._task_repository.save(task) if self._task_repository else None
 
             video_model_call = self._status_stage_service.complete_model_call(pending_video_model_call, video_run, video_result)
             self._execution_coordinator.record_model_call(task, video_model_call)
@@ -1847,7 +1829,7 @@ class TaskWorkerRenderStageService:
             )
             latest_video_output_url = _string_value(video_material.get("fileUrl"))
             task.completed_output_count = max(task.completed_output_count, clip_index)
-            self._task_repository.save(task) if self._task_repository else None
+            await self._task_repository.save(task) if self._task_repository else None
 
             video_output = self._artifact_assembler.create_result(
                 task, video_run, video_result, video_material, start_frame.material(),
@@ -1899,7 +1881,7 @@ class TaskWorkerRenderStageService:
         self._put_execution_context(task, "resumeRenderFromClipIndex", None)
         self._put_execution_context(task, "attemptResumeFromStage", None)
         self._put_execution_context(task, "attemptResumeFromClipIndex", None)
-        self._task_repository.save(task) if self._task_repository else None
+        await self._task_repository.save(task) if self._task_repository else None
         return self.RenderStageResult(image_run_ids, video_run_ids, latest_video_output_url, len(request.shot_plans))
 
     async def _await_completed_video_run(self, initial_run: dict[str, Any]) -> dict[str, Any]:
@@ -2271,6 +2253,13 @@ class TaskWorkerPipelineHandler:
         self._render_stage_service = render_stage_service
         self._join_stage_service = join_stage_service
 
+    async def _save_result(self, result: dict[str, Any] | None) -> None:
+        if self._task_repository is None or not result:
+            return
+        mutation = result.get("mutation")
+        if isinstance(mutation, TaskPersistenceMutation):
+            await self._task_repository.save_mutation(mutation)
+
     async def process_task(
         self,
         task_id: str,
@@ -2284,18 +2273,24 @@ class TaskWorkerPipelineHandler:
     async def _process_task(self, task_id: str, run_context: TaskWorkerExecutionContext) -> None:
         if self._task_repository is None:
             return
-        task = self._task_repository.find_by_id(task_id)
+        task = await self._task_repository.find_by_id(task_id)
         if task is None:
             if self._task_queue_port:
-                self._task_queue_port.remove(task_id)
+                result = self._task_queue_port.remove(task_id)
+                if hasattr(result, "__await__"):
+                    await result
             return
         if task.status != "PENDING" and TaskStatus(task.status) != TaskStatus.PENDING:
             if self._task_queue_port:
-                self._task_queue_port.remove(task_id)
+                result = self._task_queue_port.remove(task_id)
+                if hasattr(result, "__await__"):
+                    await result
             return
         try:
             if self._task_queue_port:
-                self._task_queue_port.remove(task.id)
+                result = self._task_queue_port.remove(task.id)
+                if hasattr(result, "__await__"):
+                    await result
             task.is_queued = False
             task.queue_position = None
             if not task.started_at:
@@ -2328,9 +2323,11 @@ class TaskWorkerPipelineHandler:
             self._put_execution_context(task, "resumeRenderFromClipIndex", render_start_index)
             self._put_execution_context(task, "attemptResumeFromStage", requested_resume_stage)
             self._put_execution_context(task, "attemptResumeFromClipIndex", requested_resume_clip_index)
-            self._task_repository.save(task)
 
-            self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id)
+            await self._save_result(self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id))
+            await self._save_result(self._status_stage_service.update_status(
+                task, run_context, "ANALYZING", 5, _TaskStage.ANALYSIS, "task.claimed", "任务已被 worker 领取。",
+            ))
             self._runtime_support.assert_task_still_active(task)
 
             script_run: dict[str, Any] = {}
@@ -2338,7 +2335,7 @@ class TaskWorkerPipelineHandler:
 
             if reuse_storyboard and task.storyboard_script and task.storyboard_script.strip():
                 storyboard_markdown = task.storyboard_script
-                self._execution_coordinator.record_trace(
+                await self._save_result(self._execution_coordinator.record_trace(
                     task, _TaskStage.ANALYSIS, "analysis.reused",
                     "检测到已有分镜脚本，跳过分析并继续后续镜头。", "INFO",
                     {
@@ -2347,21 +2344,21 @@ class TaskWorkerPipelineHandler:
                         "resumeFromStage": requested_resume_stage,
                         "resumeFromClipIndex": requested_resume_clip_index,
                     },
-                )
+                ))
             else:
-                self._status_stage_service.update_status(
+                await self._save_result(self._status_stage_service.update_status(
                     task, run_context, "ANALYZING", 10, _TaskStage.ANALYSIS, "task.analyzing", "任务开始分析文本与镜头约束。",
-                )
+                ))
 
                 script_request = self._runtime_support.build_script_run_request(task)
                 pending_model_call = self._status_stage_service.create_pending_model_call(
                     task, _TaskStage.ANALYSIS, "generation.script", script_request, 1, "script",
                 )
-                self._execution_coordinator.record_model_call(task, pending_model_call)
+                await self._save_result(self._execution_coordinator.record_model_call(task, pending_model_call))
                 try:
                     script_run = await self._generation_application_service.create_run(script_request)
                 except Exception as ex:
-                    self._execution_coordinator.record_model_call(task, self._status_stage_service.fail_model_call(pending_model_call, ex))
+                    await self._save_result(self._execution_coordinator.record_model_call(task, self._status_stage_service.fail_model_call(pending_model_call, ex)))
                     raise
 
                 self._runtime_support.assert_task_still_active(task)
@@ -2374,20 +2371,20 @@ class TaskWorkerPipelineHandler:
                 self._put_execution_context(task, "scriptRunId", _string_value(script_run.get("id")))
                 self._put_execution_context(task, "analysisScriptText", storyboard_markdown)
                 self._put_execution_context(task, "analysisPrompt", _string_value(script_result.get("prompt")))
-                self._task_repository.save(task)
+                await self._task_repository.save(task)
 
-                self._status_stage_service.record_stage_run(
+                await self._save_result(self._status_stage_service.record_stage_run(
                     task, run_context, 1, _TaskStage.ANALYSIS, 1,
                     {"title": task.title, "aspectRatio": task.aspect_ratio},
                     {"summary": "文本分析完成", "scriptRunId": _string_value(script_run.get("id"))},
-                )
+                ))
                 analysis_model_call = self._status_stage_service.complete_model_call(pending_model_call, script_run, script_result)
-                self._execution_coordinator.record_model_call(task, analysis_model_call)
+                await self._save_result(self._execution_coordinator.record_model_call(task, analysis_model_call))
                 self._status_stage_service.record_run_call_chain(task, _TaskStage.ANALYSIS, script_run, script_result)
                 script_material = self._artifact_assembler.create_text_material(task, script_run, script_result)
-                self._execution_coordinator.record_material(task, script_material)
+                await self._save_result(self._execution_coordinator.record_material(task, script_material))
                 self._put_execution_context(task, "storyboardFileUrl", _string_value(script_material.get("fileUrl")))
-                self._task_repository.save(task)
+                await self._task_repository.save(task)
 
             shot_plans = self._storyboard_planner.build_storyboard_shot_plans(task, storyboard_markdown)
             storyboard_clip_count = len(shot_plans)
@@ -2411,9 +2408,9 @@ class TaskWorkerPipelineHandler:
             self._put_execution_context(task, "storyboardFormatVersion", "structured-md-v1")
             self._put_execution_context(task, "storyboardContinuityRule", "current_end_frame_matches_next_start_frame")
             self._put_execution_context(task, "storyboardClips", self._build_storyboard_clip_context(shot_plans, clip_duration_plan))
-            self._task_repository.save(task)
+            await self._task_repository.save(task)
 
-            self._execution_coordinator.record_trace(
+            await self._save_result(self._execution_coordinator.record_trace(
                 task, _TaskStage.PLANNING, "planning.shots_resolved",
                 "已完成分镜数量解析，按镜头顺序生成。", "INFO",
                 {
@@ -2423,11 +2420,11 @@ class TaskWorkerPipelineHandler:
                     "completedClipCount": completed_clip_count,
                     "renderStartIndex": render_start_index,
                 },
-            )
+            ))
 
-            self._status_stage_service.update_status(
+            await self._save_result(self._status_stage_service.update_status(
                 task, run_context, "PLANNING", 35, _TaskStage.PLANNING, "task.planning", "任务开始按分镜生成关键画面。",
-            )
+            ))
 
             render_request = TaskWorkerRenderStageService.RenderStageRequest(
                 reuse_storyboard=reuse_storyboard,
@@ -2446,41 +2443,43 @@ class TaskWorkerPipelineHandler:
             )
             render_result = await self._render_stage_service.render(task, run_context, render_request)
 
-            self._status_stage_service.complete_task(
+            await self._save_result(self._status_stage_service.complete_task(
                 task, run_context, script_run,
                 render_result.image_run_ids,
                 render_result.video_run_ids,
                 render_result.clip_count,
                 render_result.latest_video_output_url,
-            )
+            ))
             if self._join_stage_service:
                 self._join_stage_service.schedule_join(task.id, render_result.clip_count)
 
         except TaskExecutionAbortedException as ex:
-            self._status_stage_service.handle_abort(task, run_context, ex.task_status)
+            await self._save_result(self._status_stage_service.handle_abort(task, run_context, ex.task_status))
         except Exception as ex:
-            self._status_stage_service.fail_task(task, run_context, ex)
+            await self._save_result(self._status_stage_service.fail_task(task, run_context, ex))
 
     async def _process_workspace_image_task(self, task: TaskRecord, run_context: TaskWorkerExecutionContext, dimensions: list[int]) -> None:
         self._put_execution_context(task, "imageSize", f"{dimensions[0]}x{dimensions[1]}")
         self._put_execution_context(task, "workerInstanceId", run_context.worker_instance_id)
-        self._task_repository.save(task)
-        self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id)
+        await self._save_result(self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id))
+        await self._save_result(self._status_stage_service.update_status(
+            task, run_context, "RENDERING", 5, _TaskStage.RENDER, "task.claimed", "任务已被 worker 领取。",
+        ))
         self._runtime_support.assert_task_still_active(task)
 
-        self._status_stage_service.update_status(
+        await self._save_result(self._status_stage_service.update_status(
             task, run_context, "RENDERING", 40, _TaskStage.RENDER, "task.rendering", "工作台图片任务开始生成。",
-        )
+        ))
 
         image_request = self._runtime_support.build_workspace_image_run_request(task, dimensions[0], dimensions[1])
         pending_model_call = self._status_stage_service.create_pending_model_call(
             task, _TaskStage.RENDER, "generation.image", image_request, 1, "workspace_image",
         )
-        self._execution_coordinator.record_model_call(task, pending_model_call)
+        await self._save_result(self._execution_coordinator.record_model_call(task, pending_model_call))
         try:
             image_run = await self._generation_application_service.create_run(image_request)
         except Exception as ex:
-            self._execution_coordinator.record_model_call(task, self._status_stage_service.fail_model_call(pending_model_call, ex))
+            await self._save_result(self._execution_coordinator.record_model_call(task, self._status_stage_service.fail_model_call(pending_model_call, ex)))
             raise
         self._runtime_support.assert_task_still_active(task)
         image_result = self._result_map(image_run)
@@ -2494,22 +2493,22 @@ class TaskWorkerPipelineHandler:
             raise ValueError("图片生成结果为空，未返回可用输出地址。")
 
         image_model_call = self._status_stage_service.complete_model_call(pending_model_call, image_run, image_result)
-        self._execution_coordinator.record_model_call(task, image_model_call)
+        await self._save_result(self._execution_coordinator.record_model_call(task, image_model_call))
         self._status_stage_service.record_run_call_chain(task, _TaskStage.RENDER, image_run, image_result)
         image_material = self._artifact_assembler.create_workspace_image_material(task, image_run, image_result)
-        self._execution_coordinator.record_material(task, image_material)
+        await self._save_result(self._execution_coordinator.record_material(task, image_material))
         image_output = self._artifact_assembler.create_image_result(task, image_run, image_result, image_material, image_model_call)
-        self._execution_coordinator.record_result(task, image_output)
+        await self._save_result(self._execution_coordinator.record_result(task, image_output))
         self._put_execution_context(task, "latestImageRunId", _string_value(image_run.get("id")))
         self._put_execution_context(task, "latestImageOutputUrl", output_url)
         self._put_execution_context(task, "latestMaterialAssetId", _string_value(image_material.get("id")))
-        self._task_repository.save(task)
-        self._status_stage_service.record_stage_run(
+        await self._task_repository.save(task)
+        await self._save_result(self._status_stage_service.record_stage_run(
             task, run_context, 1, _TaskStage.RENDER, 1,
             {"title": task.title, "taskType": task.task_type, "width": dimensions[0], "height": dimensions[1]},
             {"summary": "工作台图片生成完成", "imageRunId": _string_value(image_run.get("id")), "outputUrl": output_url, "materialAssetId": _string_value(image_material.get("id"))},
-        )
-        self._status_stage_service.complete_workspace_image_task(task, run_context, image_run, output_url)
+        ))
+        await self._save_result(self._status_stage_service.complete_workspace_image_task(task, run_context, image_run, output_url))
 
     def _is_video_generation_task(self, task: TaskRecord) -> bool:
         return task.task_type is None or task.task_type == "video_generation"

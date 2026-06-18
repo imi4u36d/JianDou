@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -174,6 +175,7 @@ class TaskRepository:
 
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
+        self._lock = asyncio.Lock()
 
     @property
     def session(self) -> AsyncSession:
@@ -181,249 +183,360 @@ class TaskRepository:
             self._session = async_session_factory()
         return self._session
 
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+
     # ------------------------------------------------------------------
     # Core CRUD
     # ------------------------------------------------------------------
 
-    async def save(self, task_record: TaskRecord) -> None:
-        """Upsert the main task row."""
-        row = _biz_task_from_record(task_record)
-        existing = await self.session.get(BizTask, task_record.id)
-        if existing:
-            # Update
-            for col in BizTask.__table__.columns:
-                col_name = col.name
-                if hasattr(row, col_name) and col_name != "task_id":
-                    setattr(existing, col_name, getattr(row, col_name))
-        else:
-            self.session.add(row)
-        await self.session.flush()
+    async def _find_task_row(self, task_id: str) -> BizTask | None:
+        result = await self.session.execute(select(BizTask).where(BizTask.task_id == task_id))
+        return result.scalars().first()
 
-    async def save_mutation(self, mutation: TaskPersistenceMutation) -> None:
-        """Persist a full mutation atomically (task + sub-entities)."""
-        # 1. Task main row
-        if mutation.task:
-            await self.save(mutation.task)
+    async def _find_attempt_row(self, attempt_id: str) -> BizTaskAttempt | None:
+        result = await self.session.execute(select(BizTaskAttempt).where(BizTaskAttempt.task_attempt_id == attempt_id))
+        return result.scalars().first()
 
-        task_id = mutation.task_id or (mutation.task.id if mutation.task else "")
+    async def _find_worker_row(self, worker_instance_id: str) -> BizWorkerInstance | None:
+        result = await self.session.execute(
+            select(BizWorkerInstance).where(BizWorkerInstance.worker_instance_id == worker_instance_id)
+        )
+        return result.scalars().first()
 
-        # 2. Attempts (upsert by task_attempt_id)
-        for row in mutation.attempts:
-            await self._upsert_attempt(task_id, row)
-
-        # 3. Status history
-        for row in mutation.status_history_rows:
-            self.session.add(BizTaskStatusHistory(
-                task_status_history_id=_string_value(row.get("statusHistoryId", row.get("id", ""))),
-                task_id=task_id,
-                previous_status=_string_value(row.get("previousStatus", "")),
-                current_status=_string_value(row.get("nextStatus", "")),
-                progress=_int_value(row.get("progress")),
-                stage=_string_value(row.get("stage")),
-                event=_string_value(row.get("event")),
-                message=_string_value(row.get("reason", row.get("message", ""))),
-                payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
-                change_time=_string_value(row.get("changedAt", row.get("timestamp", _now_iso()))),
-                operator_type="system",
-                operator_id="",
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 4. Trace rows -> store as BizTaskStatusHistory with special event prefix
-        for row in mutation.trace_rows:
-            self.session.add(BizTaskStatusHistory(
-                task_status_history_id=_string_value(row.get("traceId", row.get("id", ""))),
-                task_id=task_id,
-                previous_status="",
-                current_status="",
-                progress=0,
-                stage=_string_value(row.get("stage")),
-                event=_string_value(row.get("event")),
-                message=_string_value(row.get("message")),
-                payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
-                change_time=_string_value(row.get("timestamp", _now_iso())),
-                operator_type="trace",
-                operator_id="",
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 5. Stage runs
-        for row in mutation.stage_run_rows:
-            self.session.add(BizTaskStageRun(
-                task_stage_run_id=_string_value(row.get("stageRunId", row.get("id", ""))),
-                task_id=task_id,
-                attempt_id=_string_value(row.get("attemptId", "")),
-                stage_name=_string_value(row.get("stageName", row.get("stage", ""))),
-                stage_seq=_int_value(row.get("stageSeq"), 0),
-                clip_index=_int_value(row.get("clipIndex"), 0),
-                status=_string_value(row.get("status", "")),
-                worker_instance_id=_string_value(row.get("workerInstanceId", "")),
-                started_at=_string_value(row.get("startedAt", "")),
-                finished_at=_string_value(row.get("finishedAt", "")),
-                duration_ms=_int_value(row.get("durationMs"), 0),
-                input_summary_json=json.dumps(row.get("inputSummary", {}), ensure_ascii=False),
-                output_summary_json=json.dumps(row.get("outputSummary", {}), ensure_ascii=False),
-                error_code=_string_value(row.get("errorCode", "")),
-                error_message=_string_value(row.get("errorMessage", "")),
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 6. Model calls
-        for row in mutation.model_call_rows:
-            self.session.add(BizTaskModelCall(
-                task_model_call_id=_string_value(row.get("modelCallId", row.get("id", ""))),
-                task_id=task_id,
-                call_kind=_string_value(row.get("callKind", "")),
-                stage=_string_value(row.get("stage", "")),
-                operation=_string_value(row.get("operation", "")),
-                provider=_string_value(row.get("provider", "")),
-                provider_model=_string_value(row.get("providerModel", "")),
-                requested_model=_string_value(row.get("requestedModel", "")),
-                resolved_model=_string_value(row.get("resolvedModel", "")),
-                model_name=_string_value(row.get("modelName", "")),
-                model_alias=_string_value(row.get("modelAlias", "")),
-                endpoint_host=_string_value(row.get("endpointHost", "")),
-                request_id=_string_value(row.get("requestId", "")),
-                request_payload_json=json.dumps(row.get("requestPayload", {}), ensure_ascii=False),
-                response_payload_json=json.dumps(row.get("responsePayload", {}), ensure_ascii=False),
-                http_status=_int_value(row.get("httpStatus"), 0),
-                response_status_code=_int_value(row.get("responseStatusCode"), 0),
-                success=_int_value(row.get("success"), 0),
-                error_code=_string_value(row.get("errorCode", "")),
-                error_message=_string_value(row.get("errorMessage", "")),
-                latency_ms=_int_value(row.get("latencyMs"), 0),
-                duration_ms=_int_value(row.get("durationMs"), 0),
-                input_tokens=_int_value(row.get("inputTokens"), 0),
-                output_tokens=_int_value(row.get("outputTokens"), 0),
-                started_at=_string_value(row.get("startedAt", "")),
-                finished_at=_string_value(row.get("finishedAt", "")),
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 7. Materials -> store as BizMaterialAsset (simplified)
-        for row in mutation.material_rows:
-            self.session.add(BizTaskModelCall(
-                task_model_call_id="mat_" + _string_value(row.get("materialId", row.get("id", _now_iso()))),
-                task_id=task_id,
-                call_kind="material",
-                stage=_string_value(row.get("stage", "")),
-                operation="",
-                provider="",
-                provider_model="",
-                requested_model="",
-                resolved_model="",
-                model_name=_string_value(row.get("mediaType", "")),
-                model_alias="",
-                endpoint_host="",
-                request_id="",
-                request_payload_json=json.dumps(row, ensure_ascii=False),
-                response_payload_json="{}",
-                http_status=0,
-                response_status_code=0,
-                success=1,
-                error_code="",
-                error_message="",
-                latency_ms=0,
-                duration_ms=0,
-                input_tokens=0,
-                output_tokens=0,
-                started_at=_now_iso(),
-                finished_at=_now_iso(),
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 8. Results
-        for row in mutation.result_rows:
-            self.session.add(BizTaskResult(
-                task_result_id=_string_value(row.get("resultId", row.get("id", ""))),
-                task_id=task_id,
-                result_type=_string_value(row.get("resultType", "")),
-                clip_index=_int_value(row.get("clipIndex"), 0),
-                title=_string_value(row.get("title", "")),
-                reason=_string_value(row.get("reason", "")),
-                source_model_call_id=_string_value(row.get("sourceModelCallId", "")),
-                material_asset_id=_string_value(row.get("materialAssetId", "")),
-                start_seconds=row.get("startSeconds"),
-                end_seconds=row.get("endSeconds"),
-                duration_seconds=row.get("durationSeconds"),
-                preview_path=_string_value(row.get("previewPath", "")),
-                download_path=_string_value(row.get("downloadPath", "")),
-                width=_int_value(row.get("width"), 0),
-                height=_int_value(row.get("height"), 0),
-                mime_type=_string_value(row.get("mimeType", "")),
-                size_bytes=_int_value(row.get("sizeBytes"), 0),
-                remote_url=_string_value(row.get("remoteUrl", "")),
-                extra_json=json.dumps(row.get("extra", {}), ensure_ascii=False),
-                produced_at=_string_value(row.get("producedAt", _now_iso())),
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 9. Queue events
-        for row in mutation.queue_event_rows:
-            self.session.add(BizTaskQueueEvent(
-                task_queue_event_id=_string_value(row.get("taskQueueEventId", row.get("id", ""))),
-                task_id=task_id,
-                attempt_id=_string_value(row.get("attemptId", "")),
-                queue_name=_string_value(row.get("queueName", "default")),
-                event_type=_string_value(row.get("eventType", "")),
-                worker_instance_id=_string_value(row.get("workerInstanceId", "")),
-                queue_position_hint=_int_value(row.get("queuePositionHint"), 0),
-                payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
-                event_time=_string_value(row.get("eventTime", _now_iso())),
-                timezone_offset_minutes=None,
-                create_time=_now_iso(),
-                update_time=_now_iso(),
-                is_deleted=0,
-            ))
-
-        # 10. Worker instances (upsert)
-        for row in mutation.worker_instance_rows:
-            await self._upsert_worker_instance(row)
-
-        await self.session.flush()
-
-    async def find_by_id(self, task_id: str) -> TaskRecord | None:
-        """Load a task with all related sub-collections."""
-        row = await self.session.get(BizTask, task_id)
+    async def _load_task_record_without_lock(self, task_id: str) -> TaskRecord | None:
+        row = await self._find_task_row(task_id)
         if row is None:
             return None
         rec = _record_from_biz_task(row)
         await self._load_sub_collections(rec)
         return rec
 
+    async def _save_without_lock(self, task_record: TaskRecord) -> None:
+        row = _biz_task_from_record(task_record)
+        existing = await self._find_task_row(task_record.id)
+        if existing:
+            for col in BizTask.__table__.columns:
+                col_name = col.name
+                if col_name in {"id", "task_id"}:
+                    continue
+                if hasattr(row, col_name):
+                    setattr(existing, col_name, getattr(row, col_name))
+        else:
+            self.session.add(row)
+
+    async def save(self, task_record: TaskRecord) -> None:
+        """Upsert the main task row."""
+        async with self._lock:
+            try:
+                await self._save_without_lock(task_record)
+                await self.session.flush()
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                raise
+
+    async def save_mutation(self, mutation: TaskPersistenceMutation) -> None:
+        """Persist a full mutation atomically (task + sub-entities)."""
+        async with self._lock:
+            try:
+                # 1. Task main row
+                if mutation.task:
+                    await self._save_without_lock(mutation.task)
+
+                task_id = mutation.task_id or (mutation.task.id if mutation.task else "")
+
+                # 2. Attempts (upsert by task_attempt_id)
+                for row in mutation.attempts:
+                    await self._upsert_attempt(task_id, row)
+
+                # 3. Status history
+                for row in mutation.status_history_rows:
+                    self.session.add(BizTaskStatusHistory(
+                        task_status_history_id=_string_value(row.get("statusHistoryId", row.get("id", ""))),
+                        task_id=task_id,
+                        previous_status=_string_value(row.get("previousStatus", "")),
+                        current_status=_string_value(row.get("nextStatus", "")),
+                        progress=_int_value(row.get("progress")),
+                        stage=_string_value(row.get("stage")),
+                        event=_string_value(row.get("event")),
+                        message=_string_value(row.get("reason", row.get("message", ""))),
+                        payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
+                        change_time=_string_value(row.get("changedAt", row.get("timestamp", _now_iso()))),
+                        operator_type="system",
+                        operator_id="",
+                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 4. Trace rows -> store as BizTaskStatusHistory with special event prefix
+                for row in mutation.trace_rows:
+                    self.session.add(BizTaskStatusHistory(
+                        task_status_history_id=_string_value(row.get("traceId", row.get("id", ""))),
+                        task_id=task_id,
+                        previous_status="",
+                        current_status="",
+                        progress=0,
+                        stage=_string_value(row.get("stage")),
+                        event=_string_value(row.get("event")),
+                        message=_string_value(row.get("message")),
+                        payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
+                        change_time=_string_value(row.get("timestamp", _now_iso())),
+                        operator_type="trace",
+                        operator_id="",
+                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 5. Stage runs
+                for row in mutation.stage_run_rows:
+                    self.session.add(BizTaskStageRun(
+                        task_stage_run_id=_string_value(row.get("stageRunId", row.get("id", ""))),
+                        task_id=task_id,
+                        attempt_id=_string_value(row.get("attemptId", "")),
+                        stage_name=_string_value(row.get("stageName", row.get("stage", ""))),
+                        stage_seq=_int_value(row.get("stageSeq"), 0),
+                        clip_index=_int_value(row.get("clipIndex"), 0),
+                        status=_string_value(row.get("status", "")),
+                        worker_instance_id=_string_value(row.get("workerInstanceId", "")),
+                        started_at=_string_value(row.get("startedAt", _now_iso())),
+                        finished_at=_string_value(row.get("finishedAt", "")) or None,
+                        duration_ms=_int_value(row.get("durationMs"), 0),
+                        input_summary_json=json.dumps(row.get("inputSummary", {}), ensure_ascii=False),
+                        output_summary_json=json.dumps(row.get("outputSummary", {}), ensure_ascii=False),
+                        error_code=_string_value(row.get("errorCode", "")),
+                        error_message=_string_value(row.get("errorMessage", "")),
+                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 6. Model calls
+                for row in mutation.model_call_rows:
+                    self.session.add(BizTaskModelCall(
+                        task_model_call_id=_string_value(row.get("modelCallId", row.get("id", ""))),
+                        task_id=task_id,
+                        call_kind=_string_value(row.get("callKind", "")),
+                        stage=_string_value(row.get("stage", "")),
+                        operation=_string_value(row.get("operation", "")),
+                        provider=_string_value(row.get("provider", "")),
+                        provider_model=_string_value(row.get("providerModel", "")),
+                        requested_model=_string_value(row.get("requestedModel", "")),
+                        resolved_model=_string_value(row.get("resolvedModel", "")),
+                        model_name=_string_value(row.get("modelName", "")),
+                        model_alias=_string_value(row.get("modelAlias", "")),
+                        endpoint_host=_string_value(row.get("endpointHost", "")),
+                        request_id=_string_value(row.get("requestId", "")),
+                        request_payload_json=json.dumps(row.get("requestPayload", {}), ensure_ascii=False),
+                        response_payload_json=json.dumps(row.get("responsePayload", {}), ensure_ascii=False),
+                        http_status=_int_value(row.get("httpStatus"), 0),
+                        response_status_code=_int_value(row.get("responseStatusCode"), 0),
+                        success=_int_value(row.get("success"), 0),
+                        error_code=_string_value(row.get("errorCode", "")),
+                        error_message=_string_value(row.get("errorMessage", "")),
+                        latency_ms=_int_value(row.get("latencyMs"), 0),
+                        duration_ms=_int_value(row.get("durationMs"), 0),
+                        input_tokens=_int_value(row.get("inputTokens"), 0),
+                        output_tokens=_int_value(row.get("outputTokens"), 0),
+                        started_at=_string_value(row.get("startedAt", _now_iso())),
+                        finished_at=_string_value(row.get("finishedAt", _now_iso())),
+                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 7. Materials -> store as BizTaskModelCall (simplified)
+                for row in mutation.material_rows:
+                    self.session.add(BizTaskModelCall(
+                        task_model_call_id="mat_" + _string_value(row.get("materialId", row.get("id", _now_iso()))),
+                        task_id=task_id,
+                        call_kind="material",
+                        stage=_string_value(row.get("stage", "")),
+                        operation="",
+                        provider="",
+                        provider_model="",
+                        requested_model="",
+                        resolved_model="",
+                        model_name=_string_value(row.get("mediaType", "")),
+                        model_alias="",
+                        endpoint_host="",
+                        request_id="",
+                        request_payload_json=json.dumps(row, ensure_ascii=False),
+                        response_payload_json="{}",
+                        http_status=0,
+                        response_status_code=0,
+                        success=1,
+                        error_code="",
+                        error_message="",
+                        latency_ms=0,
+                        duration_ms=0,
+                        input_tokens=0,
+                        output_tokens=0,
+                        started_at=_now_iso(),
+                        finished_at=_now_iso(),
+                        timezone_offset_minutes=0,
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 8. Results
+                for row in mutation.result_rows:
+                    self.session.add(BizTaskResult(
+                        task_result_id=_string_value(row.get("resultId", row.get("id", ""))),
+                        task_id=task_id,
+                        result_type=_string_value(row.get("resultType", "")),
+                        clip_index=_int_value(row.get("clipIndex"), 0),
+                        title=_string_value(row.get("title", "")),
+                        reason=_string_value(row.get("reason", "")),
+                        source_model_call_id=_string_value(row.get("sourceModelCallId", "")),
+                        material_asset_id=_string_value(row.get("materialAssetId", "")),
+                        start_seconds=float(row.get("startSeconds") or 0),
+                        end_seconds=float(row.get("endSeconds") or 0),
+                        duration_seconds=float(row.get("durationSeconds") or 0),
+                        preview_path=_string_value(row.get("previewPath", "")),
+                        download_path=_string_value(row.get("downloadPath", "")),
+                        width=_int_value(row.get("width"), 0),
+                        height=_int_value(row.get("height"), 0),
+                        mime_type=_string_value(row.get("mimeType", "")),
+                        size_bytes=_int_value(row.get("sizeBytes"), 0),
+                        remote_url=_string_value(row.get("remoteUrl", "")),
+                        extra_json=json.dumps(row.get("extra", {}), ensure_ascii=False),
+                        produced_at=_string_value(row.get("producedAt", _now_iso())),
+                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 9. Queue events
+                for row in mutation.queue_event_rows:
+                    self.session.add(BizTaskQueueEvent(
+                        task_queue_event_id=_string_value(row.get("taskQueueEventId", row.get("id", ""))),
+                        task_id=task_id,
+                        attempt_id=_string_value(row.get("attemptId", "")),
+                        queue_name=_string_value(row.get("queueName", "default")),
+                        event_type=_string_value(row.get("eventType", "")),
+                        worker_instance_id=_string_value(row.get("workerInstanceId", "")),
+                        queue_position_hint=_int_value(row.get("queuePositionHint"), 0),
+                        payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
+                        event_time=_string_value(row.get("eventTime", _now_iso())),
+                        timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
+                        create_time=_now_iso(),
+                        update_time=_now_iso(),
+                        is_deleted=0,
+                        remark="",
+                    ))
+
+                # 10. Worker instances (upsert)
+                for row in mutation.worker_instance_rows:
+                    await self._upsert_worker_instance(row)
+
+                await self.session.flush()
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                raise
+
+    async def find_by_id(self, task_id: str) -> TaskRecord | None:
+        """Load a task with all related sub-collections."""
+        async with self._lock:
+            return await self._load_task_record_without_lock(task_id)
+
+    async def list_queued_task_ids(self, limit: int = 500) -> list[str]:
+        async with self._lock:
+            stmt = (
+                select(BizTaskAttempt.task_id)
+                .join(BizTask, BizTask.task_id == BizTaskAttempt.task_id)
+                .where(
+                    BizTaskAttempt.status.in_(("QUEUED", "PENDING")),
+                    BizTaskAttempt.is_deleted == 0,
+                    BizTask.status == "PENDING",
+                    BizTask.is_deleted == 0,
+                )
+                .order_by(BizTaskAttempt.queue_entered_at.asc(), BizTask.create_time.asc())
+                .limit(limit)
+            )
+            result = await self.session.execute(stmt)
+            seen: list[str] = []
+            for row in result.all():
+                task_id = _string_value(row[0])
+                if task_id and task_id not in seen:
+                    seen.append(task_id)
+            return seen
+
+    async def claim_next_queued_task(self, worker_instance_id: str) -> str | None:
+        async with self._lock:
+            stmt = (
+                select(BizTaskAttempt.task_id)
+                .join(BizTask, BizTask.task_id == BizTaskAttempt.task_id)
+                .where(
+                    BizTaskAttempt.status.in_(("QUEUED", "PENDING")),
+                    BizTaskAttempt.is_deleted == 0,
+                    BizTask.status == "PENDING",
+                    BizTask.is_deleted == 0,
+                )
+                .order_by(BizTaskAttempt.queue_entered_at.asc(), BizTask.create_time.asc())
+                .limit(1)
+            )
+            result = await self.session.execute(stmt)
+            row = result.first()
+            return _string_value(row[0]) if row else None
+
+    async def remove_queued_task(self, task_id: str) -> None:
+        async with self._lock:
+            try:
+                task = await self._load_task_record_without_lock(task_id)
+                if task is None:
+                    return
+                task.is_queued = False
+                task.queue_position = None
+                for attempt in task.attempts:
+                    if _string_value(attempt.get("status")) in ("QUEUED", "PENDING"):
+                        attempt["queueLeftAt"] = attempt.get("queueLeftAt") or _now_iso()
+                await self._save_without_lock(task)
+                await self.session.flush()
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                raise
+
     async def find_all(self) -> list[TaskRecord]:
         """Load all non-deleted tasks."""
-        stmt = select(BizTask).where(BizTask.is_deleted == 0).order_by(BizTask.create_time.desc())
-        result = await self.session.execute(stmt)
-        rows = result.scalars().all()
-        records = [_record_from_biz_task(r) for r in rows]
-        for rec in records:
-            await self._load_sub_collections(rec)
-        return records
+        async with self._lock:
+            stmt = select(BizTask).where(BizTask.is_deleted == 0).order_by(BizTask.create_time.desc())
+            result = await self.session.execute(stmt)
+            rows = result.scalars().all()
+            records = [_record_from_biz_task(r) for r in rows]
+            for rec in records:
+                await self._load_sub_collections(rec)
+            return records
 
     async def delete(self, task_id: str) -> None:
         """Soft delete a task."""
-        stmt = update(BizTask).where(BizTask.task_id == task_id).values(is_deleted=1, update_time=_now_iso())
-        await self.session.execute(stmt)
-        await self.session.flush()
+        async with self._lock:
+            try:
+                stmt = update(BizTask).where(BizTask.task_id == task_id).values(is_deleted=1, update_time=_now_iso())
+                await self.session.execute(stmt)
+                await self.session.flush()
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                raise
 
     # ------------------------------------------------------------------
     # Query helpers (matching Java TaskPersistencePort)
@@ -510,21 +623,22 @@ class TaskRepository:
         ]
 
     async def find_worker_instance(self, worker_instance_id: str) -> dict[str, Any] | None:
-        row = await self.session.get(BizWorkerInstance, worker_instance_id)
-        if row is None:
-            return None
-        return {
-            "workerInstanceId": row.worker_instance_id,
-            "workerType": row.worker_type,
-            "queueName": row.queue_name or "",
-            "hostName": row.host_name or "",
-            "processId": row.process_id,
-            "status": row.status,
-            "startedAt": row.started_at or "",
-            "lastHeartbeatAt": row.last_heartbeat_at or "",
-            "stoppedAt": row.stopped_at or "",
-            "metadata": json.loads(row.metadata_json) if row.metadata_json else {},
-        }
+        async with self._lock:
+            row = await self._find_worker_row(worker_instance_id)
+            if row is None:
+                return None
+            return {
+                "workerInstanceId": row.worker_instance_id,
+                "workerType": row.worker_type,
+                "queueName": row.queue_name or "",
+                "hostName": row.host_name or "",
+                "processId": row.process_id,
+                "status": row.status,
+                "startedAt": row.started_at or "",
+                "lastHeartbeatAt": row.last_heartbeat_at or "",
+                "stoppedAt": row.stopped_at or "",
+                "metadata": json.loads(row.metadata_json) if row.metadata_json else {},
+            }
 
     async def list_stale_worker_instance_ids(
         self,
@@ -781,7 +895,7 @@ class TaskRepository:
         attempt_id = _string_value(row.get("attemptId", ""))
         if not attempt_id:
             return
-        existing = await self.session.get(BizTaskAttempt, attempt_id)
+        existing = await self._find_attempt_row(attempt_id)
         safe_payload = row.get("payload", {})
         if existing:
             existing.status = _string_value(row.get("status", existing.status))
@@ -798,6 +912,7 @@ class TaskRepository:
             existing.failure_code = _string_value(row.get("failureCode", existing.failure_code))
             existing.failure_message = _string_value(row.get("failureMessage", existing.failure_message))
             existing.payload_json = json.dumps(safe_payload, ensure_ascii=False)
+            existing.timezone_offset_minutes = _int_value(row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0)
             existing.update_time = _now_iso()
         else:
             self.session.add(BizTaskAttempt(
@@ -818,17 +933,18 @@ class TaskRepository:
                 failure_code=_string_value(row.get("failureCode", "")),
                 failure_message=_string_value(row.get("failureMessage", "")),
                 payload_json=json.dumps(safe_payload, ensure_ascii=False),
-                timezone_offset_minutes=None,
+                timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
                 create_time=_now_iso(),
                 update_time=_now_iso(),
                 is_deleted=0,
+                remark="",
             ))
 
     async def _upsert_worker_instance(self, row: dict[str, Any]) -> None:
         worker_id = _string_value(row.get("workerInstanceId", ""))
         if not worker_id:
             return
-        existing = await self.session.get(BizWorkerInstance, worker_id)
+        existing = await self._find_worker_row(worker_id)
         now = _now_iso()
         metadata = row.get("metadata", {})
         if existing:
@@ -840,6 +956,7 @@ class TaskRepository:
             existing.last_heartbeat_at = _string_value(row.get("lastHeartbeatAt", now))
             existing.stopped_at = _string_value(row.get("stoppedAt", existing.stopped_at or ""))
             existing.metadata_json = json.dumps(metadata, ensure_ascii=False)
+            existing.timezone_offset_minutes = _int_value(row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0)
             existing.update_time = now
         else:
             self.session.add(BizWorkerInstance(
@@ -853,8 +970,9 @@ class TaskRepository:
                 last_heartbeat_at=_string_value(row.get("lastHeartbeatAt", now)),
                 stopped_at=_string_value(row.get("stoppedAt", "")),
                 metadata_json=json.dumps(metadata, ensure_ascii=False),
-                timezone_offset_minutes=None,
+                timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
                 create_time=now,
                 update_time=now,
                 is_deleted=0,
+                remark="",
             ))

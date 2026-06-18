@@ -7,6 +7,7 @@ heartbeats worker instances and recovers stale claims.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -233,14 +234,18 @@ class TaskWorkerRunner:
     async def _poll_once(self, worker_instance_id: str) -> None:
         """Claim and process a single task."""
         claimed_task_id = self._task_queue_port.claim_next(worker_instance_id)
+        if inspect.isawaitable(claimed_task_id):
+            claimed_task_id = await claimed_task_id
         if not claimed_task_id:
             return
-        self._pipeline_handler.process_task(
+        result = self._pipeline_handler.process_task(
             claimed_task_id,
             worker_instance_id,
             self.WORKER_TYPE,
             self._execution_mode,
         )
+        if inspect.isawaitable(result):
+            await result
 
     async def _maintenance_loop(self) -> None:
         """Periodic maintenance: heartbeat workers and recover stale claims."""
@@ -248,14 +253,14 @@ class TaskWorkerRunner:
 
         while self._running:
             try:
-                self._maintenance_tick()
+                await self._maintenance_tick()
             except asyncio.CancelledError:
                 break
             except Exception as ex:
                 logger.warning("worker maintenance failed", exc_info=ex)
             await asyncio.sleep(self._ops_config.worker_maintenance_interval_ms / 1000.0)
 
-    def _maintenance_tick(self) -> None:
+    async def _maintenance_tick(self) -> None:
         """Heartbeat all worker instances and recover stale claims."""
         for index, worker_id in enumerate(self._worker_instance_ids):
             self._execution_coordinator.touch_worker_instance(
@@ -272,4 +277,9 @@ class TaskWorkerRunner:
         stale_threshold = datetime.now(timezone.utc) - timedelta(
             seconds=self._ops_config.worker_stale_timeout_seconds,
         )
-        self._execution_coordinator.recover_stale_claims(stale_threshold, 20)
+        task_repository = getattr(self._task_queue_port, "_task_repository", self._task_queue_port)
+        await self._execution_coordinator.recover_stale_claims(
+            stale_threshold,
+            20,
+            task_repository,
+        )

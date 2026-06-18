@@ -155,18 +155,18 @@ class TaskCommandService:
             "referenceAssetIds": self._normalize_string_list(reference_asset_ids),
         }
 
-        await self.task_repository.save(task)
-
         # Create attempt
         attempt_payload: dict[str, Any] = {
             "videoModel": _trimmed(video_model, ""),
             "imageModel": _trimmed(image_model, ""),
             "textAnalysisModel": _trimmed(text_analysis_model, ""),
         }
-        self.execution_coordinator.create_attempt(task, AttemptTriggerType.CREATE, attempt_payload)
+        mutation = TaskPersistenceMutation().set_task(task)
+        attempt_result = self.execution_coordinator.create_attempt(task, AttemptTriggerType.CREATE, attempt_payload)
+        mutation = self._merge_mutation(mutation, attempt_result)
 
         # Record trace
-        self.execution_coordinator.record_trace(
+        trace = self.execution_coordinator.record_trace(
             task,
             "api",
             "task.created",
@@ -177,12 +177,14 @@ class TaskCommandService:
                 "taskSeed": task.task_seed if task.task_seed is not None else "",
             },
         )
+        mutation = self._merge_mutation(mutation, trace)
 
         # Enqueue
-        self.execution_coordinator.enqueue(task, "dispatch", "task.enqueued", "Task enqueued.")
+        enqueue_result = self.execution_coordinator.enqueue(task, "dispatch", "task.enqueued", "Task enqueued.")
+        mutation = self._merge_mutation(mutation, enqueue_result)
 
         # Save all mutation data
-        await self.task_repository.save(task)
+        await self.task_repository.save_mutation(mutation)
 
         return task
 
@@ -195,9 +197,10 @@ class TaskCommandService:
         task.retry_count += 1
         task.error_message = ""
         retry_payload = self._build_retry_payload(task, AttemptTriggerType.RETRY)
-        self.execution_coordinator.create_attempt(task, AttemptTriggerType.RETRY, retry_payload)
-        self.execution_coordinator.enqueue(task, "dispatch", "task.retry_requested", "Task re-enqueued.")
-        await self.task_repository.save(task)
+        mutation = TaskPersistenceMutation().set_task(task)
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.create_attempt(task, AttemptTriggerType.RETRY, retry_payload))
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.enqueue(task, "dispatch", "task.retry_requested", "Task re-enqueued."))
+        await self.task_repository.save_mutation(mutation)
         return task
 
     # ------------------------------------------------------------------
@@ -230,10 +233,32 @@ class TaskCommandService:
     async def resume(self, task: TaskRecord) -> TaskRecord:
         """Resume a paused task."""
         retry_payload = self._build_retry_payload(task, AttemptTriggerType.CONTINUE)
-        self.execution_coordinator.create_attempt(task, AttemptTriggerType.CONTINUE, retry_payload)
-        self.execution_coordinator.enqueue(task, "dispatch", "task.continue_requested", "Task resumed.")
-        await self.task_repository.save(task)
+        mutation = TaskPersistenceMutation().set_task(task)
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.create_attempt(task, AttemptTriggerType.CONTINUE, retry_payload))
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.enqueue(task, "dispatch", "task.continue_requested", "Task resumed."))
+        await self.task_repository.save_mutation(mutation)
         return task
+
+    def _merge_mutation(self, base: TaskPersistenceMutation, result: dict[str, Any] | None) -> TaskPersistenceMutation:
+        if not result:
+            return base
+        mutation = result.get("mutation")
+        if not isinstance(mutation, TaskPersistenceMutation):
+            return base
+        if mutation.task is not None:
+            base.task = mutation.task
+        if mutation.task_id:
+            base.task_id = mutation.task_id
+        base.attempts.extend(mutation.attempts)
+        base.status_history_rows.extend(mutation.status_history_rows)
+        base.trace_rows.extend(mutation.trace_rows)
+        base.stage_run_rows.extend(mutation.stage_run_rows)
+        base.model_call_rows.extend(mutation.model_call_rows)
+        base.material_rows.extend(mutation.material_rows)
+        base.result_rows.extend(mutation.result_rows)
+        base.queue_event_rows.extend(mutation.queue_event_rows)
+        base.worker_instance_rows.extend(mutation.worker_instance_rows)
+        return base
 
     # ------------------------------------------------------------------
     # Terminate

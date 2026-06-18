@@ -477,17 +477,17 @@ class TaskQueueCoordinator:
         """Enqueue a task. Queue state is derived from persisted attempt records."""
         pass
 
-    def remove(self, task_id: str) -> None:
+    async def remove(self, task_id: str) -> None:
         """Remove a task from the queue."""
-        self._task_repository.remove_queued_task(task_id)
+        await self._task_repository.remove_queued_task(task_id)
 
-    def claim_next(self, worker_instance_id: str) -> str:
+    async def claim_next(self, worker_instance_id: str) -> str:
         """Claim the next queued task for a worker."""
-        return self._task_repository.claim_next_queued_task(worker_instance_id)
+        return await self._task_repository.claim_next_queued_task(worker_instance_id)
 
-    def snapshot(self) -> list[str]:
+    async def snapshot(self) -> list[str]:
         """Return a snapshot of queued task IDs."""
-        return self._task_repository.list_queued_task_ids(self.SNAPSHOT_LIMIT)
+        return await self._task_repository.list_queued_task_ids(self.SNAPSHOT_LIMIT)
 
 
 # ===========================================================================
