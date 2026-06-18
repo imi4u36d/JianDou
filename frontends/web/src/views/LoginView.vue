@@ -5,8 +5,8 @@
 
     <div class="auth-screen__panel">
       <div class="auth-screen__hero">
-        <p class="auth-screen__eyebrow">把灵感煎成镜头</p>
-        <h1>登录后进入煎豆工作台</h1>
+        <p class="auth-screen__eyebrow">JianDou</p>
+        <h1>进入工作台</h1>
       </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
@@ -106,7 +106,10 @@ async function handleSubmit() {
   place-items: center;
   padding: 24px;
   overflow: hidden;
-  background: var(--bg-base);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(139, 212, 80, 0.18), transparent 28%),
+    radial-gradient(circle at 86% 10%, rgba(27, 124, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, #f6fbff 0%, #ffffff 52%, #f4fbf7 100%);
 }
 
 .auth-screen__glow {
@@ -121,10 +124,11 @@ async function handleSubmit() {
   grid-template-columns: minmax(360px, 0.95fr) minmax(320px, 420px);
   gap: 28px;
   padding: 28px;
-  border-radius: 28px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  background: #fff;
-  box-shadow: var(--shadow-panel);
+  border-radius: 22px;
+  border: 1px solid rgba(0, 169, 187, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 42px rgba(27, 124, 255, 0.08);
+  backdrop-filter: blur(18px);
 }
 
 .auth-screen__hero {
@@ -143,7 +147,7 @@ async function handleSubmit() {
 .auth-screen__hero h1 {
   margin: 0;
   font-family: inherit;
-  max-width: 10ch;
+  max-width: 8ch;
   font-size: clamp(2.25rem, 4.4vw, 3.55rem);
   line-height: 1.05;
   letter-spacing: -0.06em;
@@ -161,9 +165,9 @@ async function handleSubmit() {
   display: grid;
   gap: 16px;
   padding: 22px;
-  border-radius: 24px;
-  background: #f7f9fa;
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 18px;
+  background: #f7fbff;
+  border: 1px solid rgba(0, 169, 187, 0.1);
 }
 
 .auth-form__field {
@@ -181,7 +185,7 @@ async function handleSubmit() {
   min-height: 48px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 169, 187, 0.12);
   background: #fff;
   color: var(--text-strong);
 }
@@ -203,7 +207,7 @@ async function handleSubmit() {
   padding: 6px 10px;
   border: 0;
   border-radius: 10px;
-  background: #eef2f4;
+  background: #effcff;
   color: var(--text-body);
   font-size: 0.8rem;
   font-weight: 700;
@@ -211,7 +215,8 @@ async function handleSubmit() {
 }
 
 .auth-form__password-toggle:hover {
-  background: #e3e8eb;
+  background: #edf5ff;
+  color: var(--accent-blue);
 }
 
 .auth-form__field input::placeholder {

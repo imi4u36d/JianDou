@@ -31,6 +31,7 @@ async function bootstrap() {
       epRegistered = true;
       await Promise.all([
         import("element-plus/dist/index.css"),
+        import("@/admin/styles/main.css"),
         (async () => {
           const [{ default: ElementPlus }, { default: zhCn }, icons] = await Promise.all([
             import("element-plus"),

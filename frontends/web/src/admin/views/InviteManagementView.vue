@@ -12,7 +12,7 @@
       <template #header>
         <div class="invite-page__toolbar">
           <div>
-            <p class="invite-page__eyebrow">Invite Codes</p>
+            <p class="invite-page__eyebrow">邀请码</p>
             <h3>邀请码管理</h3>
           </div>
           <div class="invite-page__toolbar-actions">

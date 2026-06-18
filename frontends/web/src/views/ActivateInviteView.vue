@@ -2,8 +2,8 @@
   <section class="auth-screen">
     <div class="auth-screen__panel">
       <div class="auth-screen__hero">
-        <p class="auth-screen__eyebrow">Invite Activation</p>
-        <h1>使用邀请码创建账号</h1>
+        <p class="auth-screen__eyebrow">Invite</p>
+        <h1>激活账号</h1>
       </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
@@ -91,7 +91,10 @@ async function handleSubmit() {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--bg-base);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(139, 212, 80, 0.18), transparent 28%),
+    radial-gradient(circle at 86% 10%, rgba(27, 124, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, #f6fbff 0%, #ffffff 52%, #f4fbf7 100%);
 }
 
 .auth-screen__panel {
@@ -100,10 +103,11 @@ async function handleSubmit() {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
   gap: 28px;
   padding: 30px;
-  border-radius: 28px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  background: #fff;
-  box-shadow: var(--shadow-panel);
+  border-radius: 22px;
+  border: 1px solid rgba(0, 169, 187, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 42px rgba(27, 124, 255, 0.08);
+  backdrop-filter: blur(18px);
 }
 
 .auth-screen__hero {
@@ -139,9 +143,9 @@ async function handleSubmit() {
   display: grid;
   gap: 15px;
   padding: 24px;
-  border-radius: 24px;
-  background: #f7f9fa;
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 18px;
+  background: #f7fbff;
+  border: 1px solid rgba(0, 169, 187, 0.1);
 }
 
 .auth-form__field {
@@ -159,7 +163,7 @@ async function handleSubmit() {
   min-height: 48px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 169, 187, 0.12);
   background: #fff;
   color: var(--text-strong);
 }

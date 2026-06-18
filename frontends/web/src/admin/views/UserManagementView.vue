@@ -20,7 +20,7 @@
       <template #header>
         <div class="user-page__toolbar">
           <div>
-            <p class="user-page__eyebrow">User Directory</p>
+            <p class="user-page__eyebrow">账号</p>
             <h3>账号列表</h3>
           </div>
           <div class="user-page__toolbar-actions">
@@ -101,7 +101,7 @@
                 <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
                 <el-button link type="warning" @click="openPasswordDialog(row)">改密码</el-button>
                 <el-button v-if="row.username === 'admin'" link type="primary" @click="openModelKeyDialog(row)">
-                  平台默认 Key
+                  默认 Key
                 </el-button>
                 <el-button
                   v-if="row.status === 'ACTIVE'"

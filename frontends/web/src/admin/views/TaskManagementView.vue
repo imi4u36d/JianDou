@@ -20,7 +20,7 @@
       <template #header>
         <div class="task-page__toolbar">
           <div>
-            <p class="task-page__eyebrow">Task Operations</p>
+            <p class="task-page__eyebrow">任务</p>
             <h3>任务列表</h3>
           </div>
           <div class="task-page__toolbar-actions">
@@ -72,7 +72,7 @@
           <template #default="{ row }">
             <div class="task-page__task-cell">
               <strong>{{ row.title || "未命名任务" }}</strong>
-              <span>ID: {{ row.id }}</span>
+              <span>{{ row.id }}</span>
               <span>{{ row.sourceFileName || "未记录素材文件" }}</span>
             </div>
           </template>

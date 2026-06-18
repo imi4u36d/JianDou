@@ -2,11 +2,8 @@
   <section class="dashboard-page">
     <div class="surface-card dashboard-page__hero">
       <div>
-        <p class="dashboard-page__eyebrow">Operations Overview</p>
+        <p class="dashboard-page__eyebrow">概览</p>
         <h3>运营首页</h3>
-        <p class="dashboard-page__hero-copy">
-          首页聚合用户规模、任务状态和系统负载，便于管理员快速掌握全局运行情况。
-        </p>
       </div>
       <div class="dashboard-page__hero-actions">
         <div class="dashboard-page__hero-meta">
@@ -56,7 +53,7 @@
             <template #header>
               <div class="dashboard-page__panel-header">
                 <div>
-                  <p class="dashboard-page__eyebrow">System Pulse</p>
+                  <p class="dashboard-page__eyebrow">系统</p>
                   <h4>系统脉搏</h4>
                 </div>
               </div>
@@ -75,7 +72,7 @@
             <template #header>
               <div class="dashboard-page__panel-header">
                 <div>
-                  <p class="dashboard-page__eyebrow">Recent Failures</p>
+                  <p class="dashboard-page__eyebrow">失败</p>
                   <h4>最近失败任务</h4>
                 </div>
               </div>
@@ -101,7 +98,7 @@
           <template #header>
             <div class="dashboard-page__panel-header">
               <div>
-                <p class="dashboard-page__eyebrow">User Queues</p>
+                <p class="dashboard-page__eyebrow">队列</p>
                 <h4>用户队列与额度</h4>
               </div>
             </div>
@@ -134,7 +131,7 @@
           <template #header>
             <div class="dashboard-page__panel-header">
               <div>
-                <p class="dashboard-page__eyebrow">Recent Tasks</p>
+                <p class="dashboard-page__eyebrow">任务</p>
                 <h4>最新任务</h4>
               </div>
             </div>

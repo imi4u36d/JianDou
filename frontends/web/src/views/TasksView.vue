@@ -1126,9 +1126,11 @@ onUnmounted(() => {
 .tasks-view {
   height: 100%;
   min-height: 0;
-  background: #fff;
+  background:
+    radial-gradient(circle at 82% 2%, rgba(27, 124, 255, 0.1), transparent 28%),
+    linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
   color: var(--text-strong);
-  padding: 18px 22px 18px 0;
+  padding: 18px 22px 18px 18px;
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(var(--tasks-list-column-width, 320px), var(--tasks-list-column-width, 410px)) minmax(0, 1fr);
@@ -1146,9 +1148,12 @@ onUnmounted(() => {
   display: grid;
   align-content: start;
   gap: 16px;
-  padding: 26px 20px 18px 26px;
-  border-right: 1px solid rgba(15, 20, 25, 0.08);
-  background: rgba(255, 255, 255, 0.5);
+  padding: 22px 18px;
+  border: 1px solid rgba(0, 169, 187, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 18px 42px rgba(27, 124, 255, 0.06);
+  backdrop-filter: blur(18px);
 }
 
 .tasks-list-panel-collapsed {
@@ -1160,6 +1165,7 @@ onUnmounted(() => {
 
 .task-detail-panel {
   display: grid;
+  min-width: 0;
 }
 
 .tasks-panel-header {
@@ -1183,9 +1189,9 @@ onUnmounted(() => {
   gap: 4px;
   width: 42px;
   height: 36px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 169, 187, 0.12);
   border-radius: 10px;
-  background: #fff;
+  background: #effcff;
   color: var(--text-strong);
 }
 
@@ -1221,9 +1227,9 @@ onUnmounted(() => {
   gap: 10px;
   min-height: 54px;
   padding: 0 14px;
-  border-radius: 14px;
-  border: 0;
-  background: #eef2f4;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 169, 187, 0.1);
+  background: #f3fbff;
 }
 
 .tasks-search-field__control svg {
@@ -1234,6 +1240,7 @@ onUnmounted(() => {
 
 .tasks-search-field__control input {
   width: 100%;
+  min-height: 42px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -1305,7 +1312,7 @@ onUnmounted(() => {
 
 .task-list {
   display: grid;
-  gap: 0;
+  gap: 8px;
 }
 
 .task-list__item {
@@ -1314,15 +1321,19 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   min-height: 82px;
-  padding: 12px 0;
-  border: 0;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 0;
-  background: transparent;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.64);
   text-align: left;
   color: var(--text-strong);
   cursor: pointer;
-  transition: background 180ms ease, color 180ms ease;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
 }
 
 .task-list__item:focus-visible {
@@ -1331,11 +1342,15 @@ onUnmounted(() => {
 }
 
 .task-list__item-active {
-  background: linear-gradient(90deg, rgba(124, 58, 237, 0.1), rgba(124, 58, 237, 0));
+  border-color: rgba(27, 124, 255, 0.18);
+  background: linear-gradient(90deg, rgba(237, 245, 255, 0.98), rgba(239, 252, 255, 0.86));
+  box-shadow: 0 10px 24px rgba(27, 124, 255, 0.08);
 }
 
 .task-list__item:hover {
-  background: rgba(255, 255, 255, 0.58);
+  transform: translateY(-1px);
+  border-color: rgba(0, 169, 187, 0.16);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .task-list__thumb {
@@ -1345,7 +1360,7 @@ onUnmounted(() => {
   height: 54px;
   overflow: hidden;
   border-radius: 14px;
-  background: #eef8fb;
+  background: linear-gradient(135deg, #effcff, #edf5ff);
   color: var(--accent-cyan);
   font-size: 0.92rem;
   font-weight: 900;
@@ -1392,7 +1407,7 @@ onUnmounted(() => {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--bg-accent);
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
 }
 
 .task-list__side {
@@ -1420,11 +1435,11 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 42px;
-  height: 26px;
+  min-width: 44px;
+  height: 32px;
   padding: 0 8px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 10px;
   font-size: 0.68rem;
   font-weight: 800;
   cursor: pointer;
@@ -1465,11 +1480,12 @@ onUnmounted(() => {
   align-content: start;
   gap: 20px;
   min-height: 100%;
-  padding: 30px 28px 24px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: 28px;
+  border: 1px solid rgba(0, 169, 187, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 42px rgba(27, 124, 255, 0.06);
+  backdrop-filter: blur(18px);
 }
 
 .task-detail-empty {
@@ -1613,11 +1629,10 @@ onUnmounted(() => {
 }
 
 .detail-section-card {
-  padding: 20px 0;
-  border: 0;
-  border-radius: 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.08);
-  background: transparent;
+  padding: 18px;
+  border: 1px solid rgba(18, 28, 33, 0.06);
+  border-radius: 16px;
+  background: rgba(250, 253, 255, 0.78);
 }
 
 .detail-section h3 {
@@ -1715,7 +1730,7 @@ onUnmounted(() => {
 
 .task-detail-grid-primary > .detail-section-card,
 .task-detail-grid-secondary > .detail-section-card:first-child {
-  border-top: 0;
+  border-top: 1px solid rgba(18, 28, 33, 0.06);
 }
 
 .task-result-preview {
@@ -1723,8 +1738,10 @@ onUnmounted(() => {
   place-items: center;
   min-height: 260px;
   overflow: hidden;
-  border-radius: 12px;
-  background: #eef2f4;
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
+    #f3fbff;
   color: var(--text-muted);
   font-weight: 760;
 }
@@ -1754,10 +1771,10 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--accent-cyan);
+  color: var(--accent-blue);
   font-size: 0.82rem;
   font-weight: 800;
-  border-bottom: 1px solid rgba(124, 58, 237, 0.28);
+  border-bottom: 1px solid rgba(27, 124, 255, 0.28);
 }
 
 .detail-note-block {

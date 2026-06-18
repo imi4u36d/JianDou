@@ -17,36 +17,38 @@
     "Microsoft YaHei",
     sans-serif;
   font-weight: 400;
-  --bg-base: #f5f3ff;
+  --bg-base: #f6fbff;
   --bg-surface: #ffffff;
   --bg-surface-strong: #ffffff;
-  --bg-soft: #ede9fe;
-  --bg-softer: #f5f3ff;
-  --surface-border: rgba(15, 20, 25, 0.07);
-  --surface-border-strong: rgba(124, 58, 237, 0.32);
-  --text-strong: #0f1419;
-  --text-body: #536471;
-  --text-muted: #72808a;
-  --accent-purple: #7c3aed;
-  --accent-cyan: #6366f1;
-  --accent-blue: #818cf8;
+  --bg-soft: #e9f8ff;
+  --bg-softer: #f4fbf7;
+  --surface-border: rgba(18, 28, 33, 0.08);
+  --surface-border-strong: rgba(0, 169, 187, 0.36);
+  --text-strong: #101819;
+  --text-body: #4f5f66;
+  --text-muted: #7a8990;
+  --accent-purple: #6c63ff;
+  --accent-cyan: #00a9bb;
+  --accent-blue: #1b7cff;
+  --accent-lime: #8bd450;
+  --accent-coral: #ff6b5f;
   --accent-danger: #e54865;
-  --accent-warning: #d98900;
-  --accent-strong: #7c3aed;
-  --bg-accent: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
-  --bg-accent-soft: rgba(124, 58, 237, 0.1);
-  --shadow-panel: 0 12px 36px rgba(15, 20, 25, 0.06);
-  --shadow-soft: 0 8px 22px rgba(15, 20, 25, 0.05);
+  --accent-warning: #ff9f1c;
+  --accent-strong: #008da1;
+  --bg-accent: linear-gradient(135deg, #00a9bb 0%, #1b7cff 100%);
+  --bg-accent-soft: rgba(0, 169, 187, 0.12);
+  --shadow-panel: 0 12px 34px rgba(18, 28, 33, 0.07);
+  --shadow-soft: 0 8px 20px rgba(18, 28, 33, 0.05);
   --shadow-glow:
-    0 0 0 1px rgba(124, 58, 237, 0.12),
-    0 14px 34px rgba(124, 58, 237, 0.14);
+    0 0 0 1px rgba(0, 169, 187, 0.12),
+    0 14px 34px rgba(27, 124, 255, 0.14);
   --shadow-raise: var(--shadow-panel);
   --shadow-raise-soft: var(--shadow-soft);
   --shadow-pressed: inset 0 1px 2px rgba(15, 20, 25, 0.08);
   --shadow-accent: var(--shadow-glow);
   --scrollbar-track: rgba(15, 20, 25, 0.04);
   --scrollbar-thumb: rgba(114, 128, 138, 0.34);
-  --scrollbar-thumb-hover: rgba(124, 58, 237, 0.5);
+  --scrollbar-thumb-hover: rgba(0, 169, 187, 0.5);
   --select-arrow:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23374151' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
@@ -112,7 +114,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(124, 58, 237, 0.18);
+  background: rgba(0, 169, 187, 0.18);
   color: var(--text-strong);
 }
 
@@ -120,7 +122,7 @@ textarea {
   outline: none;
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 4px rgba(124, 58, 237, 0.34);
+    0 0 0 4px rgba(0, 169, 187, 0.34);
 }
 
 #app {
@@ -153,20 +155,20 @@ textarea {
   }
 
   .surface-panel {
-    border-radius: 22px;
+    border-radius: 16px;
   }
 
   .surface-tile {
-    border-radius: 18px;
+    border-radius: 14px;
   }
 
   .surface-panel-compact {
-    border-radius: 18px;
+    border-radius: 14px;
     box-shadow: var(--shadow-soft);
   }
 
   .surface-tile-compact {
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: var(--shadow-soft);
   }
 
@@ -296,9 +298,9 @@ textarea {
   .field-input:focus,
   .field-select:focus,
   .field-textarea:focus {
-    border-color: rgba(124, 58, 237, 0.42);
+    border-color: rgba(0, 169, 187, 0.42);
     box-shadow:
-      0 0 0 3px rgba(124, 58, 237, 0.1),
+      0 0 0 3px rgba(0, 169, 187, 0.1),
       0 10px 26px rgba(15, 20, 25, 0.06);
   }
 
@@ -307,7 +309,7 @@ textarea {
   }
 
   .field-select:hover {
-    border-color: rgba(124, 58, 237, 0.24);
+    border-color: rgba(0, 169, 187, 0.24);
     box-shadow: 0 8px 20px rgba(15, 20, 25, 0.04);
   }
 
@@ -373,7 +375,7 @@ textarea {
     border-color: transparent;
     background: var(--bg-accent);
     color: #fff;
-    box-shadow: 0 12px 28px rgba(124, 58, 237, 0.22);
+    box-shadow: 0 12px 28px rgba(27, 124, 255, 0.22);
   }
 
   .btn-secondary,
@@ -386,12 +388,13 @@ textarea {
   }
 
   .btn-secondary {
-    border-color: rgba(15, 20, 25, 0.09);
+    border-color: rgba(0, 169, 187, 0.12);
+    background: rgba(255, 255, 255, 0.86);
   }
 
   .btn-ghost {
     border-color: transparent;
-    background: #f3f6f8;
+    background: #effcff;
     color: var(--text-body);
   }
 
@@ -436,8 +439,8 @@ textarea {
     gap: 0.35rem;
     padding: 0.3rem;
     border-radius: 16px;
-    background: #eef2f4;
-    border: 1px solid rgba(15, 20, 25, 0.06);
+    background: #effcff;
+    border: 1px solid rgba(0, 169, 187, 0.1);
   }
 
   .btn-segment {
@@ -448,8 +451,8 @@ textarea {
   }
 
   .btn-segment-active {
-    color: var(--accent-purple);
-    border-color: rgba(124, 58, 237, 0.16);
+    color: var(--accent-blue);
+    border-color: rgba(27, 124, 255, 0.18);
     background: #fff;
     box-shadow: var(--shadow-soft);
   }

@@ -2,11 +2,11 @@
   <main class="home-page">
     <section class="home-hero">
       <h1>
-        开启你的
+        今天先做一个
         <button type="button" class="hero-mode-button" @click="toggleMenu('mode')">
           {{ selectedMode.label }}
         </button>
-        即刻造梦！
+        项目
       </h1>
 
       <form class="home-composer" @submit.prevent="submitComposer">
@@ -121,7 +121,7 @@
 
             <div class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'model' }" @click="toggleMenu('model')">
-                <span class="home-tool__icon">□</span>
+                <span class="home-tool__icon"><IconModel /></span>
                 {{ selectedPrimaryModelLabel }}
               </button>
               <transition name="home-popover-float">
@@ -323,7 +323,7 @@
 
             <div v-if="selectedMode.kind === 'video'" class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'duration' }" @click="toggleMenu('duration')">
-                <span class="home-tool__icon">◷</span>
+                <span class="home-tool__icon"><IconDuration /></span>
                 {{ durationLabel }}
               </button>
               <transition name="home-popover-float">
@@ -347,7 +347,8 @@
 
             <div v-if="selectedModeValue !== 'character_sheet'" class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'count' }" @click="toggleMenu('count')">
-                ✦ {{ selectedMode.kind === "image" ? `${imageOutputCount} / 张` : outputCountLabel }}
+                <span class="home-tool__icon"><IconFrame /></span>
+                {{ selectedMode.kind === "image" ? `${imageOutputCount} / 张` : outputCountLabel }}
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'count'" class="home-popover home-popover-compact">
@@ -390,7 +391,7 @@
                 <div v-if="activeMenu === 'mention'" class="home-popover home-popover-mention">
                   <p class="home-popover__label">可能@的内容</p>
                   <button type="button" class="home-popover__item" @click="insertMention('创建主体')">
-                    <span class="home-popover__icon">+</span>
+                    <span class="home-popover__icon"><IconPlus size="sm" /></span>
                     <span>
                       <strong>创建主体</strong>
                       <small>{{ selectedMode.kind === "image" ? "基于参考图或描述生成主体" : "视频主体功能正在开发中" }}</small>
@@ -421,7 +422,7 @@
 
             <div class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'seed' }" @click="toggleMenu('seed')">
-                <span class="home-tool__icon">#</span>
+                <span class="home-tool__icon"><IconTag /></span>
                 {{ seedMode === "auto" ? "自动种子" : "手动种子" }}
               </button>
               <transition name="home-popover-float">
@@ -520,7 +521,7 @@ import { usePromptEditor } from "@/composables/home/usePromptEditor";
 import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
 import { useGenerationForm, type ModeValue, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
-import { IconCheck, IconVideo, IconImage, IconCharacter } from "@/components/icons";
+import { IconCheck, IconVideo, IconImage, IconCharacter, IconModel, IconDuration, IconFrame, IconTag, IconPlus } from "@/components/icons";
 
 type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention" | "seed";
 
@@ -871,15 +872,18 @@ onBeforeUnmount(() => {
 <style scoped>
 .home-page {
   min-height: 100%;
-  padding: 72px 48px 56px;
-  background: #fff;
+  padding: 76px 48px 56px;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(139, 212, 80, 0.18), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(27, 124, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, #f6fbff 0%, #ffffff 46%, #f4fbf7 100%);
   color: var(--text-strong);
 }
 
 .home-hero {
   display: grid;
   justify-items: center;
-  gap: 42px;
+  gap: 34px;
 }
 
 .home-hero h1 {
@@ -889,9 +893,12 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 8px;
   margin: 0;
-  font-size: clamp(1.45rem, 2.4vw, 2rem);
-  font-weight: 800;
+  max-width: 920px;
+  color: #131a20;
+  font-size: clamp(1.65rem, 3vw, 2.55rem);
+  font-weight: 780;
   letter-spacing: 0;
+  line-height: 1.18;
 }
 
 .hero-mode-button {
@@ -901,24 +908,30 @@ onBeforeUnmount(() => {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--accent-cyan);
+  color: var(--accent-blue);
   font: inherit;
   cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(27, 124, 255, 0.24);
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.14em;
 }
 
 .home-composer {
   position: relative;
   display: grid;
-  width: min(100%, 1280px);
-  min-height: 186px;
-  padding: 22px 66px 22px 126px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  border-radius: 28px;
-  background: #fff;
+  width: min(100%, 1120px);
+  min-height: 206px;
+  padding: 24px 72px 24px 128px;
+  border: 1px solid rgba(0, 169, 187, 0.12);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(253, 254, 253, 0.96)),
+    #fff;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.96) inset,
-    0 1px 2px rgba(15, 20, 25, 0.03),
-    0 12px 28px rgba(20, 28, 36, 0.04);
+    0 1px 0 rgba(255, 255, 255, 0.98) inset,
+    0 18px 42px rgba(27, 124, 255, 0.08),
+    0 4px 16px rgba(0, 169, 187, 0.06);
 }
 
 .home-hidden-input {
@@ -935,12 +948,12 @@ onBeforeUnmount(() => {
   gap: 6px;
   width: 68px;
   height: 98px;
-  border: 1px solid rgba(15, 20, 25, 0.04);
-  border-radius: 6px;
-  background: linear-gradient(180deg, #fafafa 0%, #f1f1f1 100%);
-  color: #6f7c88;
-  transform: rotate(-8deg);
-  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(18, 28, 33, 0.08);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #e9f8ff 100%);
+  color: var(--accent-blue);
+  transform: rotate(-5deg);
+  box-shadow: 0 12px 24px rgba(27, 124, 255, 0.12);
   cursor: pointer;
   overflow: visible;
   transition:
@@ -1260,7 +1273,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   max-width: calc(100% - 120px);
-  color: #a6b0ba;
+  color: #8c9aa4;
   font-size: 0.88rem;
   font-weight: 500;
   line-height: 1.5;
@@ -1272,9 +1285,9 @@ onBeforeUnmount(() => {
   place-items: center;
   width: 30px;
   height: 30px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid rgba(0, 169, 187, 0.18);
+  border-radius: 8px;
+  background: #effcff;
   color: var(--accent-cyan);
   font-size: 1.04rem;
   font-weight: 800;
@@ -1289,7 +1302,7 @@ onBeforeUnmount(() => {
   outline: none;
   background: transparent;
   color: var(--text-strong);
-  font-size: 0.98rem;
+  font-size: 1rem;
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1328,15 +1341,15 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
+  min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(18, 28, 33, 0.08);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.94);
+  background: #f7f9f8;
   color: var(--text-strong);
   font-size: 0.8rem;
   font-weight: 720;
-  box-shadow: 0 2px 8px rgba(15, 20, 25, 0.035);
+  box-shadow: none;
   cursor: pointer;
   transition:
     background 160ms ease,
@@ -1346,13 +1359,16 @@ onBeforeUnmount(() => {
 }
 
 .home-tool-accent {
-  color: #12202c;
+  border-color: rgba(0, 169, 187, 0.2);
+  background: #effcff;
+  color: #008da1;
 }
 
 .home-tool-active {
-  border-color: rgba(15, 20, 25, 0.12);
-  background: #f4f5f6;
-  box-shadow: inset 0 1px 2px rgba(15, 20, 25, 0.04);
+  border-color: rgba(27, 124, 255, 0.22);
+  background: #edf5ff;
+  color: var(--accent-blue);
+  box-shadow: inset 0 1px 2px rgba(18, 28, 33, 0.04);
 }
 
 .home-tool__icon {
@@ -1417,12 +1433,12 @@ onBeforeUnmount(() => {
   max-height: min(480px, calc(100vh - 120px));
   overflow-y: auto;
   padding: 10px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 16px;
+  border: 1px solid rgba(18, 28, 33, 0.08);
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.98);
   box-shadow:
-    0 12px 32px rgba(20, 28, 36, 0.1),
-    0 2px 8px rgba(20, 28, 36, 0.04);
+    0 18px 42px rgba(18, 28, 33, 0.12),
+    0 2px 8px rgba(18, 28, 33, 0.04);
   backdrop-filter: blur(12px);
 }
 
@@ -1473,7 +1489,7 @@ onBeforeUnmount(() => {
 }
 
 .home-popover__item-active {
-  background: #f1f2f3;
+  background: #effcff;
 }
 
 .home-popover__icon {
@@ -1481,9 +1497,9 @@ onBeforeUnmount(() => {
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 10px;
-  background: #eef7fa;
-  color: #1a8eb0;
+  border-radius: 8px;
+  background: #effcff;
+  color: var(--accent-cyan);
 }
 
 .home-popover__image {
@@ -1668,7 +1684,7 @@ onBeforeUnmount(() => {
 .home-ratio-active,
 .home-segment-active {
   background: #fff !important;
-  color: var(--accent-cyan) !important;
+  color: var(--accent-blue) !important;
   box-shadow: 0 1px 4px rgba(15, 20, 25, 0.08);
 }
 
@@ -1788,7 +1804,7 @@ onBeforeUnmount(() => {
 }
 
 .home-seed-row button {
-  color: var(--accent-cyan);
+  color: var(--accent-blue);
 }
 
 .home-composer__meta {
@@ -1805,7 +1821,7 @@ onBeforeUnmount(() => {
 }
 
 .home-composer__meta a {
-  color: var(--accent-cyan);
+  color: var(--accent-blue);
   font-weight: 800;
 }
 
@@ -1839,18 +1855,20 @@ onBeforeUnmount(() => {
   height: 40px;
   border: 0;
   border-radius: 50%;
-  background: #111418;
+  background: #101819;
   color: #fff;
   box-shadow: 0 10px 24px rgba(15, 20, 25, 0.12);
   cursor: pointer;
 }
 
 .home-composer__submit:not(:disabled) {
-  background: #111418;
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
+  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.2);
 }
 
 .home-composer__submit:disabled {
   cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .home-composer__submit svg {
@@ -1862,7 +1880,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: stretch;
   gap: 14px;
-  width: min(100%, 1280px);
+  width: min(100%, 1120px);
   margin: 14px auto 0;
   overflow-x: auto;
   padding: 2px 2px 10px;
@@ -1886,7 +1904,7 @@ onBeforeUnmount(() => {
   min-height: 166px;
   padding: 16px;
   border: 1px solid rgba(15, 20, 25, 0.06);
-  border-radius: 18px;
+  border-radius: 14px;
   background: #fff;
   color: var(--text-strong);
   text-decoration: none;
@@ -1937,7 +1955,7 @@ onBeforeUnmount(() => {
 
 .home-active-task-card__status {
   background: #eef8fb;
-  color: var(--accent-cyan);
+  color: var(--accent-blue);
 }
 
 .home-active-task-card h2 {
@@ -1976,7 +1994,7 @@ onBeforeUnmount(() => {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent-cyan);
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
   transition: width 240ms ease;
 }
 
@@ -1994,7 +2012,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 720px) {
   .home-page {
-    padding: 28px 14px 32px;
+    padding: 26px 14px 32px;
   }
 
   .home-hero {
@@ -2004,7 +2022,7 @@ onBeforeUnmount(() => {
   .home-composer {
     min-height: 0;
     padding: 18px 62px 18px 18px;
-    border-radius: 24px;
+    border-radius: 18px;
   }
 
   .home-composer__toolbar,
@@ -2097,8 +2115,9 @@ onBeforeUnmount(() => {
     left: 14px;
     right: 14px;
     top: auto;
-    bottom: 88px;
+    bottom: 76px;
     width: auto;
+    max-height: min(430px, calc(100vh - 120px));
   }
 
   .home-popover-ratio {

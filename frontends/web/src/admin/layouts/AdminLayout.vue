@@ -9,8 +9,8 @@
           <img alt="煎豆 Logo" class="admin-layout__brand-logo" src="/brand/jiandou-mark.svg" />
         </div>
         <div>
-          <p class="admin-layout__eyebrow">Admin Console</p>
-          <h1>JianDou 管理系统</h1>
+          <p class="admin-layout__eyebrow">Admin</p>
+          <h1>JianDou</h1>
         </div>
       </div>
 
@@ -55,11 +55,10 @@
     <section class="admin-layout__main">
       <header class="surface-card admin-layout__header">
         <div>
-          <p class="admin-layout__eyebrow">Secure Area</p>
+          <p class="admin-layout__eyebrow">Console</p>
           <h2>{{ currentTitle }}</h2>
         </div>
         <div class="admin-layout__header-meta">
-          <span>仅管理员可访问</span>
           <el-tag type="warning" effect="plain">Admin Only</el-tag>
         </div>
       </header>
@@ -126,13 +125,13 @@ async function handleLogout() {
 .admin-layout__aurora-left {
   top: -120px;
   left: -80px;
-  background: rgba(196, 107, 47, 0.24);
+  background: rgba(139, 212, 80, 0.22);
 }
 
 .admin-layout__aurora-right {
   right: -80px;
   bottom: -120px;
-  background: rgba(47, 122, 136, 0.22);
+  background: rgba(27, 124, 255, 0.2);
 }
 
 .admin-layout__aside {
@@ -140,7 +139,7 @@ async function handleLogout() {
   flex-direction: column;
   gap: 20px;
   padding: 24px 18px 18px;
-  border-radius: 28px;
+  border-radius: 22px;
 }
 
 .admin-layout__brand {
@@ -155,8 +154,8 @@ async function handleLogout() {
   place-items: center;
   width: 54px;
   height: 54px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(196, 107, 47, 0.18), rgba(47, 122, 136, 0.18));
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(0, 169, 187, 0.16), rgba(27, 124, 255, 0.16));
 }
 
 .admin-layout__brand-logo {
@@ -211,7 +210,7 @@ async function handleLogout() {
   justify-content: space-between;
   gap: 16px;
   padding: 20px 24px;
-  border-radius: 24px;
+  border-radius: 18px;
 }
 
 .admin-layout__header-meta {

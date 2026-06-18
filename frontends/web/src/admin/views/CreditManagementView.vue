@@ -4,7 +4,7 @@
       <template #header>
         <div class="credit-page__toolbar">
           <div>
-            <p class="credit-page__eyebrow">Credit Center</p>
+            <p class="credit-page__eyebrow">积分</p>
             <h3>积分管理</h3>
           </div>
           <el-button :icon="Refresh" plain @click="refreshActiveTab">刷新</el-button>
