@@ -180,7 +180,7 @@ export function useTaskProgress() {
       status: "running",
       progress: 8,
       stage: "提交生成请求",
-      message: "正在创建视频生成任务...",
+      message: "创建视频任务",
       ...(initial || {}),
     });
     startOptimisticProgress();

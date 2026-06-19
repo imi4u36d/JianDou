@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Depends
+
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.config import settings
+
+from backend.auth import get_current_user
 from backend.database import get_db
-from backend.routers.auth import get_current_user
 from backend.services.credit_service import CreditService
 
 router = APIRouter(prefix="/api/v3/auth", tags=["credits"])

@@ -2,7 +2,7 @@
   <section class="dashboard-page">
     <div class="surface-card dashboard-page__hero">
       <div class="dashboard-page__hero-meta">
-        <span>最近同步：{{ lastUpdatedLabel }}</span>
+        <span>{{ lastUpdatedLabel }}</span>
         <el-tag :type="overview?.modelReady ? 'success' : 'danger'" effect="plain">
           {{ overview?.modelReady ? "模型已就绪" : "模型未就绪" }}
         </el-tag>
@@ -46,9 +46,7 @@
           <el-card class="surface-card dashboard-page__panel" shadow="never">
             <template #header>
               <div class="dashboard-page__panel-header">
-                <div>
-                  <h4>系统脉搏</h4>
-                </div>
+                <h4>系统脉搏</h4>
               </div>
             </template>
 
@@ -64,9 +62,7 @@
           <el-card class="surface-card dashboard-page__panel" shadow="never">
             <template #header>
               <div class="dashboard-page__panel-header">
-                <div>
-                  <h4>最近失败任务</h4>
-                </div>
+                <h4>最近失败</h4>
               </div>
             </template>
 
@@ -89,9 +85,7 @@
         <el-card class="surface-card dashboard-page__panel" shadow="never">
           <template #header>
             <div class="dashboard-page__panel-header">
-              <div>
-                <h4>用户队列与额度</h4>
-              </div>
+              <h4>队列额度</h4>
             </div>
           </template>
 
@@ -121,9 +115,7 @@
         <el-card class="surface-card dashboard-page__panel" shadow="never">
           <template #header>
             <div class="dashboard-page__panel-header">
-              <div>
-                <h4>最新任务</h4>
-              </div>
+              <h4>最新任务</h4>
             </div>
           </template>
 
@@ -193,7 +185,7 @@ const summaryCards = computed(() => {
   const counts = overview.value?.counts;
   return [
     { label: "用户", value: users.value.length, note: "全部账号", tone: "accent" },
-    { label: "任务", value: counts?.totalTasks ?? 0, note: "全量记录", tone: "secondary" },
+    { label: "任务", value: counts?.totalTasks ?? 0, note: "总数", tone: "secondary" },
     { label: "成功", value: counts?.completedTasks ?? 0, note: "已完成", tone: "success" },
     { label: "失败", value: counts?.failedTasks ?? 0, note: "待排查", tone: "danger" },
     { label: "运行", value: counts?.runningTasks ?? 0, note: "执行中", tone: "warning" },
@@ -208,7 +200,7 @@ const pulseItems = computed(() => {
   const adminUsers = users.value.filter((user) => user.role === "ADMIN").length;
   return [
     { label: "活跃用户", value: activeUsers, note: "可登录" },
-    { label: "管理员", value: adminUsers, note: "后台权限" },
+    { label: "管理员", value: adminUsers, note: "后台" },
     { label: "禁用账号", value: disabledUsers, note: "已暂停" },
     { label: "在线 Worker", value: overview.value?.workers?.onlineCount ?? 0, note: "工作节点" },
     { label: "队列积压", value: overview.value?.queue?.queueLength ?? 0, note: "未开始" },

@@ -17,7 +17,7 @@ interface CreateReviewItem {
 interface CreateReviewSection {
   key: string;
   title: string;
-  eyebrow: string;
+  label: string;
   items: CreateReviewItem[];
 }
 
@@ -28,7 +28,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   const creatingWorkflow = ref(false);
   const createComposerVisible = ref(false);
   const createComposerMenu = ref<"" | "models" | "output" | "duration" | "seed">("");
-  const createStatusText = ref("参数加载中...");
+  const createStatusText = ref("加载参数");
   const createTextFileInput = ref<HTMLInputElement | null>(null);
   const uploadingCreateText = ref(false);
   const storyboardDurationMode = ref<"auto" | "manual">("auto");
@@ -132,7 +132,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   const createReviewSections = computed<CreateReviewSection[]>(() => [
     {
       key: "base",
-      eyebrow: "Workflow Base",
+      label: "基础",
       title: "基础信息",
       items: [
         { key: "title", label: "标题", valueLabel: createForm.title.trim() || "未填写", configured: Boolean(createForm.title.trim()), required: true },
@@ -141,7 +141,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     },
     {
       key: "storyboard",
-      eyebrow: "Stage 1",
+      label: "分镜",
       title: "文本分镜",
       items: [
         { key: "textAnalysisModel", label: "文本模型", valueLabel: valueOptionLabel(textModelOptions.value, createForm.textAnalysisModel, "未设置"), configured: Boolean(createForm.textAnalysisModel), required: true },
@@ -150,7 +150,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     },
     {
       key: "keyframe",
-      eyebrow: "Stage 2",
+      label: "画面",
       title: "关键帧",
       items: [
         { key: "imageModel", label: "关键帧模型", valueLabel: valueOptionLabel(imageModelOptions.value, createForm.imageModel, "未设置"), configured: Boolean(createForm.imageModel), required: true },
@@ -161,7 +161,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     },
     {
       key: "video",
-      eyebrow: "Stage 3",
+      label: "视频",
       title: "视频生成",
       items: [
         { key: "videoModel", label: "视频模型", valueLabel: valueOptionLabel(videoModelOptions.value, createForm.videoModel, "未设置"), configured: Boolean(createForm.videoModel), required: true },
@@ -217,7 +217,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   function startCreateWorkflow() {
     createComposerVisible.value = true;
     createComposerMenu.value = "";
-    createStatusText.value = "在这里输入正文，创建一个新的阶段画布。";
+    createStatusText.value = "输入正文后创建阶段画布";
   }
 
   async function closeCreateReview() {
@@ -258,7 +258,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
       return;
     }
     uploadingCreateText.value = true;
-    createStatusText.value = "正在读取正文...";
+    createStatusText.value = "读取正文";
     try {
       const [, content] = await Promise.all([uploadText(file), readTextFile(file)]);
       if (content.trim()) {
@@ -267,7 +267,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
           createForm.title = file.name.replace(/\.txt$/i, "");
         }
       }
-      createStatusText.value = "正文已填入画布输入框。";
+      createStatusText.value = "正文已填入";
     } catch (error) {
       const message = error instanceof Error ? error.message : "正文上传失败";
       createStatusText.value = message;
@@ -285,7 +285,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     });
     if (!authenticated) return;
     creatingWorkflow.value = true;
-    createStatusText.value = "正在创建画布...";
+    createStatusText.value = "创建画布";
     try {
       const workflow = await createWorkflow(buildCreatePayload());
       createForm.title = "";
@@ -295,7 +295,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
       storyboardDurationMode.value = "auto";
       storyboardManualDurationSeconds.value = "8";
       createComposerMenu.value = "";
-      createStatusText.value = "画布创建完成，正在进入阶段工作流。";
+      createStatusText.value = "进入阶段工作流";
       createComposerVisible.value = false;
       await loadWorkflows();
       openWorkflow(workflow.id, workflow.currentStage);

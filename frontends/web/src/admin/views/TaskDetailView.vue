@@ -1,16 +1,16 @@
 <template>
   <section>
-    <div v-if="loading" class="py-8 text-center text-sm text-slate-500">加载中</div>
+    <div v-if="loading" class="admin-task-detail-loading">加载中</div>
 
     <template v-else-if="task">
-      <div class="grid gap-4 xl:grid-cols-[1fr_1fr]">
+      <div class="admin-task-detail-grid">
         <el-card class="surface-card admin-task-detail-card" shadow="never">
           <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <h3 class="text-base font-semibold text-slate-900">基础信息</h3>
-              <div class="flex flex-wrap gap-2">
-                <el-button v-if="task?.status === 'FAILED'" type="warning" :disabled="actionLoading" @click="retryTaskAction">重试</el-button>
-                <el-button type="danger" :disabled="actionLoading || runningTask" @click="deleteTaskAction">删除</el-button>
+            <div class="admin-task-detail-card__header">
+              <h3>概览</h3>
+              <div class="admin-task-detail-card__actions">
+                <el-button v-if="task?.status === 'FAILED'" size="small" type="warning" :disabled="actionLoading" @click="retryTaskAction">重试</el-button>
+                <el-button size="small" type="danger" :disabled="actionLoading || runningTask" @click="deleteTaskAction">删除</el-button>
               </div>
             </div>
           </template>
@@ -28,14 +28,16 @@
 
           <el-divider />
 
-          <h4 class="mb-3 text-sm font-semibold text-slate-900">{{ planningSummary.label }}</h4>
-          <p class="text-sm text-slate-700">{{ planningSummary.title }}</p>
+          <section class="admin-detail-section admin-detail-section-compact">
+            <h4>{{ planningSummary.label }}</h4>
+            <p>{{ planningSummary.title }}</p>
+          </section>
 
           <el-divider v-if="monitoringRows.length" />
 
           <div v-if="monitoringRows.length">
-            <div class="mb-3 flex items-center gap-2">
-              <h4 class="text-sm font-semibold text-slate-900">执行监控</h4>
+            <div class="admin-detail-section-title">
+              <h4>执行监控</h4>
               <el-tag size="small">{{ monitoringStageLabel }}</el-tag>
             </div>
             <el-descriptions :column="2" border size="small">
@@ -48,8 +50,8 @@
           <el-divider v-if="durationDiagnostics.length" />
 
           <div v-if="durationDiagnostics.length">
-            <div class="mb-3 flex items-center gap-2">
-              <h4 class="text-sm font-semibold text-slate-900">镜头时长诊断</h4>
+            <div class="admin-detail-section-title">
+              <h4>镜头时长诊断</h4>
               <el-tag size="small">{{ durationDiagnostics.length }} 镜</el-tag>
             </div>
             <el-table :data="durationDiagnostics" stripe size="small">
@@ -78,8 +80,8 @@
           <el-divider v-if="artifactRows.length" />
 
           <div v-if="artifactRows.length">
-            <div class="mb-3 flex items-center gap-2">
-              <h4 class="text-sm font-semibold text-slate-900">产物目录</h4>
+            <div class="admin-detail-section-title">
+              <h4>产物目录</h4>
               <el-tag size="small">{{ artifactDirectoryHint }}</el-tag>
             </div>
             <el-descriptions :column="1" border size="small">
@@ -92,8 +94,8 @@
           <el-divider />
 
           <div>
-            <div class="mb-3 flex items-center gap-2">
-              <h4 class="text-sm font-semibold text-slate-900">创建参数</h4>
+            <div class="admin-detail-section-title">
+              <h4>创建参数</h4>
               <el-tag size="small">时长模式 {{ requestDurationMode }}</el-tag>
             </div>
             <el-descriptions :column="2" border size="small">
@@ -101,17 +103,23 @@
                 {{ item.value }}
               </el-descriptions-item>
             </el-descriptions>
-            <el-alert v-if="task.creativePrompt" class="mt-3" :title="task.creativePrompt" type="info" :closable="false" />
-            <el-alert v-if="requestTranscriptPreview" class="mt-3" :title="requestTranscriptPreview" type="info" :closable="false" />
+            <section v-if="task.creativePrompt" class="admin-detail-text-block">
+              <strong>创意提示</strong>
+              <p>{{ task.creativePrompt }}</p>
+            </section>
+            <section v-if="requestTranscriptPreview" class="admin-detail-text-block">
+              <strong>正文预览</strong>
+              <p>{{ requestTranscriptPreview }}</p>
+            </section>
           </div>
 
-          <el-alert v-if="task.errorMessage" class="mt-4" :title="task.errorMessage" type="error" :closable="false" />
+          <el-alert v-if="task.errorMessage" class="admin-task-detail-error" :title="task.errorMessage" type="error" :closable="false" />
 
           <el-divider v-if="task.plan?.length" />
 
           <div v-if="task.plan?.length">
-            <div class="mb-3 flex items-center gap-2">
-              <h4 class="text-sm font-semibold text-slate-900">任务计划</h4>
+            <div class="admin-detail-section-title">
+              <h4>任务计划</h4>
               <el-tag size="small">{{ task.plan.length }} 条</el-tag>
             </div>
             <el-table :data="task.plan" stripe size="small">
@@ -121,7 +129,7 @@
               <el-table-column label="标题" min-width="200">
                 <template #default="{ row }">
                   <p class="font-medium">{{ (row as TaskPlanClip).title }}</p>
-                  <p class="text-xs text-slate-500">{{ (row as TaskPlanClip).reason }}</p>
+                  <p class="admin-task-detail-muted">{{ (row as TaskPlanClip).reason }}</p>
                 </template>
               </el-table-column>
               <el-table-column label="时长" width="80">
@@ -136,13 +144,22 @@
 
         <el-card class="surface-card admin-task-detail-card" shadow="never">
           <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 class="text-base font-semibold text-slate-900">任务日志</h3>
-              </div>
-              <div class="flex flex-wrap gap-2">
+            <div class="admin-task-detail-card__header">
+              <h3>日志</h3>
+              <div class="admin-task-detail-card__actions">
                 <el-button size="small" @click="refresh">刷新</el-button>
-                <el-button size="small" @click="traceExpanded = !traceExpanded">{{ traceExpanded ? "收起" : "展开" }}</el-button>
+                <el-button
+                  size="small"
+                  circle
+                  :aria-label="traceExpanded ? '收起日志' : '展开日志'"
+                  :title="traceExpanded ? '收起' : '展开'"
+                  @click="traceExpanded = !traceExpanded"
+                >
+                  <el-icon>
+                    <ArrowUp v-if="traceExpanded" />
+                    <ArrowDown v-else />
+                  </el-icon>
+                </el-button>
               </div>
             </div>
           </template>
@@ -152,12 +169,12 @@
               <el-descriptions-item label="当前重点">
                 {{ traceFocus?.message || "暂无日志" }}
                 <template v-if="traceFocus?.timestamp">
-                  <br><span class="text-xs text-slate-500">{{ formatTime(traceFocus.timestamp) }}</span>
+                  <br><span class="admin-task-detail-muted">{{ formatTime(traceFocus.timestamp) }}</span>
                 </template>
               </el-descriptions-item>
             </el-descriptions>
 
-            <el-table v-if="traceEvents.length" class="mt-3" :data="traceExpanded ? orderedTraceEvents : tracePreview" stripe size="small">
+            <el-table v-if="traceEvents.length" class="admin-task-detail-trace-table" :data="traceExpanded ? orderedTraceEvents : tracePreview" stripe size="small">
               <el-table-column label="时间" min-width="160">
                 <template #default="{ row }">{{ formatTime((row as TaskTraceEvent).timestamp) }}</template>
               </el-table-column>
@@ -174,36 +191,36 @@
               </el-table-column>
               <el-table-column label="事件" min-width="120">
                 <template #default="{ row }">
-                  <span class="text-xs text-slate-500">{{ (row as TaskTraceEvent).event }}</span>
+                  <span class="admin-task-detail-muted">{{ (row as TaskTraceEvent).event }}</span>
                 </template>
               </el-table-column>
             </el-table>
-            <div v-else class="py-4 text-center text-sm text-slate-500">暂无日志</div>
+            <div v-else class="admin-task-detail-empty">暂无日志</div>
           </div>
         </el-card>
       </div>
 
-      <el-card v-if="diagnosis" class="surface-card mt-4" shadow="never">
+      <el-card v-if="diagnosis" class="surface-card admin-task-detail-diagnosis" shadow="never">
         <template #header>
-          <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="admin-task-detail-diagnosis__head">
             <div>
-              <h3 class="text-base font-semibold text-slate-900">任务诊断</h3>
-              <p class="mt-1 text-sm text-slate-600">{{ diagnosis.summary }}</p>
+              <h3>诊断</h3>
+              <p>{{ diagnosis.summary }}</p>
             </div>
             <el-tag :type="diagnosisSeverityTag" effect="light">{{ diagnosisSeverityLabel }}</el-tag>
           </div>
         </template>
-        <div class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div class="space-y-3">
-            <el-card v-for="finding in diagnosis.findings" :key="finding.code" shadow="never" class="border">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold">{{ finding.title }}</p>
+        <div class="admin-task-detail-diagnosis__grid">
+          <div class="admin-task-detail-finding-list">
+            <article v-for="finding in diagnosis.findings" :key="finding.code" class="admin-task-detail-finding">
+              <div class="admin-task-detail-finding__head">
+                <p>{{ finding.title }}</p>
                 <el-tag :type="findingSeverityTag(finding.severity)" effect="light" size="small">{{ diagnosisSeverityText(finding.severity) }}</el-tag>
               </div>
-              <p class="mt-2 text-sm text-slate-700">{{ finding.detail }}</p>
-            </el-card>
+              <p class="admin-task-detail-finding__detail">{{ finding.detail }}</p>
+            </article>
           </div>
-          <div class="space-y-3">
+          <div>
             <el-descriptions :column="1" border size="small">
               <el-descriptions-item label="推荐动作">{{ diagnosisRecoveryAction }}</el-descriptions-item>
               <el-descriptions-item label="恢复起点">{{ diagnosisRecoveryStart }}</el-descriptions-item>
@@ -219,7 +236,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { ArrowDown, ArrowUp } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import {
   deleteAdminTask,
@@ -510,11 +528,20 @@ async function retryTaskAction() {
 }
 
 async function deleteTaskAction() {
-  if (!window.confirm(`确认删除任务"${task.value?.title || taskId.value}"吗？`)) return;
+  try {
+    await ElMessageBox.confirm(`删除后不可恢复，确认删除任务 ${task.value?.title || taskId.value} 吗？`, "删除任务", {
+      type: "warning",
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+      confirmButtonClass: "el-button--danger",
+    });
+  } catch {
+    return;
+  }
   actionLoading.value = true;
   try {
     await deleteAdminTask(taskId.value);
-    await router.push("/tasks");
+    await router.push("/admin/tasks");
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "删除失败");
   } finally {
@@ -529,8 +556,102 @@ watch(taskId, () => {
 </script>
 
 <style scoped>
+.admin-task-detail-grid {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 1280px) {
+  .admin-task-detail-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 0.82fr);
+    align-items: start;
+  }
+}
+
 .admin-task-detail-card {
   min-width: 0;
+}
+
+.admin-task-detail-loading,
+.admin-task-detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  color: #5c6773;
+  font-size: 0.88rem;
+}
+
+.admin-task-detail-empty {
+  min-height: 72px;
+}
+
+.admin-task-detail-muted {
+  color: #5c6773;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.admin-task-detail-diagnosis {
+  margin-top: 16px;
+}
+
+.admin-task-detail-error {
+  margin-top: 16px;
+}
+
+.admin-task-detail-diagnosis__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-task-detail-diagnosis__head h3,
+.admin-task-detail-finding__head p {
+  margin: 0;
+  color: #17202a;
+  font-size: 0.98rem;
+  font-weight: 850;
+}
+
+.admin-task-detail-diagnosis__head p {
+  margin: 4px 0 0;
+  color: #5c6773;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.admin-task-detail-diagnosis__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 16px;
+}
+
+.admin-task-detail-finding-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-task-detail-finding {
+  padding: 12px 14px;
+  border: 1px solid rgba(23, 32, 42, 0.08);
+  border-radius: 14px;
+  background: #f7fbff;
+}
+
+.admin-task-detail-finding__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-task-detail-finding__detail {
+  margin: 8px 0 0;
+  color: #5c6773;
+  font-size: 0.88rem;
+  line-height: 1.65;
 }
 
 .admin-task-detail-card :deep(.el-card__header) {
@@ -539,5 +660,123 @@ watch(taskId, () => {
 
 .admin-task-detail-card :deep(.el-card__body) {
   padding: 18px;
+}
+
+.admin-task-detail-card__header,
+.admin-detail-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-task-detail-card__header {
+  flex-wrap: wrap;
+}
+
+.admin-task-detail-card__header h3,
+.admin-detail-section-title h4,
+.admin-detail-section h4 {
+  margin: 0;
+  color: #17202a;
+  font-size: 0.98rem;
+  font-weight: 850;
+}
+
+.admin-task-detail-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-detail-section-title {
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+
+.admin-detail-section-compact {
+  padding: 12px 14px;
+  border: 1px solid rgba(23, 32, 42, 0.08);
+  border-radius: 14px;
+  background: #f7fbff;
+}
+
+.admin-detail-section p,
+.admin-detail-text-block p {
+  margin: 6px 0 0;
+  color: #5c6773;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.admin-detail-text-block {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 169, 187, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f7feff, #f7fbff);
+}
+
+.admin-detail-text-block strong {
+  display: block;
+  color: #17202a;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.admin-detail-text-block p {
+  max-height: 150px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.admin-task-detail-card :deep(.el-descriptions__label) {
+  width: 112px;
+  color: #5c6773;
+  font-weight: 780;
+}
+
+.admin-task-detail-card :deep(.el-descriptions__content) {
+  color: #17202a;
+  overflow-wrap: anywhere;
+}
+
+.admin-task-detail-card :deep(.el-table) {
+  width: 100%;
+}
+
+.admin-task-detail-trace-table {
+  margin-top: 12px;
+}
+
+.admin-task-detail-card :deep(.el-table__inner-wrapper) {
+  border-radius: 14px;
+}
+
+@media (max-width: 720px) {
+  .admin-task-detail-card :deep(.el-card__header),
+  .admin-task-detail-card :deep(.el-card__body) {
+    padding: 14px;
+  }
+
+  .admin-task-detail-card__actions {
+    width: 100%;
+  }
+
+  .admin-task-detail-card__actions .el-button {
+    flex: 1 1 120px;
+  }
+
+  .admin-task-detail-card :deep(.el-descriptions__body) {
+    overflow-x: auto;
+  }
+
+  .admin-detail-text-block p {
+    max-height: 220px;
+  }
+
+  .admin-task-detail-diagnosis__grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -35,6 +35,8 @@ export type IconName =
   | "download"
   | "settings"
   | "user"
+  | "eye"
+  | "eye-off"
   // Status
   | "success"
   | "error"

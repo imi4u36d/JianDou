@@ -49,7 +49,8 @@ function buildQuery(filters?: MaterialAssetQuery) {
 
 export function fetchMaterialAssets(filters?: MaterialAssetQuery) {
   const query = buildQuery(filters);
-  return getJson<MaterialAssetLibraryItem[]>(query ? `/material-assets?${query}` : "/material-assets");
+  return getJson<MaterialAssetLibraryItem[] | MaterialAssetPage>(query ? `/material-assets?${query}` : "/material-assets")
+    .then((result) => Array.isArray(result) ? result : result.items ?? []);
 }
 
 export function fetchMaterialAssetPage(filters?: MaterialAssetQuery) {

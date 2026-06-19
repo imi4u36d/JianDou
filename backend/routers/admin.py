@@ -1,14 +1,37 @@
 """Admin router — administrative API endpoints."""
 
 from __future__ import annotations
-from fastapi import APIRouter, Request, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.auth import require_admin
 from backend.database import get_db
-from backend.routers.auth import get_current_user, require_admin
+from backend.schemas.admin import (
+    AdminAdjustCreditRequest,
+    AdminBulkTerminateTasksRequest,
+    AdminCreateInviteRequest,
+    AdminCreateUserRequest,
+    AdminModelConfigKeysRequest,
+    AdminTaskBatchActionRequest,
+    AdminUpdateCreditRuleRequest,
+    AdminUpdateUserPasswordRequest,
+    AdminUpdateUserRequest,
+    AdminUpdateUserStatusRequest,
+)
 from backend.services.auth_service import AuthService
 from backend.services.credit_service import CreditService
+from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest as ModelConfigKeyUpdateRequest
 
 router = APIRouter(prefix="/api/v3/admin", tags=["admin"])
+
+
+def _bad_request(exc: Exception) -> HTTPException:
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+def _not_found(detail: str) -> HTTPException:
+    return HTTPException(status_code=404, detail=detail)
 
 
 @router.get("/overview")
@@ -47,23 +70,20 @@ async def admin_list_tasks(request: Request):
 
 
 @router.post("/tasks/batch-action")
-async def admin_batch_task_action(request: Request):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    action = body.get("action", "")
-    task_ids = body.get("taskIds", [])
+async def admin_batch_task_action(body: AdminTaskBatchActionRequest, request: Request):
+    await require_admin(request)
     app_service = request.app.state.task_application_service
     succeeded: list[str] = []
     failed: list[dict] = []
-    for task_id in (task_ids or []):
+    for task_id in body.task_ids:
         try:
             await app_service.admin_terminate_task(task_id)
             succeeded.append(task_id)
         except Exception as exc:
             failed.append({"taskId": task_id, "error": str(exc)})
     return {
-        "action": action,
-        "requested_count": len(task_ids),
+        "action": body.action,
+        "requested_count": len(body.task_ids),
         "succeeded_task_ids": succeeded,
         "failed": failed,
     }
@@ -101,45 +121,39 @@ async def admin_get_model_config(request: Request):
 
 
 @router.put("/model-config/keys")
-async def admin_update_model_config_keys(request: Request):
+async def admin_update_model_config_keys(body: AdminModelConfigKeysRequest, request: Request):
     user = await require_admin(request)
-    body = await request.json()
     config_service = request.app.state.user_model_config_service
-    from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest
-    providers_raw = body.get("providers", [])
     provider_inputs = [
-        AdminModelConfigKeyUpdateRequest.ProviderKeyInput(
-            key=p.get("key", ""),
-            apiKey=p.get("apiKey", ""),
+        ModelConfigKeyUpdateRequest.ProviderKeyInput(
+            key=provider.key,
+            apiKey=provider.api_key,
         )
-        for p in providers_raw
+        for provider in body.providers
     ]
-    update_request = AdminModelConfigKeyUpdateRequest(providers=provider_inputs)
+    update_request = ModelConfigKeyUpdateRequest(providers=provider_inputs)
     result = config_service.save_keys(user["id"], update_request)
     return result
 
 
 @router.post("/model-config/validate")
-async def admin_validate_model_config_keys(request: Request):
+async def admin_validate_model_config_keys(body: AdminModelConfigKeysRequest, request: Request):
     user = await require_admin(request)
-    body = await request.json()
     config_service = request.app.state.user_model_config_service
-    from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest
-    providers_raw = body.get("providers", [])
     provider_inputs = [
-        AdminModelConfigKeyUpdateRequest.ProviderKeyInput(
-            key=p.get("key", ""),
-            apiKey=p.get("apiKey", ""),
+        ModelConfigKeyUpdateRequest.ProviderKeyInput(
+            key=provider.key,
+            apiKey=provider.api_key,
         )
-        for p in providers_raw
+        for provider in body.providers
     ]
-    update_request = AdminModelConfigKeyUpdateRequest(providers=provider_inputs)
+    update_request = ModelConfigKeyUpdateRequest(providers=provider_inputs)
     return config_service.validate_keys(user["id"], update_request)
 
 
 @router.get("/users")
 async def admin_list_users(request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     q = request.query_params.get("q", "")
     role = request.query_params.get("role", "")
     status_param = request.query_params.get("status", "")
@@ -149,132 +163,121 @@ async def admin_list_users(request: Request, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/users")
-async def admin_create_user(request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
-    body = await request.json()
+async def admin_create_user(body: AdminCreateUserRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
         user = await auth_service.create_user(
-            username=body.get("username", ""),
-            password=body.get("password", ""),
-            display_name=body.get("displayName", body.get("display_name", "")),
-            role=body.get("role", "USER"),
-            status=body.get("status", "ACTIVE"),
-            task_concurrency_limit=body.get("taskConcurrencyLimit", body.get("task_concurrency_limit", 1)),
+            username=body.username,
+            password=body.password,
+            display_name=body.display_name,
+            role=body.role,
+            status=body.status,
+            task_concurrency_limit=body.task_concurrency_limit,
         )
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return user
 
 
 @router.patch("/users/{user_id}")
-async def admin_update_user(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    # Accept both camelCase and snake_case
-    updates = {
-        "display_name": body.get("displayName", body.get("display_name")),
-        "role": body.get("role"),
-        "status": body.get("status"),
-        "task_concurrency_limit": body.get("taskConcurrencyLimit", body.get("task_concurrency_limit")),
-    }
-    # Remove None values so only provided fields get updated
-    updates = {k: v for k, v in updates.items() if v is not None}
+async def admin_update_user(
+    user_id: int,
+    body: AdminUpdateUserRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    await require_admin(request)
+    updates = body.model_dump(exclude_none=True)
     auth_service = AuthService(db)
     try:
         user = await auth_service.update_user(user_id, updates)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     if not user:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail="user_not_found")
+        raise _not_found("user_not_found")
     return user
 
 
 @router.delete("/users/{user_id}")
 async def admin_delete_user(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
         result = await auth_service.delete_user(user_id)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return {"success": result}
 
 
 @router.patch("/users/{user_id}/password")
-async def admin_update_user_password(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    password = body.get("password", "")
+async def admin_update_user_password(
+    user_id: int,
+    body: AdminUpdateUserPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
-        user = await auth_service.update_password(user_id, password)
+        user = await auth_service.update_password(user_id, body.password)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     if not user:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail="user_not_found")
+        raise _not_found("user_not_found")
     return user
 
 
 @router.post("/users/{user_id}/enable")
 async def admin_enable_user(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
         user = await auth_service.enable_user(user_id)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     if not user:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail="user_not_found")
+        raise _not_found("user_not_found")
     return user
 
 
 @router.post("/users/{user_id}/disable")
 async def admin_disable_user(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
         user = await auth_service.disable_user(user_id)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     if not user:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail="user_not_found")
+        raise _not_found("user_not_found")
     return user
 
 
 @router.patch("/users/{user_id}/status")
-async def admin_update_user_status_legacy(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    action = body.get("action", "")
+async def admin_update_user_status_legacy(
+    user_id: int,
+    body: AdminUpdateUserStatusRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
-        if action == "enable":
+        if body.action == "enable":
             user = await auth_service.enable_user(user_id)
-        elif action == "disable":
+        elif body.action == "disable":
             user = await auth_service.disable_user(user_id)
         else:
-            from fastapi import HTTPException as FastAPIHTTPException
-            raise FastAPIHTTPException(status_code=400, detail="invalid_action")
+            raise HTTPException(status_code=400, detail="invalid_action")
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return user
 
 
 @router.get("/credits/users")
 async def admin_list_credit_users(request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     q = request.query_params.get("q", "")
     credit_service = CreditService(db)
     users = await credit_service.list_users(q)
@@ -282,45 +285,48 @@ async def admin_list_credit_users(request: Request, db: AsyncSession = Depends(g
 
 
 @router.post("/credits/users/{user_id}/adjust")
-async def admin_adjust_user_credit(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    amount = body.get("amount", 0)
-    reason = body.get("reason", "")
+async def admin_adjust_user_credit(
+    user_id: int,
+    body: AdminAdjustCreditRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    await require_admin(request)
     credit_service = CreditService(db)
     try:
-        result = await credit_service.adjust(user_id, amount, reason)
+        result = await credit_service.adjust(user_id, body.amount, body.reason)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return result
 
 
 @router.get("/credits/rules")
 async def admin_list_credit_rules(request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     credit_service = CreditService(db)
     rules = await credit_service.list_rules()
     return rules
 
 
 @router.patch("/credits/rules/{rule_code}")
-async def admin_update_credit_rule(rule_code: str, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    cost = body.get("cost", 0)
+async def admin_update_credit_rule(
+    rule_code: str,
+    body: AdminUpdateCreditRuleRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    await require_admin(request)
     credit_service = CreditService(db)
     try:
-        result = await credit_service.update_rule(rule_code, cost)
+        result = await credit_service.update_rule(rule_code, body.cost)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return result
 
 
 @router.get("/invites")
 async def admin_list_invites(request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     auth_service = AuthService(db)
     invites = await auth_service.list_invites()
     return invites
@@ -328,7 +334,7 @@ async def admin_list_invites(request: Request, db: AsyncSession = Depends(get_db
 
 @router.get("/credits/users/{user_id}/transactions")
 async def admin_list_credit_transactions(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     credit_service = CreditService(db)
     transactions = await credit_service.list_transactions(user_id)
     return transactions
@@ -336,40 +342,37 @@ async def admin_list_credit_transactions(user_id: int, request: Request, db: Asy
 
 @router.post("/invites/{invite_id}/revoke")
 async def admin_revoke_invite(invite_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     auth_service = AuthService(db)
     try:
         invite = await auth_service.revoke_invite(invite_id)
     except ValueError as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        if str(exc) == "invite_not_found":
+            raise _not_found("invite_not_found")
+        raise _bad_request(exc)
     if not invite:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail="invite_not_found")
+        raise _not_found("invite_not_found")
     return invite
 
 
 @router.post("/tasks/{task_id}/terminate")
 async def admin_terminate_single_task(task_id: str, request: Request):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     app_service = request.app.state.task_application_service
     try:
-        result = await app_service.admin_terminate_task(task_id)
+        await app_service.admin_terminate_task(task_id)
     except Exception as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return {"success": True, "taskId": task_id}
 
 
 @router.post("/tasks/bulk-terminate")
-async def admin_bulk_terminate_tasks(request: Request):
-    admin_user = await require_admin(request)
-    body = await request.json()
-    task_ids = body.get("taskIds", [])
+async def admin_bulk_terminate_tasks(body: AdminBulkTerminateTasksRequest, request: Request):
+    await require_admin(request)
     app_service = request.app.state.task_application_service
     succeeded: list[str] = []
     failed: list[dict] = []
-    for task_id in (task_ids or []):
+    for task_id in body.task_ids:
         try:
             await app_service.admin_terminate_task(task_id)
             succeeded.append(task_id)
@@ -377,42 +380,41 @@ async def admin_bulk_terminate_tasks(request: Request):
             failed.append({"taskId": task_id, "error": str(exc)})
     return {
         "action": "terminate",
-        "requestedCount": len(task_ids),
+        "requestedCount": len(body.task_ids),
         "succeededTaskIds": succeeded,
         "failed": failed,
     }
 
 
 @router.post("/invites")
-async def admin_create_invite(request: Request, db: AsyncSession = Depends(get_db)):
+async def admin_create_invite(
+    body: AdminCreateInviteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     admin_user = await require_admin(request)
-    body = await request.json()
-    role = body.get("role", "USER")
-    expires_at = body.get("expiresAt", body.get("expires_at"))
     auth_service = AuthService(db)
     try:
-        invite = await auth_service.create_invite(role, admin_user["id"], expires_at)
+        invite = await auth_service.create_invite(body.role, admin_user["id"], body.expires_at)
     except (ValueError, RuntimeError) as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return invite
 
 
 @router.get("/tasks/{task_id}")
 async def admin_get_task(task_id: str, request: Request):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     app_service = request.app.state.task_application_service
     try:
         task = await app_service.admin_get_task(task_id)
     except Exception as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail=str(exc))
+        raise _not_found(str(exc))
     return task
 
 
 @router.get("/tasks/{task_id}/trace")
 async def admin_get_task_trace(task_id: str, request: Request):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     app_service = request.app.state.task_application_service
     limit_raw = request.query_params.get("limit", "50")
     try:
@@ -423,20 +425,18 @@ async def admin_get_task_trace(task_id: str, request: Request):
         task = await app_service.admin_get_task(task_id)
         trace = task.get("trace", [])[-limit:]
     except Exception as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail=str(exc))
+        raise _not_found(str(exc))
     return trace
 
 
 @router.get("/tasks/{task_id}/diagnosis")
 async def admin_get_task_diagnosis(task_id: str, request: Request):
-    admin_user = await require_admin(request)
+    await require_admin(request)
     app_service = request.app.state.task_application_service
     try:
         task = await app_service.admin_get_task(task_id)
     except Exception as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=404, detail=str(exc))
+        raise _not_found(str(exc))
     severity = "info"
     if task.get("status") == "FAILED":
         severity = "high"
@@ -463,8 +463,7 @@ async def admin_retry_task(task_id: str, request: Request):
     try:
         result = await app_service.retry_task(task_id, admin_user["id"])
     except Exception as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return result
 
 
@@ -475,6 +474,5 @@ async def admin_delete_task(task_id: str, request: Request):
     try:
         await app_service.delete_task(task_id, admin_user["id"])
     except Exception as exc:
-        from fastapi import HTTPException as FastAPIHTTPException
-        raise FastAPIHTTPException(status_code=400, detail=str(exc))
+        raise _bad_request(exc)
     return {"success": True, "taskId": task_id}

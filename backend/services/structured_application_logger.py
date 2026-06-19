@@ -6,10 +6,8 @@ Events are also retained in an in-memory ring buffer for recent-trace queries.
 from __future__ import annotations
 
 import collections
-import hashlib
 import json
 import logging
-import re
 import threading
 from datetime import datetime, timezone
 from typing import Any

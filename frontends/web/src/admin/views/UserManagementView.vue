@@ -19,9 +19,7 @@
         <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="user-page__toolbar">
-          <div>
-            <h3>账号列表</h3>
-          </div>
+          <span class="user-page__toolbar-spacer" aria-hidden="true"></span>
           <div class="user-page__toolbar-actions">
             <el-button plain @click="resetFilters">重置</el-button>
             <el-button :icon="Refresh" plain @click="loadUsers">刷新</el-button>
@@ -94,13 +92,13 @@
               {{ formatDateTime(row.createdAt) }}
             </template>
           </el-table-column>
-          <el-table-column align="right" label="操作" min-width="300">
+          <el-table-column align="right" label="操作" min-width="210">
             <template #default="{ row }">
               <div class="user-page__actions">
-                <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
-                <el-button link type="warning" @click="openPasswordDialog(row)">改密码</el-button>
-                <el-button v-if="row.username === 'admin'" link type="primary" @click="openModelKeyDialog(row)">
-                  默认 Key
+                <el-button link type="primary" title="编辑" aria-label="编辑" @click="openEditDialog(row)">编辑</el-button>
+                <el-button link type="warning" title="重置密码" aria-label="重置密码" @click="openPasswordDialog(row)">密码</el-button>
+                <el-button v-if="row.username === 'admin'" link type="primary" title="默认 Key" aria-label="默认 Key" @click="openModelKeyDialog(row)">
+                  Key
                 </el-button>
                 <el-button
                   v-if="row.status === 'ACTIVE'"
@@ -108,7 +106,7 @@
                   type="warning"
                   @click="toggleUserStatus(row, 'disable')"
                 >
-                  禁用
+                  停用
                 </el-button>
                 <el-button
                   v-else
@@ -575,13 +573,13 @@ onMounted(async () => {
 .user-page__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
 }
 
-.user-page__toolbar h3 {
-  margin: 0;
-  font-family: inherit;
+.user-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .user-page__toolbar-actions,
@@ -597,7 +595,9 @@ onMounted(async () => {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 6px 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 .user-page__filters-action {
@@ -609,7 +609,7 @@ onMounted(async () => {
 }
 
 .user-page__table {
-  min-width: 1420px;
+  min-width: 1280px;
   width: 100%;
 }
 
@@ -627,10 +627,22 @@ onMounted(async () => {
 
 .user-page__actions {
   justify-content: flex-end;
+  gap: 6px;
 }
 
 .user-page__actions :deep(.el-button) {
   margin-left: 0;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background: #f7fbff;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.user-page__actions :deep(.el-button:hover) {
+  background: #effcff;
 }
 
 .user-page__dialog-grid {

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { IconClose } from "@/components/icons";
+
 interface ImagePreviewItem {
   url: string;
   alt: string;
@@ -33,7 +35,9 @@ const emit = defineEmits<{
     @keydown.left.prevent="emit('switchFrame', -1)"
     @keydown.right.prevent="emit('switchFrame', 1)"
   >
-    <button type="button" class="image-preview-close" aria-label="关闭原图预览" @click="emit('close')">×</button>
+    <button type="button" class="image-preview-close" aria-label="关闭原图预览" @click="emit('close')">
+      <IconClose size="sm" />
+    </button>
     <img class="image-preview-full" :src="url" :alt="alt" />
   </div>
 </template>

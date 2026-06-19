@@ -16,7 +16,6 @@ from backend.domain.enums import (
     AttemptStatus,
     AttemptTriggerType,
     QueueEventType,
-    TraceLevel,
     WorkerStatus,
 )
 from backend.domain.task_record import TaskRecord

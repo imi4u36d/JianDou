@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel
-from typing import Optional, Any
+
 
 class PaginatedResponse(BaseModel):
     items: list

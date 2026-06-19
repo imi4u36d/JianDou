@@ -6,7 +6,6 @@ so that log output stays manageable.
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import re
 from typing import Any

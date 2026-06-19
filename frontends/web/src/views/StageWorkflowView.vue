@@ -60,8 +60,11 @@
           :disabled="creatingWorkflow || loadingOptions"
           @click="startCreateWorkflow"
         >
-          <span aria-hidden="true">+</span>
-          <strong>{{ creatingWorkflow ? "创建中..." : "新建" }}</strong>
+          <span aria-hidden="true">
+            <IconLoading v-if="creatingWorkflow" size="sm" />
+            <IconPlus v-else size="sm" />
+          </span>
+          <strong>{{ creatingWorkflow ? "创建中" : "新建" }}</strong>
         </button>
         <article
           v-for="item in filteredWorkflows"
@@ -89,7 +92,9 @@
                 :disabled="busyActionKey === `delete-workflow-${item.id}`"
                 @click="handleDeleteWorkflow(item)"
               >
-                {{ busyActionKey === `delete-workflow-${item.id}` ? "..." : "删除" }}
+                <IconLoading v-if="busyActionKey === `delete-workflow-${item.id}`" size="xs" />
+                <IconDelete v-else size="xs" />
+                <span>{{ busyActionKey === `delete-workflow-${item.id}` ? "删除中" : "删除" }}</span>
               </button>
             </div>
           </div>
@@ -107,7 +112,7 @@
               :disabled="uploadingCreateText"
               @click="createTextFileInput?.click()"
             >
-              <span>+</span>
+              <span><IconUpload size="md" /></span>
               <small>{{ uploadingCreateText ? "上传中" : "导入正文" }}</small>
             </button>
             <input
@@ -141,6 +146,7 @@
                   :class="{ 'tool-pill-active': createComposerMenu === 'models' }"
                   @click="toggleCreateComposerMenu('models')"
                 >
+                  <span class="tool-pill__icon"><IconModel size="sm" /></span>
                   {{ createModelMenuLabel }}
                 </button>
                 <div v-if="createComposerMenu === 'models'" class="workflow-create-popover workflow-create-popover-grid">
@@ -166,6 +172,7 @@
                   :class="{ 'tool-pill-active': createComposerMenu === 'output' }"
                   @click="toggleCreateComposerMenu('output')"
                 >
+                  <span class="tool-pill__icon"><IconSettings size="sm" /></span>
                   {{ createOutputMenuLabel }}
                 </button>
                 <div v-if="createComposerMenu === 'output'" class="workflow-create-popover workflow-create-popover-grid">
@@ -191,6 +198,7 @@
                   :class="{ 'tool-pill-active': createComposerMenu === 'duration' }"
                   @click="toggleCreateComposerMenu('duration')"
                 >
+                  <span class="tool-pill__icon"><IconDuration size="sm" /></span>
                   {{ createDurationMenuLabel }}
                 </button>
                 <div v-if="createComposerMenu === 'duration'" class="workflow-create-popover workflow-create-popover-compact">
@@ -216,6 +224,7 @@
                   :class="{ 'tool-pill-active': createComposerMenu === 'seed' }"
                   @click="toggleCreateComposerMenu('seed')"
                 >
+                  <span class="tool-pill__icon"><IconTag size="sm" /></span>
                   {{ createSeedMenuLabel }}
                 </button>
                 <div v-if="createComposerMenu === 'seed'" class="workflow-create-popover workflow-create-popover-grid">
@@ -245,8 +254,11 @@
                   :disabled="creatingWorkflow || !canSubmitCreateReview"
                   :title="canSubmitCreateReview ? '创建画布' : '请先补全必填项'"
                 >
-                  <span v-if="creatingWorkflow">...</span>
-                  <span v-else>↑</span>
+                  <IconLoading v-if="creatingWorkflow" size="xs" />
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 19V5" />
+                    <path d="m5 12 7-7 7 7" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -275,8 +287,15 @@
                   <strong class="workflow-summary-tag__value">{{ item.value }}</strong>
                 </span>
               </div>
-              <button class="btn-secondary btn-sm workflow-canvas-header__settings-button" type="button" @click="workflowSettingsOpen = !workflowSettingsOpen">
-                {{ workflowSettingsOpen ? "收起" : "参数" }}
+              <button
+                class="btn-secondary btn-sm workflow-canvas-header__settings-button"
+                type="button"
+                :class="{ 'workflow-canvas-header__settings-button-active': workflowSettingsOpen }"
+                :aria-label="workflowSettingsOpen ? '收起参数' : '编辑参数'"
+                :title="workflowSettingsOpen ? '收起参数' : '编辑参数'"
+                @click="workflowSettingsOpen = !workflowSettingsOpen"
+              >
+                <IconSettings size="sm" />
               </button>
             </div>
             <section v-if="workflowSettingsOpen" class="workflow-header-settings">
@@ -292,16 +311,19 @@
                 <label class="workflow-field"><span>视觉风格</span><AppSelect v-model="workflowSettingsDraft.stylePreset" :options="stylePresetSelectOptions" /></label>
                 <label class="workflow-field"><span>长宽比</span><AppSelect v-model="workflowSettingsDraft.aspectRatio" :options="aspectRatioSelectOptions" /></label>
                 <label class="workflow-field"><span>输出尺寸</span><AppSelect v-model="workflowSettingsDraft.videoSize" :options="workflowSettingsVideoSizeSelectOptions" /></label>
-                <label class="workflow-field"><span>关键帧 Seed</span><input v-model="workflowSettingsDraft.keyframeSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
-                <label class="workflow-field"><span>视频 Seed</span><input v-model="workflowSettingsDraft.videoSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
+                <label class="workflow-field workflow-field-compact"><span>关键帧 Seed</span><input v-model="workflowSettingsDraft.keyframeSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
+                <label class="workflow-field workflow-field-compact"><span>视频 Seed</span><input v-model="workflowSettingsDraft.videoSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
                 <div class="workflow-field"><span>镜头时长</span><div class="stage-toggle-row"><button type="button" class="stage-toggle-chip" :class="{ 'stage-toggle-chip-active': workflowSettingsDraft.durationMode === 'auto' }" @click="workflowSettingsDraft.durationMode = 'auto'">自动</button><button type="button" class="stage-toggle-chip" :class="{ 'stage-toggle-chip-active': workflowSettingsDraft.durationMode === 'manual' }" @click="workflowSettingsDraft.durationMode = 'manual'">手动</button></div></div>
-                <label class="workflow-field"><span>最小时长</span><input v-model="workflowSettingsDraft.minDurationSeconds" class="field-input" type="number" min="1" max="60" step="1" :disabled="workflowSettingsDraft.durationMode === 'auto'" /></label>
-                <label class="workflow-field"><span>最大时长</span><input v-model="workflowSettingsDraft.maxDurationSeconds" class="field-input" type="number" min="1" max="60" step="1" :disabled="workflowSettingsDraft.durationMode === 'auto'" /></label>
+                <label v-if="workflowSettingsDraft.durationMode === 'manual'" class="workflow-field workflow-field-compact"><span>最小时长</span><input v-model="workflowSettingsDraft.minDurationSeconds" class="field-input" type="number" min="1" max="60" step="1" /></label>
+                <label v-if="workflowSettingsDraft.durationMode === 'manual'" class="workflow-field workflow-field-compact"><span>最大时长</span><input v-model="workflowSettingsDraft.maxDurationSeconds" class="field-input" type="number" min="1" max="60" step="1" /></label>
                 <p v-if="workflowSettingsValidationMessage" class="workflow-error workflow-header-settings__error">{{ workflowSettingsValidationMessage }}</p>
                 <div class="workflow-header-settings__actions">
-                  <button class="btn-secondary btn-sm" type="button" :disabled="busyActionKey === 'workflow-settings'" @click="workflowSettingsOpen = false">收起</button>
+                  <button class="workflow-icon-action" type="button" :disabled="busyActionKey === 'workflow-settings'" title="收起" aria-label="收起参数" @click="workflowSettingsOpen = false">
+                    <IconClose size="xs" />
+                  </button>
                   <button class="btn-primary btn-sm" type="submit" :disabled="busyActionKey === 'workflow-settings' || Boolean(workflowSettingsValidationMessage)">
-                    {{ busyActionKey === "workflow-settings" ? "..." : "保存" }}
+                    <IconLoading v-if="busyActionKey === 'workflow-settings'" size="xs" />
+                    <span>{{ busyActionKey === "workflow-settings" ? "保存中" : "保存" }}</span>
                   </button>
                 </div>
               </form>
@@ -317,7 +339,8 @@
               <div class="stage-board__head">
                 <h3>分镜脚本</h3>
                 <button class="btn-primary btn-sm" type="button" :disabled="busyActionKey === 'storyboard'" @click="handleGenerateStoryboard">
-                  {{ busyActionKey === "storyboard" ? "生成中..." : "生成" }}
+                  <IconLoading v-if="busyActionKey === 'storyboard'" size="xs" />
+                  <span>{{ busyActionKey === "storyboard" ? "生成中" : "生成" }}</span>
                 </button>
               </div>
 
@@ -345,10 +368,17 @@
                           </button>
                           <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                             <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectStoryboard(version.id)">
-                              {{ version.selected ? "当前" : "设为当前" }}
+                              <IconCheck size="xs" />
+                              <span>{{ version.selected ? "当前" : "设为当前" }}</span>
                             </button>
-                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
-                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除</button>
+                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">
+                              <IconPlus size="xs" />
+                              <span>复用</span>
+                            </button>
+                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">
+                              <IconDelete size="xs" />
+                              <span>删除</span>
+                            </button>
                           </div>
                         </div>
                       </article>
@@ -363,7 +393,8 @@
                       :disabled="busyActionKey === `storyboard-adjust-${selectedStoryboardVersion.id}` || selectedStoryboardVersion.status !== 'SUCCEEDED'"
                       @click="handleAdjustStoryboard(selectedStoryboardVersion.id)"
                     >
-                      {{ busyActionKey === `storyboard-adjust-${selectedStoryboardVersion.id}` ? "调整中..." : "调整分镜" }}
+                      <IconLoading v-if="busyActionKey === `storyboard-adjust-${selectedStoryboardVersion.id}`" size="xs" />
+                      <span>{{ busyActionKey === `storyboard-adjust-${selectedStoryboardVersion.id}` ? "调整中" : "调整" }}</span>
                     </button>
                   </div>
                 </article>
@@ -376,7 +407,8 @@
                 <div class="stage-board__meta">
                   <span class="surface-chip">{{ workflowCharacterSheets.length }} 个角色</span>
                   <button class="btn-primary btn-sm" type="button" :disabled="!missingCharacterSheets.length || busyActionKey === 'character-missing'" @click="handleGenerateMissingCharacterSheets">
-                    {{ busyActionKey === "character-missing" ? "..." : "补齐角色" }}
+                    <IconLoading v-if="busyActionKey === 'character-missing'" size="xs" />
+                    <span>{{ busyActionKey === "character-missing" ? "补齐中" : "补齐" }}</span>
                   </button>
                 </div>
               </div>
@@ -419,16 +451,27 @@
                       type="button"
                       class="character-mini-frame"
                       :aria-label="`查看${characterSheetTitle(sheet)}${frame.label}`"
-                      @click="openImagePreview(frame.url, `${characterSheetTitle(sheet)} ${frame.label}`)"
-                    >
-                      <img :src="frame.url" :alt="`${characterSheetTitle(sheet)} ${frame.label}`" />
+                    @click="openImagePreview(frame.url, `${characterSheetTitle(sheet)} ${frame.label}`)"
+                  >
+                      <img
+                        v-if="isPreviewImageAvailable(frame.url)"
+                        :src="frame.url"
+                        :alt="`${characterSheetTitle(sheet)} ${frame.label}`"
+                        @error="markPreviewImageFailed(frame.url)"
+                      />
+                      <span v-else class="workflow-image-fallback" aria-hidden="true"><IconEmpty size="sm" /></span>
                       <span>{{ frame.label }}</span>
                     </button>
                   </div>
                   <div class="character-mini-card__actions">
-                    <button class="btn-secondary btn-sm" type="button" :disabled="characterSheetClipIndex(sheet) === null" @click="openCharacterAssetPicker(sheet)">素材库</button>
-                    <button class="btn-ghost btn-sm" type="button" :disabled="characterSheetClipIndex(sheet) === null || busyActionKey === 'character-missing' || busyActionKey === `keyframe-${characterSheetClipIndex(sheet)}`" @click="handleGenerateKeyframe(characterSheetClipIndex(sheet) || 0)">
-                      {{ previewCharacterSheetVersion(sheet) ? "重生" : "生成" }}
+                    <button class="btn-secondary btn-sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null" title="从素材库选择" aria-label="从素材库选择" @click="openCharacterAssetPicker(sheet)">
+                      <IconSearch size="xs" />
+                      <span>素材</span>
+                    </button>
+                    <button class="btn-ghost btn-sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null || busyActionKey === 'character-missing' || busyActionKey === `keyframe-${characterSheetClipIndex(sheet)}`" :title="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" :aria-label="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" @click="handleGenerateKeyframe(characterSheetClipIndex(sheet) || 0)">
+                      <IconRefresh v-if="previewCharacterSheetVersion(sheet)" size="xs" />
+                      <IconPlus v-else size="xs" />
+                      <span>{{ previewCharacterSheetVersion(sheet) ? "重生" : "生成" }}</span>
                     </button>
                   </div>
                   <section v-if="isCharacterAssetPickerOpen(sheet)" class="character-asset-picker">
@@ -436,7 +479,9 @@
                       <div>
                         <h4>{{ characterSheetTitle(sheet) }}素材</h4>
                       </div>
-                      <button class="btn-secondary btn-sm" type="button" @click="closeCharacterAssetPicker">收起</button>
+                      <button class="workflow-icon-action" type="button" title="收起" aria-label="收起素材选择" @click="closeCharacterAssetPicker">
+                        <IconClose size="xs" />
+                      </button>
                     </div>
                     <div class="character-asset-picker__filters">
                       <label class="workflow-field">
@@ -448,7 +493,9 @@
                         <input v-model="characterAssetPicker.model" class="field-input" type="search" placeholder="模型" @keyup.enter="loadCharacterAssetCandidates(sheet)" />
                       </label>
                       <button class="btn-secondary btn-sm character-asset-picker__search" type="button" :disabled="characterAssetPicker.loading" @click="loadCharacterAssetCandidates(sheet)">
-                        {{ characterAssetPicker.loading ? "搜索中..." : "搜索" }}
+                        <IconLoading v-if="characterAssetPicker.loading" size="xs" />
+                        <IconSearch v-else size="xs" />
+                        <span>{{ characterAssetPicker.loading ? "搜索中" : "搜索" }}</span>
                       </button>
                     </div>
                     <p v-if="characterAssetPicker.error" class="workflow-error">{{ characterAssetPicker.error }}</p>
@@ -457,7 +504,13 @@
                     <div v-else class="character-asset-grid">
                       <article v-for="asset in characterAssetPicker.assets" :key="asset.id" class="character-asset-card">
                         <button type="button" class="character-asset-card__preview" :aria-label="`查看${asset.title}素材预览`" @click="openImagePreview(materialAssetPreviewUrl(asset), asset.title)">
-                          <img :src="materialAssetPreviewUrl(asset)" :alt="asset.title" />
+                          <img
+                            v-if="isPreviewImageAvailable(materialAssetPreviewUrl(asset))"
+                            :src="materialAssetPreviewUrl(asset)"
+                            :alt="asset.title"
+                            @error="markPreviewImageFailed(materialAssetPreviewUrl(asset))"
+                          />
+                          <span v-else class="workflow-image-fallback" aria-hidden="true"><IconEmpty size="sm" /></span>
                         </button>
                         <div class="character-asset-card__body">
                           <strong>{{ asset.title }}</strong>
@@ -466,7 +519,8 @@
                           </div>
                         </div>
                         <button class="btn-primary btn-sm" type="button" :disabled="busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}`" @click="handleSelectCharacterSheetAsset(sheet, asset.id)">
-                          {{ busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}` ? "选择中..." : "选择" }}
+                          <IconLoading v-if="busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}`" size="xs" />
+                          <span>{{ busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}` ? "选择中" : "选择" }}</span>
                         </button>
                       </article>
                     </div>
@@ -479,7 +533,8 @@
               <div class="stage-board__head">
                 <h3>关键帧</h3>
                 <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateKeyframe(selectedCanvasClip.clipIndex)">
-                  {{ selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}` ? "生成中..." : "生成" }}
+                  <IconLoading v-if="selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" size="xs" />
+                  <span>{{ selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
                 </button>
               </div>
 
@@ -504,13 +559,9 @@
                       <h4>{{ selectedCanvasClip.shotLabel || `镜头 #${selectedCanvasClip.clipIndex}` }}</h4>
                       <p>{{ clipSceneSummary(selectedCanvasClip) }}</p>
                     </div>
-                    <span class="surface-chip">{{ selectedCanvasClip.durationHint || `${selectedCanvasClip.targetDurationSeconds || 0}s` }}</span>
+                    <span class="surface-chip clip-detail-card__status">{{ selectedCanvasClip.durationHint || `${selectedCanvasClip.targetDurationSeconds || 0}s` }}</span>
                   </div>
                   <div v-if="selectedCanvasClip.keyframeVersions.length" class="version-switcher">
-                    <div class="version-switcher__head">
-                      <strong>版本历史</strong>
-                      <span class="surface-chip">{{ selectedCanvasClip.keyframeVersions.length }} 个版本</span>
-                    </div>
                     <div class="version-switcher__tabs">
                       <article
                         v-for="version in selectedCanvasClip.keyframeVersions"
@@ -528,9 +579,9 @@
                             <IconMore size="sm" />
                           </button>
                           <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
-                            <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectKeyframe(selectedCanvasClip.clipIndex, version.id)">选中</button>
-                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
-                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除</button>
+                            <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="handleSelectKeyframe(selectedCanvasClip.clipIndex, version.id)"><IconCheck size="xs" /><span>设为当前</span></button>
+                            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)"><IconPlus size="xs" /><span>复用</span></button>
+                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)"><IconDelete size="xs" /><span>删除</span></button>
                           </div>
                         </div>
                       </article>
@@ -547,22 +598,47 @@
                         <span v-if="frame.selected" class="surface-chip">已选</span>
                       </div>
                       <button
-                        v-if="frame.url"
+                        v-if="frame.url && !isPreviewImageFailed(frame.url)"
                         type="button"
                         class="character-sheet-preview-trigger keyframe-frame-card__preview"
                         :class="isLandscapeKeyframeVersion(previewKeyframeVersion) ? 'keyframe-frame-card__preview-landscape' : 'keyframe-frame-card__preview-portrait'"
                         :aria-label="`查看${frame.label}原图`"
                         @click="openKeyframeImagePreview(previewKeyframeVersion, frame)"
                       >
-                        <img class="version-card__image keyframe-frame-card__image" :src="frame.url" :alt="frame.label" />
+                        <img
+                          class="version-card__image keyframe-frame-card__image"
+                          :src="frame.url"
+                          :alt="frame.label"
+                          @error="markPreviewImageFailed(frame.url)"
+                        />
                       </button>
-                      <div v-else class="keyframe-frame-card__failure">
-                        <strong>{{ frame.label }}生成失败</strong>
-                        <span>{{ frame.errorMessage || "请单独重生此帧" }}</span>
+                      <div v-else class="keyframe-frame-card__failure" :class="{ 'keyframe-frame-card__failure-soft': !frame.errorMessage }" :title="frame.errorMessage || frame.label">
+                        <IconWarning v-if="frame.errorMessage" size="sm" />
+                        <IconEmpty v-else size="sm" />
+                        <strong>{{ frame.errorMessage ? "生成失败" : frame.label }}</strong>
                       </div>
                       <div class="keyframe-frame-card__actions">
-                        <button class="btn-secondary btn-sm" type="button" :disabled="frame.selected || busyActionKey === `${previewKeyframeVersion.id}-${frame.role}`" @click="handleSelectKeyframeFrame(selectedCanvasClip.clipIndex, previewKeyframeVersion.id, frame.role)">选中</button>
-                        <button class="btn-ghost btn-sm" type="button" :disabled="!frame.regenerable || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}-${frame.role}`" @click="handleGenerateKeyframeFrame(selectedCanvasClip.clipIndex, frame.role)">重生</button>
+                        <button
+                          v-if="!frame.selected"
+                          class="workflow-icon-action"
+                          type="button"
+                          :disabled="busyActionKey === `${previewKeyframeVersion.id}-${frame.role}`"
+                          title="设为当前"
+                          aria-label="设为当前"
+                          @click="handleSelectKeyframeFrame(selectedCanvasClip.clipIndex, previewKeyframeVersion.id, frame.role)"
+                        >
+                          <IconCheck size="xs" />
+                        </button>
+                        <button
+                          class="workflow-icon-action"
+                          type="button"
+                          :disabled="!frame.regenerable || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}-${frame.role}`"
+                          title="重新生成"
+                          aria-label="重新生成"
+                          @click="handleGenerateKeyframeFrame(selectedCanvasClip.clipIndex, frame.role)"
+                        >
+                          <IconRefresh size="xs" />
+                        </button>
                       </div>
                     </article>
                   </div>
@@ -577,13 +653,14 @@
                 <h3>视频片段</h3>
                 <div class="stage-board__meta">
                   <div class="readiness-strip stage-board__readiness">
-                    <span>总镜头 {{ videoReadiness.total }}</span>
-                    <span>已生成 {{ videoReadiness.generated }}</span>
-                    <span>已选中 {{ videoReadiness.selected }}</span>
-                    <span>{{ canFinalize ? "可拼接" : `还差 ${videoReadiness.missing.length} 个镜头` }}</span>
+                    <span>{{ videoReadiness.total }} 镜头</span>
+                    <span>{{ videoReadiness.generated }} 片段</span>
+                    <span>{{ videoReadiness.selected }} 已选</span>
+                    <span>{{ canFinalize ? "可拼接" : `差 ${videoReadiness.missing.length}` }}</span>
                   </div>
                   <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || !selectedKeyframeVersion(selectedCanvasClip) || busyActionKey === `video-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateVideo(selectedCanvasClip.clipIndex)">
-                    {{ selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}` ? "生成中..." : "生成" }}
+                    <IconLoading v-if="selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}`" size="xs" />
+                    <span>{{ selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
                   </button>
                 </div>
               </div>
@@ -609,12 +686,21 @@
                       <h4>{{ selectedCanvasClip.shotLabel || `镜头 #${selectedCanvasClip.clipIndex}` }}</h4>
                       <p>{{ clipSceneSummary(selectedCanvasClip) }}</p>
                     </div>
-                    <span class="surface-chip">{{ selectedKeyframeVersion(selectedCanvasClip) ? stageVersionDisplayTitle(selectedKeyframeVersion(selectedCanvasClip)!) : "缺关键帧" }}</span>
+                    <span class="surface-chip clip-detail-card__status">{{ selectedKeyframeVersion(selectedCanvasClip) ? stageVersionDisplayTitle(selectedKeyframeVersion(selectedCanvasClip)!) : "缺关键帧" }}</span>
                   </div>
 
                   <div v-if="selectedKeyframePreviewFrames(selectedCanvasClip).length" class="keyframe-thumb-list">
                     <article v-for="frame in selectedKeyframePreviewFrames(selectedCanvasClip)" :key="`video-input-${selectedCanvasClip.clipIndex}-${frame.role}`" class="keyframe-thumb-card">
-                      <img class="keyframe-thumb-card__image" :src="frame.url" :alt="frame.label" />
+                      <img
+                        v-if="isPreviewImageAvailable(frame.url)"
+                        class="keyframe-thumb-card__image"
+                        :src="frame.url"
+                        :alt="frame.label"
+                        @error="markPreviewImageFailed(frame.url)"
+                      />
+                      <div v-else class="keyframe-thumb-card__fallback">
+                        <IconEmpty size="sm" />
+                      </div>
                       <span class="surface-chip surface-chip-quiet">{{ frame.label }}</span>
                     </article>
                   </div>
@@ -622,10 +708,6 @@
                   <div v-if="!selectedCanvasClip.videoVersions.length" class="workflow-empty workflow-empty-nested">暂无视频版本</div>
                   <div v-else class="video-version-panel">
                     <div class="version-switcher">
-                      <div class="version-switcher__head">
-                        <strong>版本历史</strong>
-                        <span class="surface-chip">{{ selectedCanvasClip.videoVersions.length }} 个版本</span>
-                      </div>
                       <div class="version-switcher__tabs">
                         <article
                           v-for="version in selectedCanvasClip.videoVersions"
@@ -643,10 +725,10 @@
                               <IconMore size="sm" />
                             </button>
                             <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
-                              <button type="button" :disabled="!canSelectVideoVersion(version) || version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)">选中</button>
-                              <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)">复用</button>
-                              <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
-                              <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)">删除</button>
+                              <button type="button" :disabled="!canSelectVideoVersion(version) || version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)"><IconCheck size="xs" /><span>设为当前</span></button>
+                              <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)"><IconPlus size="xs" /><span>复用</span></button>
+                              <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank" rel="noopener noreferrer"><IconDownload size="xs" /><span>下载</span></a>
+                              <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)"><IconDelete size="xs" /><span>删除</span></button>
                             </div>
                           </div>
                         </article>
@@ -670,15 +752,24 @@
                       <video v-else-if="previewVideoVersion.previewUrl && canSelectVideoVersion(previewVideoVersion)" class="version-card__video" :src="previewVideoVersion.previewUrl" controls playsinline preload="metadata"></video>
                       <div v-else class="workflow-empty workflow-empty-nested">{{ videoVersionStatusLabel(previewVideoVersion) }}</div>
                       <div class="version-card__actions">
-                        <button class="btn-secondary btn-sm" type="button" :disabled="!canSelectVideoVersion(previewVideoVersion) || previewVideoVersion.selected || busyActionKey === previewVideoVersion.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, previewVideoVersion.id)">选中</button>
+                        <button
+                          class="workflow-icon-action"
+                          type="button"
+                          :disabled="!canSelectVideoVersion(previewVideoVersion) || previewVideoVersion.selected || busyActionKey === previewVideoVersion.id"
+                          title="设为当前"
+                          aria-label="设为当前"
+                          @click="handleSelectVideo(selectedCanvasClip.clipIndex, previewVideoVersion.id)"
+                        >
+                          <IconCheck size="xs" />
+                        </button>
                         <div class="workflow-more-menu compact-version-menu">
                           <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`vsm-card-${previewVideoVersion.id}`">
                             <IconMore size="sm" />
                           </button>
                           <div :id="`vsm-card-${previewVideoVersion.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
-                            <button type="button" :disabled="!previewVideoVersion.asset || busyActionKey === `reuse-${previewVideoVersion.id}`" @click="handleReuseAsset(previewVideoVersion.asset?.id || '', previewVideoVersion.id)">复用</button>
-                            <a v-if="previewVideoVersion.downloadUrl" :href="previewVideoVersion.downloadUrl" download target="_blank" rel="noopener noreferrer">下载</a>
-                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${previewVideoVersion.id}`" @click="handleDeleteStageVersion(previewVideoVersion)">删除</button>
+                            <button type="button" :disabled="!previewVideoVersion.asset || busyActionKey === `reuse-${previewVideoVersion.id}`" @click="handleReuseAsset(previewVideoVersion.asset?.id || '', previewVideoVersion.id)"><IconPlus size="xs" /><span>复用</span></button>
+                            <a v-if="previewVideoVersion.downloadUrl" :href="previewVideoVersion.downloadUrl" download target="_blank" rel="noopener noreferrer"><IconDownload size="xs" /><span>下载</span></a>
+                            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${previewVideoVersion.id}`" @click="handleDeleteStageVersion(previewVideoVersion)"><IconDelete size="xs" /><span>删除</span></button>
                           </div>
                         </div>
                       </div>
@@ -693,12 +784,13 @@
                 <h3>成片</h3>
                 <div class="stage-board__meta">
                   <div class="readiness-strip readiness-strip-final stage-board__readiness">
-                    <span>总镜头 {{ videoReadiness.total }}</span>
-                    <span>已选中 {{ videoReadiness.selected }}</span>
+                    <span>{{ videoReadiness.total }} 镜头</span>
+                    <span>{{ videoReadiness.selected }} 已选</span>
                     <span>{{ finalizeHint }}</span>
                   </div>
                   <button class="btn-primary btn-sm" type="button" :disabled="!canFinalize || busyActionKey === 'finalize'" @click="handleFinalize">
-                    {{ busyActionKey === "finalize" ? "拼接中..." : finalizeButtonLabel }}
+                    <IconLoading v-if="busyActionKey === 'finalize'" size="xs" />
+                    <span>{{ busyActionKey === "finalize" ? "拼接中" : finalizeButtonLabel }}</span>
                   </button>
                 </div>
               </div>
@@ -724,7 +816,9 @@
                     </div>
                   </section>
                   <div class="final-result-card-v2__actions">
-                    <a class="btn-primary btn-sm" :href="selectedWorkflow.finalResult.fileUrl" download target="_blank" rel="noopener noreferrer">下载</a>
+                    <a class="workflow-icon-action workflow-icon-action-primary" :href="selectedWorkflow.finalResult.fileUrl" download target="_blank" rel="noopener noreferrer" title="下载成片" aria-label="下载成片">
+                      <IconDownload size="xs" />
+                    </a>
                   </div>
                 </div>
               </article>
@@ -751,9 +845,6 @@
 
       <section v-else class="surface-panel workflow-panel workflow-empty-large workflow-empty-prompt">
         <h2>选择画布</h2>
-        <div class="workflow-empty-prompt__actions">
-          <button class="btn-primary btn-sm" type="button" :disabled="creatingWorkflow || loadingOptions" @click="startCreateWorkflow">新建</button>
-        </div>
       </section>
     </section>
   </section>
@@ -771,7 +862,9 @@
         <div>
           <h4>{{ characterSummaryPreviewState.title }}</h4>
         </div>
-        <button type="button" class="character-summary-dialog__close" aria-label="关闭角色定义弹窗" @click="closeCharacterSummaryPreview">×</button>
+        <button type="button" class="character-summary-dialog__close" aria-label="关闭角色定义弹窗" @click="closeCharacterSummaryPreview">
+          <IconClose size="sm" />
+        </button>
       </div>
       <p class="character-summary-dialog__content">{{ characterSummaryPreviewState.content }}</p>
     </div>
@@ -790,9 +883,23 @@
       <strong>{{ imagePreviewCaption }}</strong>
       <span v-if="imagePreviewState.gallery.length > 1">按 ← / → 切换首尾帧</span>
     </div>
-    <button type="button" class="image-preview-close" aria-label="关闭原图预览" @click="closeImagePreview">×</button>
-    <img class="image-preview-full" :src="imagePreviewState.url" :alt="imagePreviewState.alt" />
+    <button type="button" class="image-preview-close" aria-label="关闭原图预览" @click="closeImagePreview">
+      <IconClose size="sm" />
+    </button>
+    <div v-if="imagePreviewLoadFailed" class="image-preview-fallback">
+      <IconEmpty size="lg" />
+      <span>{{ imagePreviewCaption }}</span>
+    </div>
+    <img
+      v-else
+      class="image-preview-full"
+      :src="imagePreviewState.url"
+      :alt="imagePreviewState.alt"
+      @error="imagePreviewLoadFailed = true"
+    />
   </div>
+
+  <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
 </template>
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
@@ -849,6 +956,8 @@ import { useWorkflowList } from "@/composables/workflow/useWorkflowList";
 import { useCreateWorkflow } from "@/composables/workflow/useCreateWorkflow";
 import { useImagePreview } from "@/composables/workflow/useImagePreview";
 import { useCharacterAssetPicker } from "@/composables/workflow/useCharacterAssetPicker";
+import { useConfirmDialog } from "@/composables/useConfirmDialog";
+import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import {
   characterSheetKey,
   characterSheetClipIndex,
@@ -863,7 +972,23 @@ import WorkflowStagePipeline from "./workflow/components/WorkflowStagePipeline.v
 import ImagePreviewOverlay from "./workflow/components/ImagePreviewOverlay.vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
-import { IconSearch, IconClose, IconMore, IconLoading, IconEmpty } from "@/components/icons";
+import {
+  IconClose,
+  IconCheck,
+  IconDelete,
+  IconDownload,
+  IconDuration,
+  IconEmpty,
+  IconLoading,
+  IconModel,
+  IconMore,
+  IconPlus,
+  IconSearch,
+  IconSettings,
+  IconTag,
+  IconUpload,
+  IconWarning,
+} from "@/components/icons";
 
 type CreateStageKey = WorkflowCreateStageKey;
 type DetailRouteStageKey = WorkflowDetailRouteStageKey;
@@ -880,7 +1005,7 @@ interface CreateReviewItem {
 interface CreateReviewSection {
   key: string;
   title: string;
-  eyebrow: string;
+  label: string;
   items: CreateReviewItem[];
 }
 
@@ -981,6 +1106,9 @@ const previewCharacterSheetVersionIds = reactive<Record<string, string>>({});
 const selectedCanvasClipIndex = ref<number | null>(null);
 const previewKeyframeVersionIds = reactive<Record<number, string>>({});
 const previewVideoVersionIds = reactive<Record<number, string>>({});
+const imagePreviewLoadFailed = ref(false);
+const failedPreviewImageUrls = ref(new Set<string>());
+const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 const characterSummaryPreviewState = reactive({
   open: false,
   title: "",
@@ -1226,6 +1354,13 @@ function switchCanvasStage(stage: string) {
   const normalizedStage = normalizeWorkflowCanvasStage(stage) ?? "storyboard";
   activeCanvasStage.value = normalizedStage;
   if (normalizedStage === "final") {
+    void router.push({
+      path: route.path,
+      query: {
+        ...route.query,
+        stage: normalizedStage,
+      },
+    });
     return;
   }
   switchWorkflowStage(normalizedStage);
@@ -1331,7 +1466,7 @@ function videoVersionStatusLabel(version: StageVersion) {
   const taskStatus = typeof version.outputSummary?.taskStatus === "string" ? version.outputSummary.taskStatus.trim() : "";
   const status = normalizedStageVersionStatus(version);
   if (canSelectVideoVersion(version)) {
-    return version.selected ? "当前选中" : "可选中";
+    return version.selected ? "当前" : "可选";
   }
   if (status === "FAILED" || taskStatus.toUpperCase() === "FAILED") {
     return "生成失败";
@@ -1344,7 +1479,7 @@ function videoVersionStatusLabel(version: StageVersion) {
 
 function videoSlotStatusLabel(slot: WorkflowClipSlot) {
   if (slot.videoVersions.some((version) => version.selected)) {
-    return "已选中";
+    return "当前";
   }
   if (slot.videoVersions.some((version) => canSelectVideoVersion(version))) {
     return "待选择";
@@ -1502,6 +1637,21 @@ function keyframePreviewFrames(version: StageVersion, slot?: WorkflowClipSlot): 
 function keyframeVersionHasSelectedFrame(version: StageVersion) {
   const outputSummary = version.outputSummary ?? {};
   return Boolean(version.selected || outputSummary.selectedFirstFrame || outputSummary.selectedLastFrame);
+}
+
+function isPreviewImageFailed(url?: string | null) {
+  return Boolean(url && failedPreviewImageUrls.value.has(url));
+}
+
+function isPreviewImageAvailable(url?: string | null) {
+  return Boolean(url && !failedPreviewImageUrls.value.has(url));
+}
+
+function markPreviewImageFailed(url?: string | null) {
+  if (!url) return;
+  const next = new Set(failedPreviewImageUrls.value);
+  next.add(url);
+  failedPreviewImageUrls.value = next;
 }
 
 // characterSheetKey, characterSheetClipIndex, characterSheetTitle, characterSheetAppearanceSummary
@@ -1704,7 +1854,7 @@ async function loadWorkflowDetail(workflowId: string) {
   loadingDetail.value = true;
   try {
     selectedWorkflow.value = await fetchWorkflow(workflowId);
-    const routeStage = normalizeWorkflowDetailStage(route.query.stage);
+    const routeStage = normalizeWorkflowCanvasStage(route.query.stage);
     const resolvedStage = routeStage ?? workflowCanvasStageFromCurrent(selectedWorkflow.value);
     activeCreateStage.value = resolvedStage === "final" ? "video" : resolvedStage;
     activeCanvasStage.value = resolvedStage;
@@ -1794,7 +1944,7 @@ async function handleCreateWorkflow() {
     return;
   }
   creatingWorkflow.value = true;
-  createStatusText.value = "正在创建画布...";
+  createStatusText.value = "创建画布";
   try {
     const workflow = await createWorkflow(buildCreatePayload());
     createForm.title = "";
@@ -1804,7 +1954,7 @@ async function handleCreateWorkflow() {
     storyboardDurationMode.value = "auto";
     storyboardManualDurationSeconds.value = "8";
     createComposerMenu.value = "";
-    createStatusText.value = "画布创建完成，正在进入阶段工作流。";
+    createStatusText.value = "进入阶段工作流";
     createComposerVisible.value = false;
     await loadWorkflows();
     openWorkflow(workflow.id, workflow.currentStage);
@@ -2006,7 +2156,12 @@ async function handleDeleteWorkflow(workflow: WorkflowSummary) {
     messageApi.warning("登录后可继续删除工作流。");
     return;
   }
-  if (!window.confirm(deleteWorkflowConfirmMessage(workflow))) {
+  const confirmed = await requestConfirm({
+    title: "删除工作流",
+    message: deleteWorkflowConfirmMessage(workflow),
+    confirmText: "删除",
+  });
+  if (!confirmed) {
     return;
   }
   const actionKey = `delete-workflow-${workflow.id}`;
@@ -2034,7 +2189,15 @@ async function handleDeleteStageVersion(version: StageVersion) {
     messageApi.warning("登录后可继续删除版本。");
     return;
   }
-  if (!selectedWorkflowId.value || !window.confirm(deleteVersionConfirmMessage(version))) {
+  if (!selectedWorkflowId.value) {
+    return;
+  }
+  const confirmed = await requestConfirm({
+    title: "删除版本",
+    message: deleteVersionConfirmMessage(version),
+    confirmText: "删除",
+  });
+  if (!confirmed) {
     return;
   }
   const actionKey = `delete-${version.id}`;
@@ -2125,6 +2288,13 @@ function handleWorkflowMenuKeydown(event: KeyboardEvent) {
 }
 
 watch(
+  () => imagePreviewState.url,
+  () => {
+    imagePreviewLoadFailed.value = false;
+  }
+);
+
+watch(
   () => [createForm.videoModel, createForm.aspectRatio, catalogVideoSizeOptions.value] as const,
   () => {
     syncVideoSizeSelection(createForm, createForm.videoSize);
@@ -2144,9 +2314,9 @@ watch(
     if (!selectedWorkflowId.value) {
       return;
     }
-    const resolvedStage = normalizeWorkflowDetailStage(stage);
+    const resolvedStage = normalizeWorkflowCanvasStage(stage);
     if (resolvedStage && resolvedStage !== activeCreateStage.value) {
-      activeCreateStage.value = resolvedStage;
+      activeCreateStage.value = resolvedStage === "final" ? "video" : resolvedStage;
       activeCanvasStage.value = resolvedStage;
     }
   }
@@ -2202,10 +2372,7 @@ onBeforeUnmount(() => {
   padding: 18px 22px 18px 18px;
   color: var(--text-strong);
   overflow: hidden;
-  background:
-    radial-gradient(circle at 86% 0%, rgba(27, 124, 255, 0.1), transparent 30%),
-    radial-gradient(circle at 12% 4%, rgba(139, 212, 80, 0.14), transparent 28%),
-    linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
+  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
 }
 
 .workflow-project-drawer,
@@ -2260,7 +2427,7 @@ onBeforeUnmount(() => {
 .final-result-card-v2 h4 {
   margin: 0;
   color: var(--text-strong);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .workflow-canvas-header {
@@ -2553,9 +2720,9 @@ onBeforeUnmount(() => {
   gap: 10px;
   min-height: 48px;
   padding: 8px 10px;
-  border: 1px dashed rgba(0, 169, 187, 0.22);
+  border: 1px solid rgba(0, 169, 187, 0.12);
   border-radius: 12px;
-  background: rgba(239, 252, 255, 0.44);
+  background: rgba(255, 255, 255, 0.68);
   color: var(--text-strong);
   text-align: left;
   cursor: pointer;
@@ -2587,9 +2754,12 @@ onBeforeUnmount(() => {
   border-radius: 9px;
   background: linear-gradient(135deg, rgba(139, 212, 80, 0.18), rgba(0, 169, 187, 0.14));
   color: var(--accent-blue);
-  font-size: 1.2rem;
-  font-weight: 650;
-  line-height: 1;
+  line-height: 0;
+}
+
+.workflow-new-tile span :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .workflow-new-tile strong {
@@ -2762,6 +2932,22 @@ onBeforeUnmount(() => {
 
 .workflow-canvas-header__settings-button {
   flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+.workflow-canvas-header__settings-button :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.workflow-canvas-header__settings-button-active {
+  border-color: rgba(27, 124, 255, 0.22);
+  background: #edf5ff;
+  color: var(--accent-blue);
 }
 
 .workflow-summary-tag {
@@ -2813,31 +2999,43 @@ onBeforeUnmount(() => {
   right: 0;
   z-index: 30;
   display: grid;
-  gap: 12px;
-  width: min(880px, calc(100vw - 460px));
-  max-height: min(620px, calc(100vh - 150px));
+  gap: 10px;
+  width: min(760px, 100%);
+  max-width: 100%;
+  max-height: min(560px, calc(100vh - 150px));
   overflow: auto;
-  padding: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 18px;
-  background: #fff;
+  padding: 8px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
   box-shadow:
-    0 18px 44px rgba(15, 20, 25, 0.13),
+    0 18px 42px rgba(15, 20, 25, 0.105),
     0 2px 8px rgba(18, 28, 33, 0.04);
+  backdrop-filter: blur(18px);
   overscroll-behavior: contain;
 }
 
 .workflow-header-settings__head h3 {
-  margin: 0;
+  margin: 2px 4px 0;
   color: var(--text-strong);
-  font-size: 0.92rem;
-  letter-spacing: -0.02em;
+  font-size: 0.82rem;
+  font-weight: 820;
+  letter-spacing: 0;
 }
 
 .workflow-header-settings__form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+}
+
+.workflow-header-settings__form .workflow-field:not(.workflow-field-compact) {
+  grid-column: span 1;
+}
+
+.workflow-header-settings__form .workflow-field-compact .field-input {
+  min-height: 38px;
 }
 
 .workflow-header-settings__error {
@@ -2847,13 +3045,13 @@ onBeforeUnmount(() => {
 
 .workflow-header-settings__actions {
   position: sticky;
-  bottom: -14px;
+  bottom: -8px;
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin: 0 -14px -14px;
-  padding: 10px 14px 14px;
+  margin: 0 -8px -8px;
+  padding: 9px 8px 8px;
   border-top: 1px solid rgba(15, 20, 25, 0.06);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), #fff 42%);
 }
@@ -2916,21 +3114,24 @@ onBeforeUnmount(() => {
   inset: unset;
   width: 168px;
   padding: 7px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(15, 20, 25, 0.07);
   border-radius: 16px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.98);
   box-shadow:
-    0 18px 44px rgba(15, 20, 25, 0.13),
+    0 18px 42px rgba(15, 20, 25, 0.12),
     0 2px 8px rgba(18, 28, 33, 0.04);
   overflow: hidden;
+  backdrop-filter: blur(18px);
 }
 
 .workflow-more-menu__popover > button,
 .workflow-more-menu__popover > a {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
   width: 100%;
   min-height: 38px;
   align-items: center;
+  gap: 8px;
   padding: 0 12px;
   border: 0;
   border-radius: 10px;
@@ -2939,6 +3140,20 @@ onBeforeUnmount(() => {
   font-size: 0.8rem;
   text-align: left;
   cursor: pointer;
+  text-decoration: none;
+}
+
+.workflow-more-menu__popover > button :deep(svg),
+.workflow-more-menu__popover > a :deep(svg) {
+  width: 15px;
+  height: 15px;
+}
+
+.workflow-more-menu__popover > button span,
+.workflow-more-menu__popover > a span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workflow-more-menu__popover > button:hover,
@@ -2990,7 +3205,7 @@ onBeforeUnmount(() => {
   gap: 22px;
   width: min(100%, 1120px);
   margin: 0 auto;
-  padding: 26px 8px 40px;
+  padding: 12px 0 32px;
 }
 
 .workflow-create-hero {
@@ -3006,7 +3221,7 @@ onBeforeUnmount(() => {
   max-width: 12ch;
   font-size: clamp(2rem, 4.4vw, 3.1rem);
   line-height: 1.15;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   color: var(--text-strong);
 }
 
@@ -3022,46 +3237,69 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 16px;
   width: 100%;
-  border-radius: 28px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 20, 25, 0.06);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.96);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.96) inset,
-    0 1px 2px rgba(15, 20, 25, 0.03),
-    0 12px 28px rgba(20, 28, 36, 0.04);
+    0 10px 26px rgba(20, 28, 36, 0.045);
 }
 
 .workflow-composer-card-chat {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  gap: 18px;
-  min-height: 360px;
-  padding: 22px;
+  gap: 16px;
+  min-height: 320px;
+  padding: 18px;
 }
 
 .workflow-composer-upload {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 10px;
-  width: 92px;
-  min-height: 120px;
+  gap: 7px;
+  width: 78px;
+  min-height: 92px;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 18px;
-  background: linear-gradient(180deg, #ffffff, #f4f7f9);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f3fbff);
   color: var(--text-muted);
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.workflow-composer-upload:hover:not(:disabled),
+.workflow-composer-upload:focus-visible {
+  border-color: rgba(0, 169, 187, 0.22);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.07);
 }
 
 .workflow-composer-upload span {
-  font-size: 1.8rem;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #effcff;
+  font-size: 1.55rem;
   line-height: 1;
-  color: var(--text-body);
+  color: currentColor;
+}
+
+.workflow-composer-upload span :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 .workflow-composer-upload small {
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
@@ -3115,12 +3353,14 @@ onBeforeUnmount(() => {
 }
 
 .workflow-composer-title-field input {
+  min-height: 42px;
+  padding: 0 2px;
   font-size: 1.08rem;
   font-weight: 800;
 }
 
 .workflow-composer-title-field-chat input {
-  padding: 0;
+  padding: 0 2px;
   font-size: 1.14rem;
 }
 
@@ -3156,11 +3396,11 @@ onBeforeUnmount(() => {
   max-width: min(100%, 250px);
   padding: 0 13px;
   border: 1px solid rgba(18, 28, 33, 0.08);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.82);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
   font-size: 0.82rem;
-  font-weight: 740;
+  font-weight: 760;
   box-shadow: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3174,13 +3414,35 @@ onBeforeUnmount(() => {
 .tool-pill-interactive {
   position: relative;
   cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.tool-pill__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: currentColor;
+  line-height: 0;
+}
+
+.tool-pill__icon :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .tool-pill-interactive:hover {
+  transform: translateY(-1px);
   border-color: rgba(0, 169, 187, 0.26);
   background: #fff;
   color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
 }
 
 .tool-pill-active {
@@ -3201,16 +3463,18 @@ onBeforeUnmount(() => {
   z-index: 12;
   display: grid;
   gap: 8px;
-  width: min(340px, calc(100vw - 48px));
+  width: min(320px, calc(100vw - 48px));
   max-height: min(480px, calc(100vh - 120px));
   overflow: auto;
-  padding: 10px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 18px;
-  background: #fff;
+  padding: 8px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
   box-shadow:
-    0 18px 44px rgba(15, 20, 25, 0.13),
+    0 18px 42px rgba(15, 20, 25, 0.105),
     0 2px 8px rgba(18, 28, 33, 0.04);
+  backdrop-filter: blur(18px);
   overscroll-behavior: contain;
 }
 
@@ -3219,7 +3483,7 @@ onBeforeUnmount(() => {
 }
 
 .workflow-create-popover-compact {
-  width: min(270px, calc(100vw - 48px));
+  width: min(252px, calc(100vw - 48px));
 }
 
 .workflow-create-popover__error {
@@ -3227,21 +3491,26 @@ onBeforeUnmount(() => {
 }
 
 .workflow-create-popover .workflow-field {
-  gap: 7px;
+  gap: 8px;
+}
+
+.workflow-create-popover .workflow-field + .workflow-field {
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 .workflow-create-popover .workflow-field span {
   margin: 0 4px;
   color: #74838d;
-  font-size: 0.68rem;
-  font-weight: 780;
+  font-size: 0.7rem;
+  font-weight: 820;
 }
 
 .workflow-create-popover .field-input {
   min-height: 40px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(15, 20, 25, 0.07);
   border-radius: 12px;
-  background: #f8fafb;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
   box-shadow: none;
   font-size: 0.84rem;
@@ -3266,8 +3535,11 @@ onBeforeUnmount(() => {
   display: flex;
   grid-column: 1 / -1;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
+  margin: 2px -4px -4px;
+  padding: 10px 4px 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 .workflow-composer-meta,
@@ -3289,19 +3561,44 @@ onBeforeUnmount(() => {
 .workflow-composer-meta {
   color: var(--text-muted);
   font-size: 0.82rem;
+  font-weight: 760;
 }
 
 .workflow-composer-submit {
+  display: inline-grid;
+  place-items: center;
   width: 40px;
   height: 40px;
-  background: var(--accent-cyan);
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
   color: #fff;
-  font-size: 1.2rem;
   box-shadow: 0 12px 28px rgba(27, 124, 255, 0.24);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
 }
 
 .workflow-composer-submit-inline {
   position: static;
+}
+
+.workflow-composer-submit:hover:not(:disabled),
+.workflow-composer-submit:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(27, 124, 255, 0.28);
+}
+
+.workflow-composer-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.workflow-composer-submit svg {
+  width: 18px;
+  height: 18px;
 }
 
 .workflow-composer-error {
@@ -3336,22 +3633,30 @@ button:disabled {
 
 .workflow-stage-pipeline {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  padding-left: 0;
-  padding-right: 0;
+  grid-template-columns: repeat(5, minmax(118px, 1fr));
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 50px;
+  overflow-x: auto;
+  align-items: stretch;
+  padding: 0 0 4px;
+  scrollbar-width: none;
+}
+
+.workflow-stage-pipeline::-webkit-scrollbar {
+  display: none;
 }
 
 .workflow-stage-step {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 7px;
   align-items: center;
-  min-height: 48px;
-  padding: 8px 10px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.76);
+  min-height: 46px;
+  padding: 8px 9px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-body);
   text-align: left;
   cursor: pointer;
@@ -3366,8 +3671,8 @@ button:disabled {
 .workflow-stage-step-active,
 .workflow-stage-step:hover {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.22);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
+  border-color: rgba(27, 124, 255, 0.2);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.94), rgba(237, 245, 255, 0.9));
   color: var(--accent-blue);
   box-shadow: 0 12px 24px rgba(27, 124, 255, 0.08);
 }
@@ -3375,8 +3680,8 @@ button:disabled {
 .workflow-stage-step__index {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #effcff;
   color: currentColor;
@@ -3698,18 +4003,10 @@ button:disabled {
   color: var(--text-muted);
 }
 
-.keyframe-frame-card__failure strong,
-.keyframe-frame-card__failure span {
+.keyframe-frame-card__failure strong {
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.keyframe-frame-card__failure span {
-  display: -webkit-box;
-  overflow: auto;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
 }
 
 .storyboard-adjust-panel {
@@ -3717,10 +4014,11 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  padding: 10px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 0;
+  background: transparent;
 }
 
 .storyboard-adjust-panel__input {
@@ -3757,23 +4055,48 @@ button:disabled {
 .character-mini-card p,
 .clip-detail-card p {
   margin: 6px 0 0;
+  color: var(--text-body);
+  line-height: 1.68;
+}
+
+.clip-detail-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px 16px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+}
+
+.clip-detail-card__head > div {
+  min-width: 0;
+}
+
+.clip-detail-card__status {
+  justify-self: end;
+  min-width: max-content;
+  max-width: min(220px, 38vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0;
 }
 
 .character-mini-card__summary {
   display: grid;
-  gap: 6px;
-  min-height: 92px;
-  padding: 12px 14px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(246, 250, 252, 0.98), rgba(239, 245, 248, 0.92));
+  gap: 7px;
+  min-height: 0;
+  padding: 0 0 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 0;
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
 .character-mini-card__summary:hover {
-  border-color: rgba(27, 124, 255, 0.22);
-  box-shadow: 0 10px 24px rgba(27, 124, 255, 0.08);
+  color: var(--accent-blue);
 }
 
 .character-mini-card__summary-label {
@@ -3790,7 +4113,8 @@ button:disabled {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
+  color: var(--text-body);
   line-height: 1.6;
 }
 
@@ -3817,6 +4141,38 @@ button:disabled {
   height: 100%;
   min-height: 96px;
   object-fit: cover;
+}
+
+.workflow-image-fallback,
+.keyframe-thumb-card__fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 96px;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
+    #f3fbff;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.workflow-image-fallback :deep(svg),
+.keyframe-thumb-card__fallback :deep(svg) {
+  width: 24px;
+  height: 24px;
+}
+
+.character-mini-frame .workflow-image-fallback {
+  position: static;
+  min-height: 96px;
+  padding: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
+    #f3fbff;
+  color: var(--text-muted);
 }
 
 .character-mini-frame span {
@@ -3855,7 +4211,8 @@ button:disabled {
 }
 
 .character-asset-card__preview {
-  display: block;
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 148px;
   padding: 0;
@@ -3878,6 +4235,27 @@ button:disabled {
   border-radius: 12px;
 }
 
+.keyframe-thumb-card__fallback {
+  min-height: 0;
+  height: 100%;
+  border-radius: 12px;
+}
+
+.keyframe-thumb-card__fallback strong,
+.keyframe-thumb-card__fallback span {
+  margin: 0;
+}
+
+.keyframe-thumb-card__fallback strong {
+  color: var(--text-strong);
+  font-size: 0.82rem;
+}
+
+.keyframe-thumb-card__fallback span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
 .keyframe-frame-card__image {
   width: 100%;
   height: 100%;
@@ -3888,6 +4266,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 148px minmax(0, 1fr);
   gap: 14px;
+  min-width: 0;
 }
 
 .clip-timeline {
@@ -3994,8 +4373,76 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.workflow-icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-body);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.workflow-icon-action:hover:not(:disabled),
+.workflow-icon-action:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(0, 169, 187, 0.24);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+}
+
+.workflow-icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.workflow-icon-action :deep(svg) {
+  width: 15px;
+  height: 15px;
+}
+
+.workflow-icon-action-primary {
+  border-color: rgba(27, 124, 255, 0.2);
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.16);
+}
+
+.workflow-icon-action-primary:hover,
+.workflow-icon-action-primary:focus-visible {
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.2);
+}
+
+.character-mini-card__actions {
+  gap: 6px;
+}
+
+.character-action-button {
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.character-action-button :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+
 .keyframe-frame-card__failure {
   display: grid;
+  gap: 8px;
   place-items: center;
   min-height: 180px;
   max-height: 220px;
@@ -4005,6 +4452,25 @@ button:disabled {
   color: var(--accent-danger);
   text-align: center;
   overflow: hidden;
+}
+
+.keyframe-frame-card__failure :deep(svg) {
+  width: 24px;
+  height: 24px;
+}
+
+.keyframe-frame-card__failure strong {
+  margin: 0;
+  color: currentColor;
+  font-size: 0.82rem;
+  font-weight: 820;
+}
+
+.keyframe-frame-card__failure-soft {
+  background:
+    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
+    #f3fbff;
+  color: var(--text-muted);
 }
 
 .readiness-strip {
@@ -4101,10 +4567,10 @@ button:disabled {
 .stage-toggle-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  padding: 3px;
+  gap: 4px;
+  padding: 4px;
   border-radius: 12px;
-  background: #f3f6f8;
+  background: #f4f7f9;
 }
 
 .stage-toggle-chip,
@@ -4125,7 +4591,7 @@ button:disabled {
 .rating-pill-active {
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.075);
 }
 
 .workflow-empty,
@@ -4145,31 +4611,32 @@ button:disabled {
   width: fit-content;
   max-width: 100%;
   min-height: 32px;
-  padding: 0 10px;
+  padding: 6px 10px;
   border: 1px solid rgba(255, 107, 95, 0.18);
-  border-radius: 999px;
+  border-radius: 12px;
   background: #fff4f6;
   font-size: 0.78rem;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .workflow-empty-large {
   display: grid;
   place-items: center;
-  min-height: 240px;
-  padding: 28px;
+  min-height: 180px;
+  padding: 22px;
   text-align: center;
 }
 
 .workflow-empty-soft,
 .workflow-empty-nested {
-  padding: 18px;
-  border-radius: 16px;
-  background: #f8fafb;
+  padding: 14px;
+  border: 1px dashed rgba(15, 20, 25, 0.1);
+  border-radius: 14px;
+  background: rgba(248, 250, 251, 0.58);
 }
 
 .workflow-banner {
@@ -4194,51 +4661,78 @@ button:disabled {
   place-items: center;
   padding: 24px;
   background: rgba(15, 20, 25, 0.34);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
 }
 
 .character-summary-dialog {
+  position: relative;
   display: grid;
-  gap: 14px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
   width: min(560px, calc(100vw - 40px));
   max-height: min(70vh, 640px);
-  padding: 18px;
+  padding: 16px;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: var(--shadow-panel);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
+  box-shadow:
+    0 22px 56px rgba(15, 20, 25, 0.16),
+    0 2px 8px rgba(18, 28, 33, 0.04);
 }
 
 .character-summary-dialog__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 .character-summary-dialog__head h4 {
   margin: 0;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 0.98rem;
+  font-weight: 820;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .character-summary-dialog__close {
   display: grid;
   place-items: center;
-  width: 36px;
-  min-height: 36px;
+  width: 34px;
+  min-height: 34px;
   padding: 0;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 999px;
-  background: #f3f6f8;
+  border-radius: 11px;
+  background: #f3f8fa;
   color: var(--text-body);
-  font-size: 1.1rem;
-  font-weight: 700;
   line-height: 1;
   cursor: pointer;
+}
+
+.character-summary-dialog__close :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.character-summary-dialog__close:hover,
+.character-summary-dialog__close:focus-visible {
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.08);
 }
 
 .character-summary-dialog__content {
   margin: 0;
   overflow: auto;
+  min-height: 0;
+  padding-right: 4px;
   color: var(--text-body);
   font-size: 0.9rem;
   line-height: 1.75;
@@ -4252,18 +4746,47 @@ button:disabled {
   z-index: 1200;
   display: grid;
   place-items: center;
-  padding: 28px;
-  background: rgba(15, 20, 25, 0.74);
-  backdrop-filter: blur(12px);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+  padding: 24px;
+  background: rgba(15, 20, 25, 0.78);
+  backdrop-filter: blur(14px);
 }
 
 .image-preview-full {
   display: block;
   max-width: min(92vw, 1280px);
-  max-height: 82vh;
+  max-height: calc(100dvh - 128px);
   object-fit: contain;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #eef2f4;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.image-preview-fallback {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  width: min(520px, calc(100vw - 56px));
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  text-align: center;
+}
+
+.image-preview-fallback :deep(svg) {
+  width: 30px;
+  height: 30px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.image-preview-fallback span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .image-preview-caption,
@@ -4276,13 +4799,30 @@ button:disabled {
 .image-preview-caption {
   left: 28px;
   top: 24px;
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 116px);
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px);
+}
+
+.image-preview-caption strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .image-preview-caption span {
   color: rgba(255, 255, 255, 0.72);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .image-preview-close {
@@ -4294,20 +4834,25 @@ button:disabled {
   min-height: 38px;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.12);
-  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
+}
+
+.image-preview-close :deep(svg) {
+  width: 17px;
+  height: 17px;
+}
+
+.image-preview-close:hover,
+.image-preview-close:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 @media (max-width: 1380px) {
   .workflow-canvas-view {
     grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
-  }
-
-  .workflow-header-settings__form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workflow-create-board,
@@ -4320,6 +4865,26 @@ button:disabled {
   .workflow-inspector {
     position: static;
     max-height: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .workflow-canvas-view-detail .clip-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-canvas-view-detail .clip-timeline {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(132px, 0.42fr);
+    grid-template-columns: none;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+  }
+
+  .workflow-canvas-view-detail .keyframe-frame-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -4349,7 +4914,7 @@ button:disabled {
   }
 
   .workflow-stage-pipeline {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(118px, 1fr));
   }
 
   .clip-workbench {
@@ -4379,7 +4944,7 @@ button:disabled {
   }
 
   .workflow-stage-pipeline {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(5, minmax(112px, 1fr));
   }
 
   .workflow-composer-card {
@@ -4432,6 +4997,45 @@ button:disabled {
     width: auto;
     max-width: none;
     max-height: min(430px, calc(100vh - 90px));
+    padding: 20px 10px 10px;
+    border-radius: 22px;
+    box-shadow:
+      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  }
+
+  .workflow-create-popover::before {
+    content: "";
+    justify-self: center;
+    width: 38px;
+    height: 4px;
+    margin: -9px 0 2px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.16);
+  }
+
+  .character-summary-dialog-overlay {
+    align-items: end;
+    padding: 14px;
+  }
+
+  .character-summary-dialog {
+    width: 100%;
+    max-height: min(76vh, 640px);
+    padding: 26px 16px 16px;
+    border-radius: 22px;
+  }
+
+  .character-summary-dialog::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.16);
+    transform: translateX(-50%);
   }
 
   .workflow-header-settings {
@@ -4442,13 +5046,27 @@ button:disabled {
     bottom: 14px;
     width: auto;
     max-width: none;
-    max-height: min(560px, calc(100vh - 90px));
+    max-height: min(560px, calc(100dvh - 90px));
+    padding: 20px 10px 10px;
+    border-radius: 22px;
+    box-shadow:
+      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  }
+
+  .workflow-header-settings::before {
+    content: "";
+    justify-self: center;
+    width: 38px;
+    height: 4px;
+    margin: -9px 0 2px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.16);
   }
 
   .workflow-canvas-header,
   .stage-board__head,
   .storyboard-preview-card__head,
-  .clip-detail-card__head,
   .keyframe-frame-card__head,
   .keyframe-frame-card__actions,
   .workflow-banner {
@@ -4509,6 +5127,15 @@ button:disabled {
 
   .storyboard-adjust-panel__button {
     width: 100%;
+  }
+
+  .clip-detail-card__head {
+    grid-template-columns: 1fr;
+  }
+
+  .clip-detail-card__status {
+    justify-self: start;
+    max-width: 100%;
   }
 }
 </style>

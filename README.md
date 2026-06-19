@@ -5,28 +5,54 @@ JianDou 是一个文本到视频工作台。上传小说章节、粘贴正文或
 ## 快速启动
 
 ```bash
-# 1. 配置模型 API Key
-#    编辑 config/model/providers.secrets.yml，填入各厂商密钥
+# 1. 准备本地环境变量
+cp .env.dev.example .env
+
+# 2. 配置模型 API Key（按需启用）
+cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
+# 编辑 config/model/providers.secrets.yml，填入各厂商密钥
 ```
 
 **方式一：Docker**
 
 ```bash
+cp .env.docker.example .env.docker
 docker build -t jiandou .
-docker run -d -p 80:8000 -v ./config:/app/config -v ./storage:/app/storage jiandou
+docker run -d -p 8100:8000 \
+  --env-file .env.docker \
+  -v ./config:/app/config \
+  -v ./data:/app/data \
+  -v ./storage:/app/storage \
+  jiandou
 ```
+
+镜像默认监听容器内 `8000` 端口，并在启动时自动执行数据库迁移；如需手动控制，可设置 `JIANDOU_AUTO_MIGRATE=false`。如果修改 `.env.docker` 里的 `JIANDOU_SERVER_PORT`，需要同步调整 `docker run -p` 的容器端口。
 
 **方式二：本地命令**
 
 ```bash
 # 首次需安装依赖
 npm install
-jiandou serve
+uv sync
+uv run jiandou db migrate
+npm run serve
 ```
 
 启动后访问：
-- 用户前台：`http://127.0.0.1`
-- 管理后台：`http://127.0.0.1/admin`
+- 用户前台：`http://127.0.0.1:8100`
+- 管理后台：`http://127.0.0.1:8100/admin`
+
+健康检查：
+- 存活检查：`GET /api/v3/health`
+- 就绪检查：`GET /api/v3/ready`，会验证数据库和存储目录可用性；容器镜像也使用该端点作为 `HEALTHCHECK`
+
+如果前端和 API 不在同一个 origin 下，部署时需要设置 `JIANDOU_WEB_ORIGIN`；多个可信前端域名可用逗号分隔写入 `JIANDOU_TRUSTED_ORIGINS`。后端会拒绝非可信来源发起的状态变更 API 请求。
+
+登录和邀请码激活接口默认带有按客户端 IP 计数的基础限流，可通过 `JIANDOU_AUTH_LOGIN_RATE_LIMIT`、`JIANDOU_AUTH_INVITE_ACTIVATION_RATE_LIMIT` 和 `JIANDOU_AUTH_RATE_LIMIT_WINDOW_SECONDS` 调整。
+
+API 默认发送基础浏览器安全响应头；当 `JIANDOU_COOKIE_SECURE=true` 时会额外启用 HSTS，生产环境应通过 HTTPS 访问。
+
+完整配置变量见 [docs/configuration.md](docs/configuration.md)。
 
 ## 工作流程
 
@@ -73,18 +99,50 @@ jiandou serve
 config/model/
 ├── models.yml                  # 可选模型列表定义
 ├── providers/                  # 各厂商基础配置（base_url 等）
-│   ├── aliyun.yml
 │   ├── volcengine.yml
+│   ├── deepseek.yml
 │   └── openai.yml
-└── providers.secrets.yml       # API Key 覆盖（不提交到仓库）
+├── providers.secrets.example.yml # API Key 示例模板（提交到仓库）
+└── providers.secrets.yml       # API Key 覆盖（本地文件，不提交）
 ```
 
 支持的厂商：阿里云（通义千问/万相）、火山引擎（豆包/Seedream/Seedance）、OpenAI 兼容接口。
+
+## 开发与验证
+
+```bash
+# 后端 lint + 测试
+npm test
+
+# 数据库迁移从空库验证
+TMP_DB=$(mktemp -t jiandou.XXXXXX.db) && \
+  JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head && \
+  rm -f "$TMP_DB"
+
+# 前端和共享包类型检查
+npm run packages:typecheck
+npm run web:typecheck
+
+# 导出 OpenAPI 契约（生成 docs/openapi.json，本地生成物不提交）
+npm run api:openapi
+
+# 发布前完整预检（会自动清理生成物）
+npm run release:check
+```
+
+后端数据库模型要求所有表/字段都有注释，核心字符串状态字段必须有数据库约束；这些规则已纳入测试门禁。
+
+仓库只提交源码级静态资源，例如 `static/web/brand/` 下的品牌图形。`npm run web:build` 生成的 `static/web/assets/` 和 `static/web/index.html` 属于本地/镜像构建产物，不应提交；仓库卫生测试会拦截 secrets、本地数据库和前端构建产物被误提交。
+
+后端模块职责和改动边界见 [docs/backend-architecture.md](docs/backend-architecture.md)，数据库设计约束见 [docs/database-design.md](docs/database-design.md)。
+
+版本变更见 [CHANGELOG.md](CHANGELOG.md)，发布流程见 [docs/release-process.md](docs/release-process.md)。
 
 ## 社区与支持
 
 - QQ 交流群：`1090387362`
 - [报告 Bug / 功能建议](https://github.com/imi4u36d/JianDou/issues)
+- 使用求助、Bug、功能建议和安全问题的分流说明见 [SUPPORT.md](SUPPORT.md)。
 
 ## Star History
 

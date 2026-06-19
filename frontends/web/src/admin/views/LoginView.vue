@@ -1,18 +1,10 @@
 <template>
   <div class="page-shell login-view">
     <div class="login-view__intro">
-      <h1>管理端</h1>
+      <h1>管理端登录</h1>
     </div>
 
     <el-card class="surface-card login-view__card" shadow="never">
-      <template #header>
-        <div class="login-view__card-header">
-          <div>
-            <h2>管理员登录</h2>
-          </div>
-        </div>
-      </template>
-
       <el-form label-position="top" @submit.prevent="handleSubmit">
         <el-form-item label="用户名">
           <el-input v-model.trim="form.username" autocomplete="username" placeholder="用户名" />
@@ -21,7 +13,7 @@
           <el-input v-model="form.password" autocomplete="current-password" placeholder="密码" show-password type="password" />
         </el-form-item>
         <el-button :loading="submitting" class="login-view__submit" native-type="submit" type="primary">
-          进入管理系统
+          登录
         </el-button>
       </el-form>
     </el-card>
@@ -85,8 +77,7 @@ async function handleSubmit() {
   text-align: center;
 }
 
-.login-view__intro h1,
-.login-view__card-header h2 {
+.login-view__intro h1 {
   margin: 0;
   font-family: inherit;
 }
@@ -98,13 +89,7 @@ async function handleSubmit() {
 
 .login-view__card {
   border-radius: 20px;
-}
-
-.login-view__card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  padding-top: 4px;
 }
 
 .login-view__alert {

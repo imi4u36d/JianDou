@@ -22,6 +22,17 @@ from backend.services.model_config_service import (
     MediaProviderProfile,
     ModelRuntimeProfile,
 )
+from backend.services.model_response_parsing import (
+    extract_first_string,
+    extract_text_response,
+    extract_video_task_id,
+    extract_video_task_message,
+    extract_video_task_status,
+    extract_video_url,
+    first_non_blank,
+    map_value,
+    string_value,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -743,22 +754,7 @@ class TextProviderTransport:
 
         Supports: output_text, output (object), output (array), choices, message, text.
         """
-        output_text = self._string_value(response_map.get("output_text"))
-        if output_text:
-            return output_text
-        from_output_object = self._extract_from_output_object(response_map.get("output"))
-        if from_output_object:
-            return from_output_object
-        from_output = self._extract_from_output(response_map.get("output"))
-        if from_output:
-            return from_output
-        from_choices = self._extract_from_choices(response_map.get("choices"))
-        if from_choices:
-            return from_choices
-        from_message = self._extract_from_message(response_map.get("message"))
-        if from_message:
-            return from_message
-        return self._string_value(response_map.get("text"))
+        return extract_text_response(response_map)
 
     def endpoint_host(self, endpoint: str) -> str:
         """Extract the host from an endpoint URL."""
@@ -769,92 +765,13 @@ class TextProviderTransport:
             return ""
 
     def string_value(self, value: object) -> str:
-        return self._string_value(value)
+        return string_value(value)
 
     def _encode(self, body: dict[str, Any]) -> str:
         try:
             return json.dumps(body, ensure_ascii=False)
         except (TypeError, ValueError) as ex:
             raise GenerationProviderException(f"text model request encode failed: {ex}")
-
-    def _extract_from_output(self, raw: object) -> str:
-        if not isinstance(raw, list):
-            return ""
-        parts: list[str] = []
-        for item in raw:
-            if isinstance(item, dict):
-                self._append_content(parts, item.get("content"))
-        return "".join(parts).strip()
-
-    def _extract_from_output_object(self, raw: object) -> str:
-        if not isinstance(raw, dict):
-            return ""
-        text = self._string_value(raw.get("text"))
-        if text:
-            return text
-        from_choices = self._extract_from_choices(raw.get("choices"))
-        if from_choices:
-            return from_choices
-        from_message = self._extract_from_message(raw.get("message"))
-        if from_message:
-            return from_message
-        parts: list[str] = []
-        self._append_content(parts, raw.get("content"))
-        return "".join(parts).strip()
-
-    def _extract_from_choices(self, raw: object) -> str:
-        if not isinstance(raw, list) or not raw:
-            return ""
-        first = raw[0]
-        if not isinstance(first, dict):
-            return ""
-        message = first.get("message")
-        if isinstance(message, dict):
-            content = message.get("content")
-            if isinstance(content, str):
-                return content.strip()
-            parts: list[str] = []
-            self._append_content(parts, content)
-            return "".join(parts).strip()
-        return self._string_value(first.get("text"))
-
-    def _extract_from_message(self, raw: object) -> str:
-        if not isinstance(raw, dict):
-            return ""
-        content = raw.get("content")
-        if isinstance(content, str):
-            return content.strip()
-        parts: list[str] = []
-        self._append_content(parts, content)
-        return "".join(parts).strip()
-
-    def _append_content(self, parts: list[str], raw: object) -> None:
-        if isinstance(raw, str):
-            text = raw.strip()
-            if text:
-                if parts:
-                    parts.append("\n")
-                parts.append(text)
-            return
-        if isinstance(raw, list):
-            for item in raw:
-                self._append_content(parts, item)
-            return
-        if not isinstance(raw, dict):
-            return
-        entry_type = raw.get("type")
-        if entry_type in ("output_text", "text"):
-            self._append_content(parts, raw.get("text"))
-            return
-        if entry_type == "message":
-            self._append_content(parts, raw.get("content"))
-            return
-        if "content" in raw:
-            self._append_content(parts, raw.get("content"))
-
-    @staticmethod
-    def _string_value(value: object) -> str:
-        return "" if value is None else str(value).strip()
 
     @staticmethod
     def _truncate(value: Optional[str], limit: int) -> str:
@@ -1187,29 +1104,7 @@ class ImageProviderTransport:
 
         Mirrors Java ImageProviderTransport.extractFirstString.
         """
-        if isinstance(raw, dict):
-            for key in keys:
-                value = raw.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-                if isinstance(value, dict):
-                    nested = self.extract_first_string(value, *keys)
-                    if nested:
-                        return nested
-                if isinstance(value, list):
-                    nested = self.extract_first_string(value, *keys)
-                    if nested:
-                        return nested
-            for value in raw.values():
-                nested = self.extract_first_string(value, *keys)
-                if nested:
-                    return nested
-        if isinstance(raw, list):
-            for item in raw:
-                nested = self.extract_first_string(item, *keys)
-                if nested:
-                    return nested
-        return ""
+        return extract_first_string(raw, *keys)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -1574,39 +1469,19 @@ class VideoProviderTransport:
 
     def extract_task_id(self, payload: dict[str, Any]) -> str:
         """Extract task ID from response payload, trying multiple key formats."""
-        return self._first_non_blank(
-            self._string_value(payload.get("task_id")),
-            self._string_value(payload.get("taskId")),
-            self._string_value(payload.get("id")),
-            self._string_value(self.map_value(payload.get("output")).get("task_id")),
-            self._string_value(self.map_value(payload.get("output")).get("taskId")),
-            self._string_value(self.map_value(payload.get("data")).get("task_id")),
-            self._string_value(self.map_value(payload.get("data")).get("taskId")),
-        )
+        return extract_video_task_id(payload)
 
     def extract_video_url(self, payload: dict[str, Any]) -> str:
         """Extract video URL from response payload."""
-        return self.extract_first_string(
-            payload, "video_url", "videoUrl", "url", "file_url", "fileUrl", "media_url", "mediaUrl"
-        )
+        return extract_video_url(payload)
 
     def extract_task_status(self, payload: dict[str, Any]) -> str:
         """Extract task status from response payload."""
-        status = self._first_non_blank(
-            self.extract_first_string(payload, "task_status", "taskStatus", "status", "state"),
-            self.extract_first_string(self.map_value(payload.get("output")), "task_status", "taskStatus", "status", "state"),
-            self.extract_first_string(self.map_value(payload.get("data")), "task_status", "taskStatus", "status", "state"),
-            "UNKNOWN",
-        )
-        return status.upper()
+        return extract_video_task_status(payload)
 
     def extract_task_message(self, payload: dict[str, Any]) -> str:
         """Extract task message/error from response payload."""
-        return self._first_non_blank(
-            self.extract_first_string(payload, "message", "error"),
-            self.extract_first_string(self.map_value(payload.get("output")), "message", "error"),
-            self.extract_first_string(self.map_value(payload.get("data")), "message", "error"),
-        )
+        return extract_video_task_message(payload)
 
     def encode_path_segment(self, value: str) -> str:
         """URL-encode a path segment.
@@ -1621,41 +1496,14 @@ class VideoProviderTransport:
 
         Mirrors Java VideoProviderTransport.extractFirstString.
         """
-        if isinstance(raw, dict):
-            for key in keys:
-                value = raw.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-                if isinstance(value, dict):
-                    nested = self.extract_first_string(value, *keys)
-                    if nested:
-                        return nested
-                if isinstance(value, list):
-                    nested = self.extract_first_string(value, *keys)
-                    if nested:
-                        return nested
-            for value in raw.values():
-                nested = self.extract_first_string(value, *keys)
-                if nested:
-                    return nested
-        if isinstance(raw, list):
-            for item in raw:
-                nested = self.extract_first_string(item, *keys)
-                if nested:
-                    return nested
-        return ""
+        return extract_first_string(raw, *keys)
 
     def map_value(self, value: object) -> dict[str, Any]:
         """Convert a value to a normalized dict, or return empty dict.
 
         Mirrors Java VideoProviderTransport.mapValue.
         """
-        if isinstance(value, dict):
-            normalized: dict[str, Any] = {}
-            for k, v in value.items():
-                normalized[str(k)] = v
-            return normalized
-        return {}
+        return map_value(value)
 
     def _encode(self, body: dict[str, Any]) -> str:
         try:
@@ -1674,14 +1522,11 @@ class VideoProviderTransport:
 
     @staticmethod
     def _string_value(value: object) -> str:
-        return "" if value is None else str(value).strip()
+        return string_value(value)
 
     @staticmethod
     def _first_non_blank(*values: str) -> str:
-        for v in values:
-            if v and v.strip():
-                return v.strip()
-        return ""
+        return first_non_blank(*values)
 
     @staticmethod
     def _truncate(value: Optional[str], limit: int) -> str:

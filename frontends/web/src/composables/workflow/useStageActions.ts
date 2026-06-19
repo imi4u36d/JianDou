@@ -28,6 +28,7 @@ export function useStageActions(deps: {
   loadWorkflows: () => Promise<void>;
   reloadCurrentWorkflow: () => Promise<void>;
   closeCharacterAssetPicker: () => void;
+  confirmDeleteWorkflow?: (message: string) => Promise<boolean>;
 }) {
   const busyActionKey = ref("");
   const workflowSettingsOpen = ref(false);
@@ -194,7 +195,11 @@ export function useStageActions(deps: {
       messageApi.warning("登录后可继续删除工作流。");
       return;
     }
-    if (!window.confirm(deleteWorkflowConfirmMessage(workflow))) return;
+    if (!deps.confirmDeleteWorkflow) {
+      messageApi.warning("缺少删除确认控件。");
+      return;
+    }
+    if (!(await deps.confirmDeleteWorkflow(deleteWorkflowConfirmMessage(workflow)))) return;
     const actionKey = `delete-workflow-${workflow.id}`;
     busyActionKey.value = actionKey;
     try {

@@ -1,5 +1,6 @@
 from __future__ import annotations
-from fastapi import APIRouter, UploadFile, File
+
+from fastapi import APIRouter, File, UploadFile
 
 router = APIRouter(prefix="/api/v3/uploads", tags=["uploads"])
 

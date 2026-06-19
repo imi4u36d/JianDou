@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from backend.routers.auth import get_current_user
+from backend.auth import get_current_user
 from backend.schemas.task import (
     CreateGenerationTaskRequest,
     GenerateCreativePromptRequest,
@@ -61,37 +61,9 @@ async def list_tasks(
 
 @router.post("/generation")
 async def create_generation_task(body: CreateGenerationTaskRequest, request: Request):
-    """创建生成任务。
-
-    直接调用 CommandService + QueryService，绕过 ApplicationService 中
-    已损坏的 _require_current_user_id()。
-    """
     user_id = await _uid(request)
-    svc = _svc(request)
     try:
-        task = await svc._command_service.create_generation_task(
-            owner_user_id=user_id,
-            title=body.title or "",
-            task_type=body.task_type,
-            aspect_ratio=body.aspect_ratio,
-            min_duration_seconds=body.min_duration_seconds,
-            max_duration_seconds=body.max_duration_seconds,
-            creative_prompt=body.creative_prompt,
-            seed=body.seed,
-            transcript_text=body.transcript_text,
-            image_model=body.image_model,
-            video_model=body.video_model,
-            text_analysis_model=body.text_analysis_model,
-            image_size=body.image_size,
-            video_size=body.video_size,
-            video_duration_seconds=body.video_duration_seconds,
-            output_count=body.output_count,
-            stop_before_video_generation=body.stop_before_video_generation,
-            reference_image_urls=body.reference_image_urls,
-            reference_asset_ids=body.reference_asset_ids,
-            asset_type=body.asset_type,
-        )
-        return await svc._query_service.get_task(task.id, user_id)
+        return await _svc(request).create_generation_task_for_user(user_id, body)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

@@ -50,7 +50,7 @@ const router = createRouter({
       name: "activate",
       component: ActivateInviteView,
       meta: {
-        title: "激活邀请码",
+        title: "激活",
         guestOnly: true
       }
     },
@@ -59,7 +59,7 @@ const router = createRouter({
       name: "forbidden",
       component: ForbiddenView,
       meta: {
-        title: "无权限访问"
+        title: "无权限"
       }
     },
     {
@@ -83,7 +83,7 @@ const router = createRouter({
           name: "workflows",
           component: StageWorkflowView,
           meta: {
-            title: "阶段工作流"
+            title: "阶段"
           }
         },
         {
@@ -91,7 +91,7 @@ const router = createRouter({
           name: "workflow-detail",
           component: StageWorkflowView,
           meta: {
-            title: "阶段工作流"
+            title: "阶段"
           }
         },
         {
@@ -99,7 +99,7 @@ const router = createRouter({
           name: "materials",
           component: MaterialLibraryView,
           meta: {
-            title: "素材库"
+            title: "素材"
           }
         },
         {
@@ -107,7 +107,7 @@ const router = createRouter({
           name: "tasks",
           component: TasksView,
           meta: {
-            title: "任务管理"
+            title: "任务"
           }
         }
       ]
@@ -118,7 +118,7 @@ const router = createRouter({
       name: "admin-login",
       component: AdminLoginView,
       meta: {
-        title: "管理员登录",
+        title: "管理端登录",
         guestOnly: true
       }
     },
@@ -127,7 +127,7 @@ const router = createRouter({
       name: "admin-forbidden",
       component: AdminForbiddenView,
       meta: {
-        title: "无权限访问"
+        title: "无权限"
       }
     },
     {
@@ -142,7 +142,7 @@ const router = createRouter({
           name: "admin-dashboard",
           component: DashboardView,
           meta: {
-            title: "首页概览"
+            title: "概览"
           }
         },
         {
@@ -150,7 +150,7 @@ const router = createRouter({
           name: "admin-users",
           component: UserManagementView,
           meta: {
-            title: "用户管理"
+            title: "用户"
           }
         },
         {
@@ -158,7 +158,7 @@ const router = createRouter({
           name: "admin-invites",
           component: InviteManagementView,
           meta: {
-            title: "邀请码管理"
+            title: "邀请码"
           }
         },
         {
@@ -166,7 +166,7 @@ const router = createRouter({
           name: "admin-credits",
           component: CreditManagementView,
           meta: {
-            title: "积分管理"
+            title: "积分"
           }
         },
         {
@@ -174,7 +174,7 @@ const router = createRouter({
           name: "admin-tasks",
           component: TaskManagementView,
           meta: {
-            title: "任务管理"
+            title: "任务"
           }
         },
         {
@@ -182,7 +182,7 @@ const router = createRouter({
           name: "admin-task-detail",
           component: TaskDetailView,
           meta: {
-            title: "任务详情"
+            title: "详情"
           }
         },
         {
@@ -190,7 +190,7 @@ const router = createRouter({
           name: "admin-system",
           component: SystemView,
           meta: {
-            title: "系统配置"
+            title: "系统"
           }
         }
       ]

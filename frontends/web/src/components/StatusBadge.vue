@@ -45,22 +45,23 @@ const statusClass = computed(() => {
   --badge-color: var(--text-muted);
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.9rem;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0;
   background: #f5f8fa;
   color: var(--badge-color);
-  text-transform: uppercase;
   border: 1px solid rgba(15, 20, 25, 0.06);
   box-shadow: none;
+  white-space: nowrap;
 }
 
 .status-dot {
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--badge-color);
 }

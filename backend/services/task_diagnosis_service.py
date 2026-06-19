@@ -8,13 +8,34 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.domain import task_queue_fairness
 from backend.domain.request_snapshot import (
     GenerationRequestSnapshot,
     RequestedDuration,
     RequestedOutputCount,
 )
+from backend.domain.task_monitoring import (
+    latest_join_output_of,
+    latest_video_output_of,
+    task_monitoring_snapshot,
+    task_outputs,
+)
+from backend.domain.task_monitoring import (
+    missing_clip_indices as monitoring_missing_clip_indices,
+)
 from backend.domain.task_result_types import is_join, is_primary_video
+from backend.domain.task_resume import existing_video_clip_indices
 
+OwnerResolver = task_queue_fairness.OwnerResolver
+TaskQueueFairScheduler = task_queue_fairness.TaskQueueFairScheduler
+
+__all__ = [
+    "OwnerResolver",
+    "TaskDiagnosisService",
+    "TaskQueueCoordinator",
+    "TaskQueueFairScheduler",
+    "TaskRequestSnapshotFactory",
+]
 
 # ===========================================================================
 # Utility helpers
@@ -136,13 +157,12 @@ class TaskDiagnosisService:
 
     def diagnose(self, task: Any) -> dict[str, Any]:
         """Run full diagnosis on a task and return a structured diagnosis dict."""
-        monitoring = _map_value(task.outputs_view if hasattr(task, "outputs_view") and callable(getattr(task, "outputs_view")) else
-                                getattr(task, "monitoring", {}))
+        monitoring = self._monitoring_snapshot(task)
         rendered_clip_indices = self._existing_video_clip_indices(task)
         planned_clip_count = _int_value(monitoring.get("plannedClipCount"), 0)
         contiguous_rendered_clip_count = _int_value(monitoring.get("contiguousRenderedClipCount"), 0)
         latest_rendered_clip_index = _int_value(monitoring.get("latestRenderedClipIndex"), 0)
-        missing_clip_indices = self._missing_clip_indices(planned_clip_count, rendered_clip_indices)
+        missing_indices = self._missing_clip_indices(planned_clip_count, rendered_clip_indices)
         outputs_view = self._get_outputs_view(task)
         latest_join_output = self._latest_output_of_kind(task, "video_join")
         latest_video_output = self._latest_output_of_kind(task, "video")
@@ -181,7 +201,7 @@ class TaskDiagnosisService:
                 "missing_clips",
                 "high" if _is_terminal(task_status) else "medium",
                 "Clip output does not fully cover planned shots",
-                f"Continuous clips: {contiguous_rendered_clip_count}/{planned_clip_count}, missing: {missing_clip_indices}",
+                f"Continuous clips: {contiguous_rendered_clip_count}/{planned_clip_count}, missing: {missing_indices}",
             ))
 
         if video_clip_count > 1 and join_count == 0:
@@ -230,7 +250,7 @@ class TaskDiagnosisService:
             "plannedClipCount": planned_clip_count,
             "renderedClipIndices": rendered_clip_indices,
             "contiguousRenderedClipCount": contiguous_rendered_clip_count,
-            "missingClipIndices": missing_clip_indices,
+            "missingClipIndices": missing_indices,
             "latestRenderedClipIndex": latest_rendered_clip_index,
             "latestJoinName": _string_value(monitoring.get("latestJoinName")),
             "latestJoinClipIndex": _int_value(
@@ -281,7 +301,7 @@ class TaskDiagnosisService:
     def severity(self, task: Any) -> str:
         """Return the highest severity level across all findings."""
         # Quick check without running full diagnosis
-        monitoring = _map_value(task.outputs_view if hasattr(task, "outputs_view") and callable(getattr(task, "outputs_view")) else {})
+        monitoring = self._monitoring_snapshot(task)
         rendered = self._existing_video_clip_indices(task)
         planned = _int_value(monitoring.get("plannedClipCount"), 0)
         contiguous = _int_value(monitoring.get("contiguousRenderedClipCount"), 0)
@@ -307,27 +327,27 @@ class TaskDiagnosisService:
     # ------------------------------------------------------------------
 
     def _get_outputs_view(self, task: Any) -> list[dict[str, Any]]:
-        if hasattr(task, "outputs_view") and callable(getattr(task, "outputs_view")):
-            return list(task.outputs_view())
-        if hasattr(task, "outputs_view"):
-            return list(task.outputs_view) if isinstance(task.outputs_view, list) else []
-        if hasattr(task, "outputs"):
-            return list(task.outputs) if isinstance(task.outputs, list) else []
-        return []
+        return task_outputs(task)
 
     def _latest_output_of_kind(self, task: Any, result_type: str) -> dict[str, Any]:
-        outputs = [
-            item for item in self._get_outputs_view(task)
-            if result_type == _string_value(item.get("resultType")).lower()
-        ]
-        outputs.sort(key=lambda item: _int_value(item.get("clipIndex"), 0))
-        return outputs[-1] if outputs else {}
+        outputs = self._get_outputs_view(task)
+        if result_type == "video":
+            return latest_video_output_of(outputs)
+        if result_type == "video_join":
+            return latest_join_output_of(outputs)
+        matching = [item for item in outputs if result_type == _string_value(item.get("resultType")).lower()]
+        matching.sort(key=lambda item: _int_value(item.get("clipIndex"), 0))
+        return matching[-1] if matching else {}
 
     def _missing_clip_indices(self, planned_clip_count: int, rendered_clip_indices: list[int]) -> list[int]:
-        if planned_clip_count <= 0:
-            return []
-        rendered_set = set(rendered_clip_indices)
-        return [idx for idx in range(1, planned_clip_count + 1) if idx not in rendered_set]
+        return monitoring_missing_clip_indices(planned_clip_count, rendered_clip_indices)
+
+    def _monitoring_snapshot(self, task: Any) -> dict[str, Any]:
+        monitoring = task_monitoring_snapshot(task)
+        legacy = getattr(task, "monitoring", None)
+        if isinstance(legacy, dict):
+            monitoring.update({key: value for key, value in legacy.items() if value not in (None, "", [])})
+        return monitoring
 
     def _highest_severity(self, findings: list[TaskFinding]) -> str:
         level = 0
@@ -374,86 +394,7 @@ class TaskDiagnosisService:
         return "Monitor latest trace and stage run; retry if no progress for an extended period."
 
     def _existing_video_clip_indices(self, task: Any) -> list[int]:
-        indices: set[int] = set()
-        for output in self._get_outputs_view(task):
-            if not is_primary_video(output.get("resultType", "")):
-                continue
-            clip_index = _integer_value(output.get("clipIndex"))
-            if clip_index is not None and clip_index > 0:
-                indices.add(clip_index)
-        return sorted(indices)
-
-
-# ===========================================================================
-# TaskQueueFairScheduler
-# ===========================================================================
-
-
-class TaskQueueFairScheduler:
-    """Fair round-robin scheduler across owner queues.
-
-    Mirrors the Java TaskQueueFairScheduler domain class.
-    """
-
-    SYSTEM_OWNER_KEY = "system"
-
-    @classmethod
-    def fair_order(
-        cls,
-        candidates: list,
-        owner_resolver: "OwnerResolver",
-        last_dispatched_owner_key: str,
-    ) -> list:
-        """Order candidates fairly by round-robin across owner queues."""
-        if not candidates:
-            return []
-
-        by_owner: dict[str, list] = {}
-        for candidate in candidates:
-            owner_id = owner_resolver.owner_user_id(candidate)
-            key = cls.owner_key(owner_id)
-            if key not in by_owner:
-                by_owner[key] = []
-            by_owner[key].append(candidate)
-
-        owner_keys = list(by_owner.keys())
-        start = 0
-        try:
-            last_idx = owner_keys.index(last_dispatched_owner_key)
-            start = (last_idx + 1) % len(owner_keys)
-        except ValueError:
-            pass
-
-        ordered: list = []
-        remaining = len(candidates)
-        owner_offset = start
-        while remaining > 0:
-            consumed = False
-            for idx in range(len(owner_keys)):
-                owner_key = owner_keys[(owner_offset + idx) % len(owner_keys)]
-                owner_queue = by_owner.get(owner_key)
-                if not owner_queue:
-                    continue
-                ordered.append(owner_queue.pop(0))
-                remaining -= 1
-                consumed = True
-            if not consumed:
-                break
-        return ordered
-
-    @classmethod
-    def owner_key(cls, owner_user_id: int | None) -> str:
-        if owner_user_id is None:
-            return cls.SYSTEM_OWNER_KEY
-        return f"user:{owner_user_id}"
-
-
-class OwnerResolver:
-    """Protocol for resolving the owner user ID from a queue candidate."""
-
-    def owner_user_id(self, candidate: object) -> int | None:
-        """Return the owner user ID for the candidate, or None for system."""
-        ...
+        return existing_video_clip_indices(self._get_outputs_view(task))
 
 
 # ===========================================================================
@@ -462,10 +403,11 @@ class OwnerResolver:
 
 
 class TaskQueueCoordinator:
-    """Coordinates enqueue/remove/claim operations for the task queue.
+    """Coordinates worker-side operations for the persisted task queue.
 
     Mirrors the Java TaskQueueCoordinator infrastructure class.
-    Delegates to a TaskQueuePort-like repository for persistence.
+    Queue entries are derived from persisted task attempts. Enqueue lifecycle
+    mutations must go through TaskExecutionCoordinator and TaskCommandService.
     """
 
     SNAPSHOT_LIMIT = 500
@@ -473,15 +415,11 @@ class TaskQueueCoordinator:
     def __init__(self, task_repository: Any) -> None:
         self._task_repository = task_repository
 
-    def enqueue(self, task_id: str) -> None:
-        """Enqueue a task. Queue state is derived from persisted attempt records."""
-        pass
-
     async def remove(self, task_id: str) -> None:
         """Remove a task from the queue."""
         await self._task_repository.remove_queued_task(task_id)
 
-    async def claim_next(self, worker_instance_id: str) -> str:
+    async def claim_next(self, worker_instance_id: str) -> str | None:
         """Claim the next queued task for a worker."""
         return await self._task_repository.claim_next_queued_task(worker_instance_id)
 
@@ -511,8 +449,6 @@ class TaskRequestSnapshotFactory:
             _string_value(getattr(request, "task_type", None) if hasattr(request, "task_type") else
                           getattr(request, "taskType", None)),
         )
-        request_task_type = _string_value(getattr(request, "task_type", None) if hasattr(request, "task_type") else
-                                          getattr(request, "taskType", None))
 
         return GenerationRequestSnapshot(
             task_type=task_type,

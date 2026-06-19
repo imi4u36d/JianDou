@@ -6,9 +6,8 @@ status history, model calls, results, and materials queries.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
-from backend.domain.enums import TaskStatus
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator

@@ -17,16 +17,12 @@ import os
 import shutil
 import subprocess
 import tempfile
-import time
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
-
 
 # ---------------------------------------------------------------------------
 # Configuration (simplified — replace with your own config as needed)

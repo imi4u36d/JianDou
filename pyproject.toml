@@ -2,7 +2,22 @@
 name = "jiandou"
 version = "0.1.0"
 description = "JianDou - AI video generation platform"
+readme = "README.md"
 requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["License"]
+authors = [
+    { name = "JianDou contributors" },
+]
+keywords = ["ai", "video-generation", "fastapi", "workflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+]
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]",
@@ -23,19 +38,49 @@ dependencies = [
 [project.scripts]
 jiandou = "backend.__main__:cli"
 
+[project.urls]
+Homepage = "https://github.com/imi4u36d/JianDou"
+Repository = "https://github.com/imi4u36d/JianDou"
+Issues = "https://github.com/imi4u36d/JianDou/issues"
+
 [build-system]
-requires = ["setuptools>=75.1"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.uv]
-dev-dependencies = ["pytest>=8", "pytest-asyncio>=0.24"]
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8.0",
+]
 
 [tool.setuptools.packages.find]
-include = ["backend*", "tests*"]
-
-[tool.setuptools.package-data]
-"backend" = ["static/**/*"]
+include = ["backend*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    "static",
+    "frontends",
+    "packages",
+]
+
+[tool.ruff.lint]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/services/generation_service.py" = ["F401", "F841"]
+"backend/services/model_config_service.py" = ["F401", "F841"]
+"backend/services/model_invocation.py" = ["F401", "F841"]
+"backend/services/task_worker_service.py" = ["F401", "F841"]

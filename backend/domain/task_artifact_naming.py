@@ -13,7 +13,7 @@ from typing import Any
 
 def task_artifact_relative_dir(task: Any) -> str:
     """Relative directory for all task artifacts."""
-    return _task_base_relative_dir(task)
+    return _task_artifact_base_relative_dir(task)
 
 
 def task_base_relative_dir(task: Any) -> str:
@@ -118,7 +118,7 @@ def _safe_task_directory(task_id: str | None) -> str:
 
 def _normalize_segment(value: str, fallback: str) -> str:
     normalized = _string_value(value)
-    normalized = re.sub(r"[\s\p{P}]+", "_", normalized)
+    normalized = re.sub(r"[^\w-]+", "_", normalized, flags=re.UNICODE)
     normalized = re.sub(r"[^\w\-_]+", "_", normalized, flags=re.UNICODE)
     normalized = re.sub(r"_+", "_", normalized)
     normalized = re.sub(r"-+", "-", normalized)

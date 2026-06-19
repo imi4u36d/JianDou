@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session_factory
+from backend.domain.enums import StageRunStatus
+from backend.domain.json_payloads import object_value, read_json_object, write_json_object
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.models.task import (
+    BizMaterialAsset,
     BizTask,
     BizTaskAttempt,
     BizTaskModelCall,
@@ -57,6 +59,22 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _stage_run_status(value: Any) -> str:
+    status = StageRunStatus._missing_(_string_value(value))
+    return status.value if status is not None else StageRunStatus.FAILED.value
+
+
 # ---------------------------------------------------------------------------
 # Mapping helpers: TaskRecord <-> BizTask
 # ---------------------------------------------------------------------------
@@ -77,12 +95,8 @@ def _biz_task_from_record(record: TaskRecord) -> BizTask:
         source_file_name=record.source_file_name or "",
         source_asset_ids_json=None,
         source_file_names_json=None,
-        request_payload_json=json.dumps(record.request_snapshot, ensure_ascii=False)
-        if record.request_snapshot
-        else None,
-        context_json=json.dumps(record.execution_context, ensure_ascii=False)
-        if record.execution_context
-        else None,
+        request_payload_json=write_json_object(record.request_snapshot) if record.request_snapshot else None,
+        context_json=write_json_object(record.execution_context) if record.execution_context else None,
         intro_template=record.intro_template or "",
         outro_template=record.outro_template or "",
         creative_prompt=record.creative_prompt,
@@ -109,24 +123,59 @@ def _biz_task_from_record(record: TaskRecord) -> BizTask:
     )
 
 
+def _material_from_row(row: BizMaterialAsset) -> dict[str, Any]:
+    metadata = read_json_object(row.metadata_json)
+    file_url = row.public_url or row.remote_url or ""
+    preview_url = row.thumbnail_url or row.public_url or row.remote_url or ""
+    return {
+        "id": row.material_asset_id,
+        "materialAssetId": row.material_asset_id,
+        "ownerUserId": row.owner_user_id,
+        "taskId": row.task_id or "",
+        "workflowId": row.workflow_id or "",
+        "sourceTaskId": row.source_task_id or "",
+        "sourceMaterialId": row.source_material_id or "",
+        "kind": row.asset_role or "",
+        "assetRole": row.asset_role or "",
+        "stageType": row.stage_type or "",
+        "clipIndex": row.clip_index or 0,
+        "versionNo": row.version_no,
+        "selectedForNext": row.selected_for_next or 0,
+        "userRating": row.user_rating,
+        "ratingNote": row.rating_note or "",
+        "mediaType": row.media_type or "",
+        "title": row.title or "",
+        "originProvider": row.origin_provider or "",
+        "originModel": row.origin_model or "",
+        "remoteTaskId": row.remote_task_id or "",
+        "remoteAssetId": row.remote_asset_id or "",
+        "originalFileName": row.original_file_name or "",
+        "storedFileName": row.stored_file_name or "",
+        "fileExt": row.file_ext or "",
+        "storageProvider": row.storage_provider or "",
+        "mimeType": row.mime_type or "",
+        "sizeBytes": row.size_bytes or 0,
+        "sha256": row.sha256 or "",
+        "durationSeconds": row.duration_seconds or 0,
+        "width": row.width or 0,
+        "height": row.height or 0,
+        "hasAudio": bool(row.has_audio),
+        "storagePath": row.local_storage_path or "",
+        "localFilePath": row.local_file_path or "",
+        "fileUrl": file_url,
+        "previewUrl": preview_url,
+        "thumbnailUrl": row.thumbnail_url or "",
+        "thirdPartyUrl": row.third_party_url or "",
+        "remoteUrl": row.remote_url or "",
+        "metadata": metadata,
+        "createdAt": row.captured_at or row.create_time or "",
+    }
+
+
 def _record_from_biz_task(row: BizTask) -> TaskRecord:
     """Convert a BizTask ORM row into a TaskRecord."""
-    request_snapshot: dict[str, Any] = {}
-    execution_context: dict[str, Any] = {}
-    if row.request_payload_json:
-        try:
-            parsed = json.loads(row.request_payload_json)
-            if isinstance(parsed, dict):
-                request_snapshot = parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
-    if row.context_json:
-        try:
-            parsed = json.loads(row.context_json)
-            if isinstance(parsed, dict):
-                execution_context = parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
+    request_snapshot = read_json_object(row.request_payload_json)
+    execution_context = read_json_object(row.context_json)
 
     rec = TaskRecord(
         id=row.task_id or "",
@@ -199,7 +248,12 @@ class TaskRepository:
     # ------------------------------------------------------------------
 
     async def _find_task_row(self, task_id: str) -> BizTask | None:
-        result = await self.session.execute(select(BizTask).where(BizTask.task_id == task_id))
+        result = await self.session.execute(
+            select(BizTask).where(
+                BizTask.task_id == task_id,
+                BizTask.is_deleted == 0,
+            )
+        )
         return result.scalars().first()
 
     async def _find_attempt_row(self, attempt_id: str) -> BizTaskAttempt | None:
@@ -209,6 +263,12 @@ class TaskRepository:
     async def _find_worker_row(self, worker_instance_id: str) -> BizWorkerInstance | None:
         result = await self.session.execute(
             select(BizWorkerInstance).where(BizWorkerInstance.worker_instance_id == worker_instance_id)
+        )
+        return result.scalars().first()
+
+    async def _find_material_row(self, material_asset_id: str) -> BizMaterialAsset | None:
+        result = await self.session.execute(
+            select(BizMaterialAsset).where(BizMaterialAsset.material_asset_id == material_asset_id)
         )
         return result.scalars().first()
 
@@ -269,7 +329,7 @@ class TaskRepository:
                         stage=_string_value(row.get("stage")),
                         event=_string_value(row.get("event")),
                         message=_string_value(row.get("reason", row.get("message", ""))),
-                        payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
+                        payload_json=write_json_object(row.get("payload", {})),
                         change_time=_string_value(row.get("changedAt", row.get("timestamp", _now_iso()))),
                         operator_type="system",
                         operator_id="",
@@ -291,7 +351,7 @@ class TaskRepository:
                         stage=_string_value(row.get("stage")),
                         event=_string_value(row.get("event")),
                         message=_string_value(row.get("message")),
-                        payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
+                        payload_json=write_json_object(row.get("payload", {})),
                         change_time=_string_value(row.get("timestamp", _now_iso())),
                         operator_type="trace",
                         operator_id="",
@@ -311,13 +371,13 @@ class TaskRepository:
                         stage_name=_string_value(row.get("stageName", row.get("stage", ""))),
                         stage_seq=_int_value(row.get("stageSeq"), 0),
                         clip_index=_int_value(row.get("clipIndex"), 0),
-                        status=_string_value(row.get("status", "")),
+                        status=_stage_run_status(row.get("status")),
                         worker_instance_id=_string_value(row.get("workerInstanceId", "")),
                         started_at=_string_value(row.get("startedAt", _now_iso())),
                         finished_at=_string_value(row.get("finishedAt", "")) or None,
                         duration_ms=_int_value(row.get("durationMs"), 0),
-                        input_summary_json=json.dumps(row.get("inputSummary", {}), ensure_ascii=False),
-                        output_summary_json=json.dumps(row.get("outputSummary", {}), ensure_ascii=False),
+                        input_summary_json=write_json_object(row.get("inputSummary", {})),
+                        output_summary_json=write_json_object(row.get("outputSummary", {})),
                         error_code=_string_value(row.get("errorCode", "")),
                         error_message=_string_value(row.get("errorMessage", "")),
                         timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
@@ -331,41 +391,9 @@ class TaskRepository:
                 for row in mutation.model_call_rows:
                     await self._upsert_model_call(task_id, row)
 
-                # 7. Materials -> store as BizTaskModelCall (simplified)
+                # 7. Materials
                 for row in mutation.material_rows:
-                    self.session.add(BizTaskModelCall(
-                        task_model_call_id="mat_" + _string_value(row.get("materialId", row.get("id", _now_iso()))),
-                        task_id=task_id,
-                        call_kind="material",
-                        stage=_string_value(row.get("stage", "")),
-                        operation="",
-                        provider="",
-                        provider_model="",
-                        requested_model="",
-                        resolved_model="",
-                        model_name=_string_value(row.get("mediaType", "")),
-                        model_alias="",
-                        endpoint_host="",
-                        request_id="",
-                        request_payload_json=json.dumps(row, ensure_ascii=False),
-                        response_payload_json="{}",
-                        http_status=0,
-                        response_status_code=0,
-                        success=1,
-                        error_code="",
-                        error_message="",
-                        latency_ms=0,
-                        duration_ms=0,
-                        input_tokens=0,
-                        output_tokens=0,
-                        started_at=_now_iso(),
-                        finished_at=_now_iso(),
-                        timezone_offset_minutes=0,
-                        create_time=_now_iso(),
-                        update_time=_now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    await self._upsert_material_asset(task_id, mutation.task, row)
 
                 # 8. Results
                 for row in mutation.result_rows:
@@ -388,7 +416,7 @@ class TaskRepository:
                         mime_type=_string_value(row.get("mimeType", "")),
                         size_bytes=_int_value(row.get("sizeBytes"), 0),
                         remote_url=_string_value(row.get("remoteUrl", "")),
-                        extra_json=json.dumps(row.get("extra", {}), ensure_ascii=False),
+                        extra_json=write_json_object(row.get("extra", {})),
                         produced_at=_string_value(row.get("producedAt", _now_iso())),
                         timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
                         create_time=_now_iso(),
@@ -407,7 +435,7 @@ class TaskRepository:
                         event_type=_string_value(row.get("eventType", "")),
                         worker_instance_id=_string_value(row.get("workerInstanceId", "")),
                         queue_position_hint=_int_value(row.get("queuePositionHint"), 0),
-                        payload_json=json.dumps(row.get("payload", {}), ensure_ascii=False),
+                        payload_json=write_json_object(row.get("payload", {})),
                         event_time=_string_value(row.get("eventTime", _now_iso())),
                         timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
                         create_time=_now_iso(),
@@ -545,7 +573,7 @@ class TaskRepository:
                 "stage": r.stage or "",
                 "event": r.event or "",
                 "message": r.message or "",
-                "payload": json.loads(r.payload_json) if r.payload_json else {},
+                "payload": read_json_object(r.payload_json),
             }
             for r in rows
         ]
@@ -570,7 +598,7 @@ class TaskRepository:
                 "eventType": r.event_type,
                 "workerInstanceId": r.worker_instance_id or "",
                 "queuePositionHint": r.queue_position_hint or 0,
-                "payload": json.loads(r.payload_json) if r.payload_json else {},
+                "payload": read_json_object(r.payload_json),
                 "eventTime": r.event_time or "",
             }
             for r in rows
@@ -591,7 +619,7 @@ class TaskRepository:
                 "startedAt": r.started_at or "",
                 "lastHeartbeatAt": r.last_heartbeat_at or "",
                 "stoppedAt": r.stopped_at or "",
-                "metadata": json.loads(r.metadata_json) if r.metadata_json else {},
+                "metadata": read_json_object(r.metadata_json),
             }
             for r in rows
         ]
@@ -611,7 +639,7 @@ class TaskRepository:
                 "startedAt": row.started_at or "",
                 "lastHeartbeatAt": row.last_heartbeat_at or "",
                 "stoppedAt": row.stopped_at or "",
-                "metadata": json.loads(row.metadata_json) if row.metadata_json else {},
+                "metadata": read_json_object(row.metadata_json),
             }
 
     async def list_stale_worker_instance_ids(
@@ -681,12 +709,7 @@ class TaskRepository:
         )
         result = await self.session.execute(stmt)
         for a in result.scalars().all():
-            payload = {}
-            if a.payload_json:
-                try:
-                    payload = json.loads(a.payload_json)
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            payload = read_json_object(a.payload_json)
             rec.attempts.append({
                 "attemptId": a.task_attempt_id,
                 "taskId": a.task_id,
@@ -725,12 +748,7 @@ class TaskRepository:
         )
         result = await self.session.execute(stmt)
         for r in result.scalars().all():
-            payload = {}
-            if r.payload_json:
-                try:
-                    payload = json.loads(r.payload_json)
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            payload = read_json_object(r.payload_json)
             rec.trace.append({
                 "traceId": r.task_status_history_id,
                 "timestamp": r.change_time or "",
@@ -753,12 +771,7 @@ class TaskRepository:
         )
         result = await self.session.execute(stmt)
         for r in result.scalars().all():
-            payload = {}
-            if r.payload_json:
-                try:
-                    payload = json.loads(r.payload_json)
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            payload = read_json_object(r.payload_json)
             rec.status_history.append({
                 "statusHistoryId": r.task_status_history_id,
                 "taskId": r.task_id,
@@ -773,7 +786,7 @@ class TaskRepository:
                 "payload": payload,
             })
 
-        # Load model calls (and materials stored as model calls)
+        # Load model calls
         stmt = (
             select(BizTaskModelCall)
             .where(BizTaskModelCall.task_id == tid, BizTaskModelCall.is_deleted == 0)
@@ -781,55 +794,46 @@ class TaskRepository:
         )
         result = await self.session.execute(stmt)
         for m in result.scalars().all():
-            if m.call_kind == "material":
-                req_payload = {}
-                if m.request_payload_json:
-                    try:
-                        req_payload = json.loads(m.request_payload_json)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                rec.materials.append(req_payload)
-            else:
-                req_payload = {}
-                if m.request_payload_json:
-                    try:
-                        req_payload = json.loads(m.request_payload_json)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                resp_payload = {}
-                if m.response_payload_json:
-                    try:
-                        resp_payload = json.loads(m.response_payload_json)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                rec.model_calls.append({
-                    "modelCallId": m.task_model_call_id,
-                    "taskId": m.task_id,
-                    "callKind": m.call_kind or "",
-                    "stage": m.stage or "",
-                    "operation": m.operation or "",
-                    "provider": m.provider or "",
-                    "providerModel": m.provider_model or "",
-                    "requestedModel": m.requested_model or "",
-                    "resolvedModel": m.resolved_model or "",
-                    "modelName": m.model_name or "",
-                    "modelAlias": m.model_alias or "",
-                    "endpointHost": m.endpoint_host or "",
-                    "requestId": m.request_id or "",
-                    "requestPayload": req_payload,
-                    "responsePayload": resp_payload,
-                    "httpStatus": m.http_status or 0,
-                    "responseStatusCode": m.response_status_code or 0,
-                    "success": m.success or 0,
-                    "errorCode": m.error_code or "",
-                    "errorMessage": m.error_message or "",
-                    "latencyMs": m.latency_ms or 0,
-                    "durationMs": m.duration_ms or 0,
-                    "inputTokens": m.input_tokens or 0,
-                    "outputTokens": m.output_tokens or 0,
-                    "startedAt": m.started_at or "",
-                    "finishedAt": m.finished_at or "",
-                })
+            req_payload = read_json_object(m.request_payload_json)
+            resp_payload = read_json_object(m.response_payload_json)
+            rec.model_calls.append({
+                "modelCallId": m.task_model_call_id,
+                "taskId": m.task_id,
+                "callKind": m.call_kind or "",
+                "stage": m.stage or "",
+                "operation": m.operation or "",
+                "provider": m.provider or "",
+                "providerModel": m.provider_model or "",
+                "requestedModel": m.requested_model or "",
+                "resolvedModel": m.resolved_model or "",
+                "modelName": m.model_name or "",
+                "modelAlias": m.model_alias or "",
+                "endpointHost": m.endpoint_host or "",
+                "requestId": m.request_id or "",
+                "requestPayload": req_payload,
+                "responsePayload": resp_payload,
+                "httpStatus": m.http_status or 0,
+                "responseStatusCode": m.response_status_code or 0,
+                "success": m.success or 0,
+                "errorCode": m.error_code or "",
+                "errorMessage": m.error_message or "",
+                "latencyMs": m.latency_ms or 0,
+                "durationMs": m.duration_ms or 0,
+                "inputTokens": m.input_tokens or 0,
+                "outputTokens": m.output_tokens or 0,
+                "startedAt": m.started_at or "",
+                "finishedAt": m.finished_at or "",
+            })
+
+        # Load materials
+        stmt = (
+            select(BizMaterialAsset)
+            .where(BizMaterialAsset.task_id == tid, BizMaterialAsset.is_deleted == 0)
+            .order_by(BizMaterialAsset.create_time.asc())
+        )
+        result = await self.session.execute(stmt)
+        for asset in result.scalars().all():
+            rec.materials.append(_material_from_row(asset))
 
         # Load results
         stmt = (
@@ -839,12 +843,7 @@ class TaskRepository:
         )
         result = await self.session.execute(stmt)
         for r in result.scalars().all():
-            extra = {}
-            if r.extra_json:
-                try:
-                    extra = json.loads(r.extra_json)
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            extra = read_json_object(r.extra_json)
             rec.outputs.append({
                 "resultId": r.task_result_id,
                 "taskId": r.task_id,
@@ -873,7 +872,7 @@ class TaskRepository:
         if not attempt_id:
             return
         existing = await self._find_attempt_row(attempt_id)
-        safe_payload = row.get("payload", {})
+        safe_payload = object_value(row.get("payload", {}))
         if existing:
             existing.status = _string_value(row.get("status", existing.status))
             existing.trigger_type = _string_value(row.get("triggerType", existing.trigger_type))
@@ -888,14 +887,14 @@ class TaskRepository:
             existing.resume_from_clip_index = _int_value(row.get("resumeFromClipIndex"), existing.resume_from_clip_index or 0)
             existing.failure_code = _string_value(row.get("failureCode", existing.failure_code))
             existing.failure_message = _string_value(row.get("failureMessage", existing.failure_message))
-            existing.payload_json = json.dumps(safe_payload, ensure_ascii=False)
+            existing.payload_json = write_json_object(safe_payload)
             existing.timezone_offset_minutes = _int_value(row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0)
             existing.update_time = _now_iso()
         else:
             self.session.add(BizTaskAttempt(
                 task_attempt_id=attempt_id,
                 task_id=task_id,
-                attempt_no=_int_value(row.get("attemptNo"), 0),
+                attempt_no=max(1, _int_value(row.get("attemptNo"), 1)),
                 trigger_type=_string_value(row.get("triggerType", "")),
                 status=_string_value(row.get("status", "")),
                 queue_name=_string_value(row.get("queueName", "default")),
@@ -909,7 +908,7 @@ class TaskRepository:
                 resume_from_clip_index=_int_value(row.get("resumeFromClipIndex"), 0),
                 failure_code=_string_value(row.get("failureCode", "")),
                 failure_message=_string_value(row.get("failureMessage", "")),
-                payload_json=json.dumps(safe_payload, ensure_ascii=False),
+                payload_json=write_json_object(safe_payload),
                 timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
                 create_time=_now_iso(),
                 update_time=_now_iso(),
@@ -939,8 +938,8 @@ class TaskRepository:
             "model_alias": _string_value(row.get("modelAlias", "")),
             "endpoint_host": _string_value(row.get("endpointHost", "")),
             "request_id": _string_value(row.get("requestId", "")),
-            "request_payload_json": json.dumps(row.get("requestPayload", {}), ensure_ascii=False),
-            "response_payload_json": json.dumps(row.get("responsePayload", {}), ensure_ascii=False),
+            "request_payload_json": write_json_object(row.get("requestPayload", {})),
+            "response_payload_json": write_json_object(row.get("responsePayload", {})),
             "http_status": _int_value(row.get("httpStatus"), 0),
             "response_status_code": _int_value(
                 row.get("responseStatusCode", row.get("responseCode")), 0
@@ -969,13 +968,81 @@ class TaskRepository:
             **values,
         ))
 
+    async def _upsert_material_asset(
+        self,
+        task_id: str,
+        task: TaskRecord | None,
+        row: dict[str, Any],
+    ) -> None:
+        material_id = _string_value(row.get("materialAssetId", row.get("materialId", row.get("id", ""))))
+        if not material_id:
+            return
+        existing = await self._find_material_row(material_id)
+        now = _now_iso()
+        metadata = object_value(row.get("metadata", {}))
+        owner_user_id = _optional_int(row.get("ownerUserId"))
+        if owner_user_id is None and task is not None:
+            owner_user_id = task.owner_user_id
+        values = {
+            "remark": _string_value(row.get("remark", "")),
+            "owner_user_id": owner_user_id or 0,
+            "task_id": task_id,
+            "workflow_id": _string_value(row.get("workflowId", "")) or None,
+            "source_task_id": _string_value(row.get("sourceTaskId", "")) or None,
+            "source_material_id": _string_value(row.get("sourceMaterialId", "")) or None,
+            "asset_role": _string_value(row.get("assetRole", row.get("kind", ""))) or None,
+            "stage_type": _string_value(row.get("stageType", row.get("stage", ""))) or None,
+            "clip_index": _optional_int(row.get("clipIndex")),
+            "version_no": _optional_int(row.get("versionNo")),
+            "selected_for_next": _int_value(row.get("selectedForNext"), 0),
+            "user_rating": _optional_int(row.get("userRating")),
+            "rating_note": _string_value(row.get("ratingNote", "")) or None,
+            "media_type": _string_value(row.get("mediaType", "")) or None,
+            "title": _string_value(row.get("title", "")) or None,
+            "origin_provider": _string_value(row.get("originProvider", "")) or None,
+            "origin_model": _string_value(row.get("originModel", "")) or None,
+            "remote_task_id": _string_value(row.get("remoteTaskId", "")) or None,
+            "remote_asset_id": _string_value(row.get("remoteAssetId", "")) or None,
+            "original_file_name": _string_value(row.get("originalFileName", "")) or None,
+            "stored_file_name": _string_value(row.get("storedFileName", "")) or None,
+            "file_ext": _string_value(row.get("fileExt", "")) or None,
+            "storage_provider": _string_value(row.get("storageProvider", "")) or None,
+            "mime_type": _string_value(row.get("mimeType", "")) or None,
+            "size_bytes": _optional_int(row.get("sizeBytes")),
+            "sha256": _string_value(row.get("sha256", "")) or None,
+            "duration_seconds": _optional_float(row.get("durationSeconds")),
+            "width": _optional_int(row.get("width")),
+            "height": _optional_int(row.get("height")),
+            "has_audio": 1 if bool(row.get("hasAudio")) else 0,
+            "local_storage_path": _string_value(row.get("storagePath", "")) or None,
+            "local_file_path": _string_value(row.get("localFilePath", row.get("storagePath", ""))) or None,
+            "public_url": _string_value(row.get("fileUrl", row.get("publicUrl", ""))) or None,
+            "thumbnail_url": _string_value(row.get("thumbnailUrl", row.get("previewUrl", ""))) or None,
+            "third_party_url": _string_value(row.get("thirdPartyUrl", "")) or None,
+            "remote_url": _string_value(row.get("remoteUrl", "")) or None,
+            "metadata_json": write_json_object(metadata),
+            "captured_at": _string_value(row.get("capturedAt", row.get("createdAt", now))) or None,
+            "timezone_offset_minutes": _optional_int(row.get("timezoneOffsetMinutes")),
+            "update_time": now,
+            "is_deleted": 0,
+        }
+        if existing:
+            for key, value in values.items():
+                setattr(existing, key, value)
+            return
+        self.session.add(BizMaterialAsset(
+            material_asset_id=material_id,
+            create_time=now,
+            **values,
+        ))
+
     async def _upsert_worker_instance(self, row: dict[str, Any]) -> None:
         worker_id = _string_value(row.get("workerInstanceId", ""))
         if not worker_id:
             return
         existing = await self._find_worker_row(worker_id)
         now = _now_iso()
-        metadata = row.get("metadata", {})
+        metadata = object_value(row.get("metadata", {}))
         if existing:
             existing.worker_type = _string_value(row.get("workerType", existing.worker_type))
             existing.queue_name = _string_value(row.get("queueName", existing.queue_name))
@@ -984,7 +1051,7 @@ class TaskRepository:
             existing.status = _string_value(row.get("status", existing.status))
             existing.last_heartbeat_at = _string_value(row.get("lastHeartbeatAt", now))
             existing.stopped_at = _string_value(row.get("stoppedAt", existing.stopped_at or ""))
-            existing.metadata_json = json.dumps(metadata, ensure_ascii=False)
+            existing.metadata_json = write_json_object(metadata)
             existing.timezone_offset_minutes = _int_value(row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0)
             existing.update_time = now
         else:
@@ -998,7 +1065,7 @@ class TaskRepository:
                 started_at=_string_value(row.get("startedAt", now)),
                 last_heartbeat_at=_string_value(row.get("lastHeartbeatAt", now)),
                 stopped_at=_string_value(row.get("stoppedAt", "")),
-                metadata_json=json.dumps(metadata, ensure_ascii=False),
+                metadata_json=write_json_object(metadata),
                 timezone_offset_minutes=_int_value(row.get("timezoneOffsetMinutes"), 0),
                 create_time=now,
                 update_time=now,

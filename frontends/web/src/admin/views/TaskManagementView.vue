@@ -19,9 +19,7 @@
         <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="task-page__toolbar">
-          <div>
-            <h3>任务列表</h3>
-          </div>
+          <div class="task-page__toolbar-spacer" aria-hidden="true"></div>
           <div class="task-page__toolbar-actions">
             <el-button plain @click="resetFilters">重置</el-button>
             <el-button
@@ -143,7 +141,7 @@
             >
               终止
             </el-button>
-            <span v-else class="task-page__muted-action">不可终止</span>
+            <span v-else class="task-page__muted-action">-</span>
           </template>
         </el-table-column>
       </el-table>
@@ -437,19 +435,19 @@ onMounted(() => {
 .task-page__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
 }
 
-.task-page__toolbar h3 {
-  margin: 0;
-  font-family: inherit;
+.task-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .task-page__toolbar-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .task-page__filters {
@@ -457,6 +455,8 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 4px 12px;
   margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(23, 32, 42, 0.06);
 }
 
 .task-page__filters-action {
@@ -504,6 +504,9 @@ onMounted(() => {
 
 .task-page__muted-action {
   color: var(--jd-text-soft);
+  display: inline-flex;
+  justify-content: center;
+  min-width: 32px;
   font-size: 0.86rem;
 }
 

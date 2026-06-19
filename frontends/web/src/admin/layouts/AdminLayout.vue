@@ -1,8 +1,5 @@
 <template>
   <div class="page-shell admin-layout">
-    <div class="admin-layout__aurora admin-layout__aurora-left" aria-hidden="true"></div>
-    <div class="admin-layout__aurora admin-layout__aurora-right" aria-hidden="true"></div>
-
     <aside class="surface-card admin-layout__aside">
       <div class="admin-layout__brand">
         <div class="admin-layout__brand-mark">
@@ -16,27 +13,27 @@
       <el-menu :default-active="activeMenu" class="admin-layout__menu" router>
         <el-menu-item index="/admin">
           <el-icon><DataAnalysis /></el-icon>
-          <span>首页概览</span>
+          <span>概览</span>
         </el-menu-item>
         <el-menu-item index="/admin/tasks">
           <el-icon><Tickets /></el-icon>
-          <span>任务管理</span>
+          <span>任务</span>
         </el-menu-item>
         <el-menu-item index="/admin/users">
           <el-icon><UserFilled /></el-icon>
-          <span>用户管理</span>
+          <span>用户</span>
         </el-menu-item>
         <el-menu-item index="/admin/invites">
           <el-icon><Ticket /></el-icon>
-          <span>邀请码管理</span>
+          <span>邀请码</span>
         </el-menu-item>
         <el-menu-item index="/admin/credits">
           <el-icon><Coin /></el-icon>
-          <span>积分管理</span>
+          <span>积分</span>
         </el-menu-item>
         <el-menu-item index="/admin/system">
           <el-icon><Setting /></el-icon>
-          <span>系统配置</span>
+          <span>系统</span>
         </el-menu-item>
       </el-menu>
 
@@ -46,7 +43,7 @@
           <span>{{ currentUser?.username }} · {{ currentUser?.role }}</span>
         </div>
         <el-button plain @click="handleLogout">
-          退出登录
+          退出
         </el-button>
       </div>
     </aside>
@@ -102,31 +99,9 @@ async function handleLogout() {
 .admin-layout {
   position: relative;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 20px;
   padding: 24px;
-}
-
-.admin-layout__aurora {
-  position: fixed;
-  width: 320px;
-  height: 320px;
-  border-radius: 999px;
-  filter: blur(96px);
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.admin-layout__aurora-left {
-  top: -120px;
-  left: -80px;
-  background: rgba(139, 212, 80, 0.22);
-}
-
-.admin-layout__aurora-right {
-  right: -80px;
-  bottom: -120px;
-  background: rgba(27, 124, 255, 0.2);
 }
 
 .admin-layout__aside {
@@ -135,9 +110,9 @@ async function handleLogout() {
   align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
   max-height: calc(100vh - 48px);
-  padding: 24px 18px 18px;
+  padding: 22px 14px 16px;
   border-radius: 22px;
   overflow: hidden;
 }
@@ -145,22 +120,22 @@ async function handleLogout() {
 .admin-layout__brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 6px 10px;
 }
 
 .admin-layout__brand-mark {
   display: grid;
   place-items: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
   background: linear-gradient(135deg, rgba(0, 169, 187, 0.16), rgba(27, 124, 255, 0.16));
 }
 
 .admin-layout__brand-logo {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   filter: drop-shadow(0 0 12px rgba(98, 136, 255, 0.18));
 }
 
@@ -185,8 +160,8 @@ async function handleLogout() {
 
 .admin-layout__aside-footer {
   display: grid;
-  gap: 12px;
-  padding: 16px 10px 8px;
+  gap: 10px;
+  padding: 14px 10px 8px;
   border-top: 1px solid rgba(23, 32, 42, 0.08);
 }
 
@@ -209,7 +184,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px;
+  padding: 18px 20px;
   border-radius: 18px;
 }
 

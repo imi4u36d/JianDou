@@ -2,7 +2,6 @@
 
 Translates the Java classes:
 - GenerationRunSupport
-- GenerationCatalogService
 - GenerationRunFactory
 - DefaultGenerationApplicationService
 
@@ -20,19 +19,44 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Optional
 
 from backend.config import settings
+from backend.domain.generation_run import GenerationModelKinds, GenerationRunKinds, GenerationRunStatuses
 from backend.infrastructure.generation_run_store import LocalGenerationRunStore
+from backend.services.generation_artifacts import (
+    GenerationArtifactStore,
+    extension_from_mime_or_url,
+)
+from backend.services.generation_catalog_service import GenerationCatalogService
+from backend.services.generation_payloads import (
+    append_negative_prompt,
+    build_media_model_info,
+    build_model_info,
+    build_negative_prompt,
+    build_script_adjust_user_prompt,
+    build_script_user_prompt,
+    infer_seedance_camera_fixed,
+)
+from backend.services.generation_request_values import (
+    find_nested_string,
+    first_non_blank,
+    map_value,
+    nested_boolean,
+    nested_int,
+    nested_nullable_int,
+    nested_string_list,
+    nested_value,
+    string_list,
+    string_value,
+)
 from backend.services.model_config_service import (
-    ModelRuntimePropertiesResolver,
     ModelRuntimeProfile,
+    ModelRuntimePropertiesResolver,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,7 +93,7 @@ _video_model_provider = None
 def _get_image_model_provider():
     global _image_model_provider
     if _image_model_provider is None:
-        from backend.services.model_invocation import SeedreamImageModelProvider, ImageProviderTransport
+        from backend.services.model_invocation import ImageProviderTransport, SeedreamImageModelProvider
         _image_model_provider = SeedreamImageModelProvider(transport=ImageProviderTransport())
     return _image_model_provider
 
@@ -80,50 +104,6 @@ def _get_video_model_provider():
         from backend.services.model_invocation import SeedanceVideoModelProvider, VideoProviderTransport
         _video_model_provider = SeedanceVideoModelProvider(transport=VideoProviderTransport())
     return _video_model_provider
-
-# ---------------------------------------------------------------------------
-# Constants (mirrors GenerationRunKinds, GenerationRunStatuses, GenerationModelKinds)
-# ---------------------------------------------------------------------------
-
-class GenerationRunKinds:
-    PROBE = "probe"
-    SCRIPT = "script"
-    SCRIPT_ADJUST = "script_adjust"
-    IMAGE = "image"
-    VIDEO = "video"
-
-
-class GenerationRunStatuses:
-    QUEUED = "queued"
-    SUBMITTED = "submitted"
-    RUNNING = "running"
-    ACCEPTED = "accepted"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    COMPLETED = "completed"
-    SUCCESS = "success"
-
-    _ACTIVE = {ACCEPTED, QUEUED, SUBMITTED, RUNNING}
-    _SUCCESSFUL = {SUCCEEDED, COMPLETED, SUCCESS}
-
-    @classmethod
-    def is_active(cls, raw: str) -> bool:
-        return cls._normalize(raw) in cls._ACTIVE
-
-    @classmethod
-    def is_successful(cls, raw: str) -> bool:
-        return cls._normalize(raw) in cls._SUCCESSFUL
-
-    @classmethod
-    def _normalize(cls, raw: str) -> str:
-        return raw.strip().lower() if raw else ""
-
-
-class GenerationModelKinds:
-    TEXT = "text"
-    IMAGE = "image"
-    VIDEO = "video"
-
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -231,6 +211,10 @@ class GenerationRunSupport:
 
     def __init__(self) -> None:
         self._storage_root: str = getattr(settings, "storage_root", "./storage")
+        self._artifact_store = GenerationArtifactStore(
+            self._storage_root,
+            getattr(settings, "web_origin", "http://127.0.0.1:80"),
+        )
 
     # ── Run envelope ──────────────────────────────────────────────────
 
@@ -269,107 +253,41 @@ class GenerationRunSupport:
     def nested_value(
         self, payload: dict[str, Any], parent_key: str, child_key: str, default: str = ""
     ) -> str:
-        parent = payload.get(parent_key)
-        if isinstance(parent, dict):
-            child = parent.get(child_key)
-            if child is not None:
-                return str(child)
-        return default
+        return nested_value(payload, parent_key, child_key, default)
 
     def nested_string_list(
         self, payload: dict[str, Any], parent_key: str, child_key: str
     ) -> list[str]:
-        parent = payload.get(parent_key)
-        if not isinstance(parent, dict):
-            return []
-        child = parent.get(child_key)
-        if not isinstance(child, list):
-            return []
-        return [str(v).strip() for v in child if isinstance(v, str) and v.strip()]
+        return nested_string_list(payload, parent_key, child_key)
 
     def nested_int(
         self, payload: dict[str, Any], parent_key: str, child_key: str, default: int = 0
     ) -> int:
-        parent = payload.get(parent_key)
-        if isinstance(parent, dict):
-            child = parent.get(child_key)
-            if isinstance(child, (int, float)):
-                return int(child)
-            if child is not None:
-                try:
-                    return int(round(float(str(child))))
-                except (ValueError, TypeError):
-                    pass
-        return default
+        return nested_int(payload, parent_key, child_key, default)
 
     def nested_nullable_int(
         self, payload: dict[str, Any], parent_key: str, child_key: str
     ) -> Optional[int]:
-        parent = payload.get(parent_key)
-        if not isinstance(parent, dict):
-            return None
-        child = parent.get(child_key)
-        if isinstance(child, (int, float)):
-            return int(child)
-        if child is not None:
-            try:
-                return int(round(float(str(child))))
-            except (ValueError, TypeError):
-                pass
-        return None
+        return nested_nullable_int(payload, parent_key, child_key)
 
     def nested_boolean(
         self, payload: dict[str, Any], parent_key: str, child_key: str, default: bool = False
     ) -> bool:
-        parent = payload.get(parent_key)
-        if not isinstance(parent, dict):
-            return default
-        child = parent.get(child_key)
-        if isinstance(child, bool):
-            return child
-        if isinstance(child, (int, float)):
-            return int(child) != 0
-        if isinstance(child, str):
-            normalized = child.strip().lower()
-            if normalized in ("1", "true", "yes", "on"):
-                return True
-            if normalized in ("0", "false", "no", "off"):
-                return False
-        return default
+        return nested_boolean(payload, parent_key, child_key, default)
 
     # ── Utility ──────────────────────────────────────────────────────
 
     def map_value(self, value: Any) -> dict[str, Any]:
-        if isinstance(value, dict):
-            return {str(k): v for k, v in value.items()}
-        return {}
+        return map_value(value)
 
     def string_value(self, value: Any) -> str:
-        return "" if value is None else str(value).strip()
+        return string_value(value)
 
     def first_non_blank(self, *values: str) -> str:
-        for v in values:
-            if v and v.strip():
-                return v.strip()
-        return ""
+        return first_non_blank(*values)
 
     def find_nested_string(self, value: Any, *keys: str) -> str:
-        wanted = {k for k in keys if k}
-        if isinstance(value, dict):
-            for key in wanted:
-                direct = value.get(key)
-                if isinstance(direct, str) and direct.strip():
-                    return direct.strip()
-            for nested in value.values():
-                resolved = self.find_nested_string(nested, *keys)
-                if resolved:
-                    return resolved
-        elif isinstance(value, list):
-            for item in value:
-                resolved = self.find_nested_string(item, *keys)
-                if resolved:
-                    return resolved
-        return ""
+        return find_nested_string(value, *keys)
 
     def required_model(self, value: str, field_name: str, label: str) -> str:
         normalized = value.strip() if value else ""
@@ -430,63 +348,25 @@ class GenerationRunSupport:
         return (fallback_width, fallback_height)
 
     def extension_from_mime_or_url(self, mime_type: str, source_url: str, media_type: str) -> str:
-        normalized_mime = mime_type.lower() if mime_type else ""
-        if normalized_mime.startswith("image/png"):
-            return "png"
-        if normalized_mime.startswith("image/jpeg"):
-            return "jpg"
-        if normalized_mime.startswith("image/webp"):
-            return "webp"
-        if normalized_mime.startswith("video/mp4"):
-            return "mp4"
-        if normalized_mime.startswith("video/webm"):
-            return "webm"
-        if source_url:
-            path = source_url.split("?")[0]
-            dot = path.rfind(".")
-            if dot >= 0 and dot < len(path) - 1:
-                return path[dot + 1 :].lower()
-        return "png" if media_type == GenerationModelKinds.IMAGE else "mp4"
+        return extension_from_mime_or_url(mime_type, source_url, media_type)
 
     def append_negative_prompt(self, prompt: str, negative_prompt: str) -> str:
-        if not prompt or not prompt.strip():
-            return f"写实影视风格。负面约束：{negative_prompt}"
-        return f"{prompt.strip()}\n负面约束：{negative_prompt}"
+        return append_negative_prompt(prompt, negative_prompt)
 
     def infer_seedance_camera_fixed(self, prompt: str, fallback: bool) -> bool:
-        normalized = self.string_value(prompt).lower()
-        if not normalized:
-            return fallback
-        keywords = [
-            "固定镜头", "固定机位", "镜头固定", "机位固定",
-            "镜头保持固定", "监控视角", "监控镜头", "鱼眼监控",
-        ]
-        if any(k in normalized for k in keywords):
-            return True
-        return fallback
+        return infer_seedance_camera_fixed(prompt, fallback)
 
     def storage_relative_dir(self, request: dict[str, Any], run_id: str) -> str:
-        storage = self.map_value(request.get("storage"))
-        configured = self.string_value(storage.get("relativeDir"))
-        return configured if configured else f"gen/_runs/{run_id}"
+        return self._artifact_store.storage_relative_dir(request, run_id)
 
     def storage_file_stem(self, request: dict[str, Any], fallback: str) -> str:
-        storage = self.map_value(request.get("storage"))
-        configured = self.string_value(storage.get("fileStem"))
-        return configured if configured else fallback
+        return self._artifact_store.storage_file_stem(request, fallback)
 
     def storage_file_name(self, request: dict[str, Any], fallback: str) -> str:
-        storage = self.map_value(request.get("storage"))
-        configured = self.string_value(storage.get("fileName"))
-        return configured if configured else fallback
+        return self._artifact_store.storage_file_name(request, fallback)
 
     def string_list(self, value: Any) -> list[str]:
-        if isinstance(value, list):
-            return [
-                str(item).strip() for item in value
-                if item is not None and str(item).strip()
-            ]
-        return []
+        return string_list(value)
 
     def integer_list(self, value: Any) -> list[int]:
         if isinstance(value, list):
@@ -537,18 +417,7 @@ class GenerationRunSupport:
         response: Optional[dict[str, Any]],
         source_tag: str,
     ) -> dict[str, Any]:
-        return {
-            "provider": profile.get("provider", ""),
-            "modelName": profile.get("modelName", ""),
-            "providerModel": profile.get("modelName", ""),
-            "requestedModel": requested_model,
-            "resolvedModel": profile.get("modelName", ""),
-            "textAnalysisModel": profile.get("modelName", ""),
-            "mediaKind": media_kind,
-            "endpointHost": (response or {}).get("endpointHost", profile.get("endpointHost", "")),
-            "configSource": profile.get("source", ""),
-            "generationSource": source_tag,
-        }
+        return build_model_info(profile, requested_model, media_kind, response, source_tag)
 
     def build_media_model_info(
         self,
@@ -565,52 +434,27 @@ class GenerationRunSupport:
         task_endpoint_host: str,
         source_tag: str,
     ) -> dict[str, Any]:
-        info: dict[str, Any] = {
-            "provider": media_profile.get("provider", ""),
-            "modelName": resolved_model,
-            "providerModel": resolved_model,
-            "requestedModel": requested_model,
-            "resolvedModel": resolved_model,
-            "textAnalysisModel": text_profile.get("modelName", ""),
-            "textAnalysisProvider": text_profile.get("provider", ""),
-            "textAnalysisEndpointHost": text_profile.get("endpointHost", ""),
-            "mediaKind": media_kind,
-            "endpointHost": endpoint_host,
-            "taskEndpointHost": task_endpoint_host,
-            "configSource": media_profile.get("source", ""),
-            "generationSource": source_tag,
-        }
-        if rewrite_profile:
-            info["promptRewriteModel"] = rewrite_profile.get("modelName", "")
-            info["promptRewriteProvider"] = rewrite_profile.get("provider", "")
-            info["promptRewriteEndpointHost"] = (
-                (text_response or {}).get("endpointHost", rewrite_profile.get("endpointHost", ""))
-            )
-        if vision_profile:
-            info["visionAnalysisModel"] = vision_profile.get("modelName", "")
-            info["visionAnalysisProvider"] = vision_profile.get("provider", "")
-            info["visionAnalysisEndpointHost"] = (
-                (vision_response or {}).get("endpointHost", vision_profile.get("endpointHost", ""))
-            )
-        return info
+        return build_media_model_info(
+            text_profile,
+            rewrite_profile,
+            vision_profile,
+            media_profile,
+            requested_model,
+            media_kind,
+            text_response,
+            vision_response,
+            resolved_model,
+            endpoint_host,
+            task_endpoint_host,
+            source_tag,
+        )
 
     # ── Artifact helpers (stub — writes to local storage) ────────────
 
     def write_text_artifact(
         self, run_id: str, request: dict[str, Any], file_name: str, content: str
     ) -> dict[str, Any]:
-        relative_dir = self.storage_relative_dir(request, run_id)
-        actual_name = self.storage_file_name(request, file_name)
-        file_path = os.path.join(self._storage_root, relative_dir, actual_name)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        public_url = f"/storage/{relative_dir}/{actual_name}"
-        return {
-            "absolutePath": os.path.abspath(file_path),
-            "publicUrl": public_url,
-            "fileName": actual_name,
-        }
+        return self._artifact_store.write_text_artifact(run_id, request, file_name, content)
 
     def write_binary_artifact(
         self,
@@ -620,229 +464,18 @@ class GenerationRunSupport:
         extension: str,
         data: bytes,
     ) -> dict[str, Any]:
-        relative_dir = self.storage_relative_dir(request, run_id)
-        ext = extension if extension else "bin"
-        file_name = f"{self.storage_file_stem(request, file_stem)}.{ext}"
-        file_path = os.path.join(self._storage_root, relative_dir, file_name)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "wb") as f:
-            f.write(data)
-        public_url = f"/storage/{relative_dir}/{file_name}"
-        size_bytes = len(data)
-        mime = self._mime_from_name(file_name)
-        return {
-            "fileName": file_name,
-            "absolutePath": os.path.abspath(file_path),
-            "publicUrl": public_url,
-            "sizeBytes": size_bytes,
-            "mimeType": mime,
-        }
+        return self._artifact_store.write_binary_artifact(run_id, request, file_stem, extension, data)
 
     def materialize_binary_artifact(
         self, run_id: str, relative_dir: str, file_stem: str, source_url: str
     ) -> dict[str, Any]:
-        ext = self.extension_from_mime_or_url("", source_url, "video")
-        file_name = f"{file_stem}.{ext}"
-        file_path = os.path.join(self._storage_root, relative_dir, file_name)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        # Download from source URL
-        size_bytes = 0
-        try:
-            import httpx
-            with httpx.Client(timeout=120.0, follow_redirects=True) as client:
-                resp = client.get(source_url)
-                resp.raise_for_status()
-                with open(file_path, "wb") as f:
-                    f.write(resp.content)
-                size_bytes = len(resp.content)
-        except Exception as ex:
-            logger.warning("Failed to download from %s: %s", source_url, ex)
-            with open(file_path, "wb") as f:
-                f.write(b"")
-        public_url = f"/storage/{relative_dir}/{file_name}"
-        return {
-            "fileName": file_name,
-            "absolutePath": os.path.abspath(file_path),
-            "publicUrl": public_url,
-            "sizeBytes": size_bytes,
-            "mimeType": self._mime_from_name(file_name),
-        }
+        return self._artifact_store.materialize_binary_artifact(run_id, relative_dir, file_stem, source_url)
 
     def build_externally_accessible_url(self, public_url: str) -> str:
-        base = getattr(settings, "web_origin", "http://127.0.0.1:80")
-        if public_url and public_url.startswith("/"):
-            return f"{base.rstrip('/')}{public_url}"
-        return public_url or ""
+        return self._artifact_store.build_externally_accessible_url(public_url)
 
     def image_data_uri_from_public_url(self, public_url: str) -> str:
-        return ""  # stub
-
-    def _mime_from_name(self, file_name: str) -> str:
-        lower = file_name.lower() if file_name else ""
-        if lower.endswith(".mp4"):
-            return "video/mp4"
-        if lower.endswith(".webm"):
-            return "video/webm"
-        if lower.endswith(".png"):
-            return "image/png"
-        if lower.endswith((".jpg", ".jpeg")):
-            return "image/jpeg"
-        if lower.endswith(".webp"):
-            return "image/webp"
-        return "application/octet-stream"
-
-
-# ===========================================================================
-# GenerationCatalogService
-# ===========================================================================
-
-class GenerationCatalogService:
-    """Returns the model catalog (available models, sizes, durations, etc.)."""
-
-    def __init__(self) -> None:
-        self._support = GenerationRunSupport()
-
-    def catalog(self) -> dict[str, Any]:
-        default_aspect_ratio = "16:9"
-        default_style_preset = "cinematic"
-        default_video_size = "1280*720"
-        default_video_duration_seconds = 8
-        default_image_size = "1824x1024"
-
-        text_models: list[dict[str, Any]] = [
-            {"value": "gpt-5.4", "label": "GPT-5.4", "provider": "openai"},
-            {"value": "gpt-4o", "label": "GPT-4o", "provider": "openai"},
-            {"value": "claude-4", "label": "Claude 4", "provider": "anthropic"},
-        ]
-        image_models: list[dict[str, Any]] = [
-            {"value": "dall-e-3", "label": "DALL-E 3", "provider": "openai"},
-            {"value": "seedance-image", "label": "Seedance Image", "provider": "seedance"},
-        ]
-        video_models: list[dict[str, Any]] = [
-            {"value": "seedance-video", "label": "Seedance Video", "provider": "seedance", "supportedSizes": ["1280*720", "720*1280", "1920*1080", "1080*1920"], "supportedDurations": [4, 6, 8, 10, 12]},
-            {"value": "kling-video", "label": "Kling Video", "provider": "kling", "supportedSizes": ["1280*720", "720*1280"], "supportedDurations": [5, 8, 10]},
-        ]
-
-        image_model_names = [
-            str(m.get("value", "")).strip() for m in image_models if str(m.get("value", "")).strip()
-        ]
-        video_model_names = [
-            str(m.get("value", "")).strip() for m in video_models if str(m.get("value", "")).strip()
-        ]
-
-        payload: dict[str, Any] = {
-            "defaultAspectRatio": default_aspect_ratio,
-            "aspectRatios": self._aspect_ratio_options(),
-            "stylePresets": self._style_preset_options(),
-            "imageSizes": self._image_size_options(image_models, image_model_names),
-            "textAnalysisModels": text_models,
-            "defaultTextAnalysisModel": self._default_model_name(text_models, "gpt-5.4"),
-            "imageModels": image_models,
-            "videoModels": video_models,
-            "defaultVideoModel": None,
-            "videoSizes": self._video_size_options(video_models, video_model_names),
-            "videoDurations": self._video_duration_options(video_models, video_model_names),
-            "defaultStylePreset": default_style_preset,
-            "defaultImageSize": default_image_size,
-            "defaultVideoSize": default_video_size,
-            "defaultVideoDurationSeconds": default_video_duration_seconds,
-            "configSource": "python-default",
-        }
-        return payload
-
-    @staticmethod
-    def _default_model_name(
-        models: list[dict[str, Any]], preferred: str
-    ) -> str:
-        if not preferred:
-            return ""
-        for m in models:
-            if str(m.get("value", "")).strip() == preferred:
-                return preferred
-        return ""
-
-    @staticmethod
-    def _aspect_ratio_options() -> list[dict[str, Any]]:
-        return [
-            {"value": "16:9", "label": "h 16:9"},
-            {"value": "9:16", "label": "v 9:16"},
-            {"value": "1:1", "label": "Square 1:1"},
-            {"value": "4:3", "label": "4:3"},
-            {"value": "3:4", "label": "3:4"},
-        ]
-
-    @staticmethod
-    def _style_preset_options() -> list[dict[str, Any]]:
-        return [
-            {"key": "cinematic", "label": "", "description": ""},
-            {"key": "anime", "label": "", "description": ""},
-            {"key": "realistic", "label": "", "description": ""},
-            {"key": "artistic", "label": "", "description": ""},
-        ]
-
-    @staticmethod
-    def _image_size_options(
-        image_models: list[dict[str, Any]], image_model_names: list[str]
-    ) -> list[dict[str, Any]]:
-        return [
-            {"value": "1824x1024", "label": "1K 16:9 1824x1024", "width": 1824, "height": 1024, "supportedModels": image_model_names},
-            {"value": "1024x1024", "label": "1:1 1024x1024", "width": 1024, "height": 1024, "supportedModels": image_model_names},
-            {"value": "720x1280", "label": "9:16 720x1280", "width": 720, "height": 1280, "supportedModels": image_model_names},
-        ]
-
-    @staticmethod
-    def _video_size_options(
-        video_models: list[dict[str, Any]], video_model_names: list[str]
-    ) -> list[dict[str, Any]]:
-        return [
-            {"value": "1280*720", "label": "720P 1280x720", "width": 1280, "height": 720, "supportedModels": video_model_names},
-            {"value": "480*854", "label": "480P 480x854", "width": 480, "height": 854, "supportedModels": video_model_names},
-            {"value": "854*480", "label": "480P 854x480", "width": 854, "height": 480, "supportedModels": video_model_names},
-            {"value": "720*1280", "label": "720P 720x1280", "width": 720, "height": 1280, "supportedModels": video_model_names},
-            {"value": "1080*1920", "label": "1080P 1080x1920", "width": 1080, "height": 1920, "supportedModels": video_model_names},
-            {"value": "1920*1080", "label": "1080P 1920x1080", "width": 1920, "height": 1080, "supportedModels": video_model_names},
-        ]
-
-    @staticmethod
-    def _video_duration_options(
-        video_models: list[dict[str, Any]], video_model_names: list[str]
-    ) -> list[dict[str, Any]]:
-        return [
-            {"value": 4, "label": "4 ", "supportedModels": video_model_names},
-            {"value": 6, "label": "6 ", "supportedModels": video_model_names},
-            {"value": 8, "label": "8 ", "supportedModels": video_model_names},
-            {"value": 10, "label": "10 ", "supportedModels": video_model_names},
-            {"value": 12, "label": "12 ", "supportedModels": video_model_names},
-        ]
-
-    @staticmethod
-    def _models_supporting_size(
-        video_models: list[dict[str, Any]], size: str, fallback: list[str]
-    ) -> list[str]:
-        normalized_size = size.strip().lower()
-        matched: list[str] = []
-        for vm in video_models:
-            supported = vm.get("supportedSizes", [])
-            if isinstance(supported, list):
-                for s in supported:
-                    if str(s).strip().lower() == normalized_size:
-                        matched.append(str(vm.get("value", "")).strip())
-                        break
-        return matched if matched else fallback
-
-    @staticmethod
-    def _models_supporting_duration(
-        video_models: list[dict[str, Any]], duration: int, fallback: list[str]
-    ) -> list[str]:
-        matched: list[str] = []
-        for vm in video_models:
-            supported = vm.get("supportedDurations", [])
-            if isinstance(supported, list):
-                for d in supported:
-                    if d == duration:
-                        matched.append(str(vm.get("value", "")).strip())
-                        break
-        return matched if matched else fallback
+        return self._artifact_store.image_data_uri_from_public_url(public_url)
 
 
 # ===========================================================================
@@ -1845,38 +1478,17 @@ class GenerationRunFactory:
 
     @staticmethod
     def _build_negative_prompt(media_kind: str) -> str:
-        base = ""
-        if media_kind == GenerationModelKinds.VIDEO:
-            video_only = (
-                ""
-            )
-        else:
-            video_only = ""
-        return f" {video_only}"
+        return build_negative_prompt(media_kind)
 
     @staticmethod
     def _build_script_user_prompt(source_text: str, visual_style: str) -> str:
-        style_line = (
-            ""
-            if not visual_style or visual_style.strip().lower() == "ai  "
-            else f"  {visual_style}"
-        )
-        return f"  \n{style_line}\n\n【 】：\n{source_text}\n\n---\n\n  system prompt     。"
+        return build_script_user_prompt(source_text, visual_style)
 
     @staticmethod
     def _build_script_adjust_user_prompt(
         source_text: str, visual_style: str, source_script: str, adjustment_prompt: str
     ) -> str:
-        _style_line = ""
-        if visual_style and visual_style.strip().lower() != "ai  ":
-            _style_line = f"  {visual_style}"
-        requirement = (
-            f"  \n{adjustment_prompt.strip()}"
-            if adjustment_prompt and adjustment_prompt.strip()
-            else ""
-        )
-        source_section = source_text if source_text else ""
-        return f"  {source_section}\n{_style_line}\n{requirement}\n\n{source_script}"
+        return build_script_adjust_user_prompt(source_text, visual_style, source_script, adjustment_prompt)
 
     @staticmethod
     def _stub_script_output(source_text: str, visual_style: str) -> str:

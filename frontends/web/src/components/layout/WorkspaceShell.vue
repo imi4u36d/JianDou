@@ -61,13 +61,13 @@
                 class="sidebar-user-popover__link"
                 :href="adminPortalUrl"
               >
-                管理端
+                管理
               </a>
               <button v-if="currentUser" class="sidebar-user-popover__logout" type="button" @click="handleLogout">
-                退出登录
+                退出
               </button>
               <RouterLink v-else class="sidebar-user-popover__link" to="/login" @click="closeUserMenu">
-                去登录
+                登录
               </RouterLink>
             </div>
           </div>
@@ -87,13 +87,13 @@
               class="sidebar-user-card__link"
               :href="adminPortalUrl"
             >
-              管理端
+              管理
             </a>
             <button v-if="currentUser" class="sidebar-user-card__logout" type="button" @click="handleLogout">
-              退出登录
+              退出
             </button>
             <RouterLink v-else class="sidebar-user-card__link" to="/login">
-              去登录
+              登录
             </RouterLink>
           </div>
         </div>
@@ -178,7 +178,7 @@ const creditValue = computed(() => {
     return "--";
   }
   if (creditsLoading.value && !credits.value) {
-    return "...";
+    return "--";
   }
   if (!credits.value) {
     return "--";
@@ -203,7 +203,8 @@ function isActive(target: string) {
 
 const currentTitle = computed(() => {
   const metaTitle = route.meta?.title;
-  return typeof metaTitle === "string" && metaTitle.trim() ? metaTitle : "煎豆工作台";
+  const title = typeof metaTitle === "string" && metaTitle.trim() ? metaTitle : "煎豆工作台";
+  return title.replace(/\s*·\s*煎豆$/, "").replace(/管理$/, "");
 });
 
 function toggleUserMenu() {
@@ -513,9 +514,7 @@ watch(
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.9) 0 12%, transparent 13%),
-    linear-gradient(135deg, var(--accent-coral) 0%, var(--accent-blue) 54%, var(--accent-cyan) 100%);
+  background: linear-gradient(135deg, var(--accent-coral) 0%, var(--accent-blue) 54%, var(--accent-cyan) 100%);
   color: #fff;
   font-weight: 800;
   box-shadow:
@@ -723,9 +722,11 @@ watch(
   padding: 0;
   border-radius: 999px;
   border: 0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
-  box-shadow: 0 8px 18px rgba(21, 27, 32, 0.08);
+  box-shadow:
+    0 8px 18px rgba(21, 27, 32, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
 .shell-menu-btn {
@@ -741,10 +742,15 @@ watch(
 }
 
 .workspace-mobile-bar__title {
+  min-width: 0;
+  max-width: 56vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin: 0;
   color: var(--text-strong);
-  font-size: 0.92rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 760;
 }
 
 .workspace-mobile-bar__placeholder {
@@ -876,6 +882,10 @@ watch(
     max-width: none;
     text-align: right;
     font-size: 0.86rem;
+  }
+
+  .sidebar-user-card__meta {
+    display: none;
   }
 
   .workspace-sidebar-open {

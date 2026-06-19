@@ -7,15 +7,14 @@ via the TaskRepository.
 from __future__ import annotations
 
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from backend.config import settings
-from backend.domain.enums import AttemptStatus, AttemptTriggerType, TraceLevel, TaskStatus
+from backend.domain.enums import AttemptStatus, AttemptTriggerType, TaskStatus
 from backend.domain.task_record import TaskRecord
+from backend.domain.task_resume import existing_video_clip_indices, last_contiguous_completed_clip_index
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
-from backend.infrastructure.task_queue_port import InMemoryTaskQueue, TaskQueuePort
 from backend.infrastructure.task_repository import TaskRepository
-from backend.models.task import BizTask
 from backend.services.task_execution_coordinator import (
     TaskExecutionCoordinator,
     TaskStateTransition,
@@ -213,10 +212,11 @@ class TaskCommandService:
 
     async def pause(self, task: TaskRecord) -> TaskRecord:
         """Pause an active task."""
-        self.execution_coordinator.dequeue(task)
+        mutation = TaskPersistenceMutation().set_task(task)
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.dequeue(task))
         task.is_queued = False
         task.queue_position = None
-        self.execution_coordinator.transition_task(
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.transition_task(
             task,
             TaskStateTransition.info(
                 TaskStatus.PAUSED.value,
@@ -226,8 +226,8 @@ class TaskCommandService:
                 "Task paused.",
                 {"reason": "manual"},
             ).with_attempt(AttemptStatus.PAUSED, ""),
-        )
-        await self.task_repository.save(task)
+        ))
+        await self.task_repository.save_mutation(mutation)
         return task
 
     # ------------------------------------------------------------------
@@ -270,11 +270,12 @@ class TaskCommandService:
 
     async def terminate(self, task: TaskRecord) -> TaskRecord:
         """Terminate an active task."""
-        self.execution_coordinator.dequeue(task)
+        mutation = TaskPersistenceMutation().set_task(task)
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.dequeue(task))
         task.is_queued = False
         task.queue_position = None
         error_message = "Task manually terminated."
-        self.execution_coordinator.transition_task(
+        mutation = self._merge_mutation(mutation, self.execution_coordinator.transition_task(
             task,
             TaskStateTransition.warn(
                 TaskStatus.FAILED.value,
@@ -285,8 +286,8 @@ class TaskCommandService:
                 {"reason": "manual"},
             ).with_attempt(AttemptStatus.TERMINATED, error_message),
             lambda t: setattr(t, "error_message", error_message) or setattr(t, "finished_at", TaskRecord.now_iso()),
-        )
-        await self.task_repository.save(task)
+        ))
+        await self.task_repository.save_mutation(mutation)
         return task
 
     # ------------------------------------------------------------------
@@ -425,13 +426,8 @@ class TaskCommandService:
             "triggerType": trigger_type.value,
             "retryCount": task.retry_count,
         }
-        clip_indices: list[int] = []
-        for output in task.outputs_view:
-            clip_index = output.get("clipIndex")
-            if isinstance(clip_index, int) and clip_index > 0:
-                clip_indices.append(clip_index)
-        clip_indices.sort()
-        completed_clip_count = TaskCommandService._last_contiguous_completed_clip_index(clip_indices)
+        clip_indices = existing_video_clip_indices(task.outputs_view)
+        completed_clip_count = last_contiguous_completed_clip_index(clip_indices)
         if task.storyboard_script:
             payload["resumeFromStage"] = "render" if completed_clip_count > 0 else "planning"
             payload["resumeFromClipIndex"] = max(1, completed_clip_count + 1)
@@ -439,12 +435,3 @@ class TaskCommandService:
             payload["existingClipIndices"] = clip_indices
             payload["reuseStoryboard"] = True
         return payload
-
-    @staticmethod
-    def _last_contiguous_completed_clip_index(clip_indices: list[int]) -> int:
-        expected = 1
-        for clip_index in clip_indices:
-            if clip_index != expected:
-                break
-            expected += 1
-        return expected - 1

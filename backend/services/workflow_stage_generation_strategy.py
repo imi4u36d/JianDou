@@ -5,7 +5,7 @@ Mirrors the Java WorkflowStageGenerationStrategy and WorkflowStageGenerationStra
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -48,64 +48,18 @@ class WorkflowStageGenerationStrategy:
     config_source: str = ""
 
     def __post_init__(self) -> None:
-        self._stage = _blank_to(self.stage, "")
-        self._strategy_key = _blank_to(self.strategy_key, "")
-        self._run_kind = _blank_to(self.run_kind, "")
-        self._model_kind = _blank_to(self.model_kind, "")
-        self._requested_model = _blank_to(self.requested_model, "")
-        self._provider = _blank_to(self.provider, "")
-        self._provider_model = _blank_to(self.provider_model, "")
-        self._reference_input_mode = _blank_to(self.reference_input_mode, "")
-        self._generation_mode = _blank_to(self.generation_mode, "")
-        self._config_source = _blank_to(self.config_source, "")
-
-    @property
-    def stage(self) -> str:
-        return self._stage
-
-    @property
-    def strategy_key(self) -> str:
-        return self._strategy_key
-
-    @property
-    def run_kind(self) -> str:
-        return self._run_kind
-
-    @property
-    def model_kind(self) -> str:
-        return self._model_kind
-
-    @property
-    def requested_model(self) -> str:
-        return self._requested_model
-
-    @property
-    def provider(self) -> str:
-        return self._provider
-
-    @property
-    def provider_model(self) -> str:
-        return self._provider_model
-
-    @property
-    def supports_seed(self) -> bool:
-        return self._supports_seed
-
-    @property
-    def supports_image_data_uri_references(self) -> bool:
-        return self._supports_image_data_uri_references
-
-    @property
-    def reference_input_mode(self) -> str:
-        return self._reference_input_mode
-
-    @property
-    def generation_mode(self) -> str:
-        return self._generation_mode
-
-    @property
-    def config_source(self) -> str:
-        return self._config_source
+        self.stage = _blank_to(self.stage, "")
+        self.strategy_key = _blank_to(self.strategy_key, "")
+        self.run_kind = _blank_to(self.run_kind, "")
+        self.model_kind = _blank_to(self.model_kind, "")
+        self.requested_model = _blank_to(self.requested_model, "")
+        self.provider = _blank_to(self.provider, "")
+        self.provider_model = _blank_to(self.provider_model, "")
+        self.supports_seed = bool(self.supports_seed)
+        self.supports_image_data_uri_references = bool(self.supports_image_data_uri_references)
+        self.reference_input_mode = _blank_to(self.reference_input_mode, "")
+        self.generation_mode = _blank_to(self.generation_mode, "")
+        self.config_source = _blank_to(self.config_source, "")
 
     def model_section(self, text_analysis_model: str) -> dict[str, Any]:
         """Build the model configuration section dict for this strategy."""

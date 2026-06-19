@@ -19,25 +19,28 @@
           <span aria-hidden="true"><IconSearch size="sm" /></span>
           <input v-model="filters.q" type="search" placeholder="搜索" @keyup.enter="loadAssets" />
         </label>
-        <button class="material-search-button" type="button" :disabled="loading" aria-label="搜索素材" @click="loadAssets">
-          <IconSearch size="sm" />
-        </button>
         <span class="material-toolbar-divider"></span>
         <button
           class="material-toolbar-link"
           type="button"
-          :class="{ 'material-toolbar-link-active': advancedFiltersOpen }"
+          :class="{ 'material-toolbar-link-active': advancedFiltersOpen || activeFilterCount > 0 }"
+          aria-label="筛选素材"
+          title="筛选"
           @click="advancedFiltersOpen = !advancedFiltersOpen"
         >
-          筛选
+          <IconSettings size="sm" />
+          <span v-if="activeFilterCount > 0" class="material-toolbar-badge">{{ activeFilterCount }}</span>
         </button>
         <button
           class="material-toolbar-link"
           type="button"
           :class="{ 'material-toolbar-link-active': batchMode }"
-          @click="batchMode = !batchMode"
+          :disabled="!canUseBatchMode"
+          aria-label="批量选择"
+          title="批量"
+          @click="toggleBatchMode"
         >
-          批量
+          <IconCheck size="sm" />
         </button>
         <RouterLink class="material-toolbar-primary" to="/workspace">
           <IconPlus size="sm" />
@@ -69,18 +72,22 @@
       </div>
     </section>
 
-    <section v-if="batchMode" class="material-batch-bar">
+    <section v-if="batchMode && displayedAssets.length" class="material-batch-bar">
       <span>已选 {{ selectedAssetIds.length }}</span>
       <button class="btn-secondary btn-sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchUpload">
-        {{ busyActionKey === "batch-upload" ? "..." : "上传" }}
+        <IconLoading v-if="busyActionKey === 'batch-upload'" size="xs" />
+        <IconUpload v-else size="xs" />
+        {{ busyActionKey === "batch-upload" ? "上传中" : "上传" }}
       </button>
       <button class="btn-danger btn-sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
-        {{ busyActionKey === "batch-delete" ? "..." : "删除" }}
+        <IconLoading v-if="busyActionKey === 'batch-delete'" size="xs" />
+        <IconDelete v-else size="xs" />
+        {{ busyActionKey === "batch-delete" ? "删除中" : "删除" }}
       </button>
     </section>
 
     <section v-if="loading && !assets.length" class="material-empty">
-      加载中
+      <IconLoading size="lg" />
     </section>
 
     <section v-else class="material-asset-grid">
@@ -97,8 +104,17 @@
             type="button"
             @click="openVideoAsset(asset)"
           >
-            <img :src="assetVideoPosterUrl(asset)" :alt="asset.title" loading="lazy" decoding="async" fetchpriority="low" />
-            <span class="material-video-play" aria-hidden="true">▶</span>
+            <img
+              v-if="!isAssetPreviewImageFailed(assetVideoPosterUrl(asset))"
+              :src="assetVideoPosterUrl(asset)"
+              :alt="asset.title"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
+              @error="markAssetPreviewImageFailed(assetVideoPosterUrl(asset))"
+            />
+            <span v-else class="material-preview-fallback"><IconImage size="sm" /></span>
+            <span class="material-video-play" aria-hidden="true"><IconVideo size="xs" /></span>
           </button>
           <button
             v-else-if="asset.mediaType === 'video'"
@@ -114,7 +130,16 @@
             type="button"
             @click="openImagePreview(asset)"
           >
-            <img :src="assetListImageUrl(asset)" :alt="asset.title" loading="lazy" decoding="async" fetchpriority="low" />
+            <img
+              v-if="!isAssetPreviewImageFailed(assetListImageUrl(asset))"
+              :src="assetListImageUrl(asset)"
+              :alt="asset.title"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
+              @error="markAssetPreviewImageFailed(assetListImageUrl(asset))"
+            />
+            <span v-else class="material-preview-fallback"><IconImage size="sm" /></span>
           </button>
           <button
             v-else-if="asset.mediaType === 'image'"
@@ -135,19 +160,11 @@
         </div>
 
         <div class="material-card__body">
-          <div class="material-card__title">
-            <strong>{{ asset.title }}</strong>
-            <span>{{ assetSubtitle(asset) }}</span>
-          </div>
-          <div class="material-card__chips">
-            <span>{{ assetTypeLabel(asset.assetType) }}</span>
-            <button v-if="asset.remoteUrl" type="button" :title="asset.remoteUrl" @click="copyRemoteUrl(asset.remoteUrl)">
-              已上传
-            </button>
-            <span v-else>本地</span>
-          </div>
-
-          <div class="material-card__footer">
+          <div class="material-card__head">
+            <div class="material-card__title">
+              <strong>{{ asset.title }}</strong>
+              <span>{{ assetSubtitle(asset) }}</span>
+            </div>
             <div class="material-more-menu">
               <button
                 type="button"
@@ -160,31 +177,48 @@
               </button>
               <div :id="`material-menu-${asset.id}`" popover class="material-more-menu__panel" @beforetoggle="positionMaterialMenu">
                 <button type="button" :disabled="busyActionKey === `upload-${asset.id}` || Boolean(asset.remoteUrl)" @click="handleUploadAsset(asset.id)">
-                  {{ busyActionKey === `upload-${asset.id}` ? "..." : (asset.remoteUrl ? "已上传" : "上传") }}
+                  <IconLoading v-if="busyActionKey === `upload-${asset.id}`" size="xs" />
+                  <IconUpload v-else size="xs" />
+                  <span>{{ busyActionKey === `upload-${asset.id}` ? "上传中" : (asset.remoteUrl ? "已上传" : "上传") }}</span>
                 </button>
                 <button type="button" :disabled="busyActionKey === `reuse-${asset.id}`" @click="handleReuseAsset(asset.id)">
-                  {{ busyActionKey === `reuse-${asset.id}` ? "..." : "复用" }}
+                  <IconLoading v-if="busyActionKey === `reuse-${asset.id}`" size="xs" />
+                  <IconPlus v-else size="xs" />
+                  <span>{{ busyActionKey === `reuse-${asset.id}` ? "复用中" : "复用" }}</span>
                 </button>
-                <RouterLink v-if="asset.workflowId" :to="`/workflows/${asset.workflowId}`">工作流</RouterLink>
-                <a :href="asset.fileUrl" download target="_blank" rel="noopener noreferrer">下载</a>
+                <RouterLink v-if="asset.workflowId" :to="`/workflows/${asset.workflowId}`">
+                  <IconWorkflow size="xs" />
+                  <span>工作流</span>
+                </RouterLink>
+                <a :href="asset.fileUrl" download target="_blank" rel="noopener noreferrer">
+                  <IconDownload size="xs" />
+                  <span>下载</span>
+                </a>
                 <button type="button" class="material-menu-danger" :disabled="busyActionKey === `delete-${asset.id}`" @click="handleDeleteAsset(asset)">
-                  {{ busyActionKey === `delete-${asset.id}` ? "..." : "删除" }}
+                  <IconLoading v-if="busyActionKey === `delete-${asset.id}`" size="xs" />
+                  <IconDelete v-else size="xs" />
+                  <span>{{ busyActionKey === `delete-${asset.id}` ? "删除中" : "删除" }}</span>
                 </button>
               </div>
             </div>
+          </div>
+          <div class="material-card__chips">
+            <span>{{ assetTypeLabel(asset.assetType) }}</span>
+            <button v-if="asset.remoteUrl" type="button" :title="`复制远程地址：${asset.remoteUrl}`" aria-label="复制远程地址" @click="copyRemoteUrl(asset.remoteUrl)">
+              <IconUpload size="xs" />
+            </button>
+            <span v-else>本地</span>
           </div>
         </div>
       </article>
 
       <div v-if="!displayedAssets.length && !hasMoreAssets" class="material-empty material-empty-inline">
-        <strong>没有匹配素材</strong>
-        <RouterLink to="/workspace" class="material-empty-inline__action">新建</RouterLink>
+        <strong>{{ materialEmptyTitle }}</strong>
       </div>
 
       <div v-else-if="displayedAssets.length || hasMoreAssets" ref="loadMoreTrigger" class="material-load-more">
-        <span v-if="loadingMore">加载中</span>
-        <span v-else-if="hasMoreAssets">继续下滑</span>
-        <span v-else>已到底</span>
+        <IconLoading v-if="loadingMore" size="sm" />
+        <span v-else-if="hasMoreAssets" aria-hidden="true"></span>
       </div>
     </section>
 
@@ -194,19 +228,30 @@
           <div>
             <h3>{{ previewDialog.title }}</h3>
           </div>
-          <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="closePreviewDialog">×</button>
+          <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="closePreviewDialog">
+            <IconClose size="sm" />
+          </button>
         </div>
-        <button v-else type="button" class="material-preview-dialog__close material-preview-dialog__close-floating" aria-label="关闭预览" @click="closePreviewDialog">×</button>
+        <button v-else type="button" class="material-preview-dialog__close material-preview-dialog__close-floating" aria-label="关闭预览" @click="closePreviewDialog">
+          <IconClose size="sm" />
+        </button>
         <strong v-if="previewDialog.kind === 'image'" class="material-preview-dialog__caption">{{ previewDialog.title }}</strong>
         <img
-          v-if="previewDialog.kind === 'image'"
+          v-if="previewDialog.kind === 'image' && !previewImageLoadFailed"
           class="material-preview-dialog__image"
           :src="previewDialog.url"
           :alt="previewDialog.title"
+          @error="previewImageLoadFailed = true"
         />
+        <div v-else-if="previewDialog.kind === 'image'" class="material-preview-dialog__fallback">
+          <IconImage size="lg" />
+          <span>{{ previewDialog.title }}</span>
+        </div>
         <div v-else class="material-preview-dialog__markdown" v-html="previewDialog.html"></div>
       </div>
     </div>
+
+    <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
   </section>
 </template>
 
@@ -215,12 +260,14 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router";
 import { deleteMaterialAsset, fetchMaterialAssetPage, reuseMaterialAsset, uploadMaterialAsset } from "@/features/materials";
 import { requireAuth } from "@/auth/modal";
+import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import AppSelect from "@/components/common/AppSelect.vue";
+import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
 import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
-import { IconImage, IconMore, IconPlus, IconSearch, IconVideo } from "@/components/icons";
+import { IconCheck, IconClose, IconDelete, IconDownload, IconImage, IconLoading, IconMore, IconPlus, IconSearch, IconSettings, IconUpload, IconVideo, IconWorkflow } from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
@@ -231,6 +278,7 @@ const activeLibraryTab = ref("all");
 const advancedFiltersOpen = ref(false);
 const batchMode = ref(false);
 const selectedAssetIds = ref<string[]>([]);
+const failedAssetPreviewUrls = ref(new Set<string>());
 
 const assets = ref<MaterialAssetLibraryItem[]>([]);
 const loadMoreTrigger = ref<HTMLElement | null>(null);
@@ -248,6 +296,17 @@ const libraryTabs = [
   { key: "prop", label: "道具", assetType: "prop" },
   { key: "workflow", label: "工作流产物", assetType: "workflow" },
 ];
+
+function isAssetPreviewImageFailed(url?: string | null) {
+  return Boolean(url && failedAssetPreviewUrls.value.has(url));
+}
+
+function markAssetPreviewImageFailed(url?: string | null) {
+  if (!url) return;
+  const next = new Set(failedAssetPreviewUrls.value);
+  next.add(url);
+  failedAssetPreviewUrls.value = next;
+}
 const typeFilterOptions: AppSelectOption[] = [
   { label: "全部", value: "" },
   { label: "角色三视图", value: "character_sheet" },
@@ -276,6 +335,8 @@ const previewDialog = reactive({
   html: "",
   url: "",
 });
+const previewImageLoadFailed = ref(false);
+const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
 const displayedAssets = computed(() => {
   const tab = activeLibraryTab.value;
@@ -290,6 +351,19 @@ const displayedAssets = computed(() => {
   }
   return assets.value.filter((asset) => asset.assetType === tab);
 });
+
+const canUseBatchMode = computed(() => displayedAssets.value.length > 0);
+const activeFilterCount = computed(() => {
+  return [filters.assetType, filters.model.trim(), filters.aspectRatio, filters.clipIndex].filter(Boolean).length;
+});
+const materialEmptyTitle = computed(() => (filters.q.trim() || activeFilterCount.value > 0 || activeLibraryTab.value !== "all" ? "没有匹配素材" : "暂无素材"));
+
+function toggleBatchMode() {
+  if (!canUseBatchMode.value) {
+    return;
+  }
+  batchMode.value = !batchMode.value;
+}
 function buildQuery(): MaterialAssetQuery {
   return {
     q: filters.q.trim() || undefined,
@@ -327,12 +401,23 @@ function assetTypeLabel(value?: MaterialAssetType | string | null) {
   return "工作流产物";
 }
 
+function mediaTypeLabel(value?: string | null) {
+  if (value === "image") {
+    return "图片";
+  }
+  if (value === "video") {
+    return "视频";
+  }
+  if (value === "text") {
+    return "文本";
+  }
+  return "素材";
+}
+
 function assetSubtitle(asset: MaterialAssetLibraryItem) {
-  const parts = [
-    asset.mediaType,
-    asset.originModel || asset.originProvider || "",
-    asset.workflowId ? `工作流 ${asset.workflowId}` : "",
-  ].filter(Boolean);
+  const size = asset.width && asset.height ? `${asset.width} x ${asset.height}` : "";
+  const clip = asset.clipIndex ? `镜头 ${asset.clipIndex}` : "";
+  const parts = [mediaTypeLabel(asset.mediaType), asset.originModel || asset.originProvider || "", size, clip].filter(Boolean);
   return parts.join(" · ") || "素材";
 }
 
@@ -379,9 +464,11 @@ function closePreviewDialog() {
   previewDialog.open = false;
   previewDialog.html = "";
   previewDialog.url = "";
+  previewImageLoadFailed.value = false;
 }
 
 function openStoryboardPreview(asset: MaterialAssetLibraryItem) {
+  previewImageLoadFailed.value = false;
   previewDialog.kind = "storyboard";
   previewDialog.title = asset.title;
   previewDialog.html = storyboardPreviewHtml(asset);
@@ -390,6 +477,7 @@ function openStoryboardPreview(asset: MaterialAssetLibraryItem) {
 }
 
 function openImagePreview(asset: MaterialAssetLibraryItem) {
+  previewImageLoadFailed.value = false;
   previewDialog.kind = "image";
   previewDialog.title = asset.title;
   previewDialog.html = "";
@@ -514,7 +602,15 @@ async function handleBatchUpload() {
 }
 
 async function handleBatchDelete() {
-  if (!selectedAssetIds.value.length || !window.confirm(`确认删除选中的 ${selectedAssetIds.value.length} 个素材吗？`)) {
+  if (!selectedAssetIds.value.length) {
+    return;
+  }
+  const confirmed = await requestConfirm({
+    title: "删除素材",
+    message: `删除后无法恢复，将移除选中的 ${selectedAssetIds.value.length} 个素材。`,
+    confirmText: "删除",
+  });
+  if (!confirmed) {
     return;
   }
   const authenticated = await requireAuth({
@@ -595,7 +691,12 @@ async function handleUploadAsset(assetId: string) {
 }
 
 async function handleDeleteAsset(asset: MaterialAssetLibraryItem) {
-  if (!window.confirm(`确认删除素材「${asset.title}」吗？`)) {
+  const confirmed = await requestConfirm({
+    title: "删除素材",
+    message: `删除后无法恢复：${asset.title}`,
+    confirmText: "删除",
+  });
+  if (!confirmed) {
     return;
   }
   await refreshAfterMutation(() => deleteMaterialAsset(asset.id), `delete-${asset.id}`);
@@ -669,6 +770,12 @@ watch(batchMode, (enabled) => {
   }
 });
 
+watch(canUseBatchMode, (enabled) => {
+  if (!enabled) {
+    batchMode.value = false;
+  }
+});
+
 watch(
   loadMoreTrigger,
   () => {
@@ -699,10 +806,7 @@ watch(
   padding: 22px 36px 36px;
   overflow-y: auto;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 88% 0%, rgba(255, 107, 95, 0.1), transparent 28%),
-    radial-gradient(circle at 14% 6%, rgba(139, 212, 80, 0.16), transparent 28%),
-    linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
+  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
   color: var(--text-strong);
 }
 
@@ -716,19 +820,27 @@ watch(
 
 .material-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
   align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.material-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .material-tab {
-  min-height: 42px;
-  padding: 0 22px;
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-body);
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -763,7 +875,8 @@ watch(
 }
 
 .material-search > span,
-.material-search-button {
+.material-toolbar-link,
+.material-toolbar-primary {
   display: inline-grid;
   place-items: center;
 }
@@ -777,7 +890,6 @@ watch(
   color: var(--text-strong);
 }
 
-.material-search-button,
 .material-toolbar-link,
 .material-toolbar-primary {
   display: inline-flex;
@@ -792,23 +904,49 @@ watch(
   white-space: nowrap;
 }
 
-.material-search-button {
-  width: 36px;
-  padding: 0;
-  background: #effcff;
-  color: var(--accent-blue);
-  cursor: pointer;
+.material-toolbar-link :deep(svg),
+.material-toolbar-primary :deep(svg),
+.material-card__chips button :deep(svg) {
+  width: 15px;
+  height: 15px;
 }
 
 .material-toolbar-link {
+  position: relative;
+  width: 34px;
+  padding: 0;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
 }
 
+.material-toolbar-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .material-toolbar-link-active,
-.material-toolbar-link:hover {
-  color: var(--text-strong);
+.material-toolbar-link:hover:not(:disabled) {
+  background: #effcff;
+  color: var(--accent-blue);
+}
+
+.material-toolbar-badge {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 850;
+  line-height: 1;
 }
 
 .material-toolbar-primary {
@@ -827,25 +965,28 @@ watch(
 .material-filter-drawer,
 .material-batch-bar {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(138px, 1fr)) auto;
+  gap: 8px;
   align-items: end;
-  padding: 16px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: var(--shadow-soft);
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .material-field {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .material-field span {
-  color: var(--text-body);
-  font-size: 0.82rem;
-  font-weight: 700;
+  margin: 0 4px;
+  color: #74838d;
+  font-size: 0.7rem;
+  font-weight: 820;
 }
 
 .material-filter-drawer__actions,
@@ -856,14 +997,45 @@ watch(
   align-items: center;
 }
 
+.material-filter-drawer__actions .btn-sm {
+  min-height: 38px;
+  border-radius: 11px;
+}
+
+.material-filter-drawer :deep(.app-select__trigger),
+.material-filter-drawer .field-input {
+  min-height: 40px;
+  border-radius: 12px;
+  border-color: rgba(15, 20, 25, 0.07);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: none;
+}
+
 .material-batch-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   justify-content: space-between;
   grid-template-columns: none;
+  margin: -2px 0 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 26px rgba(27, 124, 255, 0.06);
+  backdrop-filter: blur(16px);
 }
 
 .material-batch-bar span {
   color: var(--text-body);
   font-weight: 800;
+}
+
+.material-batch-bar .btn-secondary,
+.material-batch-bar .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .material-error {
@@ -885,6 +1057,11 @@ watch(
   color: var(--text-muted);
 }
 
+.material-empty :deep(svg) {
+  width: 24px;
+  height: 24px;
+}
+
 .material-empty-inline {
   grid-column: 1 / -1;
   align-content: center;
@@ -901,62 +1078,59 @@ watch(
   color: var(--text-strong);
 }
 
-.material-empty-inline__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: #effcff;
-  color: var(--accent-blue);
-  font-size: 0.82rem;
-  font-weight: 800;
-  text-decoration: none;
-}
-
 .material-asset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 14px;
   align-content: start;
 }
 
 .material-load-more {
   display: grid;
   place-items: center;
-  min-height: 58px;
-  border: 1px dashed rgba(15, 20, 25, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  min-height: 34px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-muted);
-  font-size: 0.84rem;
-  font-weight: 700;
+}
+
+.material-load-more > span {
+  width: 26px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(15, 20, 25, 0.1);
+}
+
+.material-load-more :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 .material-card {
   position: relative;
   display: grid;
-  gap: 12px;
-  min-height: 292px;
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
+  gap: 10px;
+  min-height: 258px;
+  padding: 9px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 20, 25, 0.06);
   color: var(--text-strong);
-}
-
-.material-card {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(0, 169, 187, 0.08);
-  box-shadow: 0 12px 28px rgba(27, 124, 255, 0.06);
+  box-shadow: 0 8px 20px rgba(27, 124, 255, 0.045);
   backdrop-filter: blur(12px);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
 }
 
 .material-card:hover,
 .material-card-selected {
-  border-color: rgba(27, 124, 255, 0.26);
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-2px);
+  border-color: rgba(27, 124, 255, 0.2);
+  box-shadow: 0 14px 32px rgba(27, 124, 255, 0.085);
+  transform: translateY(-1px);
 }
 
 .material-card__check {
@@ -986,8 +1160,8 @@ watch(
 }
 
 .material-card__preview {
-  height: 184px;
-  border-radius: 14px;
+  height: 166px;
+  border-radius: 11px;
   overflow: hidden;
   background: #effcff;
 }
@@ -1007,7 +1181,8 @@ watch(
 }
 
 .material-preview-trigger {
-  display: block;
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
   padding: 0;
@@ -1015,6 +1190,22 @@ watch(
   background: transparent;
   cursor: zoom-in;
   text-align: left;
+}
+
+.material-preview-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
+    #f3fbff;
+  color: var(--text-muted);
+}
+
+.material-preview-fallback :deep(svg) {
+  width: 24px;
+  height: 24px;
 }
 
 .material-preview-trigger-video {
@@ -1037,6 +1228,11 @@ watch(
   color: #fff;
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.material-video-play :deep(svg) {
+  width: 15px;
+  height: 15px;
 }
 
 .material-preview-trigger-placeholder {
@@ -1087,7 +1283,15 @@ watch(
 
 .material-card__body {
   display: grid;
-  gap: 10px;
+  gap: 7px;
+}
+
+.material-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: start;
+  gap: 6px;
+  min-width: 0;
 }
 
 .material-card__title {
@@ -1099,7 +1303,7 @@ watch(
 .material-card__title strong {
   overflow: hidden;
   color: var(--text-strong);
-  font-size: 0.96rem;
+  font-size: 0.92rem;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1123,7 +1327,8 @@ watch(
 .material-card__chips button {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
+  justify-content: center;
+  min-height: 25px;
   padding: 0 8px;
   border: 1px solid rgba(15, 20, 25, 0.06);
   border-radius: 999px;
@@ -1134,29 +1339,26 @@ watch(
 }
 
 .material-card__chips button {
+  width: 30px;
+  padding: 0;
   color: var(--accent-cyan);
   cursor: copy;
 }
 
-.material-card__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .material-more-menu {
   position: relative;
+  justify-self: end;
+  margin-top: -6px;
 }
 
 .material-more-menu__trigger {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  min-height: 34px;
+  width: 38px;
+  min-height: 38px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 12px;
   background: transparent;
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -1168,42 +1370,62 @@ watch(
 .material-more-menu__trigger:focus-visible {
   background: #effcff;
   color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.08);
 }
 
 .material-more-menu__panel {
   position: fixed;
   inset: unset;
-  z-index: 20;
+  z-index: 80;
   display: grid;
-  width: 170px;
+  width: 168px;
   gap: 0;
-  padding: 6px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 46px rgba(15, 20, 25, 0.14);
+  padding: 8px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
+  box-shadow:
+    0 18px 42px rgba(15, 20, 25, 0.12),
+    0 2px 8px rgba(18, 28, 33, 0.04);
   overflow: hidden;
   backdrop-filter: blur(18px);
 }
 
 .material-more-menu__panel button,
 .material-more-menu__panel a {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
-  min-height: 34px;
-  padding: 0 10px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 11px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 11px;
   background: transparent;
   color: var(--text-strong);
   font-size: 0.8rem;
   text-align: left;
   cursor: pointer;
+  text-decoration: none;
+}
+
+.material-more-menu__panel button :deep(svg),
+.material-more-menu__panel a :deep(svg) {
+  width: 15px;
+  height: 15px;
+}
+
+.material-more-menu__panel button span,
+.material-more-menu__panel a span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .material-more-menu__panel button:hover,
 .material-more-menu__panel a:hover {
-  background: #effcff;
+  background: rgba(237, 245, 255, 0.76);
   color: var(--accent-blue);
 }
 
@@ -1215,12 +1437,11 @@ watch(
   position: fixed;
   inset: 0;
   z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  background: rgba(15, 20, 25, 0.28);
-  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 20, 25, 0.74);
+  backdrop-filter: blur(14px);
 }
 
 .material-preview-dialog {
@@ -1229,9 +1450,12 @@ watch(
   width: min(980px, calc(100vw - 48px));
   max-height: min(86vh, 960px);
   border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 28px 72px rgba(15, 20, 25, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
+  box-shadow:
+    0 22px 56px rgba(15, 20, 25, 0.16),
+    0 2px 8px rgba(18, 28, 33, 0.04);
   overflow: hidden;
 }
 
@@ -1248,14 +1472,15 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 22px;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 .material-preview-dialog__head h3 {
   margin: 0;
   color: var(--text-strong);
-  font-size: 1rem;
+  font-size: 0.94rem;
+  font-weight: 820;
   line-height: 1.35;
 }
 
@@ -1263,17 +1488,27 @@ watch(
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 36px;
-  min-height: 36px;
+  width: 34px;
+  min-height: 34px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: #f3f6f8;
+  border-radius: 11px;
+  background: #f3f8fa;
   color: var(--text-body);
-  font-size: 1.1rem;
-  font-weight: 700;
   line-height: 1;
   cursor: pointer;
+}
+
+.material-preview-dialog__close :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.material-preview-dialog__close:hover,
+.material-preview-dialog__close:focus-visible {
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.08);
 }
 
 .material-preview-dialog__close-floating {
@@ -1281,37 +1516,71 @@ watch(
   right: 28px;
   top: 24px;
   z-index: 2;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(14px);
 }
 
 .material-preview-dialog__caption {
   position: fixed;
   left: 28px;
-  top: 28px;
+  top: 24px;
   z-index: 2;
-  max-width: min(560px, calc(100vw - 96px));
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100vw - 116px);
+  min-height: 38px;
   overflow: hidden;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+  backdrop-filter: blur(14px);
 }
 
 .material-preview-dialog__image {
   display: block;
   max-width: 100%;
-  max-height: 86vh;
-  border-radius: 18px;
+  max-height: calc(100dvh - 128px);
+  border-radius: 16px;
   object-fit: contain;
   background: #eef2f4;
-  box-shadow: 0 28px 72px rgba(15, 20, 25, 0.24);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.material-preview-dialog__fallback {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  width: min(520px, calc(100vw - 56px));
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  text-align: center;
+}
+
+.material-preview-dialog__fallback :deep(svg) {
+  width: 28px;
+  height: 28px;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.material-preview-dialog__fallback span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .material-preview-dialog__markdown {
-  padding: 24px;
+  padding: 20px 22px 22px;
   overflow: auto;
   color: var(--text-body);
   line-height: 1.75;
@@ -1321,13 +1590,13 @@ watch(
 .material-preview-dialog__markdown :deep(h2),
 .material-preview-dialog__markdown :deep(h3),
 .material-preview-dialog__markdown :deep(h4) {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   color: var(--text-strong);
   line-height: 1.35;
 }
 
 .material-preview-dialog__markdown :deep(p) {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
 }
 
 .material-preview-dialog__markdown :deep(table) {
@@ -1339,8 +1608,8 @@ watch(
 
 .material-preview-dialog__markdown :deep(th),
 .material-preview-dialog__markdown :deep(td) {
-  padding: 9px 10px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  padding: 8px 9px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
   vertical-align: top;
 }
 
@@ -1360,6 +1629,9 @@ watch(
     width: 100%;
   }
 
+}
+
+@media (max-width: 900px) {
   .material-filter-drawer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1374,19 +1646,9 @@ watch(
     gap: 12px;
   }
 
-  .material-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
-  .material-tab {
-    flex: 0 0 auto;
-  }
-
   .material-topbar__tools {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 36px auto auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     gap: 6px;
     align-items: center;
     min-width: 0;
@@ -1415,8 +1677,21 @@ watch(
     padding: 0 10px;
   }
 
+  .material-toolbar-link {
+    width: 34px;
+    padding: 0;
+  }
+
   .material-toolbar-primary {
     gap: 4px;
+    width: 34px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .material-toolbar-primary :deep(svg) {
+    width: 16px;
+    height: 16px;
   }
 
   .material-empty-inline {
@@ -1425,7 +1700,31 @@ watch(
   }
 
   .material-filter-drawer {
+    position: fixed;
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 90;
     grid-template-columns: 1fr;
+    max-height: min(520px, calc(100vh - 92px));
+    overflow: auto;
+    padding: 20px 10px 10px;
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
+    box-shadow:
+      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  }
+
+  .material-filter-drawer::before {
+    content: "";
+    justify-self: center;
+    width: 38px;
+    height: 4px;
+    margin: -9px 0 2px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.16);
   }
 
   .material-asset-grid {
@@ -1433,7 +1732,7 @@ watch(
   }
 
   .material-card__preview {
-    height: 210px;
+    height: 204px;
   }
 
   .material-preview-overlay {
@@ -1448,6 +1747,24 @@ watch(
 
   .material-preview-dialog__head {
     padding: 16px;
+  }
+
+  .material-preview-dialog__close-floating {
+    right: 16px;
+    top: 16px;
+    width: 38px;
+    min-height: 38px;
+  }
+
+  .material-preview-dialog__caption {
+    left: 16px;
+    top: 18px;
+    max-width: calc(100vw - 82px);
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.32);
+    backdrop-filter: blur(10px);
+    font-size: 0.78rem;
   }
 
   .material-preview-dialog__markdown {

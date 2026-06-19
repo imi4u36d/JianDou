@@ -44,20 +44,22 @@ const emit = defineEmits<{
 .workflow-stage-pipeline {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+  flex: 0 0 auto;
   min-width: 0;
+  min-height: 50px;
 }
 
 .workflow-stage-step {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 7px;
   align-items: center;
-  min-height: 48px;
-  padding: 8px 10px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.76);
+  min-height: 46px;
+  padding: 8px 9px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-body);
   text-align: left;
   cursor: pointer;
@@ -72,8 +74,8 @@ const emit = defineEmits<{
 .workflow-stage-step:hover,
 .workflow-stage-step-active {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.22);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
+  border-color: rgba(27, 124, 255, 0.2);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.94), rgba(237, 245, 255, 0.9));
   color: var(--accent-blue);
   box-shadow: 0 12px 24px rgba(27, 124, 255, 0.08);
 }
@@ -81,8 +83,8 @@ const emit = defineEmits<{
 .workflow-stage-step__index {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #effcff;
   color: currentColor;
@@ -121,7 +123,7 @@ const emit = defineEmits<{
 
 @media (max-width: 1180px) {
   .workflow-stage-pipeline {
-    grid-template-columns: repeat(5, minmax(132px, 1fr));
+    grid-template-columns: repeat(5, minmax(118px, 1fr));
     overflow-x: auto;
     padding-bottom: 4px;
   }

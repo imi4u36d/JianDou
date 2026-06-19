@@ -28,6 +28,8 @@ import IconDelete from "./IconDelete.vue";
 import IconDownload from "./IconDownload.vue";
 import IconSettings from "./IconSettings.vue";
 import IconUser from "./IconUser.vue";
+import IconEye from "./IconEye.vue";
+import IconEyeOff from "./IconEyeOff.vue";
 
 // Status
 import IconSuccess from "./IconSuccess.vue";
@@ -75,6 +77,8 @@ export const iconComponentMap: Record<IconName, Component> = {
   download: IconDownload,
   settings: IconSettings,
   user: IconUser,
+  eye: IconEye,
+  "eye-off": IconEyeOff,
   // Status
   success: IconSuccess,
   error: IconError,
@@ -116,6 +120,8 @@ export {
   IconDownload,
   IconSettings,
   IconUser,
+  IconEye,
+  IconEyeOff,
   IconSuccess,
   IconError,
   IconWarning,

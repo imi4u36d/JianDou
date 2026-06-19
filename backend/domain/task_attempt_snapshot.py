@@ -5,7 +5,6 @@ Mirrors the Java TaskAttemptSnapshot record.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any, Optional
 
 from backend.domain.enums import AttemptTriggerType, TaskStatus

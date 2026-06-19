@@ -1,25 +1,23 @@
 <template>
   <el-card class="surface-card model-status-strip" shadow="never">
     <template #header>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 class="text-base font-semibold">模型与规划能力</h3>
-        </div>
+      <div class="model-status-strip__toolbar">
+        <span class="model-status-strip__toolbar-spacer" aria-hidden="true"></span>
         <el-button :icon="Refresh" :loading="loading" @click="loadHealth">刷新</el-button>
       </div>
     </template>
 
-    <div v-if="!health" class="py-6 text-center text-sm text-slate-500">正在读取运行时状态...</div>
+    <div v-if="!health" class="model-status-strip__empty">加载中</div>
     <div v-else>
-      <div class="mb-4 flex flex-wrap items-center gap-2">
+      <div class="model-status-strip__tags">
         <el-tag :type="health.runtime.model.ready ? 'success' : 'danger'" effect="light">
-          {{ health.runtime.model.ready ? "模型配置就绪" : "模型配置未完成" }}
+          {{ health.runtime.model.ready ? "模型就绪" : "模型未就绪" }}
         </el-tag>
         <el-tag type="info" effect="light">{{ health.runtime.execution_mode }}</el-tag>
         <el-tag type="info" effect="light">{{ health.runtime.model.provider || "未指定" }}</el-tag>
       </div>
 
-      <div class="grid gap-4 xl:grid-cols-2">
+      <div class="model-status-strip__grid">
         <div>
           <el-descriptions :column="1" border size="small">
             <el-descriptions-item label="主模型">{{ health.runtime.model.primary_model || "未配置" }}</el-descriptions-item>
@@ -31,7 +29,7 @@
         </div>
 
         <div>
-          <h4 class="mb-2 text-sm font-semibold text-slate-900">规划能力</h4>
+          <h4 class="model-status-strip__section-title">规划能力</h4>
           <el-table :data="capabilityRows" stripe size="small">
             <el-table-column label="能力项" prop="label" />
             <el-table-column label="状态" width="100">
@@ -45,7 +43,7 @@
         </div>
       </div>
 
-      <el-alert v-if="health.runtime.model.config_errors.length" class="mt-4" :title="'配置问题：' + health.runtime.model.config_errors.join(' / ')" type="warning" show-icon />
+      <el-alert v-if="health.runtime.model.config_errors.length" class="model-status-strip__alert" :title="'配置问题：' + health.runtime.model.config_errors.join(' / ')" type="warning" show-icon />
     </div>
   </el-card>
 </template>
@@ -90,3 +88,65 @@ onMounted(() => {
   void loadHealth();
 });
 </script>
+
+<style scoped>
+.model-status-strip {
+  min-width: 0;
+}
+
+.model-status-strip__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.model-status-strip__section-title {
+  margin: 0;
+  color: var(--jd-text);
+  font-family: inherit;
+  font-weight: 850;
+}
+
+.model-status-strip__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.model-status-strip__empty {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  color: var(--jd-text-soft);
+  font-size: 0.88rem;
+}
+
+.model-status-strip__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.model-status-strip__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.model-status-strip__section-title {
+  margin-bottom: 10px;
+  font-size: 0.92rem;
+}
+
+.model-status-strip__alert {
+  margin-top: 16px;
+}
+
+@media (max-width: 960px) {
+  .model-status-strip__grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

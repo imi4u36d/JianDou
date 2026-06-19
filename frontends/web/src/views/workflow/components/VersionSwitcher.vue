@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { StageVersion } from "@/types";
-import { IconMore } from "@/components/icons";
+import { IconCheck, IconDelete, IconMore, IconPlus } from "@/components/icons";
 
 const props = defineProps<{
   versions: StageVersion[];
@@ -49,7 +49,7 @@ function positionMenu(event: ToggleEvent) {
         <button type="button" class="version-switcher__tab-main" @click="emit('select', version.id)">
           <span class="compact-version-card__badge">V{{ version.versionNo }}</span>
           <strong>{{ displayTitle(version) }}</strong>
-          <span v-if="version.selected" class="compact-version-card__status">已选中</span>
+          <span v-if="version.selected" class="compact-version-card__status">当前</span>
           <span v-else class="compact-version-card__status">{{ version.status }}</span>
         </button>
         <div v-if="showMenu !== false" class="workflow-more-menu compact-version-menu">
@@ -58,10 +58,17 @@ function positionMenu(event: ToggleEvent) {
           </button>
           <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionMenu">
             <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="emit('select', version.id)">
-              {{ version.selected ? "已选中" : "设为当前" }}
+              <IconCheck size="xs" />
+              <span>{{ version.selected ? "当前" : "设为当前" }}</span>
             </button>
-            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="emit('reuse', version.asset?.id || '', version.id)">复用</button>
-            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="emit('delete', version)">删除版本</button>
+            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="emit('reuse', version.asset?.id || '', version.id)">
+              <IconPlus size="xs" />
+              <span>复用</span>
+            </button>
+            <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="emit('delete', version)">
+              <IconDelete size="xs" />
+              <span>删除</span>
+            </button>
           </div>
         </div>
       </article>

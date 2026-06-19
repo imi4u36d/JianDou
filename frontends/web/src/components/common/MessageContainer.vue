@@ -84,9 +84,11 @@ const { entries, remove } = useMessage();
 
 .message-toast__content {
   flex: 1;
+  min-width: 0;
   font-size: 0.86rem;
   font-weight: 600;
   color: var(--text-strong, #102842);
+  overflow-wrap: anywhere;
 }
 
 .message-toast__close {
@@ -128,5 +130,20 @@ const { entries, remove } = useMessage();
 .message-slide-leave-active {
   position: absolute;
   right: 0;
+}
+
+@media (max-width: 640px) {
+  .message-container {
+    top: 64px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+
+  .message-toast {
+    width: 100%;
+    padding: 10px 10px 10px 12px;
+    border-radius: 14px;
+  }
 }
 </style>

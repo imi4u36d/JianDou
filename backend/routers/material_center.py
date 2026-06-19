@@ -1,7 +1,12 @@
 from __future__ import annotations
-from fastapi import APIRouter, Request
 
-from backend.routers.material_assets import upsert_material_asset
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.auth import require_user
+from backend.database import get_db
+from backend.schemas.material import CreateMaterialGenerationRequest
+from backend.services.material_asset_service import MaterialAssetService
 
 router = APIRouter(prefix="/api/v3/material-center", tags=["material-center"])
 
@@ -22,23 +27,20 @@ async def search_materials():
 
 
 @router.post("/generations")
-async def create_material_generation(request: Request):
-    body = await request.json()
-    title = str(body.get("title") or "素材生成").strip()
-    asset_type = str(body.get("assetType") or "free").strip()
-    asset = upsert_material_asset(
+async def create_material_generation(
+    payload: CreateMaterialGenerationRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await require_user(request)
+    title = payload.title.strip() or "素材生成"
+    asset_type = payload.asset_type.strip() or "free"
+    asset = await MaterialAssetService(db).create_asset(
+        user["id"],
         title=title,
         assetType=asset_type,
         mediaType="image",
-        metadata={
-            "description": body.get("description"),
-            "styleKeywords": body.get("styleKeywords") or [],
-            "aspectRatio": body.get("aspectRatio"),
-            "imageSize": body.get("imageSize"),
-            "textAnalysisModel": body.get("textAnalysisModel"),
-            "imageModel": body.get("imageModel"),
-            "seed": body.get("seed"),
-        },
+        metadata=payload.metadata(),
     )
     return {
         "id": asset["id"],

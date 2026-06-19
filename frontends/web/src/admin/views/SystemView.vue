@@ -1,43 +1,35 @@
 <template>
-  <section>
-    <div class="surface-card mb-4 rounded-2xl p-5">
-      <div>
-        <h2 class="mt-1 text-base font-semibold">系统配置</h2>
-      </div>
-    </div>
-
+  <section class="system-page">
     <ModelStatusStrip />
 
-    <el-card class="surface-card mt-4" shadow="never">
+    <el-card class="surface-card system-page__card" shadow="never">
       <template #header>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 class="text-base font-semibold text-slate-900">运行时日志</h3>
-          </div>
+        <div class="system-page__toolbar">
+          <span class="system-page__toolbar-spacer" aria-hidden="true"></span>
           <el-button :icon="Refresh" :loading="loading" @click="loadTraces">刷新</el-button>
         </div>
       </template>
 
-      <div class="space-y-4">
-        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <label class="grid gap-1 text-xs text-slate-600">
-            任务 ID
+      <div class="system-page__body">
+        <div class="system-page__filters">
+          <label class="system-page__field">
+            <span>任务 ID</span>
             <el-input v-model="taskIdFilter" placeholder="可选" />
           </label>
-          <label class="grid gap-1 text-xs text-slate-600">
-            级别
+          <label class="system-page__field">
+            <span>级别</span>
             <el-select v-model="levelFilter" placeholder="全部">
               <el-option v-for="opt in levelFilterOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </label>
-          <label class="grid gap-1 text-xs text-slate-600">
-            阶段
+          <label class="system-page__field">
+            <span>阶段</span>
             <el-select v-model="stageFilter" placeholder="全部">
               <el-option v-for="opt in stageFilterOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </label>
-          <label class="grid gap-1 text-xs text-slate-600">
-            关键词
+          <label class="system-page__field">
+            <span>关键词</span>
             <el-input v-model="keywordFilter" placeholder="消息关键词" />
           </label>
         </div>
@@ -59,7 +51,7 @@
           <el-table-column label="阶段" width="90" prop="stage" />
           <el-table-column label="事件" min-width="120">
             <template #default="{ row }">
-              <span class="text-xs text-slate-500">{{ (row as AdminTraceEvent).event }}</span>
+              <span class="system-page__muted">{{ (row as AdminTraceEvent).event }}</span>
             </template>
           </el-table-column>
           <el-table-column label="消息" min-width="200" prop="message" />
@@ -137,3 +129,71 @@ onMounted(async () => {
   await loadTraces();
 });
 </script>
+
+<style scoped>
+.system-page {
+  display: grid;
+  gap: 18px;
+}
+
+.system-page__card {
+  min-width: 0;
+}
+
+.system-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.system-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.system-page__body {
+  display: grid;
+  gap: 16px;
+}
+
+.system-page__filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.system-page__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.system-page__field span,
+.system-page__muted {
+  color: var(--jd-text-soft);
+  font-size: 0.84rem;
+}
+
+.system-page__field span {
+  font-weight: 760;
+}
+
+@media (max-width: 1024px) {
+  .system-page__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .system-page__filters {
+    grid-template-columns: 1fr;
+  }
+
+  .system-page__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+</style>

@@ -20,7 +20,10 @@ export interface TextModelProbeInlineExpose {
       :disabled="buttonDisabled"
       @click="handleProbe"
     >
-      {{ buttonLabel }}
+      <IconLoading v-if="probeState === 'loading'" size="xs" />
+      <IconRefresh v-else-if="isCurrentModelReady" size="xs" />
+      <IconCheck v-else size="xs" />
+      <span>{{ buttonLabel }}</span>
     </button>
     <p class="text-model-probe__status" :class="statusClass">
       {{ statusText }}
@@ -31,6 +34,7 @@ export interface TextModelProbeInlineExpose {
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { probeTextAnalysisModel } from "@/api/generation";
+import { IconCheck, IconLoading, IconRefresh } from "@/components/icons";
 import type { ProbeTextAnalysisModelResponse } from "@/types";
 
 const props = withDefaults(defineProps<{
@@ -53,12 +57,12 @@ const isCurrentModelReady = computed(
 const buttonDisabled = computed(() => props.disabled || probeState.value === "loading" || !normalizedModel.value);
 const buttonLabel = computed(() => {
   if (probeState.value === "loading") {
-    return "测试中...";
+    return "测试中";
   }
   if (isCurrentModelReady.value) {
-    return "重新测试";
+    return "重测";
   }
-  return "测试模型";
+  return "测试";
 });
 const statusClass = computed(() => {
   if (probeState.value === "success") {
@@ -71,18 +75,17 @@ const statusClass = computed(() => {
 });
 const statusText = computed(() => {
   if (probeState.value === "loading") {
-    return `正在测试 ${normalizedModel.value || "当前模型"} 连通性...`;
+    return "测试中";
   }
   if (probeState.value === "success" && probeResult.value) {
     const provider = probeResult.value.provider || "provider";
-    const resolvedModel = probeResult.value.resolvedModel || normalizedModel.value || "unknown";
     const latency = Number.isFinite(probeResult.value.latencyMs) ? `${probeResult.value.latencyMs} ms` : "";
-    return `${provider} / ${resolvedModel} 已连通${latency ? ` · ${latency}` : ""}`;
+    return `${provider} 已连通${latency ? ` · ${latency}` : ""}`;
   }
   if (probeState.value === "error") {
     return errorMessage.value || "模型测试失败";
   }
-  return "切换模型后建议先测试一次；正式提交前也会自动校验。";
+  return "提交前会自动校验";
 });
 
 function reset() {
@@ -147,24 +150,29 @@ defineExpose<TextModelProbeInlineExpose>({
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.65rem;
+  gap: 8px;
 }
 
 .text-model-probe__button {
-  border: 1px solid rgba(59, 130, 246, 0.24);
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.88);
-  color: #1d4ed8;
+  color: var(--accent-blue);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
-  padding: 0.5rem 0.8rem;
+  padding: 0 10px;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
 
 .text-model-probe__button:hover:not(:disabled) {
-  border-color: rgba(37, 99, 235, 0.42);
-  background: rgba(239, 246, 255, 0.92);
+  border-color: rgba(27, 124, 255, 0.22);
+  background: #effcff;
 }
 
 .text-model-probe__button:disabled {
@@ -176,6 +184,10 @@ defineExpose<TextModelProbeInlineExpose>({
   margin: 0;
   font-size: 0.75rem;
   line-height: 1.45;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .text-model-probe__status-idle {

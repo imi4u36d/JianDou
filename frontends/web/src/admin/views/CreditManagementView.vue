@@ -3,9 +3,7 @@
     <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="credit-page__toolbar">
-          <div>
-            <h3>用户积分</h3>
-          </div>
+          <span class="credit-page__toolbar-spacer" aria-hidden="true"></span>
           <el-button :icon="Refresh" plain @click="refreshActiveTab">刷新</el-button>
         </div>
       </template>
@@ -52,8 +50,8 @@
             <el-table-column align="right" fixed="right" label="操作" min-width="170">
               <template #default="{ row }">
                 <div class="credit-page__actions">
-                  <el-button link type="primary" @click="openTransactionDialog(row)">流水</el-button>
-                  <el-button link type="warning" @click="openAdjustDialog(row)">调整</el-button>
+                  <el-button link type="primary" title="流水" aria-label="查看流水" @click="openTransactionDialog(row)">流水</el-button>
+                  <el-button link type="warning" title="调整" aria-label="调整积分" @click="openAdjustDialog(row)">调整</el-button>
                 </div>
               </template>
             </el-table-column>
@@ -87,7 +85,7 @@
             </el-table-column>
             <el-table-column align="right" fixed="right" label="操作" min-width="120">
               <template #default="{ row }">
-                <el-button link type="primary" @click="openRuleDialog(row)">编辑</el-button>
+                <el-button link type="primary" title="编辑规则" aria-label="编辑规则" @click="openRuleDialog(row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -140,7 +138,7 @@
       </el-form>
       <template #footer>
         <el-button @click="adjustDialogVisible = false">取消</el-button>
-        <el-button :loading="submittingAdjustment" type="primary" @click="submitAdjustment">保存调整</el-button>
+        <el-button :loading="submittingAdjustment" type="primary" @click="submitAdjustment">保存</el-button>
       </template>
     </el-dialog>
 
@@ -152,7 +150,7 @@
       </el-form>
       <template #footer>
         <el-button @click="ruleDialogVisible = false">取消</el-button>
-        <el-button :loading="submittingRule" type="primary" @click="submitRule">保存规则</el-button>
+        <el-button :loading="submittingRule" type="primary" @click="submitRule">保存</el-button>
       </template>
     </el-dialog>
   </section>
@@ -395,13 +393,13 @@ onMounted(async () => {
 .credit-page__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
 }
 
-.credit-page__toolbar h3 {
-  margin: 0;
-  font-family: inherit;
+.credit-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .credit-page__tabs :deep(.el-tabs__header) {
@@ -414,6 +412,8 @@ onMounted(async () => {
   align-items: flex-end;
   gap: 6px 10px;
   margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 .credit-page__filters-action {
@@ -441,7 +441,22 @@ onMounted(async () => {
 .credit-page__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
+}
+
+.credit-page__actions :deep(.el-button),
+.credit-page__table :deep(.el-button.is-link) {
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: #f7fbff;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.credit-page__actions :deep(.el-button:hover),
+.credit-page__table :deep(.el-button.is-link:hover) {
+  background: #effcff;
 }
 
 .credit-page__positive {

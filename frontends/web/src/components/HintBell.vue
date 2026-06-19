@@ -224,29 +224,34 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 24;
   display: inline-flex;
-  height: 2rem;
-  width: 2rem;
+  height: 34px;
+  width: 34px;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  background: #fff;
-  color: var(--text-body);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--text-muted);
   border: 1px solid rgba(15, 20, 25, 0.08);
   box-shadow: none;
   transition:
+    background 180ms ease,
+    color 180ms ease,
     transform 180ms ease,
     box-shadow 180ms ease;
 }
 
-.hint-bell:hover {
+.hint-bell:hover,
+.hint-bell:focus-visible {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-glow);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
 }
 
 .hint-bell-active {
-  border-color: rgba(124, 58, 237, 0.24);
-  background: rgba(124, 58, 237, 0.08);
-  color: var(--accent-cyan);
+  border-color: rgba(27, 124, 255, 0.18);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.98), rgba(237, 245, 255, 0.94));
+  color: var(--accent-blue);
 }
 
 .hint-bell svg {
@@ -256,12 +261,12 @@ onBeforeUnmount(() => {
 
 .hint-bell-dot {
   position: absolute;
-  right: 0.28rem;
-  top: 0.28rem;
-  height: 0.32rem;
-  width: 0.32rem;
+  right: 7px;
+  top: 7px;
+  height: 6px;
+  width: 6px;
   border-radius: 9999px;
-  background: var(--accent-cyan);
+  background: var(--accent-coral);
   box-shadow: 0 0 0 2px #fff;
 }
 
@@ -269,39 +274,42 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 4200;
   width: min(18rem, calc(100vw - 1.5rem));
-  border-radius: 1rem;
+  border-radius: 16px;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  background: rgba(255, 255, 255, 0.98);
-  padding: 0.95rem 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
+  padding: 12px;
   color: var(--text-strong);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 42px rgba(15, 20, 25, 0.11),
+    0 2px 8px rgba(18, 28, 33, 0.04);
+  backdrop-filter: blur(18px);
 }
 
 .hint-title {
   margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 820;
+  letter-spacing: 0;
+  color: var(--text-strong);
 }
 
 .hint-text {
-  margin: 0.55rem 0 0;
+  margin: 8px 0 0;
   max-height: min(58vh, 32rem);
   overflow: auto;
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 0.86rem;
+  line-height: 1.65;
   color: var(--text-body);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .hint-list {
-  margin: 0.6rem 0 0;
-  padding-left: 1rem;
+  margin: 8px 0 0;
+  padding-left: 18px;
   color: var(--text-body);
+  font-size: 0.86rem;
 }
 
 .hint-list li {

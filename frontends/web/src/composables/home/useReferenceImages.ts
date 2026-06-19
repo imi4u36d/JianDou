@@ -53,7 +53,6 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
   // ----- state -----
 
   const uploadingReference = ref(false);
-  const referenceDevelopingDialogOpen = ref(false);
   const referenceExpanded = ref(false);
   const textFileInput = ref<HTMLInputElement | null>(null);
   const referenceImages = ref<ReferenceImageItem[]>([]);
@@ -98,8 +97,7 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
 
   function handleReferenceEntryClick() {
     if (selectedMode.value.kind === "video") {
-      referenceDevelopingDialogOpen.value = true;
-      statusText.value = "暂不可用。";
+      statusText.value = "视频模式先导入剧本文本，参考图会在分镜阶段补齐。";
       return;
     }
     textFileInput.value?.click();
@@ -264,14 +262,14 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
       return;
     }
     uploadingReference.value = true;
-    statusText.value = "正在读取参考内容...";
+    statusText.value = "读取参考内容";
     try {
       const [, content] = await Promise.all([uploadText(file), readTextFile(file)]);
       if (content.trim()) {
         promptText.value = content;
         form.value.title = file.name.replace(/\.txt$/i, "") || form.value.title;
       }
-      statusText.value = "参考内容已填入输入框。";
+      statusText.value = "参考内容已填入";
     } catch (error) {
       statusText.value = error instanceof Error ? error.message : "参考内容读取失败";
     } finally {
@@ -282,7 +280,7 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
 
   async function handleImageReferenceFiles(files: File[], input: HTMLInputElement) {
     uploadingReference.value = true;
-    statusText.value = "正在读取参考图...";
+    statusText.value = "读取参考图";
     try {
       const items = await Promise.all(files.map(readImageAsDataUri));
       const previousCount = referenceImages.value.length;
@@ -361,7 +359,6 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
 
     // state
     uploadingReference,
-    referenceDevelopingDialogOpen,
     referenceExpanded,
     textFileInput,
     referenceImages,

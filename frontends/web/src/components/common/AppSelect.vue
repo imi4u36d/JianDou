@@ -30,6 +30,15 @@
   </div>
 
   <Teleport to="body">
+    <transition name="app-select-backdrop-fade">
+      <button
+        v-if="open"
+        type="button"
+        class="app-select__backdrop"
+        aria-label="关闭选项"
+        @click="closeMenu"
+      ></button>
+    </transition>
     <transition name="app-select-fade">
       <div
         v-if="open"
@@ -156,11 +165,11 @@ async function syncMenuPosition() {
   }
   if (window.innerWidth <= 640) {
     menuStyle.value = {
-      left: "12px",
-      right: "12px",
-      bottom: "12px",
+      left: "14px",
+      right: "14px",
+      bottom: "14px",
       width: "auto",
-      maxHeight: `${Math.round(Math.min(420, window.innerHeight * 0.62))}px`,
+      maxHeight: `${Math.round(Math.min(430, window.innerHeight * 0.62))}px`,
     };
     return;
   }
@@ -405,15 +414,15 @@ onBeforeUnmount(() => {
 }
 
 .app-select--field .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(124, 58, 237, 0.24);
+  border-color: rgba(0, 169, 187, 0.26);
   box-shadow: 0 8px 20px rgba(15, 20, 25, 0.04);
 }
 
 .app-select--field.app-select--open .app-select__trigger,
 .app-select--field .app-select__trigger:focus-visible {
-  border-color: rgba(124, 58, 237, 0.42);
+  border-color: rgba(0, 169, 187, 0.42);
   box-shadow:
-    0 0 0 3px rgba(124, 58, 237, 0.1),
+    0 0 0 3px rgba(0, 169, 187, 0.1),
     0 10px 26px rgba(15, 20, 25, 0.06);
 }
 
@@ -427,18 +436,19 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 12px;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 10px;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
 }
 
 .app-select--toolbar.app-select--open .app-select__trigger,
 .app-select--toolbar .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(124, 58, 237, 0.24);
-  box-shadow: var(--shadow-soft);
+  border-color: rgba(0, 169, 187, 0.24);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
 }
 
 .app-select--admin .app-select__trigger {
@@ -549,9 +559,16 @@ onBeforeUnmount(() => {
   padding: 7px;
   border-radius: 18px;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 46px rgba(15, 20, 25, 0.13);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
+  box-shadow:
+    0 18px 42px rgba(15, 20, 25, 0.11),
+    0 2px 8px rgba(18, 28, 33, 0.04);
   backdrop-filter: blur(18px);
+}
+
+.app-select__backdrop {
+  display: none;
 }
 
 .app-select__menu--admin {
@@ -589,8 +606,9 @@ onBeforeUnmount(() => {
 }
 
 .app-select__option-selected {
-  border-color: rgba(0, 169, 187, 0.22);
-  background: linear-gradient(180deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.88));
+  border-color: rgba(27, 124, 255, 0.18);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.98), rgba(237, 245, 255, 0.94));
+  color: var(--accent-blue);
 }
 
 .app-select__menu--admin .app-select__option {
@@ -667,13 +685,44 @@ onBeforeUnmount(() => {
   transform: translateY(-4px);
 }
 
+.app-select-backdrop-fade-enter-active,
+.app-select-backdrop-fade-leave-active {
+  transition: opacity 140ms ease;
+}
+
+.app-select-backdrop-fade-enter-from,
+.app-select-backdrop-fade-leave-to {
+  opacity: 0;
+}
+
 @media (max-width: 640px) {
+  .app-select__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1390;
+    display: block;
+    border: 0;
+    background: rgba(15, 20, 25, 0.28);
+    backdrop-filter: blur(6px);
+  }
+
   .app-select__menu {
-    padding: 10px;
+    z-index: 1400;
+    padding: 20px 10px 10px;
     border-radius: 22px;
     box-shadow:
       0 -18px 46px rgba(15, 20, 25, 0.16),
       0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  }
+
+  .app-select__menu::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: -9px auto 8px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.16);
   }
 
   .app-select__option {

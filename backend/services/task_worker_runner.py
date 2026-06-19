@@ -10,8 +10,8 @@ import asyncio
 import inspect
 import logging
 import uuid
-from datetime import datetime, timezone, timedelta
-from typing import Any, Callable, Optional, Protocol
+from datetime import datetime, timedelta, timezone
+from typing import Any, Protocol
 
 from backend.domain.enums import WorkerStatus
 

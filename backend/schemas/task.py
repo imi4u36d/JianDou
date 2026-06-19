@@ -1,6 +1,8 @@
 from __future__ import annotations
-from pydantic import AliasGenerator, BaseModel, ConfigDict
+
 from typing import Any, Optional
+
+from pydantic import AliasGenerator, BaseModel, ConfigDict
 
 
 def _to_camel(name: str) -> str:

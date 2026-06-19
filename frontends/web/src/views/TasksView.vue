@@ -1,5 +1,5 @@
 <template>
-  <section class="tasks-view">
+  <section class="tasks-view" :class="{ 'tasks-view-detail-active': selectedTaskId }">
     <aside class="tasks-list-panel">
       <label class="tasks-search-field" aria-label="搜索任务">
         <div class="tasks-search-field__control">
@@ -107,11 +107,15 @@
             <div class="task-detail-header__meta">
               <span class="surface-chip">{{ selectedTaskTypeLabel }}</span>
               <span class="surface-chip" :title="selectedTaskId">{{ selectedTaskShortId }}</span>
-              <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
-              <span v-if="selectedTaskLoading" class="surface-chip">加载中</span>
+            <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
+              <span v-if="selectedTaskLoading" class="surface-chip surface-chip-loading">
+                <IconRefresh size="xs" />
+              </span>
             </div>
           </div>
-          <button class="btn-secondary btn-sm" type="button" @click="clearSelectedTask">关闭</button>
+          <button class="task-detail-close-button" type="button" aria-label="关闭详情" title="关闭" @click="clearSelectedTask">
+            <IconClose size="sm" />
+          </button>
         </header>
 
         <div class="detail-stage-line" aria-label="任务阶段">
@@ -125,10 +129,12 @@
         </div>
 
         <section v-if="selectedTaskFailureReason" class="task-failure-card" :class="{ 'task-failure-card-open': failureDetailsOpen }">
-          <button type="button" class="task-failure-card__summary" @click="failureDetailsOpen = !failureDetailsOpen">
-            <span>失败</span>
+          <button type="button" class="task-failure-card__summary" :aria-expanded="failureDetailsOpen" @click="failureDetailsOpen = !failureDetailsOpen">
+            <span class="task-failure-card__icon" aria-hidden="true"><IconWarning size="xs" /></span>
             <strong>{{ selectedTaskFailureContext || "任务失败" }}</strong>
-            <small>{{ failureDetailsOpen ? "收起" : "查看详情" }}</small>
+            <small class="task-failure-card__chevron" aria-hidden="true">
+              <IconChevronDown size="xs" />
+            </small>
           </button>
           <p v-if="failureDetailsOpen">{{ selectedTaskFailureReason }}</p>
         </section>
@@ -169,7 +175,7 @@
               </div>
             </div>
             <div v-if="selectedTaskTranscriptPreview" class="detail-note-block">
-              <span>输入</span>
+              <span>Prompt</span>
               <p>{{ selectedTaskTranscriptPreview }}</p>
             </div>
           </section>
@@ -181,8 +187,14 @@
             <RouterLink class="surface-chip detail-material-link" :to="materialLibraryLink">素材库</RouterLink>
           </div>
           <div class="detail-result-list">
-            <a v-for="item in selectedTaskResultItems" :key="`result-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">{{ item.title }}</a>
-            <a v-for="item in selectedTaskMaterialItems" :key="`material-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">{{ item.title }}</a>
+            <a v-for="item in selectedTaskResultItems" :key="`result-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">
+              <IconDownload size="xs" />
+              <span>{{ item.title }}</span>
+            </a>
+            <a v-for="item in selectedTaskMaterialItems" :key="`material-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">
+              <IconDownload size="xs" />
+              <span>{{ item.title }}</span>
+            </a>
           </div>
         </section>
 
@@ -226,14 +238,31 @@
         </section>
 
         <div class="detail-actions">
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="btn-secondary btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">暂停</button>
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="btn-warning btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">终止</button>
-          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="btn-primary btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">继续</button>
-          <button class="btn-secondary btn-sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">刷新</button>
-          <button v-if="selectedTaskActionTask" class="btn-danger btn-sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">删除</button>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+            <span class="detail-action-btn__pause" aria-hidden="true"></span>
+            暂停
+          </button>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+            <IconWarning size="xs" />
+            终止
+          </button>
+          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+            <IconRefresh size="xs" />
+            继续
+          </button>
+          <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+            <IconRefresh size="xs" />
+            刷新
+          </button>
+          <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+            <IconDelete size="xs" />
+            删除
+          </button>
         </div>
       </section>
     </main>
+
+    <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
   </section>
 </template>
 
@@ -245,11 +274,13 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import { usePolling } from "@/composables/usePolling";
+import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, retryTask, terminateTask } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
 import AppSelect from "@/components/common/AppSelect.vue";
+import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
-import { AppIcon, IconDelete, IconRefresh, type IconName } from "@/components/icons";
+import { AppIcon, IconChevronDown, IconClose, IconDelete, IconDownload, IconRefresh, IconWarning, type IconName } from "@/components/icons";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import {
   formatTaskDurationMode,
@@ -307,6 +338,7 @@ const selectedTaskDetail = ref<TaskDetail | null>(null);
 const selectedTaskTrace = ref<TaskTraceEvent[]>([]);
 const selectedTaskLoading = ref(false);
 const failureDetailsOpen = ref(false);
+const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 let querySyncTimer: number | null = null;
 
 const isFilterActive = computed(() => {
@@ -899,7 +931,11 @@ async function handleTerminate(task: TaskListItem) {
     messageApi.error("登录后可继续操作任务");
     return;
   }
-  const ok = window.confirm(`确认终止任务"${task.title}"吗？终止后任务会变为失败状态，可再删除或重试。`);
+  const ok = await requestConfirm({
+    title: "终止任务",
+    message: `任务会变为失败状态，可再删除或重试：${task.title || "未命名任务"}`,
+    confirmText: "终止",
+  });
   if (!ok) {
     return;
   }
@@ -926,7 +962,11 @@ async function handleDelete(task: TaskListItem) {
     messageApi.error("登录后可继续操作任务");
     return;
   }
-  const ok = window.confirm(`确认删除任务"${task.title || '未命名任务'}"吗？删除后无法恢复。`);
+  const ok = await requestConfirm({
+    title: "删除任务",
+    message: `删除后无法恢复：${task.title || "未命名任务"}`,
+    confirmText: "删除",
+  });
   if (!ok) {
     return;
   }
@@ -1162,9 +1202,7 @@ onUnmounted(() => {
 .tasks-view {
   height: 100%;
   min-height: 0;
-  background:
-    radial-gradient(circle at 82% 2%, rgba(27, 124, 255, 0.1), transparent 28%),
-    linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
+  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
   color: var(--text-strong);
   padding: 18px 22px 18px 18px;
   overflow: hidden;
@@ -1195,6 +1233,12 @@ onUnmounted(() => {
 .task-detail-panel {
   display: grid;
   min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(0, 169, 187, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 12px 30px rgba(27, 124, 255, 0.045);
+  backdrop-filter: blur(18px);
 }
 
 .tasks-search-field {
@@ -1572,9 +1616,9 @@ onUnmounted(() => {
 .task-detail-content {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 16px;
   min-height: 100%;
-  padding: 0 0 18px;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1613,18 +1657,23 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
-  padding: 16px 18px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(18, 28, 33, 0.04);
+  gap: 16px;
+  position: sticky;
+  top: -14px;
+  z-index: 5;
+  padding: 2px 2px 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.76));
+  backdrop-filter: blur(16px);
+  box-shadow: none;
 }
 
 .task-detail-header h2 {
   margin: 0;
-  font-size: clamp(1.18rem, 1.8vw, 1.55rem);
-  font-weight: 780;
+  font-size: clamp(1.22rem, 1.8vw, 1.6rem);
+  font-weight: 820;
   color: var(--text-strong);
   letter-spacing: 0;
   line-height: 1.2;
@@ -1645,59 +1694,128 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.surface-chip-loading {
+  width: 30px;
+  min-width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+.surface-chip-loading :deep(svg) {
+  width: 13px;
+  height: 13px;
+  animation: task-detail-spin 900ms linear infinite;
+}
+
+@keyframes task-detail-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.task-detail-close-button {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.task-detail-close-button:hover,
+.task-detail-close-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(27, 124, 255, 0.2);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+}
+
+.task-detail-close-button :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
 .detail-stage-line {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  padding: 5px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  border-radius: 16px;
-  background: #f4f8fb;
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  gap: 6px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .detail-stage-line__item {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
+  gap: 9px;
+  min-height: 40px;
   min-width: 0;
-  padding: 5px 9px;
+  padding: 6px 10px 6px 0;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 0;
   background: transparent;
   color: var(--text-body);
 }
 
+.detail-stage-line__item::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 2px;
+  top: 21px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(15, 20, 25, 0.08);
+  transform: translateX(10px);
+  z-index: 0;
+}
+
+.detail-stage-line__item:last-child::after {
+  display: none;
+}
+
 .detail-stage-line__item-done {
-  border-color: rgba(0, 169, 187, 0.12);
-  background: rgba(239, 252, 255, 0.88);
+  color: var(--accent-cyan);
 }
 
 .detail-stage-line__item-active,
 .detail-stage-line__item-paused {
-  border-color: rgba(27, 124, 255, 0.16);
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  color: var(--accent-blue);
 }
 
 .detail-stage-line__item-failed {
-  border-color: rgba(229, 72, 101, 0.14);
-  background: #fff4f6;
+  color: var(--accent-danger);
 }
 
 .detail-stage-line__dot {
+  z-index: 1;
   flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   position: relative;
   background: rgba(15, 20, 25, 0.08);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.92);
 }
 
 .detail-stage-line__dot::after {
   content: "";
   position: absolute;
-  inset: 3px;
+  inset: 4px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.86);
 }
@@ -1756,24 +1874,27 @@ onUnmounted(() => {
 .task-failure-card {
   display: grid;
   overflow: hidden;
-  min-height: 50px;
-  border: 1px solid rgba(229, 72, 101, 0.12);
-  border-radius: 16px;
-  background: #fff7f8;
+  min-height: 46px;
+  border: 1px solid rgba(229, 72, 101, 0.1);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 247, 248, 0.78), rgba(255, 255, 255, 0.72));
   color: var(--accent-danger);
 }
 
 .task-failure-card-open {
+  grid-template-rows: auto auto;
+  height: max-content;
   min-height: 0;
+  overflow: hidden;
 }
 
 .task-failure-card__summary {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 48px;
+  min-height: 46px;
   padding: 0 12px;
   border: 0;
   background: transparent;
@@ -1782,15 +1903,19 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.task-failure-card__summary span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
+.task-failure-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
   background: rgba(229, 72, 101, 0.1);
-  font-size: 0.72rem;
-  font-weight: 820;
+  color: #bf2f48;
+}
+
+.task-failure-card__icon :deep(svg) {
+  width: 15px;
+  height: 15px;
 }
 
 .task-failure-card__summary strong {
@@ -1803,15 +1928,27 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.task-failure-card__summary small {
+.task-failure-card__chevron {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: rgba(229, 72, 101, 0.08);
   color: rgba(191, 47, 72, 0.78);
-  font-size: 0.72rem;
-  font-weight: 780;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.task-failure-card-open .task-failure-card__chevron {
+  transform: rotate(180deg);
+  background: rgba(229, 72, 101, 0.12);
 }
 
 .task-failure-card p {
   margin: 0;
-  max-height: 150px;
+  max-height: min(220px, 34vh);
   overflow: auto;
   padding: 0 12px 12px;
   color: #9a3447;
@@ -1822,23 +1959,30 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
+.task-failure-card-open p {
+  max-height: min(220px, 34vh);
+  min-height: 0;
+}
+
 .detail-section {
   display: grid;
-  gap: 10px;
+  gap: 11px;
+  min-width: 0;
 }
 
 .detail-section-card {
-  padding: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(18, 28, 33, 0.04);
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .detail-section h3 {
   margin: 0;
-  font-size: 0.88rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 820;
   color: var(--text-strong);
 }
 
@@ -1847,26 +1991,28 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 28px;
+  min-height: 30px;
 }
 
 .detail-overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 0 20px;
   border-top: 0;
+  padding-top: 0;
 }
 
 .detail-overview__row {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 9px;
-  min-height: 42px;
+  min-height: 38px;
   align-items: center;
-  padding: 8px 10px;
-  border: 1px solid rgba(15, 20, 25, 0.05);
-  border-radius: 11px;
-  background: #f8fafb;
+  padding: 7px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 0;
+  background: transparent;
   color: var(--text-body);
 }
 
@@ -1890,24 +2036,26 @@ onUnmounted(() => {
 .detail-overview__progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #8f71ff 0%, #59d7ff 100%);
+  background: linear-gradient(90deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
 }
 
 .detail-params {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 0 22px;
   border-top: 0;
 }
 
 .detail-params__row {
   display: grid;
-  gap: 4px;
-  min-height: 54px;
-  padding: 9px 10px;
-  border: 1px solid rgba(15, 20, 25, 0.05);
-  border-radius: 11px;
-  background: #f8fafb;
+  grid-template-columns: minmax(70px, 0.4fr) minmax(0, 1fr);
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 0;
+  background: transparent;
 }
 
 .detail-params__row span,
@@ -1931,8 +2079,12 @@ onUnmounted(() => {
 
 .task-detail-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1.28fr);
-  gap: 14px;
+  grid-template-columns: minmax(360px, 1.18fr) minmax(300px, 0.82fr);
+  gap: 22px;
+}
+
+.task-detail-grid-secondary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
 }
 
 .task-detail-grid-primary {
@@ -1941,15 +2093,17 @@ onUnmounted(() => {
 
 .task-detail-grid-primary > .detail-section-card,
 .task-detail-grid-secondary > .detail-section-card:first-child {
-  border-top: 1px solid rgba(18, 28, 33, 0.05);
+  border-top: 1px solid rgba(15, 20, 25, 0.07);
 }
 
 .task-result-preview {
   display: grid;
   place-items: center;
-  min-height: 220px;
+  height: clamp(240px, 34vw, 410px);
+  min-height: 190px;
   overflow: hidden;
-  border-radius: 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 20, 25, 0.06);
   background:
     linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
     #f3fbff;
@@ -1960,14 +2114,14 @@ onUnmounted(() => {
 .task-result-preview img {
   width: 100%;
   height: 100%;
-  min-height: 220px;
+  min-height: 0;
   object-fit: contain;
 }
 
 .detail-result-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .detail-result-list a,
@@ -1978,10 +2132,12 @@ onUnmounted(() => {
 .detail-result-list a {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  max-width: 100%;
   min-height: 34px;
-  padding: 0 11px;
-  border-radius: 999px;
-  background: #f3f8ff;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: rgba(243, 248, 255, 0.82);
   color: var(--accent-blue);
   font-size: 0.82rem;
   font-weight: 800;
@@ -1993,11 +2149,26 @@ onUnmounted(() => {
   border-color: rgba(0, 169, 187, 0.24);
 }
 
+.detail-result-list a :deep(svg) {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.detail-result-list a span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .detail-note-block {
   display: grid;
   gap: 8px;
-  padding: 10px 0 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.08);
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 0;
   background: transparent;
 }
 
@@ -2017,18 +2188,35 @@ onUnmounted(() => {
 
 .detail-traces {
   display: grid;
-  gap: 7px;
-  max-height: 300px;
+  gap: 0;
+  max-height: 260px;
   overflow: auto;
-  border-top: 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 0;
+  background: transparent;
 }
 
 .detail-traces__item,
 .detail-traces__empty {
-  padding: 10px 11px;
-  border: 1px solid rgba(15, 20, 25, 0.05);
-  border-radius: 11px;
-  background: #f8fafb;
+  position: relative;
+  padding: 10px 10px 10px 30px;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 0;
+  background: transparent;
+}
+
+.detail-traces__item::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 16px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  box-shadow: 0 0 0 4px rgba(0, 169, 187, 0.08);
 }
 
 .detail-traces__item p,
@@ -2045,7 +2233,7 @@ onUnmounted(() => {
 
 .detail-traces__item small {
   display: block;
-  margin-top: 0.32rem;
+  margin-top: 0.3rem;
   color: var(--text-muted);
   font-size: 0.68rem;
 }
@@ -2057,19 +2245,103 @@ onUnmounted(() => {
 
 .detail-actions {
   position: sticky;
-  bottom: 8px;
-  z-index: 3;
+  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 7px;
   margin: 0;
-  padding: 10px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 14px 32px rgba(18, 28, 33, 0.08);
-  backdrop-filter: blur(10px);
+  padding: 11px 0 0;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.9) 28%);
+  backdrop-filter: blur(14px);
+}
+
+.detail-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 780;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.detail-action-btn:hover:not(:disabled),
+.detail-action-btn:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(0, 169, 187, 0.24);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+}
+
+.detail-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.detail-action-btn span,
+.detail-action-btn :deep(svg) {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.detail-action-btn__pause {
+  position: relative;
+}
+
+.detail-action-btn__pause::before,
+.detail-action-btn__pause::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.detail-action-btn__pause::before {
+  left: 3px;
+}
+
+.detail-action-btn__pause::after {
+  right: 3px;
+}
+
+.detail-action-btn-primary {
+  border-color: rgba(27, 124, 255, 0.16);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.95), rgba(237, 245, 255, 0.9));
+  color: var(--accent-blue);
+}
+
+.detail-action-btn-warning {
+  border-color: rgba(217, 137, 0, 0.2);
+  background: rgba(255, 190, 100, 0.12);
+  color: #966128;
+}
+
+.detail-action-btn-danger {
+  border-color: rgba(229, 72, 101, 0.16);
+  background: rgba(229, 72, 101, 0.08);
+  color: var(--accent-danger);
 }
 
 @media (max-width: 900px) {
@@ -2091,9 +2363,19 @@ onUnmounted(() => {
     padding: 0 0 18px;
   }
 
+  .task-detail-panel {
+    padding: 14px;
+  }
+
   .detail-actions {
     margin: 0;
-    border-radius: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 0;
+  }
+
+  .detail-action-btn {
+    width: 100%;
   }
 
   .detail-stage-line {
@@ -2108,6 +2390,22 @@ onUnmounted(() => {
   .task-detail-grid {
     grid-template-columns: 1fr;
   }
+
+  .tasks-view-detail-active {
+    grid-template-rows: 1fr;
+  }
+
+  .tasks-view-detail-active .tasks-list-panel {
+    display: none;
+  }
+
+  .tasks-view-detail-active .task-detail-panel {
+    min-height: calc(100vh - 36px);
+  }
+
+  .tasks-view:not(.tasks-view-detail-active) .task-detail-panel {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -2116,10 +2414,18 @@ onUnmounted(() => {
   }
 
   .tasks-list-panel,
+  .task-detail-panel,
   .task-detail-empty,
   .task-detail-content {
     padding: 0;
     border-radius: 0;
+  }
+
+  .task-detail-panel {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   .detail-overview__row-progress {
@@ -2133,6 +2439,8 @@ onUnmounted(() => {
 
   .task-detail-header {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
   }
 
   .detail-stage-line__item {
@@ -2140,7 +2448,13 @@ onUnmounted(() => {
   }
 
   .detail-stage-line {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .task-failure-card p,
+  .task-failure-card-open p {
+    max-height: min(160px, 30vh);
   }
 }
 </style>

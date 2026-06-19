@@ -19,6 +19,14 @@ def _trimmed(value: str | None, fallback: str) -> str:
     return v if v else fallback
 
 
+def _request_value(request: Any, snake_name: str, camel_name: str | None = None) -> Any:
+    if hasattr(request, snake_name):
+        return getattr(request, snake_name)
+    if camel_name and hasattr(request, camel_name):
+        return getattr(request, camel_name)
+    return None
+
+
 class TaskApplicationServiceImpl:
     """Application service implementation for task operations.
 
@@ -41,48 +49,42 @@ class TaskApplicationServiceImpl:
     async def create_generation_task(self, request: Any) -> dict[str, Any]:
         """Create a generation task and return its detail."""
         owner_user_id = self._require_current_user_id()
+        return await self.create_generation_task_for_user(owner_user_id, request)
+
+    async def create_generation_task_for_user(self, owner_user_id: int, request: Any) -> dict[str, Any]:
+        """Create a generation task for an authenticated user and return its detail."""
         task = await self._command_service.create_generation_task(
             owner_user_id=owner_user_id,
-            title=_trimmed(getattr(request, "title", None) if hasattr(request, "title") else
-                          getattr(request, "title", None), ""),
-            task_type=getattr(request, "task_type", None) if hasattr(request, "task_type") else
-                      getattr(request, "taskType", None),
-            aspect_ratio=getattr(request, "aspect_ratio", None) if hasattr(request, "aspect_ratio") else
-                         getattr(request, "aspectRatio", None),
-            min_duration_seconds=getattr(request, "min_duration_seconds", None) if hasattr(request, "min_duration_seconds") else
-                                  getattr(request, "minDurationSeconds", None),
-            max_duration_seconds=getattr(request, "max_duration_seconds", None) if hasattr(request, "max_duration_seconds") else
-                                  getattr(request, "maxDurationSeconds", None),
-            creative_prompt=getattr(request, "creative_prompt", None) if hasattr(request, "creative_prompt") else
-                             getattr(request, "creativePrompt", None),
-            seed=getattr(request, "seed", None) if hasattr(request, "seed") else
-                  getattr(request, "taskSeed", None),
-            transcript_text=getattr(request, "transcript_text", None) if hasattr(request, "transcript_text") else
-                             getattr(request, "transcriptText", None),
-            image_model=getattr(request, "image_model", None) if hasattr(request, "image_model") else
-                         getattr(request, "imageModel", None),
-            video_model=getattr(request, "video_model", None) if hasattr(request, "video_model") else
-                         getattr(request, "videoModel", None),
-            text_analysis_model=getattr(request, "text_analysis_model", None) if hasattr(request, "text_analysis_model") else
-                                 getattr(request, "textAnalysisModel", None),
-            image_size=getattr(request, "image_size", None) if hasattr(request, "image_size") else
-                        getattr(request, "imageSize", None),
-            reference_image_urls=getattr(request, "reference_image_urls", None) if hasattr(request, "reference_image_urls") else
-                                  getattr(request, "referenceImageUrls", None),
-            reference_asset_ids=getattr(request, "reference_asset_ids", None) if hasattr(request, "reference_asset_ids") else
-                                 getattr(request, "referenceAssetIds", None),
-            asset_type=getattr(request, "asset_type", None) if hasattr(request, "asset_type") else
-                        getattr(request, "assetType", None),
+            title=_trimmed(_request_value(request, "title"), ""),
+            task_type=_request_value(request, "task_type", "taskType"),
+            aspect_ratio=_request_value(request, "aspect_ratio", "aspectRatio"),
+            min_duration_seconds=_request_value(request, "min_duration_seconds", "minDurationSeconds"),
+            max_duration_seconds=_request_value(request, "max_duration_seconds", "maxDurationSeconds"),
+            creative_prompt=_request_value(request, "creative_prompt", "creativePrompt"),
+            seed=_request_value(request, "seed", "taskSeed"),
+            transcript_text=_request_value(request, "transcript_text", "transcriptText"),
+            image_model=_request_value(request, "image_model", "imageModel"),
+            video_model=_request_value(request, "video_model", "videoModel"),
+            text_analysis_model=_request_value(request, "text_analysis_model", "textAnalysisModel"),
+            image_size=_request_value(request, "image_size", "imageSize"),
+            video_size=_request_value(request, "video_size", "videoSize"),
+            video_duration_seconds=_request_value(request, "video_duration_seconds", "videoDurationSeconds"),
+            output_count=_request_value(request, "output_count", "outputCount"),
+            stop_before_video_generation=_request_value(
+                request,
+                "stop_before_video_generation",
+                "stopBeforeVideoGeneration",
+            ),
+            reference_image_urls=_request_value(request, "reference_image_urls", "referenceImageUrls"),
+            reference_asset_ids=_request_value(request, "reference_asset_ids", "referenceAssetIds"),
+            asset_type=_request_value(request, "asset_type", "assetType"),
         )
         return await self._query_service.get_task(task.id, owner_user_id)
 
     async def generate_creative_prompt(self, request: Any) -> dict[str, Any]:
         """Generate a creative prompt stub."""
-        owner_user_id = self._require_current_user_id()
-        title = _trimmed(
-            getattr(request, "title", None) if hasattr(request, "title") else
-            getattr(request, "title", None), "Unnamed Task",
-        )
+        self._require_current_user_id()
+        title = _trimmed(_request_value(request, "title"), "Unnamed Task")
         prompt = f"Short drama style, emotional progression, facial expressions fitting the context, realistic cinematography, dialogue and voiceover matching plot: {title}"
         return {
             "prompt": prompt,

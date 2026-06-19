@@ -1,6 +1,9 @@
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict, Field
+
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class LoginRequest(BaseModel):
     username: str

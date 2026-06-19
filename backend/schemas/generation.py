@@ -1,6 +1,9 @@
 from __future__ import annotations
-from pydantic import BaseModel
-from typing import Optional
+
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class GenerationOptionsResponse(BaseModel):
     aspect_ratios: list = []
@@ -17,3 +20,10 @@ class GenerationOptionsResponse(BaseModel):
     default_video_size: Optional[str] = None
     default_video_duration_seconds: Optional[int] = None
     default_text_analysis_model: Optional[str] = None
+
+
+class GenerationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    kind: str = "probe"
+    auth: dict[str, Any] = Field(default_factory=dict)

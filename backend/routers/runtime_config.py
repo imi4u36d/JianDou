@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from fastapi import APIRouter
+
 from backend.config import settings
 
 router = APIRouter(tags=["runtime-config"])

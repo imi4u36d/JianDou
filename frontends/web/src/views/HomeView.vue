@@ -40,17 +40,17 @@
                     :aria-label="`移除${item.label}`"
                     @click.stop="removeReferenceImage(item.id)"
                   >
-                    ×
+                    <IconClose size="xs" />
                   </button>
                 </span>
               </span>
               <span class="home-composer__upload-add-card" :style="referenceAddCardStyle()">
-                <span>+</span>
+                <IconPlus size="sm" />
               </span>
-              <span class="home-reference-add">+</span>
+              <span class="home-reference-add"><IconPlus size="xs" /></span>
             </span>
           </template>
-          <span v-else>+</span>
+          <IconPlus v-else size="md" />
         </button>
         <input
           ref="textFileInput"
@@ -125,7 +125,6 @@
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'model'" class="home-popover home-popover-model">
-                  <p class="home-popover__label">{{ selectedMode.kind === "video" ? "模型" : "图片模型" }}</p>
                   <template v-if="selectedMode.kind === 'video'">
                     <section class="home-popover-section">
                       <p class="home-popover__label">文本模型</p>
@@ -406,8 +405,6 @@
                       </span>
                     </button>
                   </template>
-                  <p v-if="selectedMode.kind === 'video'" class="home-popover__empty">暂不可用</p>
-                  <p v-else-if="!referenceImages.length" class="home-popover__empty">暂无参考图</p>
                 </div>
               </transition>
             </div>
@@ -451,24 +448,19 @@
             <path d="M12 19V5" />
             <path d="m5 12 7-7 7 7" />
           </svg>
-          <span v-else>...</span>
+          <IconLoading v-else size="sm" />
         </button>
       </form>
 
-      <div v-if="referenceDevelopingDialogOpen" class="home-dialog" role="dialog" aria-modal="true" aria-labelledby="reference-developing-title" @click.self="referenceDevelopingDialogOpen = false">
-        <div class="home-dialog__panel">
-          <h2 id="reference-developing-title">暂不可用</h2>
-          <p>视频参考图稍后开放。</p>
-          <button type="button" @click="referenceDevelopingDialogOpen = false">好</button>
-        </div>
-      </div>
     </section>
 
     <Transition name="home-toast-slide">
       <div v-if="taskToastTaskId" class="home-task-toast" role="status">
         <span>已提交</span>
         <RouterLink :to="{ name: 'tasks', query: { selected: taskToastTaskId } }">查看</RouterLink>
-        <button type="button" aria-label="关闭任务提示" @click="dismissTaskToast">×</button>
+        <button type="button" aria-label="关闭任务提示" @click="dismissTaskToast">
+          <IconClose size="xs" />
+        </button>
       </div>
     </Transition>
 
@@ -513,7 +505,7 @@ import { usePromptEditor } from "@/composables/home/usePromptEditor";
 import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
 import { useGenerationForm, type ModeValue, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
-import { IconCheck, IconVideo, IconImage, IconCharacter, IconModel, IconDuration, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
+import { IconCheck, IconClose, IconVideo, IconImage, IconCharacter, IconModel, IconDuration, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
 
 type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention" | "seed";
 
@@ -523,7 +515,7 @@ type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention
 
 const authState = useAuthSessionState();
 const activeMenu = ref<MenuKey>("");
-const statusText = ref("参数加载中...");
+const statusText = ref("加载参数");
 const submitting = ref(false);
 const createdTaskId = ref("");
 const taskToastTaskId = ref("");
@@ -610,7 +602,6 @@ const {
 const {
   referenceImages,
   uploadingReference,
-  referenceDevelopingDialogOpen,
   referenceExpanded,
   textFileInput,
   handleReferenceEntryClick,
@@ -651,7 +642,7 @@ watch(referenceImages, (val) => {
 
 const submitLabel = computed(() => {
   if (submitting.value) {
-    return "创建中...";
+    return "创建中";
   }
   return selectedMode.value.kind === "video" ? "生成视频" : selectedMode.value.value === "character_sheet" ? "生成三视图" : "生成图片";
 });
@@ -865,10 +856,7 @@ onBeforeUnmount(() => {
 .home-page {
   min-height: 100%;
   padding: 56px 48px 48px;
-  background:
-    radial-gradient(circle at 18% 8%, rgba(139, 212, 80, 0.18), transparent 28%),
-    radial-gradient(circle at 82% 12%, rgba(27, 124, 255, 0.12), transparent 30%),
-    linear-gradient(180deg, #f6fbff 0%, #ffffff 46%, #f4fbf7 100%);
+  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 46%, #f4fbf7 100%);
   color: var(--text-strong);
 }
 
@@ -1049,9 +1037,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: rgba(41, 46, 53, 0.94);
   color: #fff;
-  font-size: 0.9rem;
-  font-weight: 500;
-  line-height: 1;
+  line-height: 0;
   cursor: pointer;
   transform: rotate(var(--preview-remove-rotate, 0deg)) scale(0.84);
   transform-origin: center;
@@ -1062,6 +1048,11 @@ onBeforeUnmount(() => {
   transition:
     opacity 220ms ease,
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-composer__upload-preview-image-remove :deep(svg) {
+  width: 13px;
+  height: 13px;
 }
 
 .home-composer__upload-add-card {
@@ -1083,16 +1074,10 @@ onBeforeUnmount(() => {
   box-shadow: none;
 }
 
-.home-composer__upload-add-card span {
-  font-size: 1.2rem;
-  line-height: 1;
-  font-weight: 700;
-}
-
-.home-composer__upload span {
-  font-size: 1.72rem;
-  line-height: 1;
-  font-weight: 500;
+.home-composer__upload-add-card :deep(svg),
+.home-composer__upload > :deep(svg) {
+  width: 20px;
+  height: 20px;
 }
 
 .home-composer__upload > img {
@@ -1138,9 +1123,28 @@ onBeforeUnmount(() => {
 
 .home-task-toast button {
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
   color: var(--text-muted);
-  font-size: 1.05rem;
   line-height: 1;
+  cursor: pointer;
+}
+
+.home-task-toast button:hover,
+.home-task-toast button:focus-visible {
+  background: #effcff;
+  color: var(--accent-blue);
+}
+
+.home-task-toast button :deep(svg) {
+  width: 14px;
+  height: 14px;
 }
 
 .home-toast-slide-enter-active,
@@ -1165,8 +1169,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   background: rgba(244, 245, 247, 0.96);
   color: #20262d;
-  font-size: 1rem !important;
-  font-weight: 500;
+  line-height: 0;
   transform: none;
   box-shadow:
     0 8px 18px rgba(15, 20, 25, 0.08),
@@ -1174,6 +1177,11 @@ onBeforeUnmount(() => {
   transition:
     opacity 220ms ease,
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-reference-add :deep(svg) {
+  width: 14px;
+  height: 14px;
 }
 
 .home-composer__upload:not(.home-composer__upload-has-multiple) .home-reference-add {
@@ -1339,26 +1347,36 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 13px;
   border: 1px solid rgba(18, 28, 33, 0.08);
-  border-radius: 8px;
-  background: #f7f9f8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
   font-size: 0.8rem;
-  font-weight: 720;
+  font-weight: 760;
   box-shadow: none;
   cursor: pointer;
   transition:
     background 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease,
-    color 160ms ease;
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.home-tool:hover,
+.home-tool:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(0, 169, 187, 0.24);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
 }
 
 .home-tool-accent {
   border-color: rgba(0, 169, 187, 0.2);
-  background: #effcff;
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.98), rgba(237, 245, 255, 0.94));
   color: #008da1;
 }
 
@@ -1402,6 +1420,11 @@ onBeforeUnmount(() => {
 
 .home-menu {
   position: relative;
+  z-index: 1;
+}
+
+.home-menu:has(.home-popover) {
+  z-index: 40;
 }
 
 .home-popover-float-enter-active,
@@ -1425,27 +1448,28 @@ onBeforeUnmount(() => {
   z-index: 12;
   display: grid;
   gap: 8px;
-  width: 320px;
+  width: min(320px, calc(100vw - 48px));
   max-height: min(480px, calc(100vh - 120px));
   overflow-y: auto;
-  padding: 10px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 18px;
-  background: #fff;
+  padding: 8px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
   box-shadow:
-    0 18px 44px rgba(15, 20, 25, 0.13),
+    0 18px 42px rgba(15, 20, 25, 0.105),
     0 2px 8px rgba(18, 28, 33, 0.04);
+  backdrop-filter: blur(18px);
   overscroll-behavior: contain;
 }
 
 .home-popover-ratio {
   width: min(440px, calc(100vw - 48px));
-  gap: 10px;
-  padding: 12px;
+  gap: 9px;
 }
 
 .home-popover-model {
-  width: min(320px, calc(100vw - 48px));
+  width: min(304px, calc(100vw - 48px));
 }
 
 .home-popover-compact,
@@ -1458,24 +1482,29 @@ onBeforeUnmount(() => {
   gap: 7px;
 }
 
+.home-popover-section + .home-popover-section {
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
+}
+
 .home-popover__label {
-  margin: 0 4px 1px;
+  margin: 0 4px;
   color: #74838d;
-  font-size: 0.68rem;
-  font-weight: 780;
+  font-size: 0.7rem;
+  font-weight: 820;
   letter-spacing: 0;
 }
 
 .home-popover__item {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 18px;
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
   border: 1px solid transparent;
-  padding: 0 10px;
-  border-radius: 12px;
+  padding: 0 9px;
+  border-radius: 11px;
   background: transparent;
   color: var(--text-strong);
   text-align: left;
@@ -1484,24 +1513,25 @@ onBeforeUnmount(() => {
 }
 
 .home-popover__item-active {
-  border-color: rgba(27, 124, 255, 0.2);
-  background: linear-gradient(135deg, #effcff, #edf5ff);
+  border-color: rgba(27, 124, 255, 0.18);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
   color: var(--accent-blue);
+  box-shadow: 0 7px 16px rgba(27, 124, 255, 0.055);
 }
 
 .home-popover__item:hover {
   border-color: rgba(27, 124, 255, 0.14);
-  background: rgba(237, 245, 255, 0.76);
+  background: rgba(237, 245, 255, 0.74);
   transform: translateY(-1px);
 }
 
 .home-popover__icon {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #effcff, #edf5ff);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.98), rgba(237, 245, 255, 0.94));
   color: var(--accent-cyan);
 }
 
@@ -1568,59 +1598,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.home-dialog {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(15, 20, 25, 0.34);
-  backdrop-filter: blur(8px);
-}
-
-.home-dialog__panel {
-  display: grid;
-  gap: 14px;
-  width: min(100%, 360px);
-  padding: 22px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 20px;
-  background: #fff;
-  box-shadow:
-    0 22px 54px rgba(18, 28, 33, 0.16),
-    0 2px 8px rgba(18, 28, 33, 0.04);
-}
-
-.home-dialog__panel h2,
-.home-dialog__panel p {
-  margin: 0;
-}
-
-.home-dialog__panel h2 {
-  font-size: 1rem;
-  font-weight: 850;
-}
-
-.home-dialog__panel p {
-  color: var(--text-muted);
-  font-size: 0.86rem;
-  line-height: 1.6;
-}
-
-.home-dialog__panel button {
-  justify-self: end;
-  min-width: 82px;
-  min-height: 36px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--bg-accent);
-  color: #fff;
-  font-weight: 800;
-  box-shadow: 0 12px 28px rgba(27, 124, 255, 0.22);
-  cursor: pointer;
-}
-
 .home-field {
   display: grid;
   gap: 6px;
@@ -1647,11 +1624,11 @@ onBeforeUnmount(() => {
 
 .home-segment-grid {
   display: grid;
-  gap: 3px;
+  gap: 4px;
   overflow: hidden;
-  padding: 3px;
+  padding: 4px;
   border-radius: 12px;
-  background: #f3f6f8;
+  background: #f4f7f9;
 }
 
 .home-ratio-list {
@@ -1680,10 +1657,10 @@ onBeforeUnmount(() => {
 .home-ratio-list-immersive {
   grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
   align-items: stretch;
-  gap: 3px;
-  padding: 3px;
+  gap: 4px;
+  padding: 4px;
   border-radius: 12px;
-  background: #f3f6f8;
+  background: #f4f7f9;
 }
 
 .home-ratio-list button {
@@ -1727,11 +1704,11 @@ onBeforeUnmount(() => {
 .home-resolution-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
+  gap: 4px;
   overflow: hidden;
-  padding: 3px;
+  padding: 4px;
   border-radius: 12px;
-  background: #f3f6f8;
+  background: #f4f7f9;
 }
 
 .home-resolution-list button {
@@ -1804,9 +1781,9 @@ onBeforeUnmount(() => {
 
 .home-segment-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 8px;
+  padding: 4px;
   border-radius: 12px;
-  background: #f7f8f9;
+  background: #f4f7f9;
 }
 
 .home-segment-grid button {
@@ -1944,7 +1921,7 @@ onBeforeUnmount(() => {
 
 .home-active-task-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(124, 58, 237, 0.22);
+  border-color: rgba(27, 124, 255, 0.2);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.96) inset,
     0 12px 30px rgba(20, 28, 36, 0.07);
@@ -2144,9 +2121,25 @@ onBeforeUnmount(() => {
     left: 14px;
     right: 14px;
     top: auto;
-    bottom: 76px;
+    bottom: 14px;
+    z-index: 80;
     width: auto;
-    max-height: min(430px, calc(100vh - 120px));
+    max-height: min(430px, calc(100dvh - 96px));
+    padding: 20px 10px 10px;
+    border-radius: 22px;
+    box-shadow:
+      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  }
+
+  .home-popover::before {
+    content: "";
+    justify-self: center;
+    width: 38px;
+    height: 4px;
+    margin: -9px 0 2px;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.16);
   }
 
   .home-popover-ratio {
@@ -2154,8 +2147,13 @@ onBeforeUnmount(() => {
   }
 
   .home-dimension-row {
-    grid-template-columns: 34px minmax(0, 1fr) 28px 34px minmax(0, 1fr) 36px;
+    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 36px;
     gap: 6px;
+  }
+
+  .home-dimension-row strong {
+    grid-template-columns: 24px minmax(0, 1fr);
+    padding: 0 8px;
   }
 
   .home-active-tasks {

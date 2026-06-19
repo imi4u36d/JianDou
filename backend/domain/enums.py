@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 
+
 class TaskStatus(str, Enum):
     PENDING = "PENDING"
     PAUSED = "PAUSED"
@@ -56,6 +57,31 @@ class AttemptTriggerType(str, Enum):
     RETRY = "retry"
     CONTINUE = "continue"
     RECOVER = "recover"
+
+
+class StageRunStatus(str, Enum):
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            aliases = {
+                "PENDING": cls.RUNNING,
+                "QUEUED": cls.RUNNING,
+                "PROCESSING": cls.RUNNING,
+                "SUCCESS": cls.COMPLETED,
+                "SUCCEEDED": cls.COMPLETED,
+                "ERROR": cls.FAILED,
+            }
+            if normalized in aliases:
+                return aliases[normalized]
+            for member in cls:
+                if member.value == normalized:
+                    return member
+        return None
 
 
 class TraceLevel(str, Enum):
@@ -124,3 +150,33 @@ class InviteStatus(str, Enum):
     USED = "USED"
     EXPIRED = "EXPIRED"
     REVOKED = "REVOKED"
+
+
+class WorkflowStatus(str, Enum):
+    DRAFT = "DRAFT"
+    READY = "READY"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class WorkflowStage(str, Enum):
+    STORYBOARD = "storyboard"
+    KEYFRAME = "keyframe"
+    VIDEO = "video"
+    JOINED = "joined"
+
+
+class WorkflowDurationMode(str, Enum):
+    AUTO = "auto"
+    MANUAL = "manual"
+
+
+class StageVersionStatus(str, Enum):
+    QUEUED = "QUEUED"
+    SUBMITTED = "SUBMITTED"
+    RUNNING = "RUNNING"
+    ACCEPTED = "ACCEPTED"
+    SUCCEEDED = "SUCCEEDED"
+    SUCCESS = "SUCCESS"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"

@@ -1,8 +1,5 @@
 <template>
   <section class="auth-screen">
-    <div class="auth-screen__glow auth-screen__glow-left" aria-hidden="true"></div>
-    <div class="auth-screen__glow auth-screen__glow-right" aria-hidden="true"></div>
-
     <div class="auth-screen__panel">
       <div class="auth-screen__hero">
         <h1>进入工作台</h1>
@@ -29,17 +26,19 @@
               type="button"
               @click="showPassword = !showPassword"
             >
-              {{ showPassword ? "隐" : "显" }}
+              <IconEyeOff v-if="showPassword" size="sm" />
+              <IconEye v-else size="sm" />
             </button>
           </div>
         </label>
 
         <button :disabled="submitting" class="auth-form__submit" type="submit">
-          {{ submitting ? "登录中..." : "登录" }}
+          <IconLoading v-if="submitting" size="sm" />
+          <span>{{ submitting ? "登录中" : "登录" }}</span>
         </button>
 
         <p class="auth-form__footer">
-          <RouterLink :to="activateLink">使用邀请码激活</RouterLink>
+          <RouterLink :to="activateLink">邀请码</RouterLink>
         </p>
       </form>
     </div>
@@ -54,6 +53,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loginAndStoreSession } from "@/auth/session";
 import { messageApi } from "@/composables/useMessage";
+import { IconEye, IconEyeOff, IconLoading } from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
@@ -101,28 +101,23 @@ async function handleSubmit() {
   place-items: center;
   padding: 24px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(139, 212, 80, 0.18), transparent 28%),
-    radial-gradient(circle at 86% 10%, rgba(27, 124, 255, 0.12), transparent 30%),
-    linear-gradient(180deg, #f6fbff 0%, #ffffff 52%, #f4fbf7 100%);
-}
-
-.auth-screen__glow {
-  display: none;
+  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 52%, #f4fbf7 100%);
 }
 
 .auth-screen__panel {
   position: relative;
   z-index: 1;
-  width: min(430px, 100%);
+  width: min(410px, 100%);
   display: grid;
   gap: 20px;
-  padding: 28px;
-  border-radius: 20px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
   background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 42px rgba(27, 124, 255, 0.08);
-  backdrop-filter: blur(18px);
+  box-shadow:
+    0 16px 38px rgba(27, 124, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(20px);
 }
 
 .auth-screen__hero {
@@ -133,7 +128,7 @@ async function handleSubmit() {
 .auth-screen__hero h1 {
   margin: 0;
   font-family: inherit;
-  font-size: clamp(1.78rem, 4.4vw, 2.35rem);
+  font-size: clamp(1.5rem, 4vw, 1.9rem);
   line-height: 1.12;
   letter-spacing: 0;
   color: var(--text-strong);
@@ -148,7 +143,7 @@ async function handleSubmit() {
 
 .auth-form {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   padding: 0;
   border-radius: 0;
   background: transparent;
@@ -178,9 +173,20 @@ async function handleSubmit() {
   min-height: 48px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
-  background: #fff;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  background: rgba(255, 255, 255, 0.9);
   color: var(--text-strong);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.auth-form__field input:focus {
+  border-color: rgba(0, 169, 187, 0.42);
+  box-shadow:
+    0 0 0 3px rgba(0, 169, 187, 0.1),
+    0 10px 24px rgba(27, 124, 255, 0.06);
 }
 
 .auth-form__password-wrap {
@@ -196,16 +202,22 @@ async function handleSubmit() {
   top: 50%;
   right: 10px;
   transform: translateY(-50%);
+  display: grid;
+  place-items: center;
   width: 34px;
   min-height: 34px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: #effcff;
+  border-radius: 11px;
+  background: rgba(239, 252, 255, 0.92);
   color: var(--text-body);
-  font-size: 0.8rem;
-  font-weight: 700;
+  line-height: 0;
   cursor: pointer;
+}
+
+.auth-form__password-toggle :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .auth-form__password-toggle:hover {
@@ -236,6 +248,10 @@ async function handleSubmit() {
 }
 
 .auth-form__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 48px;
   border: 0;
   border-radius: 14px;
@@ -243,6 +259,22 @@ async function handleSubmit() {
   color: #fff;
   font-weight: 800;
   cursor: pointer;
+  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.18);
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.auth-form__submit :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.auth-form__submit:hover:not(:disabled),
+.auth-form__submit:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(27, 124, 255, 0.22);
 }
 
 .auth-form__submit:disabled {
@@ -253,16 +285,30 @@ async function handleSubmit() {
 .auth-form__footer {
   margin: 0;
   color: var(--text-muted);
+  text-align: center;
 }
 
 .auth-form__footer a {
   color: var(--accent-cyan);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.auth-form__footer a:hover,
+.auth-form__footer a:focus-visible {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
 }
 
 @media (max-width: 860px) {
+  .auth-screen {
+    padding: 16px;
+  }
+
   .auth-screen__panel {
-    gap: 18px;
-    padding: 22px;
+    gap: 16px;
+    padding: 18px;
   }
 
   .auth-screen__hero {
@@ -271,7 +317,7 @@ async function handleSubmit() {
 
   .auth-screen__hero h1 {
     max-width: none;
-    font-size: clamp(1.78rem, 9vw, 2.35rem);
+    font-size: clamp(1.5rem, 8vw, 1.9rem);
   }
 }
 </style>

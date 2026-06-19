@@ -11,9 +11,7 @@
     <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="invite-page__toolbar">
-          <div>
-            <h3>邀请码</h3>
-          </div>
+          <span class="invite-page__toolbar-spacer" aria-hidden="true"></span>
           <div class="invite-page__toolbar-actions">
             <el-button :icon="Refresh" plain @click="loadInvites">刷新</el-button>
             <el-button :icon="Plus" type="primary" @click="openCreateDialog">生成</el-button>
@@ -26,7 +24,7 @@
           <template #default="{ row }">
             <div class="invite-page__code-cell">
               <strong>{{ row.code }}</strong>
-              <el-button link type="primary" @click="copyInviteCode(row.code)">复制</el-button>
+              <el-button link type="primary" title="复制" aria-label="复制邀请码" @click="copyInviteCode(row.code)">复制</el-button>
             </div>
           </template>
         </el-table-column>
@@ -70,11 +68,13 @@
               v-if="row.status === 'UNUSED'"
               link
               type="danger"
+              title="撤销"
+              aria-label="撤销邀请码"
               @click="revokeInvite(row)"
             >
               撤销
             </el-button>
-            <span v-else class="invite-page__muted">不可操作</span>
+            <span v-else class="invite-page__muted">-</span>
           </template>
         </el-table-column>
       </el-table>
@@ -98,7 +98,7 @@
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
         <el-button :loading="submitting" type="primary" @click="submitCreate">
-          生成邀请码
+          生成
         </el-button>
       </template>
     </el-dialog>
@@ -294,13 +294,13 @@ onMounted(async () => {
 .invite-page__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
 }
 
-.invite-page__toolbar h3 {
-  margin: 0;
-  font-family: inherit;
+.invite-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .invite-page__toolbar-actions,
@@ -308,7 +308,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .invite-page__code-cell strong {
@@ -322,6 +322,21 @@ onMounted(async () => {
 
 .invite-page__table {
   width: 100%;
+}
+
+.invite-page__code-cell :deep(.el-button),
+.invite-page__table :deep(.el-button.is-link) {
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: #f7fbff;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.invite-page__code-cell :deep(.el-button:hover),
+.invite-page__table :deep(.el-button.is-link:hover) {
+  background: #effcff;
 }
 
 @media (max-width: 1200px) {

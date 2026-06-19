@@ -11,142 +11,121 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from base64 import urlsafe_b64encode
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Optional
 
 import yaml
+from cryptography.fernet import Fernet, InvalidToken
 
-# ---------------------------------------------------------------------------
-# Generation model kind constants
-# ---------------------------------------------------------------------------
-
-class GenerationModelKinds:
-    TEXT = "text"
-    IMAGE = "image"
-    VIDEO = "video"
-
+from backend.config import settings
+from backend.domain.generation_run import GenerationModelKinds
+from backend.services.model_config_snapshot import (
+    ConfigSection,
+    ConfigSnapshot,
+    merge_maps,
+    normalize_map,
+    string_value,
+)
+from backend.services.model_config_values import (
+    bool_value,
+    configured_provider_model,
+    derive_base_url_from_host,
+    double_value,
+    first_non_blank,
+    first_valid_secret,
+    host_of,
+    int_value,
+    normalize,
+    normalize_base_url,
+    parse_integer_list,
+    parse_string_list,
+    resolve_configured_model_section,
+    resolve_text_supports_responses_api,
+    resolve_watermark_default,
+    trim_to_empty,
+)
 
 # ---------------------------------------------------------------------------
 # Utility helpers (mirroring Java private helpers)
 # ---------------------------------------------------------------------------
 
 def _trim_to_empty(value: str | None) -> str:
-    return "" if value is None else value.strip()
+    return trim_to_empty(value)
 
 
 def _normalize(value: str | None) -> str:
-    return _trim_to_empty(value).lower()
+    return normalize(value)
 
 
 def _string_value(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, list):
-        return ",".join(_string_value(item) for item in value if _string_value(item))
-    return str(value).strip()
+    return string_value(value)
 
 
 def _first_non_blank(*values: str | None) -> str:
-    for v in values:
-        if v is not None and v.strip():
-            return v.strip()
-    return ""
+    return first_non_blank(*values)
 
 
 def _first_valid_secret(*values: str | None) -> str:
-    for v in values:
-        value = _trim_to_empty(v)
-        if value and value not in {"1", "changeme", "placeholder"}:
-            return value
-    return ""
+    return first_valid_secret(*values)
+
+
+_FERNET_PREFIX = "fernet:"
+
+
+def _credential_fernet() -> Fernet:
+    key_material = sha256(settings.secret_key.encode("utf-8")).digest()
+    return Fernet(urlsafe_b64encode(key_material))
+
+
+def _protect_user_api_key(api_key: str) -> str:
+    secret = _first_valid_secret(api_key)
+    if not secret:
+        return ""
+    token = _credential_fernet().encrypt(secret.encode("utf-8")).decode("ascii")
+    return f"{_FERNET_PREFIX}{token}"
+
+
+def _unprotect_user_api_key(stored_value: str) -> str:
+    value = _trim_to_empty(stored_value)
+    if not value:
+        return ""
+    if not value.startswith(_FERNET_PREFIX):
+        return _first_valid_secret(value)
+    token = value[len(_FERNET_PREFIX):]
+    try:
+        decrypted = _credential_fernet().decrypt(token.encode("ascii")).decode("utf-8")
+    except (InvalidToken, UnicodeDecodeError, ValueError):
+        return ""
+    return _first_valid_secret(decrypted)
 
 
 def _int_value(raw: str, fallback: int) -> int:
-    try:
-        return int(raw.strip())
-    except (ValueError, AttributeError):
-        return fallback
+    return int_value(raw, fallback)
 
 
 def _double_value(raw: str, fallback: float) -> float:
-    try:
-        return float(raw.strip())
-    except (ValueError, AttributeError):
-        return fallback
+    return double_value(raw, fallback)
 
 
 def _bool_value(raw: str) -> bool:
-    n = _normalize(raw)
-    return n in ("1", "true", "yes", "on")
+    return bool_value(raw)
 
 
 def _normalize_map(source: dict[Any, Any]) -> dict[str, Any]:
-    result: dict[str, Any] = OrderedDict()
-    for key, value in source.items():
-        result[str(key)] = _normalize_value(value)
-    return result
-
-
-def _normalize_value(value: object) -> object:
-    if isinstance(value, dict):
-        return _normalize_map(value)
-    if isinstance(value, list):
-        return [_normalize_value(item) for item in value]
-    return value
-
-
-def _parse_path(raw_path: str) -> list[str]:
-    value = _trim_to_empty(raw_path)
-    if not value:
-        return []
-    tokens: list[str] = []
-    current: list[str] = []
-    quote: str = ""
-    for ch in value:
-        if ch in ("'", '"') and not quote:
-            quote = ch
-            continue
-        if ch == quote:
-            quote = ""
-            continue
-        if ch == "." and not quote:
-            token = "".join(current).strip()
-            if token:
-                tokens.append(token)
-            current = []
-            continue
-        current.append(ch)
-    token = "".join(current).strip()
-    if token:
-        tokens.append(token)
-    return tokens
+    return normalize_map(source)
 
 
 def _parse_string_list(raw: object) -> list[str]:
-    s = _string_value(raw)
-    if not s:
-        return []
-    seen: list[str] = []
-    for item in s.split(","):
-        trimmed = item.strip()
-        if trimmed and trimmed not in seen:
-            seen.append(trimmed)
-    return seen
+    return parse_string_list(raw)
 
 
 def _parse_integer_list(raw: object) -> list[int]:
-    s = _string_value(raw)
-    if not s:
-        return []
-    result: list[int] = []
-    for item in s.split(","):
-        parsed = _int_value(item, -1)
-        if parsed > 0 and parsed not in result:
-            result.append(parsed)
-    return result
+    return parse_integer_list(raw)
 
 
 # ---------------------------------------------------------------------------
@@ -175,16 +154,6 @@ def _vendor_property(vendor: str, suffix: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# ConfigSection
-# ---------------------------------------------------------------------------
-
-@dataclass
-class ConfigSection:
-    name: str
-    values: dict[str, str]
-
-
-# ---------------------------------------------------------------------------
 # ResolvedModel
 # ---------------------------------------------------------------------------
 
@@ -197,69 +166,6 @@ class ResolvedModel:
         if not self.canonical_name:
             return ""
         return f'model.models."{self.canonical_name}"'
-
-
-# ---------------------------------------------------------------------------
-# ConfigSnapshot (immutable tree of config values)
-# ---------------------------------------------------------------------------
-
-class ConfigSnapshot:
-    """Equivalent of Java's private record ConfigSnapshot."""
-
-    def __init__(self, root: dict[str, Any], source: str, errors: list[str]):
-        self._root = _normalize_map(root)
-        self._source = source
-        self._errors = list(errors)
-
-    @property
-    def source(self) -> str:
-        return self._source
-
-    @property
-    def errors(self) -> list[str]:
-        return list(self._errors)
-
-    def value(self, section_name: str, key: str) -> str:
-        return _string_value(self._path_value(f"{section_name}.{key}"))
-
-    def section(self, section_name: str) -> dict[str, str]:
-        value = self._path_value(section_name)
-        if not isinstance(value, dict):
-            return {}
-        result: dict[str, str] = OrderedDict()
-        for k, v in _normalize_map(value).items():
-            result[k] = _string_value(v)
-        return result
-
-    def list_sections(self, prefix: str) -> list[ConfigSection]:
-        value = self._path_value(prefix)
-        if not isinstance(value, dict):
-            return []
-        sections: list[ConfigSection] = []
-        for key, child in _normalize_map(value).items():
-            if not isinstance(child, dict):
-                continue
-            values: dict[str, str] = OrderedDict()
-            for ck, cv in _normalize_map(child).items():
-                values[ck] = _string_value(cv)
-            sections.append(ConfigSection(key, values))
-        return sections
-
-    def map(self, path: str) -> dict[str, Any]:
-        value = self._path_value(path)
-        if isinstance(value, dict):
-            return _normalize_map(value)
-        return {}
-
-    def _path_value(self, path: str) -> object:
-        current: object = self._root
-        for token in _parse_path(path):
-            if not isinstance(current, dict):
-                return None
-            current = _normalize_map(current).get(token)
-            if current is None:
-                return None
-        return current
 
 
 # ---------------------------------------------------------------------------
@@ -400,13 +306,7 @@ class MediaProviderProfile:
 
 
 def _host_of(raw: str) -> str:
-    try:
-        from urllib.parse import urlparse
-        parsed = urlparse(raw)
-        host = parsed.hostname
-        return host or ""
-    except Exception:
-        return ""
+    return host_of(raw)
 
 
 # ---------------------------------------------------------------------------
@@ -688,7 +588,7 @@ class ModelRuntimePropertiesResolver:
                 with open(fp) as f:
                     data = yaml.safe_load(f)
                 if isinstance(data, dict):
-                    root = self._merge_maps(root, _normalize_map(data))
+                    root = merge_maps(root, _normalize_map(data))
             return ConfigSnapshot(root, source, [])
         except Exception as ex:
             msg = f"Failed to load generation config from {source}: {ex}"
@@ -704,20 +604,6 @@ class ModelRuntimePropertiesResolver:
             raise RuntimeError(msg)
         err = f"Failed to load generation config from {source}" + (f": {exc}" if exc else "")
         return ConfigSnapshot(root, source, [err])
-
-    def _merge_maps(
-        self, base: dict[str, Any], override: dict[str, Any]
-    ) -> dict[str, Any]:
-        merged = OrderedDict(base)
-        for key, override_value in override.items():
-            current_value = merged.get(key)
-            if isinstance(current_value, dict) and isinstance(override_value, dict):
-                merged[key] = self._merge_maps(
-                    _normalize_map(current_value), _normalize_map(override_value)
-                )
-            else:
-                merged[key] = override_value
-        return merged
 
     def _resolve_api_key(
         self,
@@ -816,24 +702,11 @@ class ModelRuntimePropertiesResolver:
 
     @staticmethod
     def _derive_base_url_from_host(host: str) -> str:
-        value = _trim_to_empty(host)
-        if not value:
-            return ""
-        if value.startswith("http://") or value.startswith("https://"):
-            return _trim_to_empty(value.rstrip("/"))
-        return f"https://{value}/v1"
+        return derive_base_url_from_host(host)
 
     @staticmethod
     def _normalize_base_url(raw: str) -> str:
-        value = _trim_to_empty(raw)
-        if not value:
-            return ""
-        normalized = value.rstrip("/")
-        if normalized.endswith("/responses"):
-            return normalized[: -len("/responses")]
-        if normalized.endswith("/chat/completions"):
-            return normalized[: -len("/chat/completions")]
-        return normalized
+        return normalize_base_url(raw)
 
     @staticmethod
     def _resolve_text_supports_responses_api(
@@ -842,31 +715,16 @@ class ModelRuntimePropertiesResolver:
         provider: str,
         base_url: str,
     ) -> bool:
-        configured = current.value(f"{provider_section}.extras", "use_responses_api")
-        if configured:
-            return _bool_value(configured)
-        np = _normalize(provider)
-        nbu = _normalize(base_url)
-        return np in ("openai",) or "ark" in np or "volc" in np or "openai.com" in nbu or "volces.com/api/v3" in nbu
+        return resolve_text_supports_responses_api(current, provider_section, provider, base_url)
 
     @staticmethod
     def _resolve_configured_model(current: ConfigSnapshot, requested_model: str) -> ResolvedModel:
-        nm = _trim_to_empty(requested_model)
-        if not nm:
-            return ResolvedModel("", {})
-        models = current.map("model.models")
-        direct = models.get(nm)
-        if isinstance(direct, dict):
-            return ResolvedModel(nm, _normalize_map(direct))
-        return ResolvedModel(nm, {})
+        model_name, section = resolve_configured_model_section(current, requested_model)
+        return ResolvedModel(model_name, section)
 
     @staticmethod
     def _configured_provider_model(requested_model: str, resolved: ResolvedModel) -> str:
-        return _first_non_blank(
-            _string_value(resolved.section.get("provider_model")),
-            resolved.canonical_name,
-            _trim_to_empty(requested_model),
-        )
+        return configured_provider_model(requested_model, resolved.canonical_name, resolved.section)
 
     @staticmethod
     def _resolve_cache_ttl() -> int:
@@ -1010,9 +868,7 @@ class ModelRuntimePropertiesResolver:
 
     @staticmethod
     def _resolve_watermark_default(kind: str, configured_watermark: str) -> bool:
-        if configured_watermark:
-            return _bool_value(configured_watermark)
-        return kind != GenerationModelKinds.IMAGE
+        return resolve_watermark_default(kind, configured_watermark)
 
 
 # ---------------------------------------------------------------------------
@@ -2048,7 +1904,7 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
             ).fetchall()
         for provider_key, api_key in rows:
             key = _normalize(provider_key)
-            valid_api_key = _first_valid_secret(api_key)
+            valid_api_key = _unprotect_user_api_key(api_key)
             if key and valid_api_key:
                 keys[key] = valid_api_key
         return keys
@@ -2065,6 +1921,9 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
         now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self._database_path) as conn:
             for provider_key, api_key in normalized_updates.items():
+                protected_api_key = _protect_user_api_key(api_key)
+                if not protected_api_key:
+                    continue
                 existing = conn.execute(
                     "select id from sys_user_model_credential where user_id = ? and provider_key = ?",
                     (user_id, provider_key),
@@ -2072,7 +1931,7 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                 if existing:
                     conn.execute(
                         "update sys_user_model_credential set encrypted_api_key = ?, updated_at = ? where id = ?",
-                        (api_key, now, existing[0]),
+                        (protected_api_key, now, existing[0]),
                     )
                 else:
                     conn.execute(
@@ -2081,7 +1940,7 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                             (user_id, provider_key, encrypted_api_key, created_at, updated_at)
                         values (?, ?, ?, ?, ?)
                         """,
-                        (user_id, provider_key, api_key, now, now),
+                        (user_id, provider_key, protected_api_key, now, now),
                     )
             conn.commit()
 

@@ -1,8 +1,9 @@
 """Upload endpoint tests."""
 from __future__ import annotations
 
-import pytest
 from io import BytesIO
+
+import pytest
 
 
 @pytest.mark.asyncio

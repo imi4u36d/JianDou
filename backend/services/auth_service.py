@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import re
-import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import func, select, update as sa_update
+from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import hash_password, verify_password
+from backend.domain.enums import InviteStatus, UserRole, UserStatus
 from backend.models.user import SysInviteCode, SysUser
 
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
@@ -61,6 +62,30 @@ def _generate_invite_code() -> str:
     return "".join(__import__("random").choice(INVITE_CODE_ALPHABET) for _ in range(12))
 
 
+def normalize_user_role(role: str | UserRole | None) -> str:
+    raw = role.value if isinstance(role, UserRole) else str(role or UserRole.USER.value).strip().upper()
+    try:
+        return UserRole(raw).value
+    except ValueError as exc:
+        raise ValueError("invalid_user_role") from exc
+
+
+def normalize_user_status(status: str | UserStatus | None) -> str:
+    raw = status.value if isinstance(status, UserStatus) else str(status or UserStatus.ACTIVE.value).strip().upper()
+    try:
+        return UserStatus(raw).value
+    except ValueError as exc:
+        raise ValueError("invalid_user_status") from exc
+
+
+def normalize_invite_status(status: str | InviteStatus | None) -> str:
+    raw = status.value if isinstance(status, InviteStatus) else str(status or InviteStatus.UNUSED.value).strip().upper()
+    try:
+        return InviteStatus(raw).value
+    except ValueError as exc:
+        raise ValueError("invalid_invite_status") from exc
+
+
 class AuthService:
     """认证服务 —— 用户登录、会话、管理端用户与邀请码 CRUD。"""
 
@@ -80,7 +105,7 @@ class AuthService:
             return None
         if not verify_password(password, user.password_hash):
             return None
-        if user.status != "ACTIVE":
+        if user.status != UserStatus.ACTIVE.value:
             raise ValueError("account_disabled")
 
         # 更新最后登录时间
@@ -94,11 +119,52 @@ class AuthService:
 
         return self._to_user_dict(user)
 
+    async def ensure_bootstrap_admin(
+        self,
+        username: str,
+        display_name: str,
+        password: str,
+    ) -> dict:
+        """Create or restore the configured bootstrap admin as a real DB user."""
+        _username = validate_username(username)
+        _display_name = validate_display_name(display_name)
+        _password = validate_password(password)
+
+        result = await self.db.execute(select(SysUser).where(SysUser.username == _username))
+        user = result.scalar_one_or_none()
+        now = _now_str()
+        if user is None:
+            user = SysUser(
+                username=_username,
+                display_name=_display_name,
+                password_hash=hash_password(_password),
+                role=UserRole.ADMIN.value,
+                status=UserStatus.ACTIVE.value,
+                task_concurrency_limit=1,
+                created_at=now,
+                updated_at=now,
+            )
+            self.db.add(user)
+            await self.db.commit()
+            await self.db.refresh(user)
+            return self._to_user_dict(user)
+
+        values = {
+            "display_name": user.display_name or _display_name,
+            "role": UserRole.ADMIN.value,
+            "status": UserStatus.ACTIVE.value,
+            "password_hash": hash_password(_password),
+            "updated_at": now,
+        }
+        await self.db.execute(sa_update(SysUser).where(SysUser.id == user.id).values(**values))
+        await self.db.commit()
+        return await self.get_user_by_id(user.id) or self._to_user_dict(user)
+
     async def get_session_user(self, user_id: int) -> Optional[dict]:
         """根据 ID 获取用户会话信息（含状态检查）。"""
         result = await self.db.execute(select(SysUser).where(SysUser.id == user_id))
         user = result.scalar_one_or_none()
-        if not user or user.status != "ACTIVE":
+        if not user or user.status != UserStatus.ACTIVE.value:
             return None
         return self._to_user_dict(user)
 
@@ -117,13 +183,15 @@ class AuthService:
         username: str,
         password: str,
         display_name: str = "",
-        role: str = "USER",
-        status: str = "ACTIVE",
+        role: str = UserRole.USER.value,
+        status: str = UserStatus.ACTIVE.value,
         task_concurrency_limit: int = 1,
     ) -> dict:
         _username = validate_username(username)
         _display_name = validate_display_name(display_name)
         _password = validate_password(password)
+        _role = normalize_user_role(role)
+        _status = normalize_user_status(status)
 
         # 检查用户名是否已存在
         result = await self.db.execute(
@@ -138,8 +206,8 @@ class AuthService:
             username=_username,
             display_name=_display_name,
             password_hash=pwd_hash,
-            role=role,
-            status=status,
+            role=_role,
+            status=_status,
             task_concurrency_limit=max(1, min(20, task_concurrency_limit)),
             created_at=now,
             updated_at=now,
@@ -154,8 +222,8 @@ class AuthService:
     ) -> list[dict]:
         stmt = select(SysUser)
         keyword = q.strip().lower() if q else ""
-        _role = role.strip().upper() if role else ""
-        _status = status.strip().upper() if status else ""
+        _role = normalize_user_role(role) if role else ""
+        _status = normalize_user_status(status) if status else ""
 
         conditions = []
         if keyword:
@@ -183,6 +251,10 @@ class AuthService:
         role = updates.get("role")
         status = updates.get("status")
         task_concurrency_limit = updates.get("task_concurrency_limit")
+        if role is not None:
+            role = normalize_user_role(role)
+        if status is not None:
+            status = normalize_user_status(status)
 
         if display_name is not None:
             validate_display_name(display_name)
@@ -219,8 +291,8 @@ class AuthService:
 
     async def delete_user(self, user_id: int) -> bool:
         existing = await self._require_user(user_id)
-        await self._check_admin_guard(existing, "USER", "DISABLED")
-        await self.db.execute(sa_update(SysUser).where(SysUser.id == user_id).values(status="DELETED"))
+        await self._check_admin_guard(existing, UserRole.USER.value, UserStatus.DISABLED.value)
+        await self.db.execute(sa_update(SysUser).where(SysUser.id == user_id).values(status=UserStatus.DISABLED.value))
         await self.db.commit()
         return True
 
@@ -228,7 +300,7 @@ class AuthService:
         await self._require_user(user_id)
         await self.db.execute(
             sa_update(SysUser).where(SysUser.id == user_id).values(
-                status="ACTIVE", updated_at=_now_str()
+                status=UserStatus.ACTIVE.value, updated_at=_now_str()
             )
         )
         await self.db.commit()
@@ -236,12 +308,12 @@ class AuthService:
 
     async def disable_user(self, user_id: int) -> Optional[dict]:
         existing = await self._require_user(user_id)
-        if existing["status"] == "DISABLED":
+        if existing["status"] == UserStatus.DISABLED.value:
             return existing
-        await self._check_admin_guard(existing, existing["role"], "DISABLED")
+        await self._check_admin_guard(existing, existing["role"], UserStatus.DISABLED.value)
         await self.db.execute(
             sa_update(SysUser).where(SysUser.id == user_id).values(
-                status="DISABLED", updated_at=_now_str()
+                status=UserStatus.DISABLED.value, updated_at=_now_str()
             )
         )
         await self.db.commit()
@@ -262,9 +334,7 @@ class AuthService:
     # ── 邀请码 CRUD ──────────────────────────────────────────────
 
     async def create_invite(self, role: str, created_by: int, expires_at: str | None = None) -> dict:
-        role = role.upper()
-        if role not in ("USER", "ADMIN"):
-            raise ValueError("invalid_user_role")
+        role = normalize_user_role(role)
 
         normalized_expires_at = expires_at.strip() if isinstance(expires_at, str) and expires_at.strip() else None
 
@@ -283,7 +353,7 @@ class AuthService:
         invite = SysInviteCode(
             code=code,
             role=role,
-            status="UNUSED",
+            status=InviteStatus.UNUSED.value,
             expires_at=normalized_expires_at,
             created_by=created_by,
             created_at=now,
@@ -337,13 +407,13 @@ class AuthService:
 
         # 过期检查
         invite = await self._normalize_invite_status(invite)
-        if invite.status == "USED":
+        if invite.status == InviteStatus.USED.value:
             raise ValueError("invite_already_used")
-        if invite.status != "REVOKED":
+        if invite.status != InviteStatus.REVOKED.value:
             await self.db.execute(
                 sa_update(SysInviteCode)
                 .where(SysInviteCode.id == invite_id)
-                .values(status="REVOKED", updated_at=_now_str())
+                .values(status=InviteStatus.REVOKED.value, updated_at=_now_str())
             )
             await self.db.commit()
 
@@ -370,7 +440,7 @@ class AuthService:
             raise ValueError("invite_not_found")
 
         invite = await self._normalize_invite_status(invite)
-        if invite.status != "UNUSED":
+        if invite.status != InviteStatus.UNUSED.value:
             raise ValueError(self._activate_error_message(invite.status))
 
         # 检查用户名是否已存在
@@ -388,7 +458,7 @@ class AuthService:
             display_name=_display_name,
             password_hash=pwd_hash,
             role=invite.role,
-            status="ACTIVE",
+            status=UserStatus.ACTIVE.value,
             created_at=now,
             updated_at=now,
         )
@@ -399,7 +469,7 @@ class AuthService:
         await self.db.execute(
             sa_update(SysInviteCode)
             .where(SysInviteCode.id == invite.id)
-            .values(status="USED", used_by=user.id, used_at=now, updated_at=now)
+            .values(status=InviteStatus.USED.value, used_by=user.id, used_at=now, updated_at=now)
         )
         await self.db.commit()
         await self.db.refresh(user)
@@ -417,14 +487,14 @@ class AuthService:
         self, existing: dict, next_role: str, next_status: str
     ):
         """确保不会禁用/删除最后一个管理员。"""
-        current_admin = existing["role"] == "ADMIN"
-        current_active_admin = current_admin and existing["status"] == "ACTIVE"
-        next_admin = next_role == "ADMIN"
-        next_active_admin = next_admin and next_status == "ACTIVE"
+        current_admin = existing["role"] == UserRole.ADMIN.value
+        current_active_admin = current_admin and existing["status"] == UserStatus.ACTIVE.value
+        next_admin = next_role == UserRole.ADMIN.value
+        next_active_admin = next_admin and next_status == UserStatus.ACTIVE.value
 
         if current_admin and not next_admin:
             result = await self.db.execute(
-                select(func.count()).select_from(SysUser).where(SysUser.role == "ADMIN")
+                select(func.count()).select_from(SysUser).where(SysUser.role == UserRole.ADMIN.value)
             )
             admin_count = result.scalar() or 0
             if admin_count <= 1:
@@ -433,7 +503,7 @@ class AuthService:
         if current_active_admin and not next_active_admin:
             result = await self.db.execute(
                 select(func.count()).select_from(SysUser).where(
-                    SysUser.role == "ADMIN", SysUser.status == "ACTIVE"
+                    SysUser.role == UserRole.ADMIN.value, SysUser.status == UserStatus.ACTIVE.value
                 )
             )
             active_admin_count = result.scalar() or 0
@@ -445,7 +515,7 @@ class AuthService:
         now = datetime.now(timezone.utc)
         result = await self.db.execute(
             select(SysInviteCode).where(
-                SysInviteCode.status == "UNUSED",
+                SysInviteCode.status == InviteStatus.UNUSED.value,
                 SysInviteCode.expires_at.isnot(None),
             )
         )
@@ -458,7 +528,7 @@ class AuthService:
                         await self.db.execute(
                             sa_update(SysInviteCode)
                             .where(SysInviteCode.id == invite.id)
-                            .values(status="EXPIRED")
+                            .values(status=InviteStatus.EXPIRED.value)
                         )
                 except (ValueError, TypeError):
                     pass
@@ -466,17 +536,17 @@ class AuthService:
 
     async def _normalize_invite_status(self, invite: SysInviteCode) -> SysInviteCode:
         """如果邀请码已过期但状态还是 UNUSED，将其标记为 EXPIRED。"""
-        if invite.status == "UNUSED" and invite.expires_at:
+        if invite.status == InviteStatus.UNUSED.value and invite.expires_at:
             try:
                 expires = datetime.fromisoformat(invite.expires_at)
                 if expires <= datetime.now(timezone.utc):
                     await self.db.execute(
                         sa_update(SysInviteCode)
                         .where(SysInviteCode.id == invite.id)
-                        .values(status="EXPIRED", updated_at=_now_str())
+                        .values(status=InviteStatus.EXPIRED.value, updated_at=_now_str())
                     )
                     await self.db.commit()
-                    invite.status = "EXPIRED"
+                    invite.status = InviteStatus.EXPIRED.value
             except (ValueError, TypeError):
                 pass
         return invite
@@ -484,9 +554,9 @@ class AuthService:
     @staticmethod
     def _activate_error_message(status: str) -> str:
         return {
-            "USED": "invite_already_used",
-            "REVOKED": "invite_revoked",
-            "EXPIRED": "invite_expired",
+            InviteStatus.USED.value: "invite_already_used",
+            InviteStatus.REVOKED.value: "invite_revoked",
+            InviteStatus.EXPIRED.value: "invite_expired",
         }.get(status, "invite_invalid")
 
     @staticmethod

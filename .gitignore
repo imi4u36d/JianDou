@@ -61,3 +61,4 @@ data/*.db-journal
 
 # Secrets (API keys)
 config/secrets/
+config/model/providers.secrets.yml
