@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in JianDou
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve JianDou. Please include enough detail for maintainers to reproduce the problem.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest steps that show the issue.
+      placeholder: |
+        1. Start JianDou with ...
+        2. Open ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, Node, browser, deployment method, database, and JianDou version or commit.
+      placeholder: |
+        - OS:
+        - Python:
+        - Node:
+        - Browser:
+        - Deployment: local / Docker / other
+        - Commit:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste relevant logs, stack traces, screenshots, or API responses. Remove secrets before posting.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues.
+          required: true
+        - label: I have removed API keys, tokens, and other secrets from logs.
+          required: true

@@ -1,0 +1,16 @@
+# Replace this placeholder with the GitHub users or teams that maintain the repository.
+* @imi4u36d
+
+# Backend ownership
+/backend/ @imi4u36d
+/migrations/ @imi4u36d
+/config/ @imi4u36d
+
+# Frontend ownership
+/frontends/ @imi4u36d
+/packages/ @imi4u36d
+
+# Release and project governance
+/.github/ @imi4u36d
+/Dockerfile @imi4u36d
+/scripts/ @imi4u36d

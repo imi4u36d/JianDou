@@ -7,28 +7,17 @@ coverage/
 .vite/
 *.tsbuildinfo
 
+# Auto-built SPA static files (built by `jiandou serve`)
+static/web/assets/
+static/web/index.html
+static/web/vite.svg
+
 # Java build artifacts
 target/
 *.class
 
 # Local runtime storage
-storage/*
-!storage/uploads/
-storage/uploads/*
-!storage/uploads/.gitkeep
-!storage/outputs/
-storage/outputs/*
-!storage/outputs/.gitkeep
-!storage/temp/
-storage/temp/*
-!storage/temp/.gitkeep
-!storage/mysql/
-storage/mysql/*
-!storage/mysql/.gitkeep
-storage/mysql.bak_*/
-!storage/redis/
-storage/redis/*
-!storage/redis/.gitkeep
+storage/
 
 # Local environment
 .env
@@ -48,6 +37,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 
@@ -64,3 +54,11 @@ docs/openapi.json
 # Local AI/tooling state
 .claude/
 .codex/
+
+# Database files
+data/*.db
+data/*.db-journal
+
+# Secrets (API keys)
+config/secrets/
+config/model/providers.secrets.yml
