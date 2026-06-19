@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, Request, Response, status
 from jose import JWTError, jwt
@@ -43,12 +42,12 @@ def create_token_data(user_id: int, username: str, role: str | UserRole) -> dict
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str) -> Optional[dict]:
+def decode_access_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         return payload
@@ -75,7 +74,7 @@ def delete_auth_cookie(response: Response) -> None:
     )
 
 
-async def get_current_user(request: Request) -> Optional[dict]:
+async def get_current_user(request: Request) -> dict | None:
     """Resolve the current active user from the JWT cookie and database."""
     token = request.cookies.get("access_token")
     if not token:

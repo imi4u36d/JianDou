@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from backend.config import settings
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _run_file_path(run_id: str) -> str:
@@ -46,7 +46,7 @@ class LocalGenerationRunStore:
         self._runs[run_id] = run
         self._persist(run_id, run)
 
-    async def get(self, run_id: str) -> Optional[dict[str, Any]]:
+    async def get(self, run_id: str) -> dict[str, Any] | None:
         """Retrieve a run by ID. Checks memory first, then disk."""
         run = self._runs.get(run_id)
         if run is not None:
@@ -76,12 +76,12 @@ class LocalGenerationRunStore:
         except OSError:
             pass  # non-fatal; in-memory copy still exists
 
-    def _load_from_disk(self, run_id: str) -> Optional[dict[str, Any]]:
+    def _load_from_disk(self, run_id: str) -> dict[str, Any] | None:
         try:
             file_path = _run_file_path(run_id)
             if not os.path.isfile(file_path):
                 return None
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 run: dict[str, Any] = json.load(f)
             self._runs[run_id] = run
             return run

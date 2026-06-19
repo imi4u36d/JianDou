@@ -529,7 +529,7 @@ class TaskRequestSnapshotFactory:
                 result = self._model_resolver.value(section, key, fallback)
                 if result is not None:
                     return _string_value(result)
-            except Exception:
+            except Exception:  # noqa: S110 — best-effort config resolution
                 pass
         return fallback
 

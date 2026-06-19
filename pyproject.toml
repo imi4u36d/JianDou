@@ -72,14 +72,28 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = [
+    "B",   # flake8-bugbear
     "E4",
     "E7",
     "E9",
     "F",
     "I",
+    "S",   # flake8-bandit (security)
+    "UP",  # pyupgrade
+]
+ignore = [
+    "B008",  # function-call-in-default-argument — FastAPI Depends() is intentional
+    "B904",  # raise-without-from-inside-except — exception chaining style, not a bug
+    "E402",  # module-import-not-at-top-of-file — intentional lazy/circular imports
+    "S101",  # assert used — allowed in tests
+    "S104",  # hardcoded-bind-all-interfaces — intentional for server bind address
+    "S105",  # possible hardcoded password — false positives on config defaults
+    "S106",  # possible hardcoded password — false positives on config defaults
+    "S603",  # subprocess-without-shell-equals-true — intentional ffmpeg/media subprocess calls
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
 "backend/services/generation_service.py" = ["F401", "F841"]
 "backend/services/model_config_service.py" = ["F401", "F841"]
 "backend/services/model_invocation.py" = ["F401", "F841"]

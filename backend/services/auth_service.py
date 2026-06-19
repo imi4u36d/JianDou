@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy import update as sa_update
@@ -55,7 +54,7 @@ def validate_invite_code(code: str) -> str:
 
 
 def _now_str() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _generate_invite_code() -> str:
@@ -94,7 +93,7 @@ class AuthService:
 
     # ── 会话 / 登录 ──────────────────────────────────────────────
 
-    async def login(self, username: str, password: str) -> Optional[dict]:
+    async def login(self, username: str, password: str) -> dict | None:
         """验证用户名密码，返回用户 dict 或 None。"""
         normalized = normalize_username(username)
         result = await self.db.execute(
@@ -160,7 +159,7 @@ class AuthService:
         await self.db.commit()
         return await self.get_user_by_id(user.id) or self._to_user_dict(user)
 
-    async def get_session_user(self, user_id: int) -> Optional[dict]:
+    async def get_session_user(self, user_id: int) -> dict | None:
         """根据 ID 获取用户会话信息（含状态检查）。"""
         result = await self.db.execute(select(SysUser).where(SysUser.id == user_id))
         user = result.scalar_one_or_none()
@@ -168,7 +167,7 @@ class AuthService:
             return None
         return self._to_user_dict(user)
 
-    async def get_user_by_id(self, user_id: int) -> Optional[dict]:
+    async def get_user_by_id(self, user_id: int) -> dict | None:
         """根据 ID 获取用户（不检查状态）。"""
         result = await self.db.execute(select(SysUser).where(SysUser.id == user_id))
         user = result.scalar_one_or_none()
@@ -244,7 +243,7 @@ class AuthService:
         result = await self.db.execute(stmt)
         return [self._to_admin_user_dict(u) for u in result.scalars().all()]
 
-    async def update_user(self, user_id: int, updates: dict) -> Optional[dict]:
+    async def update_user(self, user_id: int, updates: dict) -> dict | None:
         existing = await self._require_user(user_id)
 
         display_name = updates.get("display_name")
@@ -296,7 +295,7 @@ class AuthService:
         await self.db.commit()
         return True
 
-    async def enable_user(self, user_id: int) -> Optional[dict]:
+    async def enable_user(self, user_id: int) -> dict | None:
         await self._require_user(user_id)
         await self.db.execute(
             sa_update(SysUser).where(SysUser.id == user_id).values(
@@ -306,7 +305,7 @@ class AuthService:
         await self.db.commit()
         return await self.get_user_by_id(user_id)
 
-    async def disable_user(self, user_id: int) -> Optional[dict]:
+    async def disable_user(self, user_id: int) -> dict | None:
         existing = await self._require_user(user_id)
         if existing["status"] == UserStatus.DISABLED.value:
             return existing
@@ -319,7 +318,7 @@ class AuthService:
         await self.db.commit()
         return await self.get_user_by_id(user_id)
 
-    async def update_password(self, user_id: int, password: str) -> Optional[dict]:
+    async def update_password(self, user_id: int, password: str) -> dict | None:
         await self._require_user(user_id)
         _password = validate_password(password)
         pwd_hash = hash_password(_password)
@@ -397,7 +396,7 @@ class AuthService:
             result_list.append(d)
         return result_list
 
-    async def revoke_invite(self, invite_id: int) -> Optional[dict]:
+    async def revoke_invite(self, invite_id: int) -> dict | None:
         result = await self.db.execute(
             select(SysInviteCode).where(SysInviteCode.id == invite_id)
         )
@@ -425,7 +424,7 @@ class AuthService:
 
     async def activate_invite(
         self, code: str, username: str, display_name: str, password: str
-    ) -> Optional[dict]:
+    ) -> dict | None:
         _code = validate_invite_code(code)
         _username = validate_username(username)
         _display_name = validate_display_name(display_name)
@@ -512,7 +511,7 @@ class AuthService:
 
     async def _expire_invites(self):
         """过期所有已过期的未使用邀请码。"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await self.db.execute(
             select(SysInviteCode).where(
                 SysInviteCode.status == InviteStatus.UNUSED.value,
@@ -539,7 +538,7 @@ class AuthService:
         if invite.status == InviteStatus.UNUSED.value and invite.expires_at:
             try:
                 expires = datetime.fromisoformat(invite.expires_at)
-                if expires <= datetime.now(timezone.utc):
+                if expires <= datetime.now(UTC):
                     await self.db.execute(
                         sa_update(SysInviteCode)
                         .where(SysInviteCode.id == invite.id)

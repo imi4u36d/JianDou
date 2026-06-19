@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
 from backend.database import get_db
-from backend.schemas.material import RateMaterialAssetRequest
+from backend.schemas.material import (
+    MaterialAssetDeleteResult,
+    RateMaterialAssetRequest,
+)
 from backend.services.material_asset_service import MaterialAssetService
 from backend.services.workflow_service import WorkflowService
 
@@ -65,7 +68,7 @@ async def get_material_asset(
     return asset
 
 
-@router.delete("/{asset_id}")
+@router.delete("/{asset_id}", response_model=MaterialAssetDeleteResult)
 async def delete_material_asset(
     asset_id: str,
     request: Request,
@@ -75,7 +78,7 @@ async def delete_material_asset(
     deleted = await _service(db).delete_asset(user["id"], asset_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="material_asset_not_found")
-    return {"deleted": True, "assetId": asset_id}
+    return MaterialAssetDeleteResult(deleted=True, asset_id=asset_id)
 
 
 @router.patch("/{asset_id}/rating")

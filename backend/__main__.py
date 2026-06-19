@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from datetime import UTC
 from pathlib import Path
 
 import click
@@ -122,7 +123,7 @@ def seed():
 
 
 async def _seed_db():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
 
@@ -132,7 +133,7 @@ async def _seed_db():
     from backend.models.user import SysUser
 
     def _now() -> str:
-        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     async with async_session_factory() as session:
         # Check if admin exists

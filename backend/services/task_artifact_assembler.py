@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.domain.media_artifacts import (
@@ -24,7 +24,7 @@ _ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime(_ISO_FMT)
+    return datetime.now(UTC).strftime(_ISO_FMT)
 
 
 def _string_value(value: Any) -> str:
@@ -233,7 +233,7 @@ class TaskExecutionArtifactAssembler:
         try:
             artifact = self._normalize_task_artifact(task, source_url, target_file_name, "keyframe")
             file_url = artifact.public_url() if hasattr(artifact, "public_url") else file_url
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort artifact normalization
             pass
         return self._create_material(
             task, {}, IMAGE,
@@ -394,7 +394,7 @@ class TaskExecutionArtifactAssembler:
                     _TaskArtifactNaming.task_running_relative_dir(task),
                     target_file_name,
                 )
-            except Exception:
+            except Exception:  # noqa: S110 — best-effort materialization
                 pass
 
     def extract_last_frame_url(self, value: Any) -> str:

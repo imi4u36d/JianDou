@@ -142,7 +142,7 @@ def _character_from_cells(headers: list[str], cells: list[str]) -> WorkflowChara
     if not name or name == "角色":
         return None
     details = []
-    for header, cell in zip(headers[1:], cells[1:]):
+    for header, cell in zip(headers[1:], cells[1:], strict=False):
         if cell:
             details.append(f"{header}: {cell}")
     appearance = "；".join(details)

@@ -1,10 +1,10 @@
 """Domain enums for task lifecycle tracking."""
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """Task execution status values."""
     PENDING = "PENDING"
     PAUSED = "PAUSED"
@@ -34,7 +34,7 @@ class TaskStatus(str, Enum):
         return self in (TaskStatus.ANALYZING, TaskStatus.PLANNING, TaskStatus.RENDERING, TaskStatus.PENDING)
 
 
-class AttemptStatus(str, Enum):
+class AttemptStatus(StrEnum):
     """Attempt lifecycle status values."""
     CREATED = "CREATED"
     QUEUED = "QUEUED"
@@ -55,7 +55,7 @@ class AttemptStatus(str, Enum):
         return None
 
 
-class AttemptTriggerType(str, Enum):
+class AttemptTriggerType(StrEnum):
     """Trigger type for an attempt."""
     CREATE = "create"
     RETRY = "retry"
@@ -63,7 +63,7 @@ class AttemptTriggerType(str, Enum):
     RECOVER = "recover"
 
 
-class TraceLevel(str, Enum):
+class TraceLevel(StrEnum):
     """Log trace level."""
     INFO = "INFO"
     WARN = "WARN"
@@ -72,7 +72,7 @@ class TraceLevel(str, Enum):
     RECOVERY = "RECOVERY"
 
 
-class WorkerStatus(str, Enum):
+class WorkerStatus(StrEnum):
     """Worker instance status."""
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
@@ -80,7 +80,7 @@ class WorkerStatus(str, Enum):
     STALE = "STALE"
 
 
-class QueueEventType(str, Enum):
+class QueueEventType(StrEnum):
     """Queue event types."""
     ENQUEUED = "enqueued"
     CLAIMED = "claimed"
@@ -90,25 +90,25 @@ class QueueEventType(str, Enum):
     RE_ENQUEUED = "re_enqueued"
 
 
-class ExecutionMode(str, Enum):
+class ExecutionMode(StrEnum):
     """Execution mode."""
     QUEUE = "queue"
     DIRECT = "direct"
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     """User roles."""
     USER = "USER"
     ADMIN = "ADMIN"
 
 
-class UserStatus(str, Enum):
+class UserStatus(StrEnum):
     """User account status."""
     ACTIVE = "ACTIVE"
     DISABLED = "DISABLED"
 
 
-class InviteStatus(str, Enum):
+class InviteStatus(StrEnum):
     """Invite code status."""
     UNUSED = "UNUSED"
     USED = "USED"

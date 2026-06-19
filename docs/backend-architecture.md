@@ -82,3 +82,29 @@ User-scoped provider keys live in `sys_user_model_credential.encrypted_api_key`.
 - Focused domain/service tests cover extracted helpers so large orchestration modules do not regain duplicated parsing and status logic.
 
 Run `npm run release:check` before release-facing changes.
+
+## Known Limitations
+
+The following items are recognized technical debt. They work correctly today but would improve robustness, query performance, or maintainability if addressed.
+
+### Timestamps stored as strings
+
+All timestamp columns use `String(32)` storing ISO 8601 text instead of native `DateTime`. This works reliably for the current SQLite driver and avoids timezone driver quirks, but has trade-offs:
+
+- Date-range queries require string comparison rather than native date arithmetic.
+- The database cannot validate that a value is a real timestamp.
+- Index-based ordering depends on lexicographic sort of the ISO format.
+
+**Migration path:** Add a new Alembic migration that converts `String(32)` columns to `DateTime(timezone=True)`. This requires auditing every read/write site that currently handles raw strings.
+
+### In-memory rate limiter
+
+`SlidingWindowRateLimiter` stores state in process memory. It resets on restart and does not share state across multiple uvicorn workers. For single-process deployments this is fine; for multi-worker or horizontally-scaled production, swap the backing store to Redis or a similar shared cache.
+
+### Large service modules
+
+Several service files exceed 1,000 lines (`model_config_service.py`, `generation_service.py`, `model_invocation.py`, `workflow_service.py`). They contain well-structured internal methods, but the sheer size makes navigation harder. Future contributors can extract cohesive method groups into smaller helper modules following the pattern already used by `workflow_generation_request_builder`, `workflow_view_mapper`, etc.
+
+### Workflow router response typing
+
+The `workflows.py` router endpoints return `dict[str, Any]` because the `WorkflowService` returns rich, dynamically-shaped response dictionaries. Typing these responses with Pydantic models requires first normalizing the service output format — a larger refactoring tracked separately.

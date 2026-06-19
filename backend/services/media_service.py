@@ -221,7 +221,7 @@ class LocalMediaArtifactService:
             title_font_size = max(20, min(width // 18, 42))
             try:
                 title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", title_font_size)
-            except (OSError, IOError):
+            except OSError:
                 title_font = ImageFont.load_default()
             safe_title = title.strip() if title else "MEDIA PLACEHOLDER"
             draw.text(
@@ -235,7 +235,7 @@ class LocalMediaArtifactService:
             sub_font_size = max(14, min(width // 34, 24))
             try:
                 sub_font = ImageFont.truetype("DejaVuSans.ttf", sub_font_size)
-            except (OSError, IOError):
+            except OSError:
                 sub_font = ImageFont.load_default()
             safe_subtitle = subtitle.strip() if subtitle else "Python local render"
             draw.text(
@@ -251,7 +251,7 @@ class LocalMediaArtifactService:
             line_height = max(24, min(height // 18, 34))
             try:
                 body_font = ImageFont.truetype("DejaVuSans.ttf", max(12, min(width // 34, 18)))
-            except (OSError, IOError):
+            except OSError:
                 body_font = ImageFont.load_default()
             start_y = margin + card_height + 24
             text_color = (241, 245, 249)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -66,7 +66,7 @@ def _first_non_blank(*values: str | None) -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _safe_int(value: Any, fallback: int = 0) -> int:
@@ -1228,7 +1228,7 @@ class WorkflowService:
                 continue
             try:
                 run = await self._get_generation_service().get_run(run_id)
-            except Exception:
+            except Exception:  # noqa: S112 — best-effort run lookup
                 continue
             try:
                 refresh_result = self._generation_result_parser.parse_video_refresh_result(

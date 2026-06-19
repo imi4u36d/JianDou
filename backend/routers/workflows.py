@@ -17,6 +17,7 @@ from backend.schemas.workflow import (
     RateWorkflowRequest,
     SelectCharacterSheetAssetRequest,
     UpdateWorkflowSettingsRequest,
+    WorkflowDeleteResult,
 )
 from backend.services.generation_service import GenerationProviderException
 from backend.services.workflow_service import WorkflowService
@@ -85,19 +86,19 @@ async def get_workflow(
     return result
 
 
-@router.delete("/{workflow_id}")
+@router.delete("/{workflow_id}", response_model=WorkflowDeleteResult)
 async def delete_workflow(
     workflow_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> WorkflowDeleteResult:
     """Delete a workflow."""
     user = await require_user(request)
     svc = _service(db, request)
     result = await svc.delete_workflow(workflow_id, owner_user_id=user["id"])
     if result is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
-    return result
+    return WorkflowDeleteResult(deleted=result.get("deleted", True), workflow_id=workflow_id)
 
 
 @router.patch("/{workflow_id}/settings")

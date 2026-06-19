@@ -12,14 +12,27 @@ from backend.auth import (
 )
 from backend.config import settings
 from backend.database import get_db
-from backend.schemas.auth import ActivateInviteRequest, LoginRequest
+from backend.schemas.auth import ActivateInviteRequest, AuthSessionResponse, LoginRequest
+from backend.schemas.common import MessageResponse
 from backend.services.auth_rate_limiter import check_auth_subject_rate_limit
 from backend.services.auth_service import AuthService
 
 router = APIRouter(prefix="/api/v3/auth", tags=["auth"])
 
 
-@router.post("/login")
+def _session_payload(user: dict) -> AuthSessionResponse:
+    return AuthSessionResponse(
+        authenticated=True,
+        user={
+            "id": user["id"],
+            "username": user["username"],
+            "displayName": user.get("displayName", ""),
+            "role": user["role"],
+        },
+    )
+
+
+@router.post("/login", response_model=AuthSessionResponse)
 async def login(payload: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     check_auth_subject_rate_limit(request, "auth.login", payload.username, settings.auth_login_rate_limit)
     auth_service = AuthService(db)
@@ -42,18 +55,10 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
     token_data = create_token_data(user["id"], user["username"], user["role"])
     access_token = create_access_token(token_data)
     set_auth_cookie(response, access_token)
-    return {
-        "authenticated": True,
-        "user": {
-            "id": user["id"],
-            "username": user["username"],
-            "displayName": user.get("displayName", ""),
-            "role": user["role"],
-        },
-    }
+    return _session_payload(user)
 
 
-@router.post("/activate-invite")
+@router.post("/activate-invite", response_model=AuthSessionResponse)
 async def activate_invite(
     payload: ActivateInviteRequest,
     request: Request,
@@ -83,35 +88,19 @@ async def activate_invite(
     token_data = create_token_data(user["id"], user["username"], user["role"])
     access_token = create_access_token(token_data)
     set_auth_cookie(response, access_token)
-    return {
-        "authenticated": True,
-        "user": {
-            "id": user["id"],
-            "username": user["username"],
-            "displayName": user.get("displayName", ""),
-            "role": user["role"],
-        },
-    }
+    return _session_payload(user)
 
 
-@router.get("/session")
+@router.get("/session", response_model=AuthSessionResponse)
 async def session(request: Request):
     """Return the current active database-backed session."""
     user = await get_current_user(request)
     if user is None:
-        return {"authenticated": False}
-    return {
-        "authenticated": True,
-        "user": {
-            "id": user["id"],
-            "username": user["username"],
-            "displayName": user.get("displayName", ""),
-            "role": user["role"],
-        },
-    }
+        return AuthSessionResponse(authenticated=False)
+    return _session_payload(user)
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=MessageResponse)
 async def logout(response: Response):
     delete_auth_cookie(response)
-    return {"success": True}
+    return MessageResponse(message="logged_out")

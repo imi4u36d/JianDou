@@ -5,5 +5,5 @@ import { getJson } from "./client";
 import type { CreditSummary } from "@/types";
 
 export function fetchCreditSummary() {
-  return getJson<CreditSummary>("/auth/credits");
+  return getJson<CreditSummary>("/credits");
 }

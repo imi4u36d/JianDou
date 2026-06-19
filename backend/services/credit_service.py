@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy import update as sa_update
@@ -29,7 +28,7 @@ def normalize_feature_code(code: str) -> str:
 
 
 def _now_str() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _trim(value: str | None) -> str:
@@ -110,7 +109,7 @@ class CreditService:
         )
         return [self._rule_to_dict(r) for r in result.scalars().all()]
 
-    async def update_rule(self, feature_code: str, cost: int) -> Optional[dict]:
+    async def update_rule(self, feature_code: str, cost: int) -> dict | None:
         """更新或创建积分规则。"""
         if cost < 0:
             raise ValueError("积分消耗值必须为非负整数")
@@ -284,7 +283,7 @@ class CreditService:
         await self.db.commit()
         return True
 
-    async def adjust(self, user_id: int, amount: int, reason: str) -> Optional[dict]:
+    async def adjust(self, user_id: int, amount: int, reason: str) -> dict | None:
         """管理员调整用户积分。"""
         if amount == 0:
             raise ValueError("调整积分不能为 0")

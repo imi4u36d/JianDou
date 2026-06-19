@@ -46,6 +46,7 @@ Do not commit copied `.env` files or `config/model/providers.secrets.yml`.
 - `JIANDOU_STORAGE_ROOT`: local storage root.
 - `JIANDOU_UPLOADS_DIR`: upload directory below the storage root.
 - `JIANDOU_GENERATION_RUNS_DIR`: generation run directory below the storage root.
+- `JIANDOU_UPLOAD_MAX_SIZE_BYTES`: maximum upload file size in bytes (default: 104857600, i.e. 100 MB).
 
 ## Worker And Queue
 

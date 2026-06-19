@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
 
-
-def _to_camel(name: str) -> str:
-    parts = name.split("_")
-    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+from backend.schemas.common import _to_camel
 
 
 class MaterialRequestModel(BaseModel):
@@ -20,13 +17,13 @@ class MaterialRequestModel(BaseModel):
 class CreateMaterialGenerationRequest(MaterialRequestModel):
     title: str = "素材生成"
     asset_type: str = Field(default="free", alias="assetType")
-    description: Optional[str] = None
+    description: str | None = None
     style_keywords: list[str] = Field(default_factory=list, alias="styleKeywords")
-    aspect_ratio: Optional[str] = Field(default=None, alias="aspectRatio")
-    image_size: Optional[str] = Field(default=None, alias="imageSize")
-    text_analysis_model: Optional[str] = Field(default=None, alias="textAnalysisModel")
-    image_model: Optional[str] = Field(default=None, alias="imageModel")
-    seed: Optional[int] = None
+    aspect_ratio: str | None = Field(default=None, alias="aspectRatio")
+    image_size: str | None = Field(default=None, alias="imageSize")
+    text_analysis_model: str | None = Field(default=None, alias="textAnalysisModel")
+    image_model: str | None = Field(default=None, alias="imageModel")
+    seed: int | None = None
 
     def metadata(self) -> dict[str, Any]:
         return {
@@ -42,4 +39,36 @@ class CreateMaterialGenerationRequest(MaterialRequestModel):
 
 class RateMaterialAssetRequest(MaterialRequestModel):
     effect_rating: int = Field(alias="effectRating", ge=1, le=5)
-    effect_rating_note: Optional[str] = Field(default=None, alias="effectRatingNote")
+    effect_rating_note: str | None = Field(default=None, alias="effectRatingNote")
+
+
+class MaterialAssetDeleteResult(BaseModel):
+    deleted: bool = False
+    asset_id: str = ""
+
+
+class MaterialAssetResponse(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(validation_alias=_to_camel, serialization_alias=_to_camel),
+    )
+
+    id: str = ""
+    title: str = ""
+    asset_type: str = ""
+    media_type: str = ""
+    file_url: str = ""
+    remote_url: str | None = None
+    thumbnail_url: str | None = None
+    preview_url: str | None = None
+    effect_rating: int | None = None
+    effect_rating_note: str = ""
+    rated_at: str | None = None
+    width: int | None = None
+    height: int | None = None
+    clip_index: int | None = None
+    origin_model: str | None = None
+    origin_provider: str | None = None
+    workflow_id: str | None = None
+    metadata: dict[str, Any] | None = None
+    created_at: str = ""
+    updated_at: str = ""

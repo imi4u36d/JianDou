@@ -7,7 +7,7 @@ from backend.domain.task_resume import existing_video_clip_indices, last_contigu
 
 
 def task_outputs(task: Any) -> list[dict[str, Any]]:
-    if hasattr(task, "outputs_view") and callable(getattr(task, "outputs_view")):
+    if hasattr(task, "outputs_view") and callable(task.outputs_view):
         return _dict_list(task.outputs_view())
     if hasattr(task, "outputs_view"):
         return _dict_list(task.outputs_view)

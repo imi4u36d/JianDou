@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
 
-
-def _to_camel(name: str) -> str:
-    parts = name.split("_")
-    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+from backend.schemas.common import _to_camel
 
 
 class AdminRequestModel(BaseModel):
@@ -56,10 +53,10 @@ class AdminCreateUserRequest(AdminRequestModel):
 
 
 class AdminUpdateUserRequest(AdminRequestModel):
-    display_name: Optional[str] = None
-    role: Optional[str] = None
-    status: Optional[str] = None
-    task_concurrency_limit: Optional[int] = None
+    display_name: str | None = None
+    role: str | None = None
+    status: str | None = None
+    task_concurrency_limit: int | None = None
 
 
 class AdminUpdateUserPasswordRequest(AdminRequestModel):
@@ -85,4 +82,4 @@ class AdminBulkTerminateTasksRequest(AdminRequestModel):
 
 class AdminCreateInviteRequest(AdminRequestModel):
     role: str = "USER"
-    expires_at: Optional[str] = Field(default=None, alias="expiresAt")
+    expires_at: str | None = Field(default=None, alias="expiresAt")

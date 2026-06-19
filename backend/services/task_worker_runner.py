@@ -10,7 +10,7 @@ import asyncio
 import inspect
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 from backend.domain.enums import WorkerStatus
@@ -286,7 +286,7 @@ class TaskWorkerRunner:
                 },
             ))
 
-        stale_threshold = datetime.now(timezone.utc) - timedelta(
+        stale_threshold = datetime.now(UTC) - timedelta(
             seconds=self._ops_config.worker_stale_timeout_seconds,
         )
         await self._execution_coordinator.recover_stale_claims(

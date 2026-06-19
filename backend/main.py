@@ -3,6 +3,8 @@ FastAPI application factory.
 """
 from __future__ import annotations
 
+import logging
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -10,6 +12,8 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+logger = logging.getLogger("jiandou.error")
 
 from backend.config import settings, validate_runtime_settings
 from backend.infrastructure.task_repository import TaskRepository
@@ -127,6 +131,20 @@ def create_app(start_worker: bool = True) -> FastAPI:
         docs_url="/docs" if settings.app_env == "dev" else None,
         lifespan=lifespan,
     )
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        """Catch unhandled exceptions, log the traceback, and return a structured 500."""
+        logger.error(
+            "Unhandled exception on %s %s: %s",
+            request.method,
+            request.url.path,
+            "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "服务器内部错误，请稍后重试"},
+        )
 
     app.state.task_application_service = task_app_service
     app.state.admin_model_config_service = admin_config_service

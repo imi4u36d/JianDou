@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -232,22 +232,22 @@ class _CharacterDefinitionTableSchema:
     """
 
     header_cells: list[str] = field(default_factory=list)
-    name_index: Optional[int] = None
-    gender_age_index: Optional[int] = None
-    position_index: Optional[int] = None
-    appearance_index: Optional[int] = None
-    face_index: Optional[int] = None
-    hair_index: Optional[int] = None
-    body_index: Optional[int] = None
-    clothing_index: Optional[int] = None
-    stable_accessories_index: Optional[int] = None
-    immutable_visual_index: Optional[int] = None
-    behavior_index: Optional[int] = None
-    speech_index: Optional[int] = None
-    gender_index: Optional[int] = None
-    age_index: Optional[int] = None
-    part_index: Optional[int] = None
-    detail_index: Optional[int] = None
+    name_index: int | None = None
+    gender_age_index: int | None = None
+    position_index: int | None = None
+    appearance_index: int | None = None
+    face_index: int | None = None
+    hair_index: int | None = None
+    body_index: int | None = None
+    clothing_index: int | None = None
+    stable_accessories_index: int | None = None
+    immutable_visual_index: int | None = None
+    behavior_index: int | None = None
+    speech_index: int | None = None
+    gender_index: int | None = None
+    age_index: int | None = None
+    part_index: int | None = None
+    detail_index: int | None = None
 
     @staticmethod
     def empty() -> _CharacterDefinitionTableSchema:
@@ -328,7 +328,7 @@ class _CharacterDefinitionTableSchema:
                 return False
         return True
 
-    def value(self, cells: list[str], index: Optional[int]) -> str:
+    def value(self, cells: list[str], index: int | None) -> str:
         if index is None or index < 0 or index >= len(cells):
             return ""
         return cells[index]
@@ -342,11 +342,11 @@ class _StoryboardTableSchema:
     """
 
     header_cells: list[str] = field(default_factory=list)
-    shot_no_index: Optional[int] = None
-    first_frame_prompt_index: Optional[int] = None
-    last_frame_prompt_index: Optional[int] = None
-    content_description_index: Optional[int] = None
-    duration_index: Optional[int] = None
+    shot_no_index: int | None = None
+    first_frame_prompt_index: int | None = None
+    last_frame_prompt_index: int | None = None
+    content_description_index: int | None = None
+    duration_index: int | None = None
 
     @staticmethod
     def empty() -> _StoryboardTableSchema:
@@ -389,7 +389,7 @@ class _StoryboardTableSchema:
                 return False
         return True
 
-    def cell(self, cells: list[str], index: Optional[int], fallback_index: int) -> str:
+    def cell(self, cells: list[str], index: int | None, fallback_index: int) -> str:
         resolved = index if index is not None else fallback_index
         if resolved < 0 or resolved >= len(cells):
             return ""
@@ -466,7 +466,7 @@ def _trim_static_appearance_definition(value: str) -> str:
     return result.strip()
 
 
-def _resolve_header(headers: list[str], *aliases: str) -> Optional[int]:
+def _resolve_header(headers: list[str], *aliases: str) -> int | None:
     """Find the index of a header matching any of the given aliases."""
     for idx, header in enumerate(headers):
         norm = _normalize_header(header)
@@ -1088,7 +1088,7 @@ class TaskStoryboardPlanner:
     # Internal: duration
     # -----------------------------------------------------------------------
 
-    def _parse_duration_range_hint(self, text: str) -> Optional[list[int]]:
+    def _parse_duration_range_hint(self, text: str) -> list[int] | None:
         """Parse a duration range hint from text.
 
         Tries patterns in order:

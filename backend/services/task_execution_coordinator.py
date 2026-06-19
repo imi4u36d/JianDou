@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from backend.domain.enums import (
     AttemptStatus,
@@ -24,7 +24,7 @@ from backend.infrastructure.task_queue_port import InMemoryTaskQueue, TaskQueueP
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _string_value(value: Any) -> str:
@@ -49,7 +49,7 @@ class TaskExecutionCoordinator:
 
     def __init__(
         self,
-        task_queue_port: Optional[TaskQueuePort] = None,
+        task_queue_port: TaskQueuePort | None = None,
     ) -> None:
         self._task_queue_port: TaskQueuePort = task_queue_port or InMemoryTaskQueue()
 
@@ -269,7 +269,7 @@ class TaskExecutionCoordinator:
     def transition_task(
         self,
         task: TaskRecord,
-        transition: "TaskStateTransition | TaskStateTransitionBuilder",
+        transition: TaskStateTransition | TaskStateTransitionBuilder,
         task_mutator: Callable[[TaskRecord], None] | None = None,
     ) -> dict[str, Any]:
         """Atomically transition task state, recording trace + status history."""
@@ -658,7 +658,7 @@ class TaskExecutionCoordinator:
     def _apply_attempt_transition(
         self,
         task: TaskRecord,
-        transition: "TaskStateTransition",
+        transition: TaskStateTransition,
     ) -> dict[str, Any] | None:
         if task is None or transition is None or not transition.updates_attempt:
             return None
@@ -856,7 +856,7 @@ class TaskStateTransition:
         event: str,
         message: str,
         payload: dict[str, Any] | None = None,
-    ) -> "TaskStateTransitionBuilder":
+    ) -> TaskStateTransitionBuilder:
         return TaskStateTransitionBuilder(next_status, progress, stage, event, message, "INFO", payload)
 
     @staticmethod
@@ -867,7 +867,7 @@ class TaskStateTransition:
         event: str,
         message: str,
         payload: dict[str, Any] | None = None,
-    ) -> "TaskStateTransitionBuilder":
+    ) -> TaskStateTransitionBuilder:
         return TaskStateTransitionBuilder(next_status, progress, stage, event, message, "WARN", payload)
 
     @staticmethod
@@ -878,7 +878,7 @@ class TaskStateTransition:
         event: str,
         message: str,
         payload: dict[str, Any] | None = None,
-    ) -> "TaskStateTransitionBuilder":
+    ) -> TaskStateTransitionBuilder:
         return TaskStateTransitionBuilder(next_status, progress, stage, event, message, "ERROR", payload)
 
 

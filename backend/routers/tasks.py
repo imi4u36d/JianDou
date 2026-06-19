@@ -7,10 +7,15 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend.auth import get_current_user
+from backend.schemas.common import MessageResponse
 from backend.schemas.task import (
     CreateGenerationTaskRequest,
     GenerateCreativePromptRequest,
+    GenerateCreativePromptResponse,
     RateTaskEffectRequest,
+    TaskDeleteResult,
+    TaskDetailResponse,
+    TaskListItemResponse,
 )
 
 router = APIRouter(prefix="/api/v3/tasks", tags=["tasks"])
@@ -36,7 +41,7 @@ async def _uid(request: Request) -> int:
 
 # ── 公开接口（无需登录） ─────────────────────────────────────────────────
 
-@router.get("/showcase")
+@router.get("/showcase", response_model=list[TaskListItemResponse])
 async def list_showcase_tasks(request: Request):
     return await _svc(request).showcase_cases()
 
@@ -48,7 +53,7 @@ async def get_seedance_task_result(remote_task_id: str, request: Request):
 
 # ── 任务 CRUD ────────────────────────────────────────────────────────────
 
-@router.get("")
+@router.get("", response_model=list[TaskListItemResponse])
 async def list_tasks(
     request: Request,
     q: str | None = Query(default=None),
@@ -59,7 +64,7 @@ async def list_tasks(
     return await _svc(request).list_tasks(user_id, q=q, status=status, sort=sort)
 
 
-@router.post("/generation")
+@router.post("/generation", response_model=TaskDetailResponse)
 async def create_generation_task(body: CreateGenerationTaskRequest, request: Request):
     user_id = await _uid(request)
     try:
@@ -68,7 +73,7 @@ async def create_generation_task(body: CreateGenerationTaskRequest, request: Req
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.post("/generate-prompt")
+@router.post("/generate-prompt", response_model=GenerateCreativePromptResponse)
 async def generate_creative_prompt(body: GenerateCreativePromptRequest, request: Request):
     """生成创意提示词。"""
     await _uid(request)
@@ -78,10 +83,10 @@ async def generate_creative_prompt(body: GenerateCreativePromptRequest, request:
         f"fitting the context, realistic cinematography, dialogue and "
         f"voiceover matching plot: {title}"
     )
-    return {"prompt": prompt, "source": "default"}
+    return GenerateCreativePromptResponse(prompt=prompt)
 
 
-@router.get("/{task_id}")
+@router.get("/{task_id}", response_model=TaskDetailResponse)
 async def get_task(task_id: str, request: Request):
     user_id = await _uid(request)
     try:
@@ -156,17 +161,17 @@ async def get_task_materials(task_id: str, request: Request):
 
 # ── 生命周期操作 ─────────────────────────────────────────────────────────
 
-@router.delete("/{task_id}")
+@router.delete("/{task_id}", response_model=TaskDeleteResult)
 async def delete_task(task_id: str, request: Request):
     user_id = await _uid(request)
     try:
         result = await _svc(request).delete_task(task_id, user_id)
-        return {"success": True, "task_id": result.get("taskId", task_id)}
+        return TaskDeleteResult(success=True, task_id=result.get("taskId", task_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/{task_id}/retry")
+@router.post("/{task_id}/retry", response_model=TaskDetailResponse)
 async def retry_task(task_id: str, request: Request):
     user_id = await _uid(request)
     try:
@@ -175,37 +180,41 @@ async def retry_task(task_id: str, request: Request):
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/{task_id}/pause")
+@router.post("/{task_id}/pause", response_model=MessageResponse)
 async def pause_task(task_id: str, request: Request):
     user_id = await _uid(request)
     try:
-        return await _svc(request).pause_task(task_id, user_id)
+        await _svc(request).pause_task(task_id, user_id)
+        return MessageResponse(message="paused")
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/{task_id}/continue")
+@router.post("/{task_id}/continue", response_model=MessageResponse)
 async def continue_task(task_id: str, request: Request):
     user_id = await _uid(request)
     try:
-        return await _svc(request).continue_task(task_id, user_id)
+        await _svc(request).continue_task(task_id, user_id)
+        return MessageResponse(message="continued")
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/{task_id}/terminate")
+@router.post("/{task_id}/terminate", response_model=MessageResponse)
 async def terminate_task(task_id: str, request: Request):
     user_id = await _uid(request)
     try:
-        return await _svc(request).terminate_task(task_id, user_id)
+        await _svc(request).terminate_task(task_id, user_id)
+        return MessageResponse(message="terminated")
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/{task_id}/effect-rating")
+@router.post("/{task_id}/effect-rating", response_model=MessageResponse)
 async def rate_task_effect(task_id: str, body: RateTaskEffectRequest, request: Request):
     user_id = await _uid(request)
     try:
-        return await _svc(request).rate_task_effect(task_id, user_id, body)
+        await _svc(request).rate_task_effect(task_id, user_id, body)
+        return MessageResponse(message="rated")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

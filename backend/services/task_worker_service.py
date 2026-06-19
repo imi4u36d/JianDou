@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any, Optional
 
 from backend.domain.enums import AttemptStatus, TaskStatus, WorkerStatus
@@ -61,7 +61,7 @@ _ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime(_ISO_FMT)
+    return datetime.now(UTC).strftime(_ISO_FMT)
 
 
 def _string_value(value: Any) -> str:

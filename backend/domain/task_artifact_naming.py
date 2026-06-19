@@ -7,7 +7,7 @@ All methods are stateless module-level functions.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -96,7 +96,7 @@ def _join_name(end_clip_index: int) -> str:
     return "-".join(parts)
 
 
-def _resolve_task_date(task: Any) -> "datetime":
+def _resolve_task_date(task: Any) -> datetime:
     """Resolve the task creation date, falling back to UTC now."""
     created_at_str: str = ""
     if task is not None:
@@ -108,7 +108,7 @@ def _resolve_task_date(task: Any) -> "datetime":
             return datetime.fromisoformat(created_at_str).date()
         except (ValueError, TypeError):
             pass
-    return datetime.now(timezone.utc).date()
+    return datetime.now(UTC).date()
 
 
 def _safe_task_directory(task_id: str | None) -> str:

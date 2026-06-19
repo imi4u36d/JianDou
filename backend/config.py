@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     uploads_dir: str = "uploads"
     generation_runs_dir: str = "gen/_runs"
     storage_public_base_url: str = ""
+    upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB
 
     # Public URL overrides for frontend build
     public_api_base_url: str = "/api/v3"
