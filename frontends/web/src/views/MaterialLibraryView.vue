@@ -1377,7 +1377,6 @@ watch(
   position: fixed;
   inset: unset;
   z-index: 80;
-  display: grid;
   width: 168px;
   gap: 0;
   padding: 8px;
@@ -1390,6 +1389,10 @@ watch(
     0 2px 8px rgba(18, 28, 33, 0.04);
   overflow: hidden;
   backdrop-filter: blur(18px);
+}
+
+.material-more-menu__panel:popover-open {
+  display: grid;
 }
 
 .material-more-menu__panel button,
