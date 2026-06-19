@@ -89,7 +89,7 @@
                 :disabled="busyActionKey === `delete-workflow-${item.id}`"
                 @click="handleDeleteWorkflow(item)"
               >
-                {{ busyActionKey === `delete-workflow-${item.id}` ? "删除中..." : "删除工作流" }}
+                {{ busyActionKey === `delete-workflow-${item.id}` ? "..." : "删除" }}
               </button>
             </div>
           </div>
@@ -276,7 +276,7 @@
                 </span>
               </div>
               <button class="btn-secondary btn-sm workflow-canvas-header__settings-button" type="button" @click="workflowSettingsOpen = !workflowSettingsOpen">
-                {{ workflowSettingsOpen ? "收起参数" : "参数" }}
+                {{ workflowSettingsOpen ? "收起" : "参数" }}
               </button>
             </div>
             <section v-if="workflowSettingsOpen" class="workflow-header-settings">
@@ -376,7 +376,7 @@
                 <div class="stage-board__meta">
                   <span class="surface-chip">{{ workflowCharacterSheets.length }} 个角色</span>
                   <button class="btn-primary btn-sm" type="button" :disabled="!missingCharacterSheets.length || busyActionKey === 'character-missing'" @click="handleGenerateMissingCharacterSheets">
-                    {{ busyActionKey === "character-missing" ? "生成中..." : "生成缺失角色" }}
+                    {{ busyActionKey === "character-missing" ? "..." : "补齐角色" }}
                   </button>
                 </div>
               </div>
@@ -434,7 +434,7 @@
                   <section v-if="isCharacterAssetPickerOpen(sheet)" class="character-asset-picker">
                     <div class="character-asset-picker__head">
                       <div>
-                        <h4>选择 {{ characterSheetTitle(sheet) }} 的三视图素材</h4>
+                        <h4>{{ characterSheetTitle(sheet) }}素材</h4>
                       </div>
                       <button class="btn-secondary btn-sm" type="button" @click="closeCharacterAssetPicker">收起</button>
                     </div>
@@ -609,7 +609,7 @@
                       <h4>{{ selectedCanvasClip.shotLabel || `镜头 #${selectedCanvasClip.clipIndex}` }}</h4>
                       <p>{{ clipSceneSummary(selectedCanvasClip) }}</p>
                     </div>
-                    <span class="surface-chip">{{ selectedKeyframeVersion(selectedCanvasClip) ? stageVersionDisplayTitle(selectedKeyframeVersion(selectedCanvasClip)!) : "未选择关键帧" }}</span>
+                    <span class="surface-chip">{{ selectedKeyframeVersion(selectedCanvasClip) ? stageVersionDisplayTitle(selectedKeyframeVersion(selectedCanvasClip)!) : "缺关键帧" }}</span>
                   </div>
 
                   <div v-if="selectedKeyframePreviewFrames(selectedCanvasClip).length" class="keyframe-thumb-list">
@@ -2080,12 +2080,17 @@ function positionVersionMenu(event: ToggleEvent) {
   const trigger = popover.parentElement?.querySelector<HTMLElement>(".workflow-more-menu__trigger");
   if (!trigger) return;
   const rect = trigger.getBoundingClientRect();
-  const popoverWidth = 150;
+  const popoverWidth = 164;
+  const popoverHeight = Math.max(popover.scrollHeight, popover.offsetHeight, 92);
   let left = rect.right - popoverWidth;
   if (left < 8) left = 8;
   if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8;
+  let top = rect.bottom + 4;
+  if (top + popoverHeight > window.innerHeight - 8) {
+    top = Math.max(8, rect.top - popoverHeight - 4);
+  }
   popover.style.left = `${left}px`;
-  popover.style.top = `${rect.bottom + 4}px`;
+  popover.style.top = `${top}px`;
 }
 
 function closeOpenWorkflowMenus(exceptTarget?: EventTarget | null) {
@@ -3126,15 +3131,20 @@ onBeforeUnmount(() => {
 .tool-pill {
   display: inline-flex;
   align-items: center;
+  gap: 7px;
   min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid rgba(15, 20, 25, 0.1);
-  border-radius: 10px;
-  background: #fff;
+  max-width: min(100%, 250px);
+  padding: 0 13px;
+  border: 1px solid rgba(18, 28, 33, 0.08);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.82);
   color: var(--text-strong);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 740;
   box-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-pill-accent {
@@ -3148,14 +3158,16 @@ onBeforeUnmount(() => {
 }
 
 .tool-pill-interactive:hover {
-  border-color: rgba(124, 58, 237, 0.3);
+  border-color: rgba(0, 169, 187, 0.26);
+  background: #fff;
+  color: var(--accent-blue);
 }
 
 .tool-pill-active {
-  border-color: rgba(124, 58, 237, 0.35);
-  background: rgba(124, 58, 237, 0.06);
-  color: var(--accent-cyan);
-  box-shadow: none;
+  border-color: rgba(27, 124, 255, 0.22);
+  background: linear-gradient(180deg, #effcff, #edf5ff);
+  color: var(--accent-blue);
+  box-shadow: inset 0 1px 2px rgba(18, 28, 33, 0.04);
 }
 
 .workflow-create-menu {
@@ -3169,12 +3181,17 @@ onBeforeUnmount(() => {
   z-index: 12;
   display: grid;
   gap: 10px;
-  min-width: 300px;
+  width: min(340px, calc(100vw - 48px));
+  max-height: min(480px, calc(100vh - 120px));
+  overflow: auto;
   padding: 12px;
   border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 22px 54px rgba(18, 28, 33, 0.14),
+    0 2px 8px rgba(18, 28, 33, 0.04);
+  backdrop-filter: blur(18px);
 }
 
 .workflow-create-popover-grid {
@@ -3182,7 +3199,7 @@ onBeforeUnmount(() => {
 }
 
 .workflow-create-popover-compact {
-  min-width: 260px;
+  width: min(270px, calc(100vw - 48px));
 }
 
 .workflow-create-popover__error {
@@ -3195,25 +3212,27 @@ onBeforeUnmount(() => {
 
 .workflow-create-popover .workflow-field span {
   margin: 0 2px;
-  color: #6b7280;
+  color: #738291;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 740;
 }
 
 .workflow-create-popover .field-input {
   min-height: 40px;
-  border: 1px solid rgba(15, 20, 25, 0.1);
-  border-radius: 8px;
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 12px;
   background: #fff;
-  color: #111;
+  color: var(--text-strong);
   box-shadow: none;
   font-size: 0.84rem;
   padding: 0 12px;
 }
 
 .workflow-create-popover .field-input:focus {
-  border-color: rgba(124, 58, 237, 0.4);
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+  border-color: rgba(0, 169, 187, 0.42);
+  box-shadow:
+    0 0 0 3px rgba(0, 169, 187, 0.1),
+    0 10px 26px rgba(15, 20, 25, 0.06);
 }
 
 .composer-required-count {
@@ -3573,8 +3592,8 @@ button:disabled {
 
 .compact-version-card-active,
 .video-version-card-active {
-  border-color: rgba(124, 58, 237, 0.28);
-  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(27, 124, 255, 0.22);
+  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
 }
 
 .video-version-card__title {
@@ -3624,8 +3643,8 @@ button:disabled {
 }
 
 .missing-clip-card:hover {
-  border-color: rgba(124, 58, 237, 0.28);
-  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(27, 124, 255, 0.22);
+  background: rgba(237, 245, 255, 0.82);
 }
 
 .compact-version-card__badge,
@@ -3643,7 +3662,7 @@ button:disabled {
 }
 
 .compact-version-card__badge {
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(0, 169, 187, 0.1);
   color: var(--accent-cyan);
 }
 
@@ -3725,7 +3744,7 @@ button:disabled {
   gap: 6px;
   min-height: 92px;
   padding: 12px 14px;
-  border: 1px solid rgba(124, 58, 237, 0.14);
+  border: 1px solid rgba(0, 169, 187, 0.12);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(246, 250, 252, 0.98), rgba(239, 245, 248, 0.92));
   text-align: left;
@@ -3733,8 +3752,8 @@ button:disabled {
 }
 
 .character-mini-card__summary:hover {
-  border-color: rgba(124, 58, 237, 0.24);
-  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.08);
+  border-color: rgba(27, 124, 255, 0.22);
+  box-shadow: 0 10px 24px rgba(27, 124, 255, 0.08);
 }
 
 .character-mini-card__summary-label {
@@ -4081,8 +4100,8 @@ button:disabled {
 
 .stage-toggle-chip-active,
 .rating-pill-active {
-  border-color: rgba(124, 58, 237, 0.4);
-  background: var(--accent-cyan);
+  border-color: rgba(27, 124, 255, 0.34);
+  background: var(--bg-accent);
   color: #fff;
 }
 
@@ -4378,10 +4397,14 @@ button:disabled {
   }
 
   .workflow-create-popover {
-    left: 0;
-    right: auto;
-    min-width: min(324px, calc(100vw - 80px));
-    max-width: calc(100vw - 80px);
+    position: fixed;
+    left: 14px;
+    right: 14px;
+    top: auto;
+    bottom: 14px;
+    width: auto;
+    max-width: none;
+    max-height: min(430px, calc(100vh - 90px));
   }
 
   .workflow-canvas-header,

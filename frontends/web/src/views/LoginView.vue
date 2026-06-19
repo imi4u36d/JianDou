@@ -34,10 +34,6 @@
           </div>
         </label>
 
-        <div v-if="redirectHint" class="auth-form__hint">
-          登录成功后会返回到 `{{ redirectHint }}`
-        </div>
-
         <button :disabled="submitting" class="auth-form__submit" type="submit">
           {{ submitting ? "登录中..." : "登录" }}
         </button>

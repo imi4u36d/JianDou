@@ -125,7 +125,7 @@
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'model'" class="home-popover home-popover-model">
-                  <p class="home-popover__label">{{ selectedMode.kind === "video" ? "模型链路" : "图片模型" }}</p>
+                  <p class="home-popover__label">{{ selectedMode.kind === "video" ? "模型" : "图片模型" }}</p>
                   <template v-if="selectedMode.kind === 'video'">
                     <section class="home-popover-section">
                       <p class="home-popover__label">文本模型</p>
@@ -766,7 +766,7 @@ async function submitImageGeneration() {
   });
   createdTaskId.value = task.id;
   showTaskToast(task.id);
-  statusText.value = "任务已提交，可在任务管理查看进度。";
+  statusText.value = "已提交";
   void loadActiveTasks();
 }
 
@@ -791,7 +791,7 @@ async function submitVideoGeneration() {
   const task = await createGenerationTask(payload);
   createdTaskId.value = task.id;
   showTaskToast(task.id);
-  statusText.value = "任务已提交，可在任务管理查看进度。";
+  statusText.value = "已提交";
   void loadActiveTasks();
 }
 
@@ -1576,7 +1576,8 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 20, 25, 0.28);
+  background: rgba(15, 20, 25, 0.34);
+  backdrop-filter: blur(8px);
 }
 
 .home-dialog__panel {
@@ -1584,9 +1585,13 @@ onBeforeUnmount(() => {
   gap: 14px;
   width: min(100%, 360px);
   padding: 22px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgba(15, 20, 25, 0.2);
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 22px 54px rgba(18, 28, 33, 0.16),
+    0 2px 8px rgba(18, 28, 33, 0.04);
+  backdrop-filter: blur(18px);
 }
 
 .home-dialog__panel h2,
@@ -1610,10 +1615,11 @@ onBeforeUnmount(() => {
   min-width: 82px;
   min-height: 36px;
   border: 0;
-  border-radius: 9px;
-  background: var(--text-strong);
+  border-radius: 12px;
+  background: var(--bg-accent);
   color: #fff;
   font-weight: 800;
+  box-shadow: 0 12px 28px rgba(27, 124, 255, 0.22);
   cursor: pointer;
 }
 

@@ -1,18 +1,13 @@
 <template>
   <section class="dashboard-page">
     <div class="surface-card dashboard-page__hero">
-      <div>
-        <h3>运营首页</h3>
+      <div class="dashboard-page__hero-meta">
+        <span>最近同步：{{ lastUpdatedLabel }}</span>
+        <el-tag :type="overview?.modelReady ? 'success' : 'danger'" effect="plain">
+          {{ overview?.modelReady ? "模型已就绪" : "模型未就绪" }}
+        </el-tag>
       </div>
-      <div class="dashboard-page__hero-actions">
-        <div class="dashboard-page__hero-meta">
-          <span>最近同步：{{ lastUpdatedLabel }}</span>
-          <el-tag :type="overview?.modelReady ? 'success' : 'danger'" effect="plain">
-            {{ overview?.modelReady ? "模型已就绪" : "模型未就绪" }}
-          </el-tag>
-        </div>
-        <el-button :icon="Refresh" :loading="refreshing" plain @click="loadDashboard">刷新</el-button>
-      </div>
+      <el-button :icon="Refresh" :loading="refreshing" plain @click="loadDashboard">刷新</el-button>
     </div>
 
     <!-- Skeleton: stat cards -->
@@ -115,7 +110,7 @@
             <el-table-column label="最早排队任务" min-width="240">
               <template #default="{ row }">
                 <div class="dashboard-page__task-cell">
-                  <strong>{{ row.oldestQueuedTaskTitle || row.oldestQueuedTaskId || "无排队任务" }}</strong>
+                  <strong>{{ row.oldestQueuedTaskTitle || row.oldestQueuedTaskId || "无排队" }}</strong>
                   <span>{{ row.oldestQueuedTaskId || "" }}</span>
                 </div>
               </template>
@@ -350,17 +345,27 @@ onMounted(async () => {
   gap: 20px;
 }
 
+.dashboard-page > *,
+.dashboard-page__content,
+.dashboard-page__hero,
+.dashboard-page__stats,
+.dashboard-page__grid,
+.dashboard-page__panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .dashboard-page__alert {
   margin-bottom: 4px;
 }
 
 .dashboard-page__hero {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 24px;
-  border-radius: 28px;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 18px;
 }
 
 .dashboard-page__hero h3,

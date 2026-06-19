@@ -132,7 +132,7 @@
           <el-input v-model.trim="editorForm.username" :disabled="editorMode === 'edit'" placeholder="3-32 位登录名" />
         </el-form-item>
         <el-form-item label="显示名">
-          <el-input v-model.trim="editorForm.displayName" placeholder="用于后台展示" />
+          <el-input v-model.trim="editorForm.displayName" placeholder="显示名" />
         </el-form-item>
         <el-form-item v-if="editorMode === 'create'" label="初始密码">
           <el-input v-model="editorForm.password" placeholder="8-72 位密码" show-password type="password" />
@@ -158,7 +158,7 @@
       <template #footer>
         <el-button @click="editorVisible = false">取消</el-button>
         <el-button :loading="submittingEditor" type="primary" @click="submitEditor">
-          {{ editorMode === "create" ? "创建用户" : "保存修改" }}
+          {{ editorMode === "create" ? "创建" : "保存" }}
         </el-button>
       </template>
     </el-dialog>
@@ -166,13 +166,13 @@
     <el-dialog v-model="passwordDialogVisible" title="重置用户密码" width="420px">
       <el-form label-position="top">
         <el-form-item label="新密码">
-          <el-input v-model="passwordForm.password" placeholder="请输入新密码" show-password type="password" />
+          <el-input v-model="passwordForm.password" placeholder="新密码" show-password type="password" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="passwordDialogVisible = false">取消</el-button>
         <el-button :loading="submittingPassword" type="primary" @click="submitPassword">
-          更新密码
+          更新
         </el-button>
       </template>
     </el-dialog>
@@ -182,7 +182,7 @@
         :closable="false"
         class="user-page__alert"
         show-icon
-        title="仅重新设置新输入的平台默认 Key，未填写的厂商保持不变。"
+        title="只更新已填写的 Key，空项保持不变。"
         type="info"
       />
       <el-form v-loading="loadingModelConfig" label-position="top">
@@ -195,7 +195,7 @@
             <el-input
               v-model.trim="item.apiKey"
               clearable
-              placeholder="输入新的 API Key"
+              placeholder="新 API Key"
               show-password
               type="password"
             />
@@ -205,7 +205,7 @@
       <template #footer>
         <el-button @click="modelKeyDialogVisible = false">取消</el-button>
         <el-button :loading="submittingModelKeys" type="primary" @click="submitModelKeys">
-          重新设置
+          重设
         </el-button>
       </template>
     </el-dialog>
@@ -279,9 +279,9 @@ const modelKeyForm = reactive({
 
 const modelKeyDialogTitle = computed(() => {
   if (!modelKeyUser.value) {
-    return "重新设置平台默认 Key";
+    return "默认 Key";
   }
-  return `重新设置平台默认 Key - ${modelKeyUser.value.username}`;
+  return `默认 Key - ${modelKeyUser.value.username}`;
 });
 
 const summaryCards = computed(() => {
@@ -532,6 +532,14 @@ onMounted(async () => {
 .user-page {
   display: grid;
   gap: 20px;
+}
+
+.user-page > *,
+.user-page .surface-card,
+.user-page__summary,
+.user-page__summary-card {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .user-page__summary {

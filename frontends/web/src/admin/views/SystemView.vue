@@ -42,8 +42,8 @@
           </label>
         </div>
 
-        <el-alert v-if="loading" :closable="false" title="正在加载日志..." type="info" show-icon />
-        <el-empty v-else-if="traces.length === 0" description="当前没有日志。" />
+        <el-alert v-if="loading" :closable="false" title="加载中" type="info" show-icon />
+        <el-empty v-else-if="traces.length === 0" description="暂无日志" />
         <el-table v-else :data="traces" stripe size="small">
           <el-table-column label="时间" min-width="160" prop="timestamp">
             <template #default="{ row }">{{ formatTime((row as AdminTraceEvent).timestamp) }}</template>

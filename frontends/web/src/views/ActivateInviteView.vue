@@ -28,7 +28,7 @@
         </button>
 
         <p class="auth-form__footer">
-          <RouterLink :to="loginLink">返回登录</RouterLink>
+          <RouterLink :to="loginLink">登录</RouterLink>
         </p>
       </form>
     </div>

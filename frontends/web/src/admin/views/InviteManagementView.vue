@@ -252,6 +252,14 @@ onMounted(async () => {
   gap: 20px;
 }
 
+.invite-page > *,
+.invite-page .surface-card,
+.invite-page__summary,
+.invite-page__summary-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .invite-page__summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

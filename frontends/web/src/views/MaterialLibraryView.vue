@@ -70,12 +70,12 @@
     </section>
 
     <section v-if="batchMode" class="material-batch-bar">
-      <span>已选择 {{ selectedAssetIds.length }} 个素材</span>
+      <span>已选 {{ selectedAssetIds.length }}</span>
       <button class="btn-secondary btn-sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchUpload">
-        {{ busyActionKey === "batch-upload" ? "上传中..." : "上传选中" }}
+        {{ busyActionKey === "batch-upload" ? "..." : "上传" }}
       </button>
       <button class="btn-danger btn-sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
-        {{ busyActionKey === "batch-delete" ? "删除中..." : "删除选中" }}
+        {{ busyActionKey === "batch-delete" ? "..." : "删除" }}
       </button>
     </section>
 

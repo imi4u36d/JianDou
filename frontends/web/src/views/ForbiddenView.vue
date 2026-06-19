@@ -3,8 +3,8 @@
     <div class="forbidden-view__card">
       <h1>没有管理端权限</h1>
       <div class="forbidden-view__actions">
-        <RouterLink class="forbidden-view__secondary" to="/workspace">返回工作台</RouterLink>
-        <RouterLink class="forbidden-view__primary" to="/tasks">打开任务列表</RouterLink>
+        <RouterLink class="forbidden-view__secondary" to="/workspace">工作台</RouterLink>
+        <RouterLink class="forbidden-view__primary" to="/tasks">任务</RouterLink>
       </div>
     </div>
   </section>

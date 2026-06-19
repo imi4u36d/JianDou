@@ -110,17 +110,24 @@
           <button class="btn-secondary btn-sm" type="button" @click="clearSelectedTask">关闭</button>
         </header>
 
-        <div class="detail-stage-line">
-          <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item">
-            <div class="detail-stage-line__bar" :class="stageStateClass(stage.state)"></div>
-            <p>{{ stage.label }}</p>
+        <div class="detail-stage-line" aria-label="任务阶段">
+          <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
+            <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
+            <span class="detail-stage-line__copy">
+              <strong>{{ stage.label }}</strong>
+              <small>{{ stage.stateLabel }}</small>
+            </span>
           </div>
         </div>
 
-        <div v-if="selectedTaskFailureReason" class="task-details-panel__error task-details-panel__error-block">
-          <strong>{{ selectedTaskFailureContext || "失败原因" }}</strong>
-          <p>{{ selectedTaskFailureReason }}</p>
-        </div>
+        <section v-if="selectedTaskFailureReason" class="task-failure-card" :class="{ 'task-failure-card-open': failureDetailsOpen }">
+          <button type="button" class="task-failure-card__summary" @click="failureDetailsOpen = !failureDetailsOpen">
+            <span>失败</span>
+            <strong>{{ selectedTaskFailureContext || "任务失败" }}</strong>
+            <small>{{ failureDetailsOpen ? "收起" : "查看详情" }}</small>
+          </button>
+          <p v-if="failureDetailsOpen">{{ selectedTaskFailureReason }}</p>
+        </section>
 
         <div class="task-detail-grid task-detail-grid-primary">
           <section class="detail-section detail-section-card detail-preview-section">
@@ -295,6 +302,7 @@ const selectedTaskId = ref("");
 const selectedTaskDetail = ref<TaskDetail | null>(null);
 const selectedTaskTrace = ref<TaskTraceEvent[]>([]);
 const selectedTaskLoading = ref(false);
+const failureDetailsOpen = ref(false);
 let querySyncTimer: number | null = null;
 
 const isFilterActive = computed(() => {
@@ -1127,6 +1135,10 @@ watch([searchText, statusFilter, sortMode], () => {
   scheduleWriteQuery();
 });
 
+watch(selectedTaskId, () => {
+  failureDetailsOpen.value = false;
+});
+
 onMounted(async () => {
   window.addEventListener("keydown", handleWindowKeydown);
   await start();
@@ -1549,14 +1561,14 @@ onUnmounted(() => {
 .task-detail-content {
   display: grid;
   align-content: start;
-  gap: 18px;
+  gap: 16px;
   min-height: 100%;
-  padding: 24px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 42px rgba(27, 124, 255, 0.06);
-  backdrop-filter: blur(18px);
+  padding: 4px 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .task-detail-empty {
@@ -1591,6 +1603,7 @@ onUnmounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding: 10px 2px 2px;
 }
 
 .task-detail-header h2 {
@@ -1615,61 +1628,69 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.task-details-panel__empty,
-.task-details-panel__error {
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: rgba(229, 72, 101, 0.07);
-  color: var(--text-muted);
-}
-
-.task-details-panel__error {
-  color: var(--accent-danger);
-}
-
-.task-details-panel__error-block {
-  display: grid;
-  gap: 6px;
-  border-left: 3px solid rgba(229, 72, 101, 0.62);
-}
-
-.task-details-panel__error-block strong,
-.task-details-panel__error-block p {
-  margin: 0;
-}
-
 .detail-stage-line {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .detail-stage-line__item {
-  display: grid;
-  gap: 8px;
-  justify-items: center;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  min-width: 142px;
+  padding: 6px 10px;
+  border: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-body);
 }
 
-.detail-stage-line__bar {
-  width: 100%;
-  height: 18px;
+.detail-stage-line__dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
   position: relative;
   background: rgba(15, 20, 25, 0.08);
 }
 
-.detail-stage-line__bar::after {
+.detail-stage-line__dot::after {
   content: "";
   position: absolute;
-  inset: 3px auto 3px calc(50% - 6px);
-  width: 12px;
+  inset: 3px;
   border-radius: 50%;
-  background: rgba(15, 20, 25, 0.18);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.detail-stage-line__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail-stage-line__copy strong,
+.detail-stage-line__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-stage-line__copy strong {
+  color: var(--text-strong);
+  font-size: 0.78rem;
+  font-weight: 780;
+}
+
+.detail-stage-line__copy small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .task-stage-row--done {
-  background: var(--bg-accent);
+  background: var(--accent-cyan);
 }
 
 .task-stage-row--done::after,
@@ -1678,7 +1699,8 @@ onUnmounted(() => {
 }
 
 .task-stage-row--active {
-  background: var(--bg-accent);
+  background: var(--accent-blue);
+  box-shadow: 0 0 0 4px rgba(27, 124, 255, 0.12);
 }
 
 .task-stage-row--paused {
@@ -1693,11 +1715,73 @@ onUnmounted(() => {
   background: rgba(15, 20, 25, 0.08);
 }
 
-.detail-stage-line__item p {
-  margin: 0;
-  color: var(--text-body);
+.task-failure-card {
+  display: block;
+  overflow: hidden;
+  min-height: 50px;
+  border: 1px solid rgba(229, 72, 101, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 244, 246, 0.82);
+  color: var(--accent-danger);
+}
+
+.task-failure-card-open {
+  min-height: 230px;
+}
+
+.task-failure-card__summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-failure-card__summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(229, 72, 101, 0.1);
   font-size: 0.72rem;
-  line-height: 1.35;
+  font-weight: 820;
+}
+
+.task-failure-card__summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #bf2f48;
+  font-size: 0.84rem;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-failure-card__summary small {
+  color: rgba(191, 47, 72, 0.78);
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.task-failure-card p {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 0 14px 14px;
+  color: #9a3447;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .detail-section {
@@ -1707,9 +1791,11 @@ onUnmounted(() => {
 
 .detail-section-card {
   padding: 16px;
-  border: 1px solid rgba(18, 28, 33, 0.05);
+  border: 1px solid rgba(0, 169, 187, 0.08);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 30px rgba(27, 124, 255, 0.045);
+  backdrop-filter: blur(16px);
 }
 
 .detail-section h3 {
@@ -1729,17 +1815,21 @@ onUnmounted(() => {
 
 .detail-overview {
   display: grid;
-  gap: 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.08);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  border-top: 0;
 }
 
 .detail-overview__row {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
-  min-height: 40px;
+  min-height: 46px;
   align-items: center;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
+  padding: 9px 10px;
+  border: 1px solid rgba(15, 20, 25, 0.05);
+  border-radius: 12px;
+  background: #f8fafb;
   color: var(--text-body);
 }
 
@@ -1748,6 +1838,7 @@ onUnmounted(() => {
 }
 
 .detail-overview__row-progress {
+  grid-column: 1 / -1;
   grid-template-columns: auto 1fr auto;
   align-items: center;
 }
@@ -1767,22 +1858,27 @@ onUnmounted(() => {
 
 .detail-params {
   display: grid;
-  border-top: 1px solid rgba(15, 20, 25, 0.08);
-  overflow: hidden;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  border-top: 0;
 }
 
 .detail-params__row {
   display: grid;
-  grid-template-columns: minmax(90px, 0.8fr) minmax(0, 1fr);
-  min-height: 42px;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px 11px;
+  border: 1px solid rgba(15, 20, 25, 0.05);
+  border-radius: 12px;
+  background: #f8fafb;
 }
 
 .detail-params__row span,
 .detail-params__row strong {
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  min-width: 0;
+  padding: 0;
   font-size: 0.82rem;
 }
 
@@ -1792,7 +1888,8 @@ onUnmounted(() => {
 
 .detail-params__row strong {
   color: var(--text-strong);
-  font-weight: 500;
+  font-weight: 680;
+  overflow-wrap: anywhere;
 }
 
 .task-detail-grid {
@@ -1813,7 +1910,7 @@ onUnmounted(() => {
 .task-result-preview {
   display: grid;
   place-items: center;
-  min-height: 300px;
+  min-height: 240px;
   overflow: hidden;
   border-radius: 14px;
   background:
@@ -1826,7 +1923,7 @@ onUnmounted(() => {
 .task-result-preview img {
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 240px;
   object-fit: contain;
 }
 
@@ -1878,18 +1975,18 @@ onUnmounted(() => {
 
 .detail-traces {
   display: grid;
-  gap: 0;
-  max-height: 360px;
+  gap: 8px;
+  max-height: 330px;
   overflow: auto;
-  border-top: 1px solid rgba(15, 20, 25, 0.08);
+  border-top: 0;
 }
 
 .detail-traces__item,
 .detail-traces__empty {
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 0;
-  background: transparent;
+  padding: 11px 12px;
+  border: 1px solid rgba(15, 20, 25, 0.05);
+  border-radius: 12px;
+  background: #f8fafb;
 }
 
 .detail-traces__item p,
@@ -1924,10 +2021,11 @@ onUnmounted(() => {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-  margin: 4px -8px -10px;
+  margin: 2px 0 0;
   padding: 10px 8px;
   border-top: 1px solid rgba(15, 20, 25, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.96));
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(14px);
 }
 
@@ -1956,7 +2054,12 @@ onUnmounted(() => {
   }
 
   .detail-stage-line {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .detail-stage-line__item {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
   }
 
   .task-detail-grid {
@@ -1980,8 +2083,17 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .detail-overview,
+  .detail-params {
+    grid-template-columns: 1fr;
+  }
+
   .task-detail-header {
     display: grid;
+  }
+
+  .detail-stage-line__item {
+    flex-basis: 100%;
   }
 }
 </style>

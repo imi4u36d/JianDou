@@ -40,7 +40,7 @@
 
       <el-form class="task-page__filters" inline @submit.prevent="loadTasks">
         <el-form-item label="关键词">
-          <el-input v-model.trim="filters.q" clearable placeholder="任务标题 / 素材文件名" />
+          <el-input v-model.trim="filters.q" clearable placeholder="任务或素材" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="filters.status" clearable placeholder="全部状态" style="width: 180px">
@@ -398,6 +398,14 @@ onMounted(() => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.task-page > *,
+.task-page .surface-card,
+.task-page__summary,
+.task-page__summary-card {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .task-page__summary-card {

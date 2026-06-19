@@ -105,7 +105,8 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   const createOutputMenuLabel = computed(() => {
     const ratio = valueOptionLabel(aspectRatioOptions.value, createForm.aspectRatio, createForm.aspectRatio || "未设置");
     const size = valueOptionLabel(videoSizeOptions.value, createForm.videoSize, createForm.videoSize || "未设置");
-    return `输出 · ${ratio} · ${size}`;
+    const compactSize = size.split("·")[0]?.trim() || size;
+    return `输出 · ${ratio} · ${compactSize}`;
   });
 
   function seedLabel(value?: number | string | null): string {

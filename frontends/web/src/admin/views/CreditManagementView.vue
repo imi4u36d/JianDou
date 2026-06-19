@@ -132,7 +132,7 @@
           <el-input
             v-model.trim="adjustForm.reason"
             maxlength="200"
-            placeholder="请输入调整原因"
+            placeholder="调整原因"
             show-word-limit
             type="textarea"
           />
@@ -321,7 +321,7 @@ async function submitAdjustment() {
     return;
   }
   if (!adjustForm.reason.trim()) {
-    ElMessage.warning("请输入调整原因");
+    ElMessage.warning("填写调整原因");
     return;
   }
   submittingAdjustment.value = true;
@@ -384,6 +384,12 @@ onMounted(async () => {
 .credit-page {
   display: grid;
   gap: 20px;
+}
+
+.credit-page > *,
+.credit-page .surface-card {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .credit-page__toolbar {

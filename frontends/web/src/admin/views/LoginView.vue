@@ -15,10 +15,10 @@
 
       <el-form label-position="top" @submit.prevent="handleSubmit">
         <el-form-item label="用户名">
-          <el-input v-model.trim="form.username" autocomplete="username" placeholder="请输入管理员用户名" />
+          <el-input v-model.trim="form.username" autocomplete="username" placeholder="用户名" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="form.password" autocomplete="current-password" placeholder="请输入密码" show-password type="password" />
+          <el-input v-model="form.password" autocomplete="current-password" placeholder="密码" show-password type="password" />
         </el-form-item>
         <el-button :loading="submitting" class="login-view__submit" native-type="submit" type="primary">
           进入管理系统

@@ -1,6 +1,6 @@
 <template>
   <section>
-    <div v-if="loading" class="py-8 text-center text-sm text-slate-500">正在读取任务详情...</div>
+    <div v-if="loading" class="py-8 text-center text-sm text-slate-500">加载中</div>
 
     <template v-else-if="task">
       <div class="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -142,7 +142,7 @@
               </div>
               <div class="flex flex-wrap gap-2">
                 <el-button size="small" @click="refresh">刷新</el-button>
-                <el-button size="small" @click="traceExpanded = !traceExpanded">{{ traceExpanded ? "收起日志" : "展开日志" }}</el-button>
+                <el-button size="small" @click="traceExpanded = !traceExpanded">{{ traceExpanded ? "收起" : "展开" }}</el-button>
               </div>
             </div>
           </template>
@@ -178,7 +178,7 @@
                 </template>
               </el-table-column>
             </el-table>
-            <div v-else class="py-4 text-center text-sm text-slate-500">当前没有日志。</div>
+            <div v-else class="py-4 text-center text-sm text-slate-500">暂无日志</div>
           </div>
         </el-card>
       </div>
@@ -244,7 +244,7 @@ const runningTask = computed(() => Boolean(task.value && (task.value.status === 
 
 const planningSummary = computed(() => {
   if (!task.value?.plan?.length) {
-    return { label: "未生成计划", title: "暂无计划", detail: "计划未生成。" };
+    return { label: "暂无计划", title: "待生成", detail: "待生成" };
   }
   if (task.value.hasTimedTranscript) {
     return { label: "时间轴输入", title: "按时间轴推进", detail: "按时间轴推进。" };
