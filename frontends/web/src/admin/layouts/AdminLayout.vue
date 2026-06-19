@@ -100,21 +100,21 @@ async function handleLogout() {
   position: relative;
   display: grid;
   grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-rows: 1fr;
   gap: 20px;
   padding: 24px;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .admin-layout__aside {
-  position: sticky;
-  top: 24px;
-  align-self: start;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-height: calc(100vh - 48px);
   padding: 22px 14px 16px;
   border-radius: 22px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .admin-layout__brand {
@@ -177,9 +177,14 @@ async function handleLogout() {
 
 .admin-layout__main {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .admin-layout__header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -197,7 +202,10 @@ async function handleLogout() {
 }
 
 .admin-layout__content {
+  flex: 1;
+  min-height: 0;
   padding-top: 20px;
+  overflow-y: auto;
 }
 
 @media (max-width: 1100px) {
@@ -206,14 +214,12 @@ async function handleLogout() {
   }
 
   .admin-layout__aside {
-    position: static;
-    top: auto;
     max-width: 100%;
-    max-height: none;
     min-width: 0;
     gap: 12px;
     padding: 14px;
     border-radius: 18px;
+    overflow-y: visible;
   }
 
   .admin-layout__brand {
