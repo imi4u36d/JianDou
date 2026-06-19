@@ -60,7 +60,7 @@ function positionMenu(event: ToggleEvent) {
             <button type="button" :disabled="version.selected || busyActionKey === version.id" @click="emit('select', version.id)">
               {{ version.selected ? "已选中" : "设为当前" }}
             </button>
-            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="emit('reuse', version.asset?.id || '', version.id)">复制为新工作流</button>
+            <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="emit('reuse', version.asset?.id || '', version.id)">复用</button>
             <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="emit('delete', version)">删除版本</button>
           </div>
         </div>

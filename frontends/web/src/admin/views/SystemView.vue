@@ -2,9 +2,7 @@
   <section>
     <div class="surface-card mb-4 rounded-2xl p-5">
       <div>
-        <p class="text-xs uppercase tracking-wide text-slate-500">System</p>
         <h2 class="mt-1 text-base font-semibold">系统配置</h2>
-        <p class="mt-1 text-sm text-slate-600">查看运行时、模型和日志，支持按条件筛选排障信息。</p>
       </div>
     </div>
 
@@ -15,7 +13,6 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-semibold text-slate-900">运行时日志</h3>
-            <p class="mt-1 text-sm text-slate-600">按任务、级别、阶段筛选最新 trace 事件。</p>
           </div>
           <el-button :icon="Refresh" :loading="loading" @click="loadTraces">刷新</el-button>
         </div>

@@ -1,8 +1,7 @@
 <template>
   <section class="forbidden-view">
     <div class="forbidden-view__card">
-      <p class="forbidden-view__eyebrow">403 Forbidden</p>
-      <h1>当前账号没有管理端权限</h1>
+      <h1>没有管理端权限</h1>
       <div class="forbidden-view__actions">
         <RouterLink class="forbidden-view__secondary" to="/workspace">返回工作台</RouterLink>
         <RouterLink class="forbidden-view__primary" to="/tasks">打开任务列表</RouterLink>
@@ -28,15 +27,6 @@
   background: #fff;
   box-shadow: var(--shadow-panel);
   text-align: center;
-}
-
-.forbidden-view__eyebrow {
-  margin: 0 0 12px;
-  color: var(--accent-cyan);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
 }
 
 .forbidden-view__card h1 {

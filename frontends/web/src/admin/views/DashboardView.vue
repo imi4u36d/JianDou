@@ -2,7 +2,6 @@
   <section class="dashboard-page">
     <div class="surface-card dashboard-page__hero">
       <div>
-        <p class="dashboard-page__eyebrow">概览</p>
         <h3>运营首页</h3>
       </div>
       <div class="dashboard-page__hero-actions">
@@ -12,7 +11,7 @@
             {{ overview?.modelReady ? "模型已就绪" : "模型未就绪" }}
           </el-tag>
         </div>
-        <el-button :icon="Refresh" :loading="refreshing" plain @click="loadDashboard">刷新数据</el-button>
+        <el-button :icon="Refresh" :loading="refreshing" plain @click="loadDashboard">刷新</el-button>
       </div>
     </div>
 
@@ -53,7 +52,6 @@
             <template #header>
               <div class="dashboard-page__panel-header">
                 <div>
-                  <p class="dashboard-page__eyebrow">系统</p>
                   <h4>系统脉搏</h4>
                 </div>
               </div>
@@ -72,7 +70,6 @@
             <template #header>
               <div class="dashboard-page__panel-header">
                 <div>
-                  <p class="dashboard-page__eyebrow">失败</p>
                   <h4>最近失败任务</h4>
                 </div>
               </div>
@@ -98,7 +95,6 @@
           <template #header>
             <div class="dashboard-page__panel-header">
               <div>
-                <p class="dashboard-page__eyebrow">队列</p>
                 <h4>用户队列与额度</h4>
               </div>
             </div>
@@ -131,7 +127,6 @@
           <template #header>
             <div class="dashboard-page__panel-header">
               <div>
-                <p class="dashboard-page__eyebrow">任务</p>
                 <h4>最新任务</h4>
               </div>
             </div>
@@ -202,12 +197,12 @@ const users = ref<AdminUser[]>([]);
 const summaryCards = computed(() => {
   const counts = overview.value?.counts;
   return [
-    { label: "用户总数", value: users.value.length, note: "系统当前全部账号", tone: "accent" },
-    { label: "任务总数", value: counts?.totalTasks ?? 0, note: "全量任务记录", tone: "secondary" },
-    { label: "成功任务", value: counts?.completedTasks ?? 0, note: "已完成并产出结果", tone: "success" },
-    { label: "失败任务", value: counts?.failedTasks ?? 0, note: "建议优先排查处理", tone: "danger" },
-    { label: "运行中", value: counts?.runningTasks ?? 0, note: "当前正在执行", tone: "warning" },
-    { label: "排队中", value: counts?.queuedTasks ?? 0, note: "等待 worker 消费", tone: "neutral" }
+    { label: "用户", value: users.value.length, note: "全部账号", tone: "accent" },
+    { label: "任务", value: counts?.totalTasks ?? 0, note: "全量记录", tone: "secondary" },
+    { label: "成功", value: counts?.completedTasks ?? 0, note: "已完成", tone: "success" },
+    { label: "失败", value: counts?.failedTasks ?? 0, note: "待排查", tone: "danger" },
+    { label: "运行", value: counts?.runningTasks ?? 0, note: "执行中", tone: "warning" },
+    { label: "排队", value: counts?.queuedTasks ?? 0, note: "等待中", tone: "neutral" }
   ];
 });
 
@@ -217,14 +212,14 @@ const pulseItems = computed(() => {
   const disabledUsers = users.value.filter((user) => user.status === "DISABLED").length;
   const adminUsers = users.value.filter((user) => user.role === "ADMIN").length;
   return [
-    { label: "活跃用户", value: activeUsers, note: "当前可登录账号" },
-    { label: "管理员账号", value: adminUsers, note: "可访问后台的人数" },
-    { label: "禁用账号", value: disabledUsers, note: "已暂停后台访问" },
-    { label: "在线 Worker", value: overview.value?.workers?.onlineCount ?? 0, note: "运行中的工作节点" },
-    { label: "队列积压", value: overview.value?.queue?.queueLength ?? 0, note: "尚未开始执行的任务" },
-    { label: "高风险任务", value: counts?.highRiskTasks ?? 0, note: "建议立即关注" },
-    { label: "最近 Trace", value: overview.value?.recentTraceCount ?? 0, note: "近期开启的跟踪记录" },
-    { label: "平均进度", value: `${counts?.averageProgress ?? 0}%`, note: "整体任务平均完成度" }
+    { label: "活跃用户", value: activeUsers, note: "可登录" },
+    { label: "管理员", value: adminUsers, note: "后台权限" },
+    { label: "禁用账号", value: disabledUsers, note: "已暂停" },
+    { label: "在线 Worker", value: overview.value?.workers?.onlineCount ?? 0, note: "工作节点" },
+    { label: "队列积压", value: overview.value?.queue?.queueLength ?? 0, note: "未开始" },
+    { label: "高风险", value: counts?.highRiskTasks ?? 0, note: "需关注" },
+    { label: "Trace", value: overview.value?.recentTraceCount ?? 0, note: "近期记录" },
+    { label: "平均进度", value: `${counts?.averageProgress ?? 0}%`, note: "整体" }
   ];
 });
 
@@ -366,14 +361,6 @@ onMounted(async () => {
   gap: 20px;
   padding: 24px;
   border-radius: 28px;
-}
-
-.dashboard-page__eyebrow {
-  margin: 0 0 4px;
-  color: var(--jd-text-soft);
-  font-size: 0.76rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .dashboard-page__hero h3,

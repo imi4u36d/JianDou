@@ -33,7 +33,7 @@ const emit = defineEmits<{
     @keydown.left.prevent="emit('switchFrame', -1)"
     @keydown.right.prevent="emit('switchFrame', 1)"
   >
-    <button type="button" class="image-preview-close" aria-label="关闭原图预览" @click="emit('close')">关闭</button>
+    <button type="button" class="image-preview-close" aria-label="关闭原图预览" @click="emit('close')">×</button>
     <img class="image-preview-full" :src="url" :alt="alt" />
   </div>
 </template>

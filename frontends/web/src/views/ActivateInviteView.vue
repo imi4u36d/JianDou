@@ -2,25 +2,24 @@
   <section class="auth-screen">
     <div class="auth-screen__panel">
       <div class="auth-screen__hero">
-        <p class="auth-screen__eyebrow">Invite</p>
         <h1>激活账号</h1>
       </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
         <label class="auth-form__field">
-          <span>邀请码</span>
+          <span class="auth-form__field-label">邀请码</span>
           <input v-model="code" autocomplete="off" placeholder="邀请码" type="text" />
         </label>
         <label class="auth-form__field">
-          <span>用户名</span>
+          <span class="auth-form__field-label">用户名</span>
           <input v-model="username" autocomplete="username" placeholder="用户名" type="text" />
         </label>
         <label class="auth-form__field">
-          <span>显示名</span>
+          <span class="auth-form__field-label">显示名</span>
           <input v-model="displayName" autocomplete="nickname" placeholder="显示名" type="text" />
         </label>
         <label class="auth-form__field">
-          <span>密码</span>
+          <span class="auth-form__field-label">密码</span>
           <input v-model="password" autocomplete="new-password" placeholder="密码" type="password" />
         </label>
 
@@ -98,12 +97,11 @@ async function handleSubmit() {
 }
 
 .auth-screen__panel {
-  width: min(960px, 100%);
+  width: min(430px, 100%);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
-  gap: 28px;
-  padding: 30px;
-  border-radius: 22px;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 20px;
   border: 1px solid rgba(0, 169, 187, 0.1);
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 18px 42px rgba(27, 124, 255, 0.08);
@@ -111,24 +109,16 @@ async function handleSubmit() {
 }
 
 .auth-screen__hero {
-  padding: 12px 8px;
-}
-
-.auth-screen__eyebrow {
-  margin: 0 0 12px;
-  color: var(--accent-cyan);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
+  padding: 0 2px;
+  text-align: center;
 }
 
 .auth-screen__hero h1 {
   margin: 0;
   font-family: inherit;
-  font-size: clamp(2rem, 4.8vw, 3rem);
-  line-height: 1.08;
-  letter-spacing: -0.05em;
+  font-size: clamp(1.78rem, 4.4vw, 2.35rem);
+  line-height: 1.12;
+  letter-spacing: 0;
   color: var(--text-strong);
 }
 
@@ -141,11 +131,11 @@ async function handleSubmit() {
 
 .auth-form {
   display: grid;
-  gap: 15px;
-  padding: 24px;
-  border-radius: 18px;
-  background: #f7fbff;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  gap: 14px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
 }
 
 .auth-form__field {
@@ -153,7 +143,15 @@ async function handleSubmit() {
   gap: 8px;
 }
 
-.auth-form__field span {
+.auth-form__field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.auth-form__field span:not(.auth-form__field-label) {
   color: var(--text-body);
   font-size: 0.88rem;
 }
@@ -183,7 +181,7 @@ async function handleSubmit() {
 .auth-form__submit {
   min-height: 48px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--bg-accent);
   color: #fff;
   font-weight: 800;
@@ -206,7 +204,12 @@ async function handleSubmit() {
 
 @media (max-width: 860px) {
   .auth-screen__panel {
-    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .auth-screen__hero {
+    padding: 4px 2px;
   }
 }
 </style>

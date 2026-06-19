@@ -11,6 +11,9 @@
           <div class="sidebar-brand">
             <img alt="煎豆 Logo" class="sidebar-brand__logo" src="/brand/jiandou-mark.svg" />
           </div>
+          <button class="sidebar-close" type="button" aria-label="关闭导航" @click="sidebarOpen = false">
+            <IconClose size="sm" />
+          </button>
         </div>
 
         <nav class="sidebar-nav">
@@ -127,7 +130,7 @@ import { fetchCreditSummary } from "@/api/credits";
 import { getRuntimeConfig } from "@/api/runtime-config";
 import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import type { CreditSummary } from "@/types";
-import { iconComponentMap } from "@/components/icons";
+import { IconClose, iconComponentMap } from "@/components/icons";
 import type { IconName } from "@/components/icons";
 
 const route = useRoute();
@@ -320,6 +323,10 @@ watch(
   place-items: center;
 }
 
+.sidebar-close {
+  display: none;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -441,12 +448,11 @@ watch(
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 2px;
   width: 44px;
-  min-height: 50px;
+  min-height: 44px;
   padding: 4px 2px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 999px;
   background: linear-gradient(180deg, rgba(239, 252, 255, 0.96), rgba(242, 251, 238, 0.92));
   color: var(--text-strong);
   text-align: center;
@@ -454,10 +460,11 @@ watch(
 }
 
 .sidebar-credit-card__label {
-  color: var(--sidebar-muted);
-  font-size: 0.6rem;
-  font-weight: 700;
-  line-height: 1;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .sidebar-credit-card strong {
@@ -754,16 +761,52 @@ watch(
     top: 0;
     left: 0;
     bottom: 0;
-    width: 228px;
-    flex-basis: 228px;
-    padding: 20px 14px 22px;
+    width: min(82vw, 292px);
+    flex-basis: min(82vw, 292px);
+    padding: 18px 16px 22px;
+    border-right: 0;
+    border-radius: 0 28px 28px 0;
+    box-shadow:
+      18px 0 54px rgba(15, 20, 25, 0.18),
+      inset -1px 0 0 rgba(255, 255, 255, 0.72);
     transform: translateX(-100%);
-    transition: transform 180ms ease;
+    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .workspace-sidebar__top {
     gap: 24px;
     justify-items: stretch;
+  }
+
+  .workspace-sidebar__topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar-brand {
+    width: 46px;
+    height: 46px;
+    border-radius: 17px;
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .sidebar-close {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 20, 25, 0.05);
+    color: var(--text-strong);
+    cursor: pointer;
+  }
+
+  .sidebar-close:hover,
+  .sidebar-close:focus-visible {
+    background: rgba(27, 124, 255, 0.1);
+    color: var(--accent-blue);
   }
 
   .sidebar-nav {
@@ -818,7 +861,15 @@ watch(
   }
 
   .sidebar-credit-card__label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    color: var(--sidebar-muted);
     font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1;
   }
 
   .sidebar-credit-card strong {
@@ -829,6 +880,11 @@ watch(
 
   .workspace-sidebar-open {
     transform: translateX(0);
+  }
+
+  .workspace-sidebar-mask {
+    background: rgba(15, 20, 25, 0.34);
+    backdrop-filter: blur(10px);
   }
 
   .workspace-mobile-bar {

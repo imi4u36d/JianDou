@@ -7,25 +7,9 @@ import type { WorkflowSummary } from "@/types";
 export function useWorkflowList() {
   const loadingWorkflows = ref(false);
   const workflowSearch = ref("");
+  const workflowFilter = ref<"all" | "active" | "ready" | "done">("all");
   const workflowSearchInput = ref<HTMLInputElement | null>(null);
   const workflows = ref<WorkflowSummary[]>([]);
-
-  const filteredWorkflows = computed(() => {
-    const keyword = workflowSearch.value.trim().toLowerCase();
-    if (!keyword) return workflows.value;
-    return workflows.value.filter((item) => {
-      const haystack = [item.title, item.status, item.currentStage, item.aspectRatio].join(" ").toLowerCase();
-      return haystack.includes(keyword);
-    });
-  });
-
-  function focusWorkflowSearch() {
-    workflowSearchInput.value?.focus();
-  }
-
-  function clearWorkflowSearch() {
-    workflowSearch.value = "";
-  }
 
   function workflowCompletionPercentage(workflow: WorkflowSummary): number {
     const storyboardCount = Number(workflow.storyboardVersionCount ?? 0);
@@ -37,6 +21,44 @@ export function useWorkflowList() {
     if (total === 0) return 0;
     const completed = storyboardCount + characterSelected + keyframeCount + videoCount;
     return Math.round((completed / total) * 100);
+  }
+
+  function matchesWorkflowFilter(item: WorkflowSummary) {
+    if (workflowFilter.value === "all") {
+      return true;
+    }
+    const stage = String(item.currentStage || "").toLowerCase();
+    const status = String(item.status || "").toLowerCase();
+    const progress = workflowCompletionPercentage(item);
+    if (workflowFilter.value === "done") {
+      return stage === "final" || stage === "joined" || progress >= 100 || status === "completed";
+    }
+    if (workflowFilter.value === "ready") {
+      return ["storyboard", "character", "keyframe", "video"].includes(stage) && progress > 0 && progress < 100;
+    }
+    return progress === 0 || ["pending", "running", "processing", "created"].includes(status);
+  }
+
+  const filteredWorkflows = computed(() => {
+    const keyword = workflowSearch.value.trim().toLowerCase();
+    return workflows.value.filter((item) => {
+      if (!matchesWorkflowFilter(item)) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      const haystack = [item.title, item.status, item.currentStage, item.aspectRatio].join(" ").toLowerCase();
+      return haystack.includes(keyword);
+    });
+  });
+
+  function focusWorkflowSearch() {
+    workflowSearchInput.value?.focus();
+  }
+
+  function clearWorkflowSearch() {
+    workflowSearch.value = "";
   }
 
   async function loadWorkflows() {
@@ -62,6 +84,7 @@ export function useWorkflowList() {
   return {
     loadingWorkflows,
     workflowSearch,
+    workflowFilter,
     workflowSearchInput,
     workflows,
     filteredWorkflows,

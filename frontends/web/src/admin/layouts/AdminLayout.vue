@@ -9,7 +9,6 @@
           <img alt="煎豆 Logo" class="admin-layout__brand-logo" src="/brand/jiandou-mark.svg" />
         </div>
         <div>
-          <p class="admin-layout__eyebrow">Admin</p>
           <h1>JianDou</h1>
         </div>
       </div>
@@ -55,11 +54,7 @@
     <section class="admin-layout__main">
       <header class="surface-card admin-layout__header">
         <div>
-          <p class="admin-layout__eyebrow">Console</p>
           <h2>{{ currentTitle }}</h2>
-        </div>
-        <div class="admin-layout__header-meta">
-          <el-tag type="warning" effect="plain">Admin Only</el-tag>
         </div>
       </header>
 
@@ -135,11 +130,16 @@ async function handleLogout() {
 }
 
 .admin-layout__aside {
+  position: sticky;
+  top: 24px;
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-height: calc(100vh - 48px);
   padding: 24px 18px 18px;
   border-radius: 22px;
+  overflow: hidden;
 }
 
 .admin-layout__brand {
@@ -229,17 +229,71 @@ async function handleLogout() {
   .admin-layout {
     grid-template-columns: 1fr;
   }
+
+  .admin-layout__aside {
+    position: static;
+    top: auto;
+    max-width: 100%;
+    max-height: none;
+    min-width: 0;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .admin-layout__brand {
+    padding: 0 4px;
+  }
+
+  .admin-layout__brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+
+  .admin-layout__brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .admin-layout__menu {
+    display: flex;
+    width: 100%;
+    min-height: 0;
+    overflow-x: auto;
+    padding: 2px 0;
+  }
+
+  .admin-layout__menu :deep(.el-menu-item) {
+    flex: 0 0 auto;
+    min-height: 40px;
+    margin: 0 4px;
+    padding: 0 12px;
+    border-radius: 999px;
+  }
+
+  .admin-layout__aside-footer {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
   .admin-layout {
-    padding: 16px;
-    gap: 16px;
+    padding: 12px;
+    gap: 12px;
   }
 
   .admin-layout__header {
-    flex-direction: column;
-    align-items: flex-start;
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .admin-layout__header h2 {
+    font-size: 1.2rem;
+  }
+
+  .admin-layout__content {
+    padding-top: 12px;
   }
 }
 </style>

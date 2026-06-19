@@ -4,9 +4,8 @@
       <section class="auth-dialog">
         <header class="auth-dialog__head">
           <div>
-            <p class="auth-dialog__eyebrow">JianDou Account</p>
             <h2 id="auth-dialog-title">{{ modal.title }}</h2>
-            <p>{{ modal.message }}</p>
+            <p v-if="modal.message">{{ modal.message }}</p>
           </div>
           <button class="auth-dialog__close" type="button" aria-label="关闭登录弹窗" @click="handleClose">×</button>
         </header>
@@ -16,43 +15,43 @@
             登录
           </button>
           <button type="button" :class="{ 'auth-dialog__tab-active': modal.mode === 'register' }" @click="switchAuthModalMode('register')">
-            邀请码注册
+            激活
           </button>
         </div>
 
         <form v-if="modal.mode === 'login'" class="auth-dialog__form" @submit.prevent="handleLogin">
           <label class="auth-dialog__field">
-            <span>用户名</span>
+            <span class="auth-dialog__field-label">用户名</span>
             <input v-model.trim="loginForm.username" autocomplete="username" placeholder="用户名" type="text" />
           </label>
           <label class="auth-dialog__field">
-            <span>密码</span>
+            <span class="auth-dialog__field-label">密码</span>
             <input v-model="loginForm.password" autocomplete="current-password" placeholder="密码" type="password" />
           </label>
           <button class="auth-dialog__submit" type="submit" :disabled="submitting">
-            {{ submitting ? "登录中..." : "登录并继续" }}
+            {{ submitting ? "登录中..." : "继续" }}
           </button>
         </form>
 
         <form v-else class="auth-dialog__form" @submit.prevent="handleRegister">
           <label class="auth-dialog__field">
-            <span>邀请码</span>
+            <span class="auth-dialog__field-label">邀请码</span>
             <input v-model.trim="registerForm.code" autocomplete="off" placeholder="邀请码" type="text" />
           </label>
           <label class="auth-dialog__field">
-            <span>用户名</span>
+            <span class="auth-dialog__field-label">用户名</span>
             <input v-model.trim="registerForm.username" autocomplete="username" placeholder="用户名" type="text" />
           </label>
           <label class="auth-dialog__field">
-            <span>显示名</span>
+            <span class="auth-dialog__field-label">显示名</span>
             <input v-model.trim="registerForm.displayName" autocomplete="nickname" placeholder="显示名" type="text" />
           </label>
           <label class="auth-dialog__field">
-            <span>密码</span>
-            <input v-model="registerForm.password" autocomplete="new-password" placeholder="至少 8 位密码" type="password" />
+            <span class="auth-dialog__field-label">密码</span>
+            <input v-model="registerForm.password" autocomplete="new-password" placeholder="密码" type="password" />
           </label>
           <button class="auth-dialog__submit" type="submit" :disabled="submitting">
-            {{ submitting ? "注册中..." : "注册并继续" }}
+            {{ submitting ? "激活中..." : "继续" }}
           </button>
         </form>
       </section>
@@ -146,9 +145,9 @@ watch(
 .auth-dialog {
   width: min(460px, 100%);
   display: grid;
-  gap: 18px;
-  padding: 22px;
-  border-radius: 18px;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 20px;
   border: 1px solid rgba(15, 20, 25, 0.08);
   background: #fff;
   box-shadow: 0 24px 70px rgba(15, 20, 25, 0.2);
@@ -161,19 +160,9 @@ watch(
   gap: 16px;
 }
 
-.auth-dialog__eyebrow,
 .auth-dialog__head h2,
 .auth-dialog__head p {
   margin: 0;
-}
-
-.auth-dialog__eyebrow {
-  margin-bottom: 7px;
-  color: var(--accent-cyan);
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .auth-dialog__head h2 {
@@ -190,11 +179,11 @@ watch(
 }
 
 .auth-dialog__close {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   background: #f1f4f6;
   color: var(--text-body);
   font-size: 1.3rem;
@@ -235,10 +224,18 @@ watch(
 
 .auth-dialog__field {
   display: grid;
-  gap: 7px;
+  gap: 0;
 }
 
-.auth-dialog__field span {
+.auth-dialog__field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.auth-dialog__field span:not(.auth-dialog__field-label) {
   color: var(--text-body);
   font-size: 0.84rem;
   font-weight: 700;

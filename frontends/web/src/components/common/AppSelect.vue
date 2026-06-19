@@ -154,6 +154,16 @@ async function syncMenuPosition() {
   if (!open.value || !trigger.value) {
     return;
   }
+  if (window.innerWidth <= 640) {
+    menuStyle.value = {
+      left: "12px",
+      right: "12px",
+      bottom: "12px",
+      width: "auto",
+      maxHeight: `${Math.round(Math.min(420, window.innerHeight * 0.62))}px`,
+    };
+    return;
+  }
   const rect = trigger.value.getBoundingClientRect();
   const viewportPadding = 12;
   const width = Math.max(rect.width, props.variant === "toolbar" ? 180 : rect.width);
@@ -536,12 +546,12 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 1400;
   overflow: auto;
-  padding: 8px;
-  border-radius: 16px;
+  padding: 7px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 20, 25, 0.08);
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 46px rgba(15, 20, 25, 0.13);
+  backdrop-filter: blur(18px);
 }
 
 .app-select__menu--admin {
@@ -559,7 +569,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  min-height: 40px;
+  padding: 9px 12px;
   border: 1px solid transparent;
   border-radius: 12px;
   background: transparent;
@@ -573,13 +584,13 @@ onBeforeUnmount(() => {
 
 .app-select__option:hover:not(:disabled),
 .app-select__option-highlighted {
-  border-color: rgba(124, 58, 237, 0.18);
-  background: rgba(124, 58, 237, 0.07);
+  border-color: rgba(27, 124, 255, 0.16);
+  background: rgba(27, 124, 255, 0.07);
 }
 
 .app-select__option-selected {
-  border-color: rgba(124, 58, 237, 0.24);
-  background: rgba(124, 58, 237, 0.1);
+  border-color: rgba(0, 169, 187, 0.22);
+  background: linear-gradient(180deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.88));
 }
 
 .app-select__menu--admin .app-select__option {
@@ -654,5 +665,25 @@ onBeforeUnmount(() => {
 .app-select-fade-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+@media (max-width: 640px) {
+  .app-select__menu {
+    padding: 10px;
+    border-radius: 22px;
+    box-shadow:
+      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  }
+
+  .app-select__option {
+    min-height: 46px;
+    border-radius: 14px;
+  }
+
+  .app-select-fade-enter-from,
+  .app-select-fade-leave-to {
+    transform: translateY(14px);
+  }
 }
 </style>

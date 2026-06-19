@@ -12,12 +12,11 @@
       <template #header>
         <div class="invite-page__toolbar">
           <div>
-            <p class="invite-page__eyebrow">邀请码</p>
-            <h3>邀请码管理</h3>
+            <h3>邀请码</h3>
           </div>
           <div class="invite-page__toolbar-actions">
             <el-button :icon="Refresh" plain @click="loadInvites">刷新</el-button>
-            <el-button :icon="Plus" type="primary" @click="openCreateDialog">生成邀请码</el-button>
+            <el-button :icon="Plus" type="primary" @click="openCreateDialog">生成</el-button>
           </div>
         </div>
       </template>
@@ -127,10 +126,10 @@ const summaryCards = computed(() => {
   const used = invites.value.filter((invite) => invite.status === "USED").length;
   const expired = invites.value.filter((invite) => invite.status === "EXPIRED").length;
   return [
-    { label: "全部邀请码", value: total, note: "历史生成记录" },
-    { label: "可使用", value: unused, note: "12 小时内未使用" },
-    { label: "已使用", value: used, note: "已完成账号注册" },
-    { label: "已过期", value: expired, note: "超过有效期" }
+    { label: "全部邀请码", value: total, note: "总数" },
+    { label: "可使用", value: unused, note: "12 小时" },
+    { label: "已使用", value: used, note: "已激活" },
+    { label: "已过期", value: expired, note: "过期" }
   ];
 });
 
@@ -289,14 +288,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-}
-
-.invite-page__eyebrow {
-  margin: 0 0 4px;
-  color: var(--jd-text-soft);
-  font-size: 0.76rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .invite-page__toolbar h3 {

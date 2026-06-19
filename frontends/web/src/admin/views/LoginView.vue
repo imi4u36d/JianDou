@@ -1,26 +1,15 @@
 <template>
   <div class="page-shell login-view">
     <div class="login-view__intro">
-      <p class="login-view__eyebrow">JianDou Admin</p>
-      <h1>独立的后台管理入口</h1>
-      <p>
-        管理端只接受管理员账号登录。用户管理、账号启停、密码重置等操作都在这里完成。
-      </p>
-      <div class="login-view__badges">
-        <span>Element Plus</span>
-        <span>Admin Only</span>
-        <span>Secure Session</span>
-      </div>
+      <h1>管理端</h1>
     </div>
 
     <el-card class="surface-card login-view__card" shadow="never">
       <template #header>
         <div class="login-view__card-header">
           <div>
-            <p class="login-view__eyebrow">Sign In</p>
             <h2>管理员登录</h2>
           </div>
-          <el-tag type="warning" effect="plain">仅管理员</el-tag>
         </div>
       </template>
 
@@ -85,22 +74,15 @@ async function handleSubmit() {
 <style scoped>
 .login-view {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 460px);
+  grid-template-columns: minmax(0, 430px);
+  justify-content: center;
   align-items: center;
-  gap: 40px;
-  padding: 48px;
+  gap: 20px;
+  padding: 24px;
 }
 
 .login-view__intro {
-  max-width: 620px;
-}
-
-.login-view__eyebrow {
-  margin: 0 0 12px;
-  color: var(--jd-text-soft);
-  font-size: 0.78rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  text-align: center;
 }
 
 .login-view__intro h1,
@@ -110,33 +92,12 @@ async function handleSubmit() {
 }
 
 .login-view__intro h1 {
-  font-size: clamp(2.5rem, 5vw, 4.3rem);
-  line-height: 0.96;
-}
-
-.login-view__intro p {
-  max-width: 540px;
-  color: var(--jd-text-soft);
-  font-size: 1.02rem;
-}
-
-.login-view__badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 28px;
-}
-
-.login-view__badges span {
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.54);
-  border: 1px solid rgba(23, 32, 42, 0.08);
-  color: var(--jd-text-soft);
+  font-size: clamp(1.8rem, 4.8vw, 2.4rem);
+  line-height: 1.12;
 }
 
 .login-view__card {
-  border-radius: 28px;
+  border-radius: 20px;
 }
 
 .login-view__card-header {

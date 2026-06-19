@@ -20,13 +20,12 @@
       <template #header>
         <div class="user-page__toolbar">
           <div>
-            <p class="user-page__eyebrow">账号</p>
             <h3>账号列表</h3>
           </div>
           <div class="user-page__toolbar-actions">
             <el-button plain @click="resetFilters">重置</el-button>
             <el-button :icon="Refresh" plain @click="loadUsers">刷新</el-button>
-            <el-button :icon="Plus" type="primary" @click="openCreateDialog">新建用户</el-button>
+            <el-button :icon="Plus" type="primary" @click="openCreateDialog">新建</el-button>
           </div>
         </div>
       </template>
@@ -293,12 +292,12 @@ const summaryCards = computed(() => {
   const runningTasks = users.value.reduce((sum, user) => sum + (user.runningTaskCount ?? 0), 0);
   const queuedTasks = users.value.reduce((sum, user) => sum + (user.queuedTaskCount ?? 0), 0);
   return [
-    { label: "全部账号", value: total, note: "可管理登录账户" },
-    { label: "启用中", value: active, note: "当前可正常登录" },
-    { label: "管理员", value: admins, note: "后台可访问账号" },
-    { label: "已禁用", value: disabled, note: "等待恢复或删除" },
-    { label: "运行中", value: runningTasks, note: "正在占用用户额度" },
-    { label: "排队中", value: queuedTasks, note: "等待可用用户额度" }
+    { label: "全部账号", value: total, note: "可管理" },
+    { label: "启用中", value: active, note: "可登录" },
+    { label: "管理员", value: admins, note: "后台" },
+    { label: "已禁用", value: disabled, note: "停用" },
+    { label: "运行中", value: runningTasks, note: "占用额度" },
+    { label: "排队中", value: queuedTasks, note: "等待额度" }
   ];
 });
 
@@ -570,14 +569,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-}
-
-.user-page__eyebrow {
-  margin: 0 0 4px;
-  color: var(--jd-text-soft);
-  font-size: 0.76rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .user-page__toolbar h3 {

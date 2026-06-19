@@ -3,9 +3,7 @@
     <template #header>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-wide text-slate-500">Model & Capabilities</p>
-          <h3 class="mt-1 text-base font-semibold">模型与规划能力</h3>
-          <p class="mt-1 text-sm text-slate-600">只读配置检查，不触发真实模型调用。</p>
+          <h3 class="text-base font-semibold">模型与规划能力</h3>
         </div>
         <el-button :icon="Refresh" :loading="loading" @click="loadHealth">刷新</el-button>
       </div>

@@ -99,7 +99,7 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
   function handleReferenceEntryClick() {
     if (selectedMode.value.kind === "video") {
       referenceDevelopingDialogOpen.value = true;
-      statusText.value = "视频模式添加参考图正在开发中。";
+      statusText.value = "暂不可用。";
       return;
     }
     textFileInput.value?.click();

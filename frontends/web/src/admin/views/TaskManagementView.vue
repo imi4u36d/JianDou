@@ -20,7 +20,6 @@
       <template #header>
         <div class="task-page__toolbar">
           <div>
-            <p class="task-page__eyebrow">任务</p>
             <h3>任务列表</h3>
           </div>
           <div class="task-page__toolbar-actions">
@@ -196,10 +195,10 @@ const summaryCards = computed(() => {
   const failed = tasks.value.filter((item) => item.status === "FAILED").length;
   const running = tasks.value.filter((item) => ["PENDING", "ANALYZING", "PLANNING", "RENDERING"].includes(item.status)).length;
   return [
-    { label: "全部任务", value: total, note: "当前筛选结果集" },
-    { label: "处理中", value: running, note: "排队与执行中的任务" },
-    { label: "已完成", value: completed, note: "已经产出结果" },
-    { label: "失败任务", value: failed, note: "建议及时排查处理" }
+    { label: "全部任务", value: total, note: "当前筛选" },
+    { label: "处理中", value: running, note: "排队/执行" },
+    { label: "已完成", value: completed, note: "已产出" },
+    { label: "失败任务", value: failed, note: "待排查" }
   ];
 });
 
@@ -435,16 +434,8 @@ onMounted(() => {
 }
 
 .task-page__toolbar h3 {
-  margin: 4px 0 0;
-  font-family: inherit;
-}
-
-.task-page__eyebrow {
   margin: 0;
-  color: var(--jd-text-soft);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-family: inherit;
 }
 
 .task-page__toolbar-actions {

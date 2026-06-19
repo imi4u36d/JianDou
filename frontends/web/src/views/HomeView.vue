@@ -109,7 +109,6 @@
                     <span class="home-popover__icon"><IconVideo v-if="option.iconName === 'video'" /><IconImage v-else-if="option.iconName === 'image'" /><IconCharacter v-else /></span>
                     <span>
                       <strong>{{ option.label }}</strong>
-                      <small>{{ option.description }}</small>
                     </span>
                     <span v-if="selectedModeValue === option.value" class="home-popover__check" aria-hidden="true">
                       <IconCheck size="sm" />
@@ -138,10 +137,9 @@
                         :class="{ 'home-popover__item-active': form.textAnalysisModel === model.value }"
                         @click="form.textAnalysisModel = model.value"
                       >
-                        <span class="home-popover__icon">文</span>
+                        <span class="home-popover__icon"><IconText size="sm" /></span>
                         <span>
                           <strong>{{ model.label }}</strong>
-                          <small>{{ modelOptionDescription(model) }}</small>
                         </span>
                         <span v-if="form.textAnalysisModel === model.value" class="home-popover__check" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none">
@@ -160,10 +158,9 @@
                         :class="{ 'home-popover__item-active': form.imageModel === model.value }"
                         @click="form.imageModel = model.value"
                       >
-                        <span class="home-popover__icon">帧</span>
+                        <span class="home-popover__icon"><IconFrame size="sm" /></span>
                         <span>
                           <strong>{{ model.label }}</strong>
-                          <small>{{ modelOptionDescription(model) }}</small>
                         </span>
                         <span v-if="form.imageModel === model.value" class="home-popover__check" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none">
@@ -182,10 +179,9 @@
                         :class="{ 'home-popover__item-active': form.videoModel === model.value }"
                         @click="form.videoModel = model.value"
                       >
-                        <span class="home-popover__icon">影</span>
+                        <span class="home-popover__icon"><IconVideo size="sm" /></span>
                         <span>
                           <strong>{{ model.label }}</strong>
-                          <small>{{ modelOptionDescription(model) }}</small>
                         </span>
                         <span v-if="form.videoModel === model.value" class="home-popover__check" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none">
@@ -206,10 +202,9 @@
                         :class="{ 'home-popover__item-active': form.textAnalysisModel === model.value }"
                         @click="form.textAnalysisModel = model.value"
                       >
-                        <span class="home-popover__icon">文</span>
+                        <span class="home-popover__icon"><IconText size="sm" /></span>
                         <span>
                           <strong>{{ model.label }}</strong>
-                          <small>{{ modelOptionDescription(model) }}</small>
                         </span>
                         <span v-if="form.textAnalysisModel === model.value" class="home-popover__check" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none">
@@ -228,10 +223,9 @@
                         :class="{ 'home-popover__item-active': form.imageModel === model.value }"
                         @click="form.imageModel = model.value"
                       >
-                        <span class="home-popover__icon">图</span>
+                        <span class="home-popover__icon"><IconImage size="sm" /></span>
                         <span>
                           <strong>{{ model.label }}</strong>
-                          <small>{{ modelOptionDescription(model) }}</small>
                         </span>
                         <span v-if="form.imageModel === model.value" class="home-popover__check" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none">
@@ -253,7 +247,7 @@
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'ratio'" class="home-popover home-popover-ratio">
                   <section class="home-popover-section">
-                    <p class="home-popover__label">选择比例</p>
+                    <p class="home-popover__label">比例</p>
                     <div class="home-ratio-list home-ratio-list-immersive">
                       <button
                         v-for="ratio in ratioOptions"
@@ -269,7 +263,7 @@
                   </section>
                   <template v-if="selectedMode.kind === 'image'">
                     <section class="home-popover-section">
-                      <p class="home-popover__label">选择分辨率</p>
+                      <p class="home-popover__label">分辨率</p>
                       <div class="home-resolution-list">
                         <button
                           v-for="size in imageSizeOptions"
@@ -328,7 +322,7 @@
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'duration'" class="home-popover home-popover-compact">
-                  <p class="home-popover__label">视频时长</p>
+                  <p class="home-popover__label">时长</p>
                   <div class="home-segment-grid">
                     <button type="button" :class="{ 'home-segment-active': durationMode === 'auto' }" @click="durationMode = 'auto'">自动</button>
                     <button
@@ -352,7 +346,7 @@
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'count'" class="home-popover home-popover-compact">
-                  <p class="home-popover__label">{{ selectedMode.kind === "image" ? "图片张数" : "分镜数量" }}</p>
+                  <p class="home-popover__label">{{ selectedMode.kind === "image" ? "张数" : "分镜" }}</p>
                   <div class="home-segment-grid">
                     <template v-if="selectedMode.kind === 'image'">
                       <button
@@ -389,12 +383,11 @@
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'mention'" class="home-popover home-popover-mention">
-                  <p class="home-popover__label">可能@的内容</p>
+                  <p class="home-popover__label">引用</p>
                   <button type="button" class="home-popover__item" @click="insertMention('创建主体')">
                     <span class="home-popover__icon"><IconPlus size="sm" /></span>
                     <span>
                       <strong>创建主体</strong>
-                      <small>{{ selectedMode.kind === "image" ? "基于参考图或描述生成主体" : "视频主体功能正在开发中" }}</small>
                     </span>
                   </button>
                   <template v-if="selectedMode.kind === 'image'">
@@ -410,11 +403,10 @@
                       </span>
                       <span>
                         <strong>{{ item.label }}</strong>
-                        <small>{{ item.fileName }}</small>
                       </span>
                     </button>
                   </template>
-                  <p v-if="selectedMode.kind === 'video'" class="home-popover__empty">视频模式参考图正在开发中</p>
+                  <p v-if="selectedMode.kind === 'video'" class="home-popover__empty">暂不可用</p>
                   <p v-else-if="!referenceImages.length" class="home-popover__empty">暂无参考图</p>
                 </div>
               </transition>
@@ -423,7 +415,7 @@
             <div class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'seed' }" @click="toggleMenu('seed')">
                 <span class="home-tool__icon"><IconTag /></span>
-                {{ seedMode === "auto" ? "自动种子" : "手动种子" }}
+                {{ seedMode === "auto" ? "自动" : "手动" }}
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'seed'" class="home-popover home-popover-seed">
@@ -434,11 +426,11 @@
                   </div>
                   <label v-if="seedMode === 'manual'" class="home-field">
                     <span>种子值</span>
-                    <input v-model="seedInput" inputmode="numeric" placeholder="输入非负整数" />
+                    <input v-model="seedInput" inputmode="numeric" placeholder="非负整数" />
                   </label>
                   <div v-else class="home-seed-row">
                     <span>{{ autoSeed }}</span>
-                    <button type="button" @click="refreshAutoSeed">换一个</button>
+                    <button type="button" @click="refreshAutoSeed">换</button>
                   </div>
                   <small>{{ seedCapabilityHint }}</small>
                 </div>
@@ -450,7 +442,7 @@
             <span v-if="creditLabel" class="home-credit-pill" :class="{ 'home-credit-pill-exempt': credits?.exempt }">
               {{ creditLabel }}
             </span>
-            <RouterLink v-if="createdTaskId" :to="{ name: 'tasks', query: { selected: createdTaskId } }">查看任务</RouterLink>
+            <RouterLink v-if="createdTaskId" :to="{ name: 'tasks', query: { selected: createdTaskId } }">查看</RouterLink>
           </div>
         </div>
 
@@ -465,17 +457,17 @@
 
       <div v-if="referenceDevelopingDialogOpen" class="home-dialog" role="dialog" aria-modal="true" aria-labelledby="reference-developing-title" @click.self="referenceDevelopingDialogOpen = false">
         <div class="home-dialog__panel">
-          <h2 id="reference-developing-title">正在开发中</h2>
-          <p>视频模式添加参考图正在开发中。</p>
-          <button type="button" @click="referenceDevelopingDialogOpen = false">知道了</button>
+          <h2 id="reference-developing-title">暂不可用</h2>
+          <p>视频参考图稍后开放。</p>
+          <button type="button" @click="referenceDevelopingDialogOpen = false">好</button>
         </div>
       </div>
     </section>
 
     <Transition name="home-toast-slide">
       <div v-if="taskToastTaskId" class="home-task-toast" role="status">
-        <span>任务已提交，可在任务管理查看进度</span>
-        <RouterLink :to="{ name: 'tasks', query: { selected: taskToastTaskId } }">查看任务</RouterLink>
+        <span>已提交</span>
+        <RouterLink :to="{ name: 'tasks', query: { selected: taskToastTaskId } }">查看</RouterLink>
         <button type="button" aria-label="关闭任务提示" @click="dismissTaskToast">×</button>
       </div>
     </Transition>
@@ -521,7 +513,7 @@ import { usePromptEditor } from "@/composables/home/usePromptEditor";
 import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
 import { useGenerationForm, type ModeValue, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
-import { IconCheck, IconVideo, IconImage, IconCharacter, IconModel, IconDuration, IconFrame, IconTag, IconPlus } from "@/components/icons";
+import { IconCheck, IconVideo, IconImage, IconCharacter, IconModel, IconDuration, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
 
 type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention" | "seed";
 
@@ -872,7 +864,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .home-page {
   min-height: 100%;
-  padding: 76px 48px 56px;
+  padding: 56px 48px 48px;
   background:
     radial-gradient(circle at 18% 8%, rgba(139, 212, 80, 0.18), transparent 28%),
     radial-gradient(circle at 82% 12%, rgba(27, 124, 255, 0.12), transparent 30%),
@@ -883,7 +875,7 @@ onBeforeUnmount(() => {
 .home-hero {
   display: grid;
   justify-items: center;
-  gap: 34px;
+  gap: 26px;
 }
 
 .home-hero h1 {
@@ -895,7 +887,7 @@ onBeforeUnmount(() => {
   margin: 0;
   max-width: 920px;
   color: #131a20;
-  font-size: clamp(1.65rem, 3vw, 2.55rem);
+  font-size: clamp(1.45rem, 2.6vw, 2.18rem);
   font-weight: 780;
   letter-spacing: 0;
   line-height: 1.18;
@@ -924,16 +916,16 @@ onBeforeUnmount(() => {
   position: relative;
   display: grid;
   width: min(100%, 1120px);
-  min-height: 206px;
-  padding: 24px 72px 24px 128px;
+  min-height: 188px;
+  padding: 22px 68px 22px 118px;
   border: 1px solid rgba(0, 169, 187, 0.12);
-  border-radius: 24px;
+  border-radius: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(253, 254, 253, 0.96)),
     #fff;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
-    0 18px 42px rgba(27, 124, 255, 0.08),
+    0 14px 34px rgba(27, 124, 255, 0.07),
     0 4px 16px rgba(0, 169, 187, 0.06);
 }
 
@@ -943,8 +935,8 @@ onBeforeUnmount(() => {
 
 .home-composer__upload {
   position: absolute;
-  left: 28px;
-  top: 24px;
+  left: 24px;
+  top: 22px;
   z-index: 4;
   display: grid;
   place-items: center;
@@ -1215,7 +1207,7 @@ onBeforeUnmount(() => {
   display: grid;
   align-content: start;
   gap: 10px;
-  min-height: 104px;
+  min-height: 96px;
 }
 
 .home-reference-pill {
@@ -1261,7 +1253,7 @@ onBeforeUnmount(() => {
 .home-composer__prompt {
   position: relative;
   display: block;
-  min-height: 104px;
+  min-height: 96px;
   outline: none;
 }
 
@@ -1301,7 +1293,7 @@ onBeforeUnmount(() => {
 }
 
 .home-composer__editor {
-  min-height: 104px;
+  min-height: 96px;
   width: 100%;
   padding: 0 18px 0 0;
   border: 0;
@@ -1331,7 +1323,7 @@ onBeforeUnmount(() => {
   align-items: flex-end;
   justify-content: space-between;
   gap: 14px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .home-composer__toolbar {
@@ -1434,29 +1426,28 @@ onBeforeUnmount(() => {
   top: calc(100% + 8px);
   z-index: 5;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   width: 320px;
   max-height: min(480px, calc(100vh - 120px));
   overflow-y: auto;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid rgba(18, 28, 33, 0.08);
-  border-radius: 14px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.98);
   box-shadow:
-    0 18px 42px rgba(18, 28, 33, 0.12),
+    0 22px 54px rgba(18, 28, 33, 0.14),
     0 2px 8px rgba(18, 28, 33, 0.04);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(18px);
 }
 
 .home-popover-ratio {
   width: min(440px, calc(100vw - 48px));
   gap: 10px;
   padding: 12px;
-  border-radius: 16px;
 }
 
 .home-popover-model {
-  width: min(360px, calc(100vw - 48px));
+  width: min(320px, calc(100vw - 48px));
 }
 
 .home-popover-compact,
@@ -1483,19 +1474,26 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 58px;
-  border: 0;
-  padding: 0 10px;
-  border-radius: 12px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  padding: 0 11px;
+  border-radius: 14px;
   background: transparent;
   color: var(--text-strong);
   text-align: left;
   cursor: pointer;
-  transition: background 160ms ease, color 160ms ease;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .home-popover__item-active {
-  background: #effcff;
+  border-color: rgba(0, 169, 187, 0.16);
+  background: linear-gradient(180deg, #effcff, #edf5ff);
+}
+
+.home-popover__item:hover {
+  border-color: rgba(27, 124, 255, 0.14);
+  background: rgba(237, 245, 255, 0.62);
+  transform: translateY(-1px);
 }
 
 .home-popover__icon {
@@ -1530,8 +1528,12 @@ onBeforeUnmount(() => {
 }
 
 .home-popover__item strong {
+  min-width: 0;
   font-size: 0.84rem;
   font-weight: 740;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .home-popover__item small,
@@ -1560,7 +1562,7 @@ onBeforeUnmount(() => {
 .home-popover__empty {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #f7f8f9;
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -1853,8 +1855,8 @@ onBeforeUnmount(() => {
 
 .home-composer__submit {
   position: absolute;
-  right: 20px;
-  bottom: 22px;
+  right: 18px;
+  bottom: 20px;
   display: grid;
   place-items: center;
   width: 40px;
@@ -2012,7 +2014,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1180px) {
   .home-page {
-    padding: 44px 22px 36px;
+    padding: 34px 22px 36px;
   }
 }
 
@@ -2022,7 +2024,7 @@ onBeforeUnmount(() => {
   }
 
   .home-hero {
-    gap: 28px;
+    gap: 22px;
   }
 
   .home-hero h1 {

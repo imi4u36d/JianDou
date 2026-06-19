@@ -3,25 +3,16 @@
     <div v-if="loading" class="py-8 text-center text-sm text-slate-500">正在读取任务详情...</div>
 
     <template v-else-if="task">
-      <el-card class="surface-card" shadow="never">
-        <template #header>
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p class="text-xs uppercase tracking-wide text-slate-500">Task Detail</p>
-              <h3 class="mt-1 text-base font-semibold">任务详情</h3>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <el-button v-if="task?.status === 'FAILED'" type="warning" :disabled="actionLoading" @click="retryTaskAction">失败重试</el-button>
-              <el-button type="danger" :disabled="actionLoading || runningTask" @click="deleteTaskAction">删除</el-button>
-            </div>
-          </div>
-        </template>
-      </el-card>
-
       <div class="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <el-card class="surface-card mt-4" shadow="never">
+        <el-card class="surface-card admin-task-detail-card" shadow="never">
           <template #header>
-            <h3 class="text-base font-semibold text-slate-900">基础信息</h3>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h3 class="text-base font-semibold text-slate-900">基础信息</h3>
+              <div class="flex flex-wrap gap-2">
+                <el-button v-if="task?.status === 'FAILED'" type="warning" :disabled="actionLoading" @click="retryTaskAction">重试</el-button>
+                <el-button type="danger" :disabled="actionLoading || runningTask" @click="deleteTaskAction">删除</el-button>
+              </div>
+            </div>
           </template>
 
           <el-descriptions :column="2" border size="small">
@@ -37,7 +28,7 @@
 
           <el-divider />
 
-          <h4 class="mb-3 text-sm font-semibold text-slate-900">任务摘要</h4>
+          <h4 class="mb-3 text-sm font-semibold text-slate-900">{{ planningSummary.label }}</h4>
           <p class="text-sm text-slate-700">{{ planningSummary.title }}</p>
 
           <el-divider v-if="monitoringRows.length" />
@@ -106,7 +97,7 @@
               <el-tag size="small">时长模式 {{ requestDurationMode }}</el-tag>
             </div>
             <el-descriptions :column="2" border size="small">
-              <el-descriptions-item v-for="item in requestRows" :key="item.label" :label="item.label">
+              <el-descriptions-item v-for="item in compactRequestRows" :key="item.label" :label="item.label">
                 {{ item.value }}
               </el-descriptions-item>
             </el-descriptions>
@@ -143,7 +134,7 @@
           </div>
         </el-card>
 
-        <el-card class="surface-card mt-4" shadow="never">
+        <el-card class="surface-card admin-task-detail-card" shadow="never">
           <template #header>
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -253,12 +244,12 @@ const runningTask = computed(() => Boolean(task.value && (task.value.status === 
 
 const planningSummary = computed(() => {
   if (!task.value?.plan?.length) {
-    return { label: "未生成计划", title: "当前还没有任务计划", detail: "任务如果失败或仍在处理中，计划可能尚未生成。" };
+    return { label: "未生成计划", title: "暂无计划", detail: "计划未生成。" };
   }
   if (task.value.hasTimedTranscript) {
-    return { label: "时间轴输入", title: "当前任务包含时间轴文本输入", detail: "系统会优先依据时间轴文本与阶段信号推进生成。" };
+    return { label: "时间轴输入", title: "按时间轴推进", detail: "按时间轴推进。" };
   }
-  return { label: "任务生成", title: "当前任务使用标准生成链路", detail: "系统按分析、编排、渲染阶段持续推进。" };
+  return { label: "任务生成", title: "标准生成链路", detail: "标准生成链路。" };
 });
 
 const requestSnapshot = computed(() => {
@@ -284,6 +275,8 @@ const requestRows = computed(() => {
     { label: "文本输入", value: formatTaskTranscriptSummary(requestSnapshot.value) },
   ];
 });
+
+const compactRequestRows = computed(() => requestRows.value.slice(0, 6));
 
 const taskSeedLabel = computed(() => {
   const topLevelSeed = task.value?.taskSeed;
@@ -534,3 +527,17 @@ watch(taskId, () => {
   void refresh();
 }, { immediate: true });
 </script>
+
+<style scoped>
+.admin-task-detail-card {
+  min-width: 0;
+}
+
+.admin-task-detail-card :deep(.el-card__header) {
+  padding: 16px 18px;
+}
+
+.admin-task-detail-card :deep(.el-card__body) {
+  padding: 18px;
+}
+</style>

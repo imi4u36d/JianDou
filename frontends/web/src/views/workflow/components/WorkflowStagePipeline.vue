@@ -34,7 +34,6 @@ const emit = defineEmits<{
       <span class="workflow-stage-step__index">{{ stage.index }}</span>
       <span class="workflow-stage-step__text">
         <strong>{{ stage.label }}</strong>
-        <small>{{ stage.status }}</small>
       </span>
       <span class="workflow-stage-step__count">{{ stage.count }}</span>
     </button>
@@ -51,13 +50,13 @@ const emit = defineEmits<{
 
 .workflow-stage-step {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  min-height: 72px;
-  padding: 12px;
+  min-height: 48px;
+  padding: 8px 10px;
   border: 1px solid rgba(0, 169, 187, 0.1);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.76);
   color: var(--text-body);
   text-align: left;
@@ -82,11 +81,12 @@ const emit = defineEmits<{
 .workflow-stage-step__index {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #effcff;
   color: currentColor;
+  font-size: 0.76rem;
   font-weight: 900;
 }
 
@@ -106,6 +106,7 @@ const emit = defineEmits<{
 
 .workflow-stage-step__text strong {
   color: var(--text-strong);
+  font-size: 0.82rem;
 }
 
 .workflow-stage-step__text small,
@@ -120,7 +121,7 @@ const emit = defineEmits<{
 
 @media (max-width: 1180px) {
   .workflow-stage-pipeline {
-    grid-template-columns: repeat(5, minmax(160px, 1fr));
+    grid-template-columns: repeat(5, minmax(132px, 1fr));
     overflow-x: auto;
     padding-bottom: 4px;
   }

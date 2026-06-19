@@ -26,6 +26,14 @@
         <button
           class="material-toolbar-link"
           type="button"
+          :class="{ 'material-toolbar-link-active': advancedFiltersOpen }"
+          @click="advancedFiltersOpen = !advancedFiltersOpen"
+        >
+          筛选
+        </button>
+        <button
+          class="material-toolbar-link"
+          type="button"
           :class="{ 'material-toolbar-link-active': batchMode }"
           @click="batchMode = !batchMode"
         >
@@ -38,21 +46,6 @@
       </div>
     </header>
 
-    <section class="material-shelf-head">
-      <div>
-        <h2>{{ activeTabLabel }}</h2>
-        <p>{{ materialCountLabel }}</p>
-      </div>
-      <div class="material-shelf-actions">
-        <button class="material-filter-button" type="button" :class="{ 'material-filter-button-active': advancedFiltersOpen }" @click="advancedFiltersOpen = !advancedFiltersOpen">
-          {{ advancedFiltersOpen ? "收起筛选" : "筛选" }}
-        </button>
-        <button class="material-filter-button" type="button" :disabled="loading" @click="loadAssets">
-          {{ loading ? "刷新中..." : "刷新" }}
-        </button>
-      </div>
-    </section>
-
     <section v-if="advancedFiltersOpen" class="material-filter-drawer">
       <label class="material-field">
         <span>素材类型</span>
@@ -60,7 +53,7 @@
       </label>
       <label class="material-field">
         <span>模型</span>
-        <input v-model="filters.model" class="field-input" placeholder="输入模型名" @keyup.enter="loadAssets" />
+        <input v-model="filters.model" class="field-input" placeholder="模型" @keyup.enter="loadAssets" />
       </label>
       <label class="material-field">
         <span>画幅</span>
@@ -87,15 +80,10 @@
     </section>
 
     <section v-if="loading && !assets.length" class="material-empty">
-      正在加载素材库...
+      加载中
     </section>
 
     <section v-else class="material-asset-grid">
-      <RouterLink class="material-new-tile" to="/workspace">
-        <span class="material-new-tile__preview">+</span>
-        <strong>新建项目</strong>
-      </RouterLink>
-
       <article v-for="asset in displayedAssets" :key="asset.id" class="material-card" :class="{ 'material-card-selected': isAssetChecked(asset.id) }">
         <label v-if="batchMode" class="material-card__check">
           <input type="checkbox" :checked="isAssetChecked(asset.id)" @change="toggleAssetSelection(asset.id)" />
@@ -118,7 +106,7 @@
             type="button"
             @click="openVideoAsset(asset)"
           >
-            <span>VIDEO</span>
+            <span><IconVideo size="sm" /></span>
           </button>
           <button
             v-else-if="asset.mediaType === 'image' && assetListImageUrl(asset)"
@@ -134,7 +122,7 @@
             type="button"
             @click="openImagePreview(asset)"
           >
-            <span>IMAGE</span>
+            <span><IconImage size="sm" /></span>
           </button>
           <button
             v-else
@@ -167,7 +155,7 @@
                   {{ busyActionKey === `upload-${asset.id}` ? "上传中..." : (asset.remoteUrl ? "已上传" : "上传") }}
                 </button>
                 <button type="button" :disabled="busyActionKey === `reuse-${asset.id}`" @click="handleReuseAsset(asset.id)">
-                  {{ busyActionKey === `reuse-${asset.id}` ? "复制中..." : "复制为新工作流" }}
+                  {{ busyActionKey === `reuse-${asset.id}` ? "复制中..." : "复用" }}
                 </button>
                 <RouterLink v-if="asset.workflowId" :to="`/workflows/${asset.workflowId}`">打开工作流</RouterLink>
                 <a :href="asset.fileUrl" download target="_blank" rel="noopener noreferrer">下载</a>
@@ -181,26 +169,27 @@
       </article>
 
       <div v-if="!displayedAssets.length && !hasMoreAssets" class="material-empty material-empty-inline">
-        <strong>当前没有匹配的素材</strong>
-        <span>可以新建素材，或调整顶部分类与筛选条件。</span>
+        <strong>没有匹配素材</strong>
+        <RouterLink to="/workspace" class="material-empty-inline__action">新建</RouterLink>
       </div>
 
       <div v-else-if="displayedAssets.length || hasMoreAssets" ref="loadMoreTrigger" class="material-load-more">
-        <span v-if="loadingMore">正在加载更多素材...</span>
-        <span v-else-if="hasMoreAssets">继续下滑加载更多</span>
-        <span v-else>已加载全部素材</span>
+        <span v-if="loadingMore">加载中</span>
+        <span v-else-if="hasMoreAssets">继续下滑</span>
+        <span v-else>已到底</span>
       </div>
     </section>
 
     <div v-if="previewDialog.open" class="material-preview-overlay" role="dialog" aria-modal="true" @click.self="closePreviewDialog">
       <div class="material-preview-dialog" :class="{ 'material-preview-dialog-image': previewDialog.kind === 'image' }">
-        <div class="material-preview-dialog__head">
+        <div v-if="previewDialog.kind !== 'image'" class="material-preview-dialog__head">
           <div>
-            <p class="material-eyebrow">{{ previewDialog.kind === "image" ? "Image Preview" : "Storyboard" }}</p>
             <h3>{{ previewDialog.title }}</h3>
           </div>
-          <button type="button" class="btn-ghost btn-sm" @click="closePreviewDialog">关闭</button>
+          <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="closePreviewDialog">×</button>
         </div>
+        <button v-else type="button" class="material-preview-dialog__close material-preview-dialog__close-floating" aria-label="关闭预览" @click="closePreviewDialog">×</button>
+        <strong v-if="previewDialog.kind === 'image'" class="material-preview-dialog__caption">{{ previewDialog.title }}</strong>
         <img
           v-if="previewDialog.kind === 'image'"
           class="material-preview-dialog__image"
@@ -223,7 +212,7 @@ import type { AppSelectOption } from "@/components/common/app-select";
 import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
-import { IconMore, IconPlus, IconSearch } from "@/components/icons";
+import { IconImage, IconMore, IconPlus, IconSearch, IconVideo } from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
@@ -280,7 +269,6 @@ const previewDialog = reactive({
   url: "",
 });
 
-const activeTabLabel = computed(() => libraryTabs.find((tab) => tab.key === activeLibraryTab.value)?.label ?? "全部");
 const displayedAssets = computed(() => {
   const tab = activeLibraryTab.value;
   if (tab === "image") {
@@ -294,11 +282,6 @@ const displayedAssets = computed(() => {
   }
   return assets.value.filter((asset) => asset.assetType === tab);
 });
-const materialCountLabel = computed(() => {
-  const count = displayedAssets.value.length;
-  return count ? `${count} 个素材` : "暂无素材";
-});
-
 function buildQuery(): MaterialAssetQuery {
   return {
     q: filters.q.trim() || undefined,
@@ -769,8 +752,7 @@ watch(
 
 .material-search-button,
 .material-toolbar-link,
-.material-toolbar-primary,
-.material-filter-button {
+.material-toolbar-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -813,45 +795,6 @@ watch(
   width: 1px;
   height: 18px;
   background: rgba(15, 20, 25, 0.06);
-}
-
-.material-shelf-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 4px 10px 0;
-}
-
-.material-shelf-head h2 {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 1rem;
-}
-
-.material-shelf-head p {
-  margin: 6px 0 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.material-shelf-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.material-filter-button {
-  border: 1px solid rgba(0, 169, 187, 0.12);
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--text-body);
-  cursor: pointer;
-}
-
-.material-filter-button-active {
-  border-color: rgba(27, 124, 255, 0.24);
-  background: #edf5ff;
-  color: var(--accent-blue);
 }
 
 .material-filter-drawer,
@@ -925,6 +868,20 @@ watch(
   color: var(--text-strong);
 }
 
+.material-empty-inline__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #effcff;
+  color: var(--accent-blue);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .material-asset-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
@@ -944,7 +901,6 @@ watch(
   font-weight: 700;
 }
 
-.material-new-tile,
 .material-card {
   position: relative;
   display: grid;
@@ -954,29 +910,6 @@ watch(
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
-}
-
-.material-new-tile {
-  align-content: start;
-  text-decoration: none;
-}
-
-.material-new-tile__preview {
-  display: grid;
-  place-items: center;
-  height: 184px;
-  border-radius: 14px;
-  background:
-    linear-gradient(135deg, rgba(0, 169, 187, 0.14), rgba(27, 124, 255, 0.14)),
-    #effcff;
-  color: var(--accent-blue);
-  font-size: 2.6rem;
-  font-weight: 300;
-}
-
-.material-new-tile strong {
-  padding: 0 2px;
-  font-size: 0.94rem;
 }
 
 .material-card {
@@ -1278,38 +1211,77 @@ watch(
 
 .material-preview-dialog-image {
   width: min(1280px, calc(100vw - 48px));
+  position: relative;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .material-preview-dialog__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 20px 22px;
   border-bottom: 1px solid rgba(15, 20, 25, 0.08);
 }
 
-.material-eyebrow {
+.material-preview-dialog__head h3 {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: var(--text-strong);
+  font-size: 1rem;
+  line-height: 1.35;
 }
 
-.material-preview-dialog__head h3 {
-  margin: 6px 0 0;
-  color: var(--text-strong);
-  line-height: 1.35;
+.material-preview-dialog__close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f6f8;
+  color: var(--text-body);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.material-preview-dialog__close-floating {
+  position: fixed;
+  right: 28px;
+  top: 24px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(10px);
+}
+
+.material-preview-dialog__caption {
+  position: fixed;
+  left: 28px;
+  top: 28px;
+  z-index: 2;
+  max-width: min(560px, calc(100vw - 96px));
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .material-preview-dialog__image {
   display: block;
   max-width: 100%;
-  max-height: calc(86vh - 96px);
+  max-height: 86vh;
+  border-radius: 18px;
   object-fit: contain;
   background: #eef2f4;
+  box-shadow: 0 28px 72px rgba(15, 20, 25, 0.24);
 }
 
 .material-preview-dialog__markdown {
@@ -1383,7 +1355,6 @@ watch(
   }
 
   .material-topbar__tools,
-  .material-shelf-head,
   .material-batch-bar {
     align-items: stretch;
     flex-direction: column;
@@ -1405,8 +1376,7 @@ watch(
     grid-template-columns: 1fr;
   }
 
-  .material-card__preview,
-  .material-new-tile__preview {
+  .material-card__preview {
     height: 210px;
   }
 
