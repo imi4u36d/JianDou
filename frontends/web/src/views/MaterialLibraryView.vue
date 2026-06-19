@@ -64,7 +64,7 @@
         <input v-model="filters.clipIndex" class="field-input" type="number" min="0" step="1" placeholder="全部" @keyup.enter="loadAssets" />
       </label>
       <div class="material-filter-drawer__actions">
-        <button class="btn-primary btn-sm" type="button" :disabled="loading" @click="loadAssets">应用筛选</button>
+        <button class="btn-primary btn-sm" type="button" :disabled="loading" @click="loadAssets">应用</button>
         <button class="btn-ghost btn-sm" type="button" :disabled="loading" @click="resetFilters">清空</button>
       </div>
     </section>
@@ -148,22 +148,30 @@
           </div>
 
           <div class="material-card__footer">
-            <details class="material-more-menu">
-              <summary aria-label="更多操作"><IconMore size="sm" /></summary>
-              <div class="material-more-menu__panel">
+            <div class="material-more-menu">
+              <button
+                type="button"
+                class="material-more-menu__trigger"
+                aria-label="更多操作"
+                :popovertarget="`material-menu-${asset.id}`"
+                @click.stop
+              >
+                <IconMore size="sm" />
+              </button>
+              <div :id="`material-menu-${asset.id}`" popover class="material-more-menu__panel" @beforetoggle="positionMaterialMenu">
                 <button type="button" :disabled="busyActionKey === `upload-${asset.id}` || Boolean(asset.remoteUrl)" @click="handleUploadAsset(asset.id)">
-                  {{ busyActionKey === `upload-${asset.id}` ? "上传中..." : (asset.remoteUrl ? "已上传" : "上传") }}
+                  {{ busyActionKey === `upload-${asset.id}` ? "..." : (asset.remoteUrl ? "已上传" : "上传") }}
                 </button>
                 <button type="button" :disabled="busyActionKey === `reuse-${asset.id}`" @click="handleReuseAsset(asset.id)">
-                  {{ busyActionKey === `reuse-${asset.id}` ? "复制中..." : "复用" }}
+                  {{ busyActionKey === `reuse-${asset.id}` ? "..." : "复用" }}
                 </button>
-                <RouterLink v-if="asset.workflowId" :to="`/workflows/${asset.workflowId}`">打开工作流</RouterLink>
+                <RouterLink v-if="asset.workflowId" :to="`/workflows/${asset.workflowId}`">工作流</RouterLink>
                 <a :href="asset.fileUrl" download target="_blank" rel="noopener noreferrer">下载</a>
                 <button type="button" class="material-menu-danger" :disabled="busyActionKey === `delete-${asset.id}`" @click="handleDeleteAsset(asset)">
-                  {{ busyActionKey === `delete-${asset.id}` ? "删除中..." : "删除" }}
+                  {{ busyActionKey === `delete-${asset.id}` ? "..." : "删除" }}
                 </button>
               </div>
-            </details>
+            </div>
           </div>
         </div>
       </article>
@@ -614,6 +622,25 @@ async function handleReuseAsset(assetId: string) {
   }
 }
 
+function positionMaterialMenu(event: ToggleEvent) {
+  if (event.newState !== "open") return;
+  const popover = event.target as HTMLElement;
+  const trigger = popover.parentElement?.querySelector<HTMLElement>(".material-more-menu__trigger");
+  if (!trigger) return;
+  const rect = trigger.getBoundingClientRect();
+  const popoverWidth = 170;
+  const popoverHeight = Math.max(popover.scrollHeight, popover.offsetHeight, 126);
+  let left = rect.right - popoverWidth;
+  if (left < 8) left = 8;
+  if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8;
+  let top = rect.bottom + 4;
+  if (top + popoverHeight > window.innerHeight - 8) {
+    top = Math.max(8, rect.top - popoverHeight - 4);
+  }
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+}
+
 onMounted(async () => {
   const queryAssetType = typeof route.query.assetType === "string" ? route.query.assetType : "";
   if (typeFilterOptions.some((option) => option.value === queryAssetType)) {
@@ -859,9 +886,15 @@ watch(
 }
 
 .material-empty-inline {
+  grid-column: 1 / -1;
   align-content: center;
-  justify-items: start;
-  gap: 8px;
+  justify-items: center;
+  gap: 10px;
+  min-height: 220px;
+  padding: 42px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .material-empty-inline strong {
@@ -1116,49 +1149,41 @@ watch(
   position: relative;
 }
 
-.material-more-menu summary {
+.material-more-menu__trigger {
   display: inline-grid;
   place-items: center;
   width: 34px;
   min-height: 34px;
   padding: 0;
+  border: 0;
   border-radius: 999px;
+  background: transparent;
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
-  list-style: none;
 }
 
-.material-more-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.material-more-menu[open] summary,
-.material-more-menu summary:hover {
+.material-more-menu__trigger:hover,
+.material-more-menu__trigger:focus-visible {
   background: #effcff;
   color: var(--accent-blue);
 }
 
 .material-more-menu__panel {
-  position: absolute;
-  right: 0;
-  bottom: 38px;
+  position: fixed;
+  inset: unset;
   z-index: 20;
   display: grid;
-  gap: 10px;
-  width: 236px;
-  padding: 12px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: var(--shadow-panel);
-}
-
-.material-more-menu__panel {
   width: 170px;
   gap: 0;
   padding: 6px;
+  border: 1px solid rgba(15, 20, 25, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 46px rgba(15, 20, 25, 0.14);
+  overflow: hidden;
+  backdrop-filter: blur(18px);
 }
 
 .material-more-menu__panel button,
@@ -1168,7 +1193,7 @@ watch(
   min-height: 34px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 12px;
   background: transparent;
   color: var(--text-strong);
   font-size: 0.8rem;
@@ -1178,7 +1203,8 @@ watch(
 
 .material-more-menu__panel button:hover,
 .material-more-menu__panel a:hover {
-  background: #f3f6f8;
+  background: #effcff;
+  color: var(--accent-blue);
 }
 
 .material-menu-danger {
@@ -1344,6 +1370,10 @@ watch(
     padding: 14px;
   }
 
+  .material-topbar {
+    gap: 12px;
+  }
+
   .material-tabs {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1354,7 +1384,16 @@ watch(
     flex: 0 0 auto;
   }
 
-  .material-topbar__tools,
+  .material-topbar__tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 36px auto auto auto;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+    width: 100%;
+    padding: 5px;
+  }
+
   .material-batch-bar {
     align-items: stretch;
     flex-direction: column;
@@ -1365,7 +1404,24 @@ watch(
   }
 
   .material-search {
-    width: 100%;
+    width: auto;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .material-toolbar-link,
+  .material-toolbar-primary {
+    min-height: 34px;
+    padding: 0 10px;
+  }
+
+  .material-toolbar-primary {
+    gap: 4px;
+  }
+
+  .material-empty-inline {
+    min-height: 170px;
+    padding: 28px 0;
   }
 
   .material-filter-drawer {

@@ -72,17 +72,21 @@
                 class="task-list__retry"
                 type="button"
                 :disabled="managingTaskId === task.id"
+                aria-label="重试任务"
+                title="重试"
                 @click.stop="handleRetry(task)"
               >
-                重试
+                <IconRefresh size="xs" />
               </button>
               <button
                 class="task-list__delete"
                 type="button"
                 :disabled="managingTaskId === task.id"
+                aria-label="删除任务"
+                title="删除"
                 @click.stop="handleDelete(task)"
               >
-                删除
+                <IconDelete size="xs" />
               </button>
             </span>
             <strong>{{ taskProgress(task) }}%</strong>
@@ -245,7 +249,7 @@ import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseT
 import { messageApi } from "@/composables/useMessage";
 import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
-import { AppIcon, type IconName } from "@/components/icons";
+import { AppIcon, IconDelete, IconRefresh, type IconName } from "@/components/icons";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import {
   formatTaskDurationMode,
@@ -1519,15 +1523,22 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
+  min-width: 32px;
+  width: 32px;
   height: 32px;
-  padding: 0 8px;
+  padding: 0;
   border: 0;
   border-radius: 10px;
   font-size: 0.68rem;
   font-weight: 800;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.task-list__retry :deep(svg),
+.task-list__delete :deep(svg) {
+  width: 15px;
+  height: 15px;
 }
 
 .task-list__retry {
@@ -1561,9 +1572,9 @@ onUnmounted(() => {
 .task-detail-content {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 14px;
   min-height: 100%;
-  padding: 4px 0 18px;
+  padding: 0 0 18px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1602,22 +1613,28 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 2px 2px;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(18, 28, 33, 0.04);
 }
 
 .task-detail-header h2 {
   margin: 0;
-  font-size: clamp(1.25rem, 2vw, 1.7rem);
-  font-weight: 700;
+  font-size: clamp(1.18rem, 1.8vw, 1.55rem);
+  font-weight: 780;
   color: var(--text-strong);
+  letter-spacing: 0;
+  line-height: 1.2;
 }
 
 .task-detail-header__meta {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 10px;
-  gap: 8px;
+  margin-top: 9px;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -1629,22 +1646,43 @@ onUnmounted(() => {
 }
 
 .detail-stage-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: 16px;
+  background: #f4f8fb;
 }
 
 .detail-stage-line__item {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  min-height: 42px;
-  min-width: 142px;
-  padding: 6px 10px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.7);
+  gap: 8px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
   color: var(--text-body);
+}
+
+.detail-stage-line__item-done {
+  border-color: rgba(0, 169, 187, 0.12);
+  background: rgba(239, 252, 255, 0.88);
+}
+
+.detail-stage-line__item-active,
+.detail-stage-line__item-paused {
+  border-color: rgba(27, 124, 255, 0.16);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+}
+
+.detail-stage-line__item-failed {
+  border-color: rgba(229, 72, 101, 0.14);
+  background: #fff4f6;
 }
 
 .detail-stage-line__dot {
@@ -1716,17 +1754,17 @@ onUnmounted(() => {
 }
 
 .task-failure-card {
-  display: block;
+  display: grid;
   overflow: hidden;
   min-height: 50px;
   border: 1px solid rgba(229, 72, 101, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 244, 246, 0.82);
+  border-radius: 16px;
+  background: #fff7f8;
   color: var(--accent-danger);
 }
 
 .task-failure-card-open {
-  min-height: 230px;
+  min-height: 0;
 }
 
 .task-failure-card__summary {
@@ -1736,7 +1774,7 @@ onUnmounted(() => {
   gap: 10px;
   width: 100%;
   min-height: 48px;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -1773,9 +1811,9 @@ onUnmounted(() => {
 
 .task-failure-card p {
   margin: 0;
-  max-height: 180px;
+  max-height: 150px;
   overflow: auto;
-  padding: 0 14px 14px;
+  padding: 0 12px 12px;
   color: #9a3447;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
@@ -1786,16 +1824,15 @@ onUnmounted(() => {
 
 .detail-section {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .detail-section-card {
-  padding: 16px;
-  border: 1px solid rgba(0, 169, 187, 0.08);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 12px 30px rgba(27, 124, 255, 0.045);
-  backdrop-filter: blur(16px);
+  padding: 14px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(18, 28, 33, 0.04);
 }
 
 .detail-section h3 {
@@ -1816,19 +1853,19 @@ onUnmounted(() => {
 .detail-overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 7px;
   border-top: 0;
 }
 
 .detail-overview__row {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 10px;
-  min-height: 46px;
+  gap: 9px;
+  min-height: 42px;
   align-items: center;
-  padding: 9px 10px;
+  padding: 8px 10px;
   border: 1px solid rgba(15, 20, 25, 0.05);
-  border-radius: 12px;
+  border-radius: 11px;
   background: #f8fafb;
   color: var(--text-body);
 }
@@ -1859,17 +1896,17 @@ onUnmounted(() => {
 .detail-params {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 7px;
   border-top: 0;
 }
 
 .detail-params__row {
   display: grid;
   gap: 4px;
-  min-height: 58px;
-  padding: 10px 11px;
+  min-height: 54px;
+  padding: 9px 10px;
   border: 1px solid rgba(15, 20, 25, 0.05);
-  border-radius: 12px;
+  border-radius: 11px;
   background: #f8fafb;
 }
 
@@ -1894,8 +1931,8 @@ onUnmounted(() => {
 
 .task-detail-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.25fr);
-  gap: 16px;
+  grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1.28fr);
+  gap: 14px;
 }
 
 .task-detail-grid-primary {
@@ -1910,9 +1947,9 @@ onUnmounted(() => {
 .task-result-preview {
   display: grid;
   place-items: center;
-  min-height: 240px;
+  min-height: 220px;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 13px;
   background:
     linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
     #f3fbff;
@@ -1923,7 +1960,7 @@ onUnmounted(() => {
 .task-result-preview img {
   width: 100%;
   height: 100%;
-  min-height: 240px;
+  min-height: 220px;
   object-fit: contain;
 }
 
@@ -1942,19 +1979,24 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   min-height: 34px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: #f3f8ff;
   color: var(--accent-blue);
   font-size: 0.82rem;
   font-weight: 800;
-  border-bottom: 1px solid rgba(27, 124, 255, 0.28);
+  border: 1px solid rgba(27, 124, 255, 0.12);
+}
+
+.detail-result-list a:hover {
+  background: #effcff;
+  border-color: rgba(0, 169, 187, 0.24);
 }
 
 .detail-note-block {
   display: grid;
   gap: 8px;
-  padding: 12px 0 0;
+  padding: 10px 0 0;
   border-top: 1px solid rgba(15, 20, 25, 0.08);
   background: transparent;
 }
@@ -1975,17 +2017,17 @@ onUnmounted(() => {
 
 .detail-traces {
   display: grid;
-  gap: 8px;
-  max-height: 330px;
+  gap: 7px;
+  max-height: 300px;
   overflow: auto;
   border-top: 0;
 }
 
 .detail-traces__item,
 .detail-traces__empty {
-  padding: 11px 12px;
+  padding: 10px 11px;
   border: 1px solid rgba(15, 20, 25, 0.05);
-  border-radius: 12px;
+  border-radius: 11px;
   background: #f8fafb;
 }
 
@@ -2015,18 +2057,19 @@ onUnmounted(() => {
 
 .detail-actions {
   position: sticky;
-  bottom: 0;
+  bottom: 8px;
   z-index: 3;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
-  margin: 2px 0 0;
-  padding: 10px 8px;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(15, 20, 25, 0.07);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 32px rgba(18, 28, 33, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 @media (max-width: 900px) {
@@ -2054,11 +2097,11 @@ onUnmounted(() => {
   }
 
   .detail-stage-line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   .detail-stage-line__item {
-    flex: 1 1 calc(50% - 8px);
     min-width: 0;
   }
 
@@ -2093,7 +2136,11 @@ onUnmounted(() => {
   }
 
   .detail-stage-line__item {
-    flex-basis: 100%;
+    min-height: 40px;
+  }
+
+  .detail-stage-line {
+    grid-template-columns: 1fr;
   }
 }
 </style>
