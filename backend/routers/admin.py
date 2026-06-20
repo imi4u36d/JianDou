@@ -60,13 +60,24 @@ async def admin_list_tasks(request: Request):
     q = request.query_params.get("q", "")
     status = request.query_params.get("status", "")
     sort = request.query_params.get("sort", "")
+    offset_raw = request.query_params.get("offset", "0")
+    limit_raw = request.query_params.get("limit", "20")
+    try:
+        offset = max(0, int(offset_raw))
+    except (ValueError, TypeError):
+        offset = 0
+    try:
+        limit = max(1, min(int(limit_raw), 200))
+    except (ValueError, TypeError):
+        limit = 20
     app_service = request.app.state.task_application_service
-    tasks = await app_service.admin_list_tasks(
+    return await app_service.admin_list_tasks(
         q=q or None,
         status=status or None,
         sort=sort or None,
+        offset=offset,
+        limit=limit,
     )
-    return tasks
 
 
 @router.post("/tasks/batch-action")
@@ -157,9 +168,18 @@ async def admin_list_users(request: Request, db: AsyncSession = Depends(get_db))
     q = request.query_params.get("q", "")
     role = request.query_params.get("role", "")
     status_param = request.query_params.get("status", "")
+    offset_raw = request.query_params.get("offset", "0")
+    limit_raw = request.query_params.get("limit", "20")
+    try:
+        offset = max(0, int(offset_raw))
+    except (ValueError, TypeError):
+        offset = 0
+    try:
+        limit = max(1, min(int(limit_raw), 200))
+    except (ValueError, TypeError):
+        limit = 20
     auth_service = AuthService(db)
-    users = await auth_service.list_users(q, role, status_param)
-    return users
+    return await auth_service.list_users(q, role, status_param, offset=offset, limit=limit)
 
 
 @router.post("/users")
@@ -178,6 +198,43 @@ async def admin_create_user(body: AdminCreateUserRequest, request: Request, db: 
     except ValueError as exc:
         raise _bad_request(exc)
     return user
+
+
+@router.get("/users/{user_id}/model-config")
+async def admin_get_user_model_config(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Get model config for a specific user (admin only)."""
+    await require_admin(request)
+    auth_service = AuthService(db)
+    user = await auth_service.get_user_by_id(user_id)
+    if not user:
+        raise _not_found("user_not_found")
+    config_service = request.app.state.user_model_config_service
+    return config_service.read(user_id)
+
+
+@router.put("/users/{user_id}/model-config/keys")
+async def admin_update_user_model_config_keys(
+    user_id: int,
+    body: AdminModelConfigKeysRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update model API keys for a specific user (admin only)."""
+    await require_admin(request)
+    auth_service = AuthService(db)
+    user = await auth_service.get_user_by_id(user_id)
+    if not user:
+        raise _not_found("user_not_found")
+    config_service = request.app.state.user_model_config_service
+    provider_inputs = [
+        ModelConfigKeyUpdateRequest.ProviderKeyInput(
+            key=provider.key,
+            apiKey=provider.api_key,
+        )
+        for provider in body.providers
+    ]
+    update_request = ModelConfigKeyUpdateRequest(providers=provider_inputs)
+    return config_service.save_keys(user_id, update_request)
 
 
 @router.patch("/users/{user_id}")

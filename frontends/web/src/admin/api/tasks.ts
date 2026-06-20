@@ -1,5 +1,6 @@
 import { deleteJson, getJson, postJson } from "@/api/client";
 import type {
+  AdminPaginatedResponse,
   AdminTaskBatchResult,
   AdminTaskDiagnosis,
   AdminTaskListItem,
@@ -20,8 +21,14 @@ export async function fetchAdminTasks(query?: AdminTaskQuery) {
   if (query?.sort) {
     params.set("sort", query.sort);
   }
+  if (query?.offset != null && query.offset > 0) {
+    params.set("offset", String(query.offset));
+  }
+  if (query?.limit != null) {
+    params.set("limit", String(query.limit));
+  }
   const search = params.toString();
-  return getJson<AdminTaskListItem[]>(search ? `/admin/tasks?${search}` : "/admin/tasks");
+  return getJson<AdminPaginatedResponse<AdminTaskListItem>>(search ? `/admin/tasks?${search}` : "/admin/tasks");
 }
 
 export async function fetchAdminTask(taskId: string) {

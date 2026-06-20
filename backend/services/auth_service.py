@@ -217,9 +217,11 @@ class AuthService:
         return self._to_user_dict(user)
 
     async def list_users(
-        self, q: str = "", role: str = "", status: str = ""
-    ) -> list[dict]:
-        stmt = select(SysUser)
+        self, q: str = "", role: str = "", status: str = "",
+        offset: int = 0, limit: int = 20,
+    ) -> dict:
+        from sqlalchemy import and_, func
+
         keyword = q.strip().lower() if q else ""
         _role = normalize_user_role(role) if role else ""
         _status = normalize_user_status(status) if status else ""
@@ -235,13 +237,30 @@ class AuthService:
         if _status:
             conditions.append(SysUser.status == _status)
 
-        if conditions:
-            from sqlalchemy import and_
-            stmt = stmt.where(and_(*conditions))
+        where_clause = and_(*conditions) if conditions else None
 
+        # Count total
+        count_stmt = select(func.count()).select_from(SysUser)
+        if where_clause is not None:
+            count_stmt = count_stmt.where(where_clause)
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        # Fetch page
+        stmt = select(SysUser)
+        if where_clause is not None:
+            stmt = stmt.where(where_clause)
         stmt = stmt.order_by(SysUser.role.asc(), SysUser.status.asc(), SysUser.created_at.desc())
+        stmt = stmt.offset(offset).limit(limit)
         result = await self.db.execute(stmt)
-        return [self._to_admin_user_dict(u) for u in result.scalars().all()]
+        items = [self._to_admin_user_dict(u) for u in result.scalars().all()]
+
+        return {
+            "items": items,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+        }
 
     async def update_user(self, user_id: int, updates: dict) -> dict | None:
         existing = await self._require_user(user_id)

@@ -99,8 +99,10 @@ class TaskQueryService:
         q: str | None = None,
         status: str | None = None,
         sort: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List all tasks for admin."""
+        offset: int = 0,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """List tasks for admin with pagination."""
         tasks = await self.task_repository.find_all()
         self._execution_coordinator.recompute_queue_positions(tasks)
 
@@ -126,7 +128,14 @@ class TaskQueryService:
         # Sort
         filtered.sort(key=self._task_comparator(sort))
 
-        return [self._to_list_item(t) for t in filtered]
+        total = len(filtered)
+        page_items = filtered[offset : offset + limit]
+        return {
+            "items": [self._to_list_item(t) for t in page_items],
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+        }
 
     async def showcase_cases(self) -> dict[str, Any]:
         """Return public showcase data: completed tasks with preview results."""

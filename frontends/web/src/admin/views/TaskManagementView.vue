@@ -145,6 +145,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="task-page__pagination">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="totalTasks"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
     </el-card>
       </div>
     </transition>
@@ -164,6 +177,9 @@ const actionLoading = ref(false);
 const successMessage = ref("");
 const tasks = ref<AdminTaskListItem[]>([]);
 const selectedTasks = ref<AdminTaskListItem[]>([]);
+const totalTasks = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(20);
 const filters = reactive({
   q: "",
   status: "" as TaskStatus | "",
@@ -187,18 +203,10 @@ const sortOptions: Array<{ label: string; value: AdminTaskSortMode }> = [
   { label: "状态优先", value: "status_desc" }
 ];
 
-const summaryCards = computed(() => {
-  const total = tasks.value.length;
-  const completed = tasks.value.filter((item) => item.status === "COMPLETED").length;
-  const failed = tasks.value.filter((item) => item.status === "FAILED").length;
-  const running = tasks.value.filter((item) => ["PENDING", "ANALYZING", "PLANNING", "RENDERING"].includes(item.status)).length;
-  return [
-    { label: "全部任务", value: total, note: "当前筛选" },
-    { label: "处理中", value: running, note: "排队/执行" },
-    { label: "已完成", value: completed, note: "已产出" },
-    { label: "失败任务", value: failed, note: "待排查" }
-  ];
-});
+const summaryCards = computed(() => [
+  { label: "全部任务", value: totalTasks.value, note: "当前筛选" },
+  { label: "当前页", value: tasks.value.length, note: `每页 ${pageSize.value}` },
+]);
 
 const selectedTerminableIds = computed(() => selectedTasks.value
   .filter((task) => terminableStatus(task.status))
@@ -300,7 +308,14 @@ async function loadTasks() {
   refreshing.value = true;
   successMessage.value = "";
   try {
-    tasks.value = (await fetchAdminTasks(filters)) ?? [];
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const result = await fetchAdminTasks({
+      ...filters,
+      offset,
+      limit: pageSize.value,
+    });
+    tasks.value = result?.items ?? [];
+    totalTasks.value = result?.total ?? 0;
     selectedTasks.value = selectedTasks.value.filter((selected) => tasks.value.some((task) => task.id === selected.id));
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取任务列表失败");
@@ -310,6 +325,15 @@ async function loadTasks() {
     }
     refreshing.value = false;
   }
+}
+
+function handlePageChange() {
+  void loadTasks();
+}
+
+function handleSizeChange() {
+  currentPage.value = 1;
+  void loadTasks();
 }
 
 async function terminateSingle(task: AdminTaskListItem) {
@@ -382,6 +406,7 @@ function resetFilters() {
   filters.q = "";
   filters.status = "";
   filters.sort = "updated_desc";
+  currentPage.value = 1;
   void loadTasks();
 }
 
@@ -508,6 +533,14 @@ onMounted(() => {
   justify-content: center;
   min-width: 32px;
   font-size: 0.86rem;
+}
+
+.task-page__pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(23, 32, 42, 0.06);
 }
 
 @media (max-width: 1200px) {

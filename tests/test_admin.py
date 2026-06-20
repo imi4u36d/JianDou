@@ -14,7 +14,10 @@ async def test_admin_users_lists_bootstrap_admin(auth_client):
     response = await auth_client.get("/api/v3/admin/users")
 
     assert response.status_code == 200
-    users = response.json()
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    users = data["items"]
     assert any(
         user["username"] == settings.bootstrap_admin_username and user["role"] == "ADMIN"
         for user in users

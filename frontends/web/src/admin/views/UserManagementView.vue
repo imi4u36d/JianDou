@@ -97,7 +97,7 @@
               <div class="user-page__actions">
                 <el-button link type="primary" title="编辑" aria-label="编辑" @click="openEditDialog(row)">编辑</el-button>
                 <el-button link type="warning" title="重置密码" aria-label="重置密码" @click="openPasswordDialog(row)">密码</el-button>
-                <el-button v-if="row.username === 'admin'" link type="primary" title="默认 Key" aria-label="默认 Key" @click="openModelKeyDialog(row)">
+                <el-button link type="primary" title="配置 Key" aria-label="配置 Key" @click="openModelKeyDialog(row)">
                   Key
                 </el-button>
                 <el-button
@@ -121,6 +121,19 @@
             </template>
           </el-table-column>
         </el-table>
+      </div>
+
+      <div class="user-page__pagination">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="totalUsers"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
       </div>
     </el-card>
 
@@ -221,7 +234,7 @@ import {
   deleteAdminUser,
   disableAdminUser,
   enableAdminUser,
-  fetchAdminModelConfig,
+  fetchUserModelConfig,
   fetchAdminUsers,
   resetAdminUserModelConfigKeys,
   updateAdminUser,
@@ -244,6 +257,9 @@ const submittingPassword = ref(false);
 const loadingModelConfig = ref(false);
 const submittingModelKeys = ref(false);
 const users = ref<AdminUser[]>([]);
+const totalUsers = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(20);
 const modelConfigProviders = ref<AdminModelConfigProviderItem[]>([]);
 const filters = reactive({
   q: "",
@@ -282,22 +298,10 @@ const modelKeyDialogTitle = computed(() => {
   return `默认 Key - ${modelKeyUser.value.username}`;
 });
 
-const summaryCards = computed(() => {
-  const total = users.value.length;
-  const active = users.value.filter((user) => user.status === "ACTIVE").length;
-  const disabled = users.value.filter((user) => user.status === "DISABLED").length;
-  const admins = users.value.filter((user) => user.role === "ADMIN").length;
-  const runningTasks = users.value.reduce((sum, user) => sum + (user.runningTaskCount ?? 0), 0);
-  const queuedTasks = users.value.reduce((sum, user) => sum + (user.queuedTaskCount ?? 0), 0);
-  return [
-    { label: "全部账号", value: total, note: "可管理" },
-    { label: "启用中", value: active, note: "可登录" },
-    { label: "管理员", value: admins, note: "后台" },
-    { label: "已禁用", value: disabled, note: "停用" },
-    { label: "运行中", value: runningTasks, note: "占用额度" },
-    { label: "排队中", value: queuedTasks, note: "等待额度" }
-  ];
-});
+const summaryCards = computed(() => [
+  { label: "全部账号", value: totalUsers.value, note: "可管理" },
+  { label: "当前页", value: users.value.length, note: `每页 ${pageSize.value}` },
+]);
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -333,7 +337,14 @@ function resetEditorForm() {
 async function loadUsers() {
   loading.value = true;
   try {
-    users.value = (await fetchAdminUsers(filters)) ?? [];
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const result = await fetchAdminUsers({
+      ...filters,
+      offset,
+      limit: pageSize.value,
+    });
+    users.value = result?.items ?? [];
+    totalUsers.value = result?.total ?? 0;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "读取用户列表失败");
   } finally {
@@ -342,10 +353,20 @@ async function loadUsers() {
   }
 }
 
+function handlePageChange() {
+  void loadUsers();
+}
+
+function handleSizeChange() {
+  currentPage.value = 1;
+  void loadUsers();
+}
+
 function resetFilters() {
   filters.q = "";
   filters.role = "";
   filters.status = "";
+  currentPage.value = 1;
   void loadUsers();
 }
 
@@ -376,16 +397,9 @@ function openPasswordDialog(user: AdminUser) {
 async function openModelKeyDialog(user: AdminUser) {
   modelKeyUser.value = user;
   modelKeyDialogVisible.value = true;
-  modelKeyForm.providers = modelConfigProviders.value.map((provider) => ({
-    ...provider,
-    apiKey: ""
-  }));
-  if (modelConfigProviders.value.length > 0) {
-    return;
-  }
   loadingModelConfig.value = true;
   try {
-    const response = await fetchAdminModelConfig();
+    const response = await fetchUserModelConfig(user.id);
     modelConfigProviders.value = response.providers ?? [];
     modelKeyForm.providers = modelConfigProviders.value.map((provider) => ({
       ...provider,
@@ -681,6 +695,14 @@ onMounted(async () => {
 .user-page__key-meta span {
   color: var(--jd-text-soft);
   font-size: 0.86rem;
+}
+
+.user-page__pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 20, 25, 0.06);
 }
 
 @media (max-width: 1200px) {

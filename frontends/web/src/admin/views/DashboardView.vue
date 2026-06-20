@@ -313,7 +313,7 @@ async function loadDashboard() {
   }
 
   if (usersResult.status === "fulfilled") {
-    users.value = usersResult.value ?? [];
+    users.value = usersResult.value?.items ?? [];
   } else {
     errors.push(usersResult.reason instanceof Error ? usersResult.reason.message : "读取用户统计失败");
   }

@@ -110,9 +110,11 @@ class TaskApplicationServiceImpl:
         q: str | None = None,
         status: str | None = None,
         sort: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """List all tasks (admin)."""
-        return await self._query_service.admin_list_tasks(q, status, sort)
+        offset: int = 0,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """List tasks (admin) with pagination."""
+        return await self._query_service.admin_list_tasks(q, status, sort, offset=offset, limit=limit)
 
     async def showcase_cases(self) -> dict[str, Any]:
         """Return public showcase data."""

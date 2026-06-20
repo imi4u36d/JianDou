@@ -2,6 +2,7 @@ import { deleteJson, getJson, postJson, patchJson, putJson } from "@/api/client"
 import type {
   AdminModelConfigKeyUpdateRequest,
   AdminModelConfigResponse,
+  AdminPaginatedResponse,
   AdminUser,
   AdminUserQuery,
   CreateAdminUserRequest,
@@ -20,12 +21,22 @@ export async function fetchAdminUsers(query?: AdminUserQuery) {
   if (query?.status) {
     params.set("status", query.status);
   }
+  if (query?.offset != null && query.offset > 0) {
+    params.set("offset", String(query.offset));
+  }
+  if (query?.limit != null) {
+    params.set("limit", String(query.limit));
+  }
   const search = params.toString();
-  return getJson<AdminUser[]>(search ? `/admin/users?${search}` : "/admin/users");
+  return getJson<AdminPaginatedResponse<AdminUser>>(search ? `/admin/users?${search}` : "/admin/users");
 }
 
 export async function fetchAdminModelConfig() {
   return getJson<AdminModelConfigResponse>("/admin/model-config");
+}
+
+export async function fetchUserModelConfig(userId: number) {
+  return getJson<AdminModelConfigResponse>(`/admin/users/${userId}/model-config`);
 }
 
 export async function createAdminUser(payload: CreateAdminUserRequest) {
@@ -40,9 +51,8 @@ export async function updateAdminUserPassword(id: number, payload: UpdateAdminUs
   return patchJson<AdminUser>(`/admin/users/${id}/password`, payload);
 }
 
-export async function resetAdminUserModelConfigKeys(_id: number, payload: AdminModelConfigKeyUpdateRequest) {
-  // Platform-level model config keys (user-specific not supported)
-  return putJson<AdminModelConfigResponse>("/admin/model-config/keys", payload);
+export async function resetAdminUserModelConfigKeys(userId: number, payload: AdminModelConfigKeyUpdateRequest) {
+  return putJson<AdminModelConfigResponse>(`/admin/users/${userId}/model-config/keys`, payload);
 }
 
 export async function enableAdminUser(id: number) {
