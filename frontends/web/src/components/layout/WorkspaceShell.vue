@@ -63,6 +63,14 @@
               >
                 管理
               </a>
+              <button
+                v-if="currentUser"
+                class="sidebar-user-popover__link sidebar-user-popover__link--btn"
+                type="button"
+                @click="keyDialogOpen = true; closeUserMenu()"
+              >
+                Key
+              </button>
               <button v-if="currentUser" class="sidebar-user-popover__logout" type="button" @click="handleLogout">
                 退出
               </button>
@@ -89,6 +97,14 @@
             >
               管理
             </a>
+            <button
+              v-if="currentUser"
+              class="sidebar-user-card__link sidebar-user-card__link--btn"
+              type="button"
+              @click="keyDialogOpen = true"
+            >
+              Key
+            </button>
             <button v-if="currentUser" class="sidebar-user-card__logout" type="button" @click="handleLogout">
               退出
             </button>
@@ -117,6 +133,7 @@
         <RouterView />
       </main>
     </div>
+    <KeyManagementDialog v-model="keyDialogOpen" />
   </div>
 </template>
 
@@ -132,6 +149,7 @@ import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import type { CreditSummary } from "@/types";
 import { IconClose, iconComponentMap } from "@/components/icons";
 import type { IconName } from "@/components/icons";
+import KeyManagementDialog from "@/components/KeyManagementDialog.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -147,6 +165,7 @@ const navItems: { to: string; label: string; icon: IconName }[] = [
 
 const sidebarOpen = ref(false);
 const userMenuOpen = ref(false);
+const keyDialogOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
 const credits = ref<CreditSummary | null>(null);
 const creditsLoading = ref(false);
@@ -617,6 +636,10 @@ watch(
   color: #c33f3f;
 }
 
+.sidebar-user-popover__link--btn {
+  cursor: pointer;
+}
+
 .sidebar-user-card {
   display: none;
   gap: 12px;
@@ -679,6 +702,10 @@ watch(
 }
 
 .sidebar-user-card__logout {
+  cursor: pointer;
+}
+
+.sidebar-user-card__link--btn {
   cursor: pointer;
 }
 

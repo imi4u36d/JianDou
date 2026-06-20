@@ -42,9 +42,14 @@
           <strong>{{ currentUser?.displayName || currentUser?.username }}</strong>
           <span>{{ currentUser?.username }} · {{ currentUser?.role }}</span>
         </div>
-        <el-button plain @click="handleLogout">
-          退出
-        </el-button>
+        <div class="admin-layout__footer-actions">
+          <el-button plain @click="goToWorkspace">
+            工作台
+          </el-button>
+          <el-button plain @click="handleLogout">
+            退出
+          </el-button>
+        </div>
       </div>
     </aside>
 
@@ -88,6 +93,10 @@ const currentTitle = computed(() => {
   const title = route.meta.title;
   return typeof title === "string" && title.trim() ? title : "管理系统";
 });
+
+function goToWorkspace() {
+  router.push("/workspace");
+}
 
 async function handleLogout() {
   await logoutAndClearSession();
@@ -173,6 +182,15 @@ async function handleLogout() {
 .admin-layout__profile span {
   color: var(--jd-text-soft);
   font-size: 0.92rem;
+}
+
+.admin-layout__footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-layout__footer-actions .el-button {
+  flex: 1;
 }
 
 .admin-layout__main {
