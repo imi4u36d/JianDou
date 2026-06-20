@@ -443,6 +443,27 @@ async def admin_bulk_terminate_tasks(body: AdminBulkTerminateTasksRequest, reque
     }
 
 
+@router.post("/tasks/bulk-delete")
+async def admin_bulk_delete_tasks(body: AdminBulkTerminateTasksRequest, request: Request):
+    await require_admin(request)
+    admin_user = await require_admin(request)
+    app_service = request.app.state.task_application_service
+    succeeded: list[str] = []
+    failed: list[dict] = []
+    for task_id in body.task_ids:
+        try:
+            await app_service.delete_task(task_id, admin_user["id"])
+            succeeded.append(task_id)
+        except Exception as exc:
+            failed.append({"taskId": task_id, "error": str(exc)})
+    return {
+        "action": "delete",
+        "requestedCount": len(body.task_ids),
+        "succeededTaskIds": succeeded,
+        "failed": failed,
+    }
+
+
 @router.post("/invites")
 async def admin_create_invite(
     body: AdminCreateInviteRequest,

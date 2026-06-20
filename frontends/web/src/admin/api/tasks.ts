@@ -60,6 +60,10 @@ export async function bulkTerminateAdminTasks(taskIds: string[]) {
   return postJson<AdminTaskBatchResult>("/admin/tasks/bulk-terminate", { taskIds });
 }
 
+export async function bulkDeleteAdminTasks(taskIds: string[]) {
+  return postJson<AdminTaskBatchResult>("/admin/tasks/bulk-delete", { taskIds });
+}
+
 export async function fetchAdminTraces(params?: {
   limit?: number;
   taskId?: string;

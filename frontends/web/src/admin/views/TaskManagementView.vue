@@ -31,6 +31,15 @@
             >
               批量终止
             </el-button>
+            <el-button
+              plain
+              type="danger"
+              :disabled="selectedTasks.length === 0 || actionLoading"
+              :loading="actionLoading"
+              @click="deleteSelected"
+            >
+              批量删除
+            </el-button>
             <el-button :icon="Refresh" plain @click="loadTasks">刷新</el-button>
           </div>
         </div>
@@ -130,18 +139,27 @@
             {{ formatDateTime(row.updatedAt) }}
           </template>
         </el-table-column>
-        <el-table-column fixed="right" label="操作" min-width="120">
+        <el-table-column fixed="right" label="操作" min-width="160">
           <template #default="{ row }">
-            <el-button
-              v-if="terminableStatus(row.status)"
-              link
-              type="danger"
-              :disabled="actionLoading"
-              @click="terminateSingle(row)"
-            >
-              终止
-            </el-button>
-            <span v-else class="task-page__muted-action">-</span>
+            <div class="task-page__action-cell">
+              <el-button
+                v-if="terminableStatus(row.status)"
+                link
+                type="warning"
+                :disabled="actionLoading"
+                @click="terminateSingle(row)"
+              >
+                终止
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                :disabled="actionLoading"
+                @click="deleteSingle(row)"
+              >
+                删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -168,7 +186,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
-import { bulkTerminateAdminTasks, fetchAdminTasks, terminateAdminTask } from "@/admin/features/tasks/services/taskService";
+import { bulkDeleteAdminTasks, bulkTerminateAdminTasks, deleteAdminTask, fetchAdminTasks, terminateAdminTask } from "@/admin/features/tasks/services/taskService";
 import type { AdminTaskListItem, AdminTaskSortMode, TaskStatus } from "@/types";
 
 const initialLoading = ref(true);
@@ -402,6 +420,72 @@ async function terminateSelected() {
   }
 }
 
+async function deleteSingle(task: AdminTaskListItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除任务"${task.title || task.id}"吗？删除后不可恢复。`,
+      "删除任务",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    );
+    actionLoading.value = true;
+    successMessage.value = "";
+    await deleteAdminTask(task.id);
+    selectedTasks.value = selectedTasks.value.filter((item) => item.id !== task.id);
+    await loadTasks();
+    successMessage.value = "任务已删除。";
+    ElMessage.success("任务已删除");
+  } catch (error) {
+    if (error === "cancel") {
+      return;
+    }
+    ElMessage.error(error instanceof Error ? error.message : "删除任务失败");
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function deleteSelected() {
+  const taskIds = selectedTasks.value.map((task) => task.id);
+  if (taskIds.length === 0) {
+    ElMessage.warning("请选择要删除的任务");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${taskIds.length} 个任务吗？删除后不可恢复。`,
+      "批量删除任务",
+      {
+        confirmButtonText: "批量删除",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    );
+    actionLoading.value = true;
+    successMessage.value = "";
+    const result = await bulkDeleteAdminTasks(taskIds);
+    const failedIds = new Set(result.failed.map((item) => item.taskId));
+    selectedTasks.value = result.failed.length
+      ? selectedTasks.value.filter((task) => failedIds.has(task.id))
+      : [];
+    await loadTasks();
+    successMessage.value = result.failed.length
+      ? `已删除 ${result.succeededTaskIds.length} 个任务，${result.failed.length} 个未成功。`
+      : `已删除 ${result.succeededTaskIds.length} 个任务。`;
+    ElMessage.success(successMessage.value);
+  } catch (error) {
+    if (error === "cancel") {
+      return;
+    }
+    ElMessage.error(error instanceof Error ? error.message : "批量删除任务失败");
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
 function resetFilters() {
   filters.q = "";
   filters.status = "";
@@ -525,6 +609,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.task-page__action-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .task-page__muted-action {
