@@ -222,7 +222,7 @@ async function handleLogout() {
 .admin-layout__content {
   flex: 1;
   min-height: 0;
-  padding-top: 20px;
+  padding: 20px 0;
   overflow-y: auto;
 }
 
