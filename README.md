@@ -54,6 +54,49 @@ API 默认发送基础浏览器安全响应头；当 `JIANDOU_COOKIE_SECURE=true
 
 完整配置变量见 [docs/configuration.md](docs/configuration.md)。
 
+
+## 开发
+
+### 前端开发
+
+```bash
+# 拷贝环境变量模板
+cp frontends/web/.env.example frontends/web/.env
+
+# 启动前端开发服务器（默认 http://localhost:5173）
+npm run web:dev
+
+# 类型检查
+npm run web:typecheck
+
+# 代码检查与格式化
+npm run web:lint
+npm run web:format
+
+# 运行前端测试
+npm run web:test
+
+# 测试覆盖率
+npx vitest run --coverage
+```
+
+前端使用 Vite 开发服务器，自动将 `/api/v3` 和 `/storage` 请求代理到后端。如需修改后端地址，编辑 `frontends/web/.env` 中的 `VITE_API_PROXY_TARGET`。
+
+详细架构说明见 [docs/frontend-architecture.md](docs/frontend-architecture.md)，开发指南见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+### 后端开发
+
+```bash
+# 代码检查
+npm run api:lint
+
+# 运行测试
+npm run api:test
+
+# 仅启动 API
+npm run api:dev
+```
+
 ## 工作流程
 
 ```

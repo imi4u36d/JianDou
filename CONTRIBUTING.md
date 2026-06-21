@@ -27,6 +27,9 @@ npm run api:lint
 # Run only backend tests
 npm run api:test
 
+# Run only frontend tests
+npm run web:test
+
 # Apply database migrations
 uv run jiandou db migrate
 
@@ -40,6 +43,9 @@ npm run serve
 
 # Start only the API server
 npm run api:dev
+
+# Start only the frontend dev server
+npm run web:dev
 
 # Build the web app
 npm run web:build
@@ -65,9 +71,21 @@ npm run release:check
 - Keep `.github/CODEOWNERS` current when module ownership changes.
 - Dependabot opens weekly dependency update pull requests for Python, npm workspaces, and GitHub Actions; review them like normal code changes and run the relevant gates before merging.
 
+## Frontend Guidelines
+
+- Read [docs/frontend-architecture.md](docs/frontend-architecture.md) before making frontend changes to understand the monorepo layout, component layering, and state management conventions.
+- Keep the admin portal code under `frontends/web/src/admin/` behind its lazy-loading boundary so it doesn't bloat the user-facing bundle.
+- Put pure logic in `utils/` or `composables/` rather than duplicating it inline inside components.
+- Use TypeScript types from `src/types/index.ts` for API responses; add new interfaces there rather than using inline type assertions.
+- Style components with `<style scoped>` blocks and Tailwind utility classes. Avoid global style overrides unless necessary for layout or theming.
+- Run `npm run web:typecheck` and `npm run web:lint` before committing.
+
 ## Pull Request Checklist
 
 - Backend lint and tests pass with `npm test`.
+- Frontend typecheck passes with `npm run web:typecheck`.
+- Frontend lint passes with `npm run web:lint`.
+- Frontend tests pass with `npm run web:test`.
 - Database migrations apply cleanly to a fresh database.
 - Frontend/package type checks pass with `npm run packages:typecheck` and `npm run web:typecheck`.
 - Release preflight passes with `npm run release:check` for release-facing changes.

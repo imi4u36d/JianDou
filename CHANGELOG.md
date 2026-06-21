@@ -2,11 +2,20 @@
 
 All notable changes to JianDou will be documented in this file.
 
-The format follows Keep a Changelog, and this project uses Semantic Versioning once release tags are published.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Added
+
+- Frontend open-source readiness: ESLint + Prettier code-quality tooling, Vitest test framework with 15 initial unit tests, and frontend architecture documentation at `docs/frontend-architecture.md`.
+- `.editorconfig`, `.nvmrc`, and `.gitattributes` for consistent editor settings and line endings across contributors.
+- Frontend-specific UI bug issue template.
+- CI frontend-checks job: lint, typecheck, test, and build gates before Docker image build.
+- Frontend `.env.example` documenting `VITE_API_PROXY_TARGET`.
+- README development section covering frontend and backend dev workflows.
+- CONTRIBUTING.md frontend guidelines and updated PR checklist with web:lint, web:typecheck, and web:test.
 
 - Open-source project hygiene: contribution guide, security policy, code of conduct, issue templates, pull request template, and CI.
 - Alembic baseline migrations and database metadata/constraint tests.
@@ -15,10 +24,32 @@ The format follows Keep a Changelog, and this project uses Semantic Versioning o
 - OpenAPI export command and release preflight script.
 - Configuration, database design, and backend architecture documentation.
 
+- **Backend refactoring — infrastructure layer**:
+  - Extracted HTTP middleware into `backend/middleware/` (OriginGuard, SecurityHeaders, SPA fallback).
+  - Centralised exception hierarchy in `backend/exceptions.py` with backward-compatible aliases.
+  - DI container (`AppContainer`) in `backend/container.py` for lazy, testable service wiring.
+  - Standardised HTTP error helpers in `backend/errors.py` for consistent router responses.
+  - Centralised logging configuration in `backend/logging_config.py`.
+  - `backend/shared.py` module with 20+ utility functions, eliminating ~80 duplicated helper definitions across 30+ files.
+
+- **Backend refactoring — tests**:
+  - Tests for new infrastructure modules: `test_errors.py`, `test_middleware.py`, `test_exceptions.py`, `test_container.py`, `test_shared.py` (106 new tests, 47 for shared utilities alone).
+
 ### Changed
 
 - Removed generated frontend assets, local secrets, and runtime files from the tracked source tree.
 - Clarified package metadata and Python wheel contents.
+
+- **Backend refactoring — code organisation**:
+  - Populated empty `__init__.py` files (domain, infrastructure, routers, schemas, services) with module-level docstrings.
+  - Replaced wildcard imports in `models/__init__.py` with explicit class imports.
+  - Added section-header comments to large files for navigability.
+  - Extracted stub classes from `task_worker_service.py` into `backend/services/stubs.py`.
+  - Removed global singletons from `generation_service.py`; wired through DI container.
+  - Improved `config.py` with structured `validate_settings()` diagnostics.
+  - Reorganised `.env.example` with section headers and comments for contributors.
+  - Integrated exception hierarchy into `auth.py` with FastAPI exception handlers in `main.py`.
+  - Achieved zero ruff lint errors across the entire `backend/` package.
 
 ### Security
 
