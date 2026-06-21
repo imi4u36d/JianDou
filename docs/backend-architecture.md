@@ -26,7 +26,13 @@ flowchart LR
 - `backend/infrastructure`: persistence adapters and repository-style boundaries. Keep SQLAlchemy row assembly and database mutation details out of routers.
 - `backend/models`: SQLAlchemy ORM schema. Tables and columns must have comments, and core state strings must have database constraints.
 - `backend/auth.py`: authentication helpers, cookie handling, DB-backed current-user lookup, and admin/user dependency checks.
-- `backend/config.py`: environment-backed settings and production safety validation.
+- `backend/config.py`: environment-backed settings with structured `validate_settings()` diagnostics and production safety validation.
+- `backend/container.py`: lazy dependency-injection container (`AppContainer`) that wires all services, repositories, and model providers.  Replaces the ad‑hoc manual wiring that was previously done inside `main.py`.
+- `backend/exceptions.py`: centralized exception hierarchy (`JianDouError` base with `AuthError`, `GenerationError`, `TaskError`, etc.).  Backward‑compatible aliases exist for the legacy names.
+- `backend/errors.py`: standardized HTTP error helpers (`not_found()`, `bad_request()`, `unauthorized()`, `forbidden()`, `bad_gateway()`, etc.) used consistently across all routers.
+- `backend/shared.py`: unified utility module (string helpers, numeric coercions, JSON helpers, nested accessors, date helpers) that eliminated ~80 duplicated function definitions across 30+ files.
+- `backend/logging_config.py`: centralized logging configuration with optional structured JSON output.
+- `backend/middleware/`: extracted HTTP middleware (origin guard, security headers, SPA fallback) — previously inlined in `main.py`.
 - `backend/__main__.py`: CLI entry points for serving, migrations, seeding, and OpenAPI export.
 
 ## Ownership Rules
@@ -103,8 +109,8 @@ All timestamp columns use `String(32)` storing ISO 8601 text instead of native `
 
 ### Large service modules
 
-Several service files exceed 1,000 lines (`model_config_service.py`, `generation_service.py`, `model_invocation.py`, `workflow_service.py`). They contain well-structured internal methods, but the sheer size makes navigation harder. Future contributors can extract cohesive method groups into smaller helper modules following the pattern already used by `workflow_generation_request_builder`, `workflow_view_mapper`, etc.
+**Improved.**  Several service files exceed 1,000 lines (`model_config_service.py`, `generation_service.py`, `model_invocation.py`, `workflow_service.py`, `task_repository.py`).  They now carry section‑header comments (`# === TYPE DEFINITIONS ===`, `# === CONFIG RESOLVER ===`, etc.) that make navigation substantially easier.  Further splitting into sub‑modules remains an option for future contributors.
 
 ### Workflow router response typing
 
-The `workflows.py` router endpoints return `dict[str, Any]` because the `WorkflowService` returns rich, dynamically-shaped response dictionaries. Typing these responses with Pydantic models requires first normalizing the service output format — a larger refactoring tracked separately.
+**Resolved.**  All 19 workflow endpoints now declare Pydantic `response_model` (`WorkflowDetailResponse`, `WorkflowActionResponse`, `WorkflowListResponse`).  The models use `ConfigDict(extra="allow")` so the service layer can return additional fields without breaking the schema.

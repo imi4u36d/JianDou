@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, UploadFile
 
 from backend.config import settings
+from backend.errors import bad_request
 from backend.schemas.upload import UploadAssetResponse
 
 router = APIRouter(prefix="/api/v3/uploads", tags=["uploads"])
@@ -25,10 +26,7 @@ async def _read_with_limit(file: UploadFile) -> bytes:
             break
         buffer.extend(chunk)
         if len(buffer) > max_bytes:
-            raise HTTPException(
-                status_code=413,
-                detail=f"文件大小超过限制（最大 {max_bytes // (1024 * 1024)} MB）",
-            )
+            raise bad_request(f"文件大小超过限制（最大 {max_bytes // (1024 * 1024)} MB）")
     return bytes(buffer)
 
 

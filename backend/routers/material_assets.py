@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
 from backend.database import get_db
+from backend.errors import not_found
 from backend.schemas.material import (
     MaterialAssetDeleteResult,
     RateMaterialAssetRequest,
@@ -64,7 +65,7 @@ async def get_material_asset(
     user = await require_user(request)
     asset = await _service(db).get_asset(user["id"], asset_id)
     if asset is None:
-        raise HTTPException(status_code=404, detail="material_asset_not_found")
+        raise not_found("material_asset")
     return asset
 
 
@@ -77,7 +78,7 @@ async def delete_material_asset(
     user = await require_user(request)
     deleted = await _service(db).delete_asset(user["id"], asset_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="material_asset_not_found")
+        raise not_found("material_asset")
     return MaterialAssetDeleteResult(deleted=True, asset_id=asset_id)
 
 
@@ -96,7 +97,7 @@ async def rate_material_asset(
         note=payload.effect_rating_note,
     )
     if asset is None:
-        raise HTTPException(status_code=404, detail="material_asset_not_found")
+        raise not_found("material_asset")
     return asset
 
 
@@ -112,7 +113,7 @@ async def reuse_material_asset(
         owner_user_id=user["id"],
     )
     if workflow is None:
-        raise HTTPException(status_code=404, detail="material_asset_not_found")
+        raise not_found("material_asset")
     return workflow
 
 
@@ -125,7 +126,7 @@ async def upload_material_asset(
     user = await require_user(request)
     asset = await _service(db).mark_uploaded(user["id"], asset_id)
     if asset is None:
-        raise HTTPException(status_code=404, detail="material_asset_not_found")
+        raise not_found("material_asset")
     return asset
 
 

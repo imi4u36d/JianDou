@@ -27,3 +27,30 @@ class GenerationRunRequest(BaseModel):
 
     kind: str = "probe"
     auth: dict[str, Any] = Field(default_factory=dict)
+
+
+class GenerationRunResponse(BaseModel):
+    """Flexible response model for generation run endpoints."""
+    id: str = ""
+    kind: str = ""
+    status: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class GenerationRunListResponse(BaseModel):
+    """Response model for list generation runs."""
+    items: list[dict] = []
+
+    model_config = ConfigDict(extra="allow")
+
+
+class GenerationUsageResponse(BaseModel):
+    """Response model for generation usage."""
+    items: list[dict] = []
+    generated_at: str = ""
+    updated_at: str = ""
+
+    model_config = ConfigDict(extra="allow")

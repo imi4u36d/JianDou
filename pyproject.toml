@@ -58,6 +58,16 @@ dev = [
 include = ["backend*"]
 
 [tool.pytest.ini_options]
+markers = [
+    "unit: Fast unit tests that do not require a database or external service.",
+    "integration: Tests that require database access (SQLite or other).",
+    "api: Tests that exercise HTTP endpoints through the FastAPI test client.",
+    "domain: Tests for the domain layer (entities, value objects, domain services).",
+    "service: Tests for the application service layer.",
+    "infra: Tests for infrastructure adapters (repositories, stores).",
+    "slow: Tests that are known to be slow; skipped in quick runs.",
+]
+
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
@@ -95,6 +105,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 "backend/services/generation_service.py" = ["F401", "F841"]
+"backend/container.py" = ["F821"]  # lazy imports used in type annotations
 "backend/services/model_config_service.py" = ["F401", "F841"]
 "backend/services/model_invocation.py" = ["F401", "F841"]
 "backend/services/task_worker_service.py" = ["F401", "F841"]

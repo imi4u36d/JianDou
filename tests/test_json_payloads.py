@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.domain
 from backend.domain.json_payloads import (
     list_value,
     object_value,

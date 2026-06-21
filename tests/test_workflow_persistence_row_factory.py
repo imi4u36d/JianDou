@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 import json
 
 from backend.models.workflow import BizStageWorkflow

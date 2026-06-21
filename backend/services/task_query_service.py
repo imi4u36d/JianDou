@@ -11,10 +11,7 @@ from typing import Any
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
+from backend.shared import string_value
 
 
 def _trimmed(value: str | None, fallback: str) -> str:
@@ -154,7 +151,7 @@ class TaskQueryService:
         for t in eligible[:self.SHOWCASE_LIMIT]:
             preview_url = ""
             for output in t.outputs:
-                preview_url = _string_value(output.get("previewUrl", output.get("remoteUrl", "")))
+                preview_url = string_value(output.get("previewUrl", output.get("remoteUrl", "")))
                 if preview_url:
                     break
             if not preview_url:
@@ -242,7 +239,7 @@ class TaskQueryService:
         queue_snapshot = self._execution_coordinator.queue_snapshot()
         tasks = await self.task_repository.find_all()
         self._execution_coordinator.recompute_queue_positions(tasks)
-        tasks.sort(key=lambda t: _string_value(t.created_at), reverse=True)
+        tasks.sort(key=lambda t: string_value(t.created_at), reverse=True)
 
         total = len(tasks)
         list_items = [self._to_list_item(t) for t in tasks]
@@ -315,8 +312,8 @@ class TaskQueryService:
         active_worker = ""
         for attempt in task.attempts:
             if attempt.get("attemptId") == task.active_attempt_id:
-                current_stage = _string_value(attempt.get("resumeFromStage", ""))
-                active_worker = _string_value(attempt.get("workerInstanceId", ""))
+                current_stage = string_value(attempt.get("resumeFromStage", ""))
+                active_worker = string_value(attempt.get("workerInstanceId", ""))
                 break
 
         return {
@@ -369,8 +366,8 @@ class TaskQueryService:
         active_worker = ""
         for attempt in task.attempts:
             if attempt.get("attemptId") == task.active_attempt_id:
-                current_stage = _string_value(attempt.get("resumeFromStage", ""))
-                active_worker = _string_value(attempt.get("workerInstanceId", ""))
+                current_stage = string_value(attempt.get("resumeFromStage", ""))
+                active_worker = string_value(attempt.get("workerInstanceId", ""))
                 break
 
         return {
@@ -433,19 +430,19 @@ class TaskQueryService:
 
         def sort_key(task: TaskRecord):
             if normalized == "created_desc":
-                return (0, _string_value(task.created_at))
+                return (0, string_value(task.created_at))
             if normalized == "progress_desc":
-                return (-task.progress, 0, _string_value(task.updated_at))
+                return (-task.progress, 0, string_value(task.updated_at))
             if normalized == "semantic_desc":
                 score = 1 if task.has_timed_transcript or task.has_transcript else 0
-                return (-score, 0, _string_value(task.updated_at))
+                return (-score, 0, string_value(task.updated_at))
             if normalized == "status_desc":
-                return (0, _string_value(task.status), _string_value(task.updated_at))
+                return (0, string_value(task.status), string_value(task.updated_at))
             if normalized in ("effect_rating_desc", "rating_desc"):
                 rating = task.effect_rating if task.effect_rating is not None else float("-inf")
-                return (-rating, 0, _string_value(task.updated_at))
+                return (-rating, 0, string_value(task.updated_at))
             # default: updated_desc
-            return (0, _string_value(task.updated_at))
+            return (0, string_value(task.updated_at))
 
         return lambda t: (sort_key(t),)
 
@@ -454,7 +451,7 @@ class TaskQueryService:
         """Return a sort key function for showcase items."""
         def sort_key(task: TaskRecord):
             rating = task.effect_rating if task.effect_rating is not None else float("-inf")
-            return (-rating, -task.completed_output_count, _string_value(task.updated_at))
+            return (-rating, -task.completed_output_count, string_value(task.updated_at))
         return sort_key
 
     @staticmethod

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from backend.services.generation_request_values import (
     find_nested_string,
     first_non_blank,

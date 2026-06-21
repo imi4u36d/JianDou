@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from backend.models.workflow import BizStageWorkflow
 from backend.services.workflow_generation_request_builder import WorkflowGenerationRequestBuilder
 

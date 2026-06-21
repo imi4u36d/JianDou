@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.domain
 from backend.domain.media_artifacts import (
     file_ext,
     file_ext_or_default,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.domain
 from backend.domain.workflow_storyboard_plan import parse_workflow_storyboard_markdown
 
 

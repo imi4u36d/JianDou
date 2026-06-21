@@ -8,6 +8,17 @@ JianDou reads environment variables with the `JIANDOU_` prefix. Start from one o
 
 Do not commit copied `.env` files or `config/model/providers.secrets.yml`.
 
+## Validation
+
+The `Settings` class provides two levels of validation:
+
+- `validate_runtime_settings(settings)` — called at startup; raises `RuntimeError` for
+  blocking issues (e.g. default secret key in production).
+- `validate_settings(settings)` — returns a list of `_ValidationIssue` objects with
+  severity levels (`error` / `warning`), suitable for logging or admin dashboards.
+- `settings.is_production` and `settings.is_development` are convenience properties
+  on the `Settings` instance.
+
 ## App And Server
 
 - `JIANDOU_APP_ENV`: `dev`, `prod`, or `production`. Production mode fails fast when unsafe defaults are used.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from backend.domain.enums import AttemptStatus, TaskStatus, WorkerStatus
@@ -11,33 +11,16 @@ from backend.infrastructure.task_queue_port import TaskQueuePort
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.generation_service import GenerationProviderException
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator, TaskStateTransition
+from backend.shared import first_non_blank, now_iso, string_value
 
 _ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
-
-def _now_iso() -> str:
-    return datetime.now(UTC).strftime(_ISO_FMT)
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
-
-
-def _map_value(value: Any) -> dict[str, Any]:
+def map_value(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
-
-
-def _first_non_blank(*values: str | None) -> str:
-    for value in values:
-        if value is not None and value.strip():
-            return value.strip()
-    return ""
-
 
 def _stable_id(prefix: str, *parts: str) -> str:
     seed = prefix + ":" + ":".join(parts)
     return prefix + "_" + uuid.uuid5(uuid.NAMESPACE_OID, seed).hex
-
 
 def _duration_millis(started_at: str, finished_at: str) -> int:
     try:
@@ -46,7 +29,6 @@ def _duration_millis(started_at: str, finished_at: str) -> int:
         return max(0, int((end - start).total_seconds() * 1000))
     except (ValueError, TypeError):
         return 0
-
 
 class TaskWorkerExecutionContext:
     """Execution context for a single worker run."""
@@ -73,7 +55,6 @@ class TaskWorkerExecutionContext:
     def execution_mode(self) -> str:
         return self._execution_mode
 
-
 class TaskExecutionAbortedException(Exception):
     """Raised when task execution is aborted (paused, cancelled, etc.)."""
 
@@ -85,7 +66,6 @@ class TaskExecutionAbortedException(Exception):
     def task_status(self) -> str:
         return self._task_status
 
-
 class TaskStage:
     ANALYSIS = "analysis"
     PLANNING = "planning"
@@ -93,7 +73,6 @@ class TaskStage:
     PIPELINE = "pipeline"
     DISPATCH = "dispatch"
     PAUSED = "paused"
-
 
 class TaskWorkerStatusStageService:
     """Service for tracking status, model calls, stage runs, and lifecycle events."""
@@ -141,7 +120,7 @@ class TaskWorkerStatusStageService:
         input_summary: dict[str, Any],
         output_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        now = _now_iso()
+        now = now_iso()
         row: dict[str, Any] = {
             "stageRunId": _stable_id("stgrun", task.id, stage_name, str(clip_index)),
             "attemptId": task.active_attempt_id,
@@ -169,11 +148,11 @@ class TaskWorkerStatusStageService:
         clip_index: int,
         kind: str,
     ) -> dict[str, Any]:
-        now = _now_iso()
-        model_section = _map_value(request_payload.get("model"))
-        provider_model = _first_non_blank(
-            _string_value(model_section.get("providerModel")),
-            _string_value(model_section.get("textAnalysisModel")),
+        now = now_iso()
+        model_section = map_value(request_payload.get("model"))
+        provider_model = first_non_blank(
+            string_value(model_section.get("providerModel")),
+            string_value(model_section.get("textAnalysisModel")),
         )
         return {
             "modelCallId": _stable_id("mdlcall", task.id, stage, kind, str(clip_index)),
@@ -207,18 +186,18 @@ class TaskWorkerStatusStageService:
 
     def complete_model_call(self, pending_model_call: dict[str, Any], run: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
         row = dict(pending_model_call or {})
-        model_info = _map_value(result.get("modelInfo"))
-        started_at = _string_value(row.get("startedAt"))
-        finished_at = _string_value(run.get("updatedAt", _now_iso()))
-        row["provider"] = _string_value(model_info.get("provider", row.get("provider")))
-        row["providerModel"] = _first_non_blank(_string_value(model_info.get("providerModel")), _string_value(row.get("providerModel")))
-        row["requestedModel"] = _first_non_blank(_string_value(model_info.get("requestedModel")), _string_value(row.get("requestedModel")))
-        row["resolvedModel"] = _string_value(model_info.get("resolvedModel"))
-        row["modelName"] = _string_value(model_info.get("modelName", model_info.get("resolvedModel")))
-        row["modelAlias"] = _string_value(model_info.get("modelName", model_info.get("resolvedModel")))
-        row["endpointHost"] = _string_value(model_info.get("endpointHost"))
-        row["requestId"] = _string_value(run.get("id"))
-        row["responsePayload"] = {"runId": _string_value(run.get("id")), "result": result}
+        model_info = map_value(result.get("modelInfo"))
+        started_at = string_value(row.get("startedAt"))
+        finished_at = string_value(run.get("updatedAt", now_iso()))
+        row["provider"] = string_value(model_info.get("provider", row.get("provider")))
+        row["providerModel"] = first_non_blank(string_value(model_info.get("providerModel")), string_value(row.get("providerModel")))
+        row["requestedModel"] = first_non_blank(string_value(model_info.get("requestedModel")), string_value(row.get("requestedModel")))
+        row["resolvedModel"] = string_value(model_info.get("resolvedModel"))
+        row["modelName"] = string_value(model_info.get("modelName", model_info.get("resolvedModel")))
+        row["modelAlias"] = string_value(model_info.get("modelName", model_info.get("resolvedModel")))
+        row["endpointHost"] = string_value(model_info.get("endpointHost"))
+        row["requestId"] = string_value(run.get("id"))
+        row["responsePayload"] = {"runId": string_value(run.get("id")), "result": result}
         row["httpStatus"] = 200
         row["responseCode"] = 200
         row["success"] = True
@@ -232,12 +211,12 @@ class TaskWorkerStatusStageService:
 
     def fail_model_call(self, pending_model_call: dict[str, Any], error: Exception) -> dict[str, Any]:
         row = dict(pending_model_call or {})
-        started_at = _string_value(row.get("startedAt"))
-        finished_at = _now_iso()
+        started_at = string_value(row.get("startedAt"))
+        finished_at = now_iso()
         http_status = error.http_status if isinstance(error, GenerationProviderException) else 0
         response_payload: dict[str, Any] = {
             "errorType": error.__class__.__name__ if error else "",
-            "errorMessage": _first_non_blank(str(error) if error else "", "unknown"),
+            "errorMessage": first_non_blank(str(error) if error else "", "unknown"),
         }
         if isinstance(error, GenerationProviderException):
             response_payload["providerRequest"] = error.provider_request
@@ -249,7 +228,7 @@ class TaskWorkerStatusStageService:
         row["success"] = False
         row["status"] = "failed"
         row["errorCode"] = error.__class__.__name__ if error else ""
-        row["errorMessage"] = _first_non_blank(str(error) if error else "", "unknown")
+        row["errorMessage"] = first_non_blank(str(error) if error else "", "unknown")
         row["durationMs"] = _duration_millis(started_at, finished_at)
         row["finishedAt"] = finished_at
         return row
@@ -261,10 +240,10 @@ class TaskWorkerStatusStageService:
         for item in raw:
             if not isinstance(item, dict):
                 continue
-            stage = _string_value(item.get("stage"))
-            event = _string_value(item.get("event"))
-            message = _string_value(item.get("message"))
-            status = _string_value(item.get("status"))
+            stage = string_value(item.get("stage"))
+            event = string_value(item.get("event"))
+            message = string_value(item.get("message"))
+            status = string_value(item.get("status"))
             level = "INFO" if status.lower() == "success" else "WARN"
             self._execution_coordinator.record_trace(
                 task,
@@ -272,7 +251,7 @@ class TaskWorkerStatusStageService:
                 event if event else "generation.call",
                 message if message else "generation run completed",
                 level,
-                {"runId": _string_value(run.get("id")), "status": status, "details": _map_value(item.get("details"))},
+                {"runId": string_value(run.get("id")), "status": status, "details": map_value(item.get("details"))},
             )
 
     def complete_task(
@@ -295,7 +274,7 @@ class TaskWorkerStatusStageService:
                 "task.completed",
                 "Spring worker 已通过 generation 服务完成分镜视频生成。",
                 {
-                    "scriptRunId": _string_value(script_run.get("id")),
+                    "scriptRunId": string_value(script_run.get("id")),
                     "imageRunIds": image_run_ids,
                     "videoRunIds": video_run_ids,
                     "clipCount": clip_count,
@@ -328,7 +307,7 @@ class TaskWorkerStatusStageService:
                 "task.completed",
                 "Spring worker 已完成工作台图片生成。",
                 {
-                    "imageRunId": _string_value(image_run.get("id")),
+                    "imageRunId": string_value(image_run.get("id")),
                     "outputUrl": output_url,
                     "taskType": task.task_type,
                 },
@@ -396,5 +375,5 @@ class TaskWorkerStatusStageService:
             return
         raise TaskExecutionAbortedException(
             task.status,
-            _first_non_blank(task.error_message, "任务已停止执行。"),
+            first_non_blank(task.error_message, "任务已停止执行。"),
         )

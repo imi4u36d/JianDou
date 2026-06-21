@@ -25,6 +25,7 @@ from backend.domain.task_monitoring import (
 )
 from backend.domain.task_result_types import is_join, is_primary_video
 from backend.domain.task_resume import existing_video_clip_indices
+from backend.shared import first_non_blank, map_value, string_value
 
 OwnerResolver = task_queue_fairness.OwnerResolver
 TaskQueueFairScheduler = task_queue_fairness.TaskQueueFairScheduler
@@ -50,20 +51,12 @@ def _is_terminal(status: str) -> bool:
     return status.upper() in _TASK_STATUS_TERMINAL
 
 
-def _map_value(value: object) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return dict(value)
-    return {}
-
 
 def _list_value(value: object) -> list[Any]:
     if isinstance(value, list):
         return list(value)
     return []
 
-
-def _string_value(value: object) -> str:
-    return "" if value is None else str(value).strip()
 
 
 def _int_value(value: object, fallback: int = 0) -> int:
@@ -93,15 +86,9 @@ def _bool_value(value: object) -> bool:
         return value
     if isinstance(value, (int, float)):
         return value != 0
-    v = _string_value(value).lower()
+    v = string_value(value).lower()
     return v in ("true", "1", "yes")
 
-
-def _first_non_blank(*values: str) -> str:
-    for v in values:
-        if v and v.strip():
-            return v.strip()
-    return ""
 
 
 def _trimmed(value: str | None, fallback: str) -> str:
@@ -166,25 +153,25 @@ class TaskDiagnosisService:
         outputs_view = self._get_outputs_view(task)
         latest_join_output = self._latest_output_of_kind(task, "video_join")
         latest_video_output = self._latest_output_of_kind(task, "video")
-        latest_video_extra = _map_value(latest_video_output.get("extra"))
+        latest_video_extra = map_value(latest_video_output.get("extra"))
 
         join_count = sum(1 for item in outputs_view if is_join(item.get("resultType")))
         video_clip_count = len(rendered_clip_indices)
         has_audio_clip = any(
-            _bool_value(_map_value(item.get("extra")).get("hasAudio"))
+            _bool_value(map_value(item.get("extra")).get("hasAudio"))
             for item in outputs_view
             if is_primary_video(item.get("resultType"))
         )
 
         findings: list[TaskFinding] = []
-        task_status = _string_value(getattr(task, "status", ""))
+        task_status = string_value(getattr(task, "status", ""))
 
         if task_status == "FAILED":
             findings.append(TaskFinding(
                 "task_failed", "high",
                 "Task status is FAILED",
-                _first_non_blank(
-                    _string_value(getattr(task, "error_message", None)),
+                first_non_blank(
+                    string_value(getattr(task, "error_message", None)),
                     "Check the most recent trace and model call records.",
                 ),
             ))
@@ -252,7 +239,7 @@ class TaskDiagnosisService:
             "contiguousRenderedClipCount": contiguous_rendered_clip_count,
             "missingClipIndices": missing_indices,
             "latestRenderedClipIndex": latest_rendered_clip_index,
-            "latestJoinName": _string_value(monitoring.get("latestJoinName")),
+            "latestJoinName": string_value(monitoring.get("latestJoinName")),
             "latestJoinClipIndex": _int_value(
                 monitoring.get("latestJoinClipIndex"),
                 _int_value(latest_join_output.get("clipIndex"), 0),
@@ -263,15 +250,15 @@ class TaskDiagnosisService:
         outputs: dict[str, Any] = {
             "videoClipCount": video_clip_count,
             "joinCount": join_count,
-            "latestVideoOutputUrl": _first_non_blank(
-                _string_value(monitoring.get("latestVideoOutputUrl")),
-                _string_value(latest_video_output.get("downloadUrl")),
+            "latestVideoOutputUrl": first_non_blank(
+                string_value(monitoring.get("latestVideoOutputUrl")),
+                string_value(latest_video_output.get("downloadUrl")),
             ),
-            "latestJoinOutputUrl": _first_non_blank(
-                _string_value(monitoring.get("latestJoinOutputUrl")),
-                _string_value(latest_join_output.get("downloadUrl")),
+            "latestJoinOutputUrl": first_non_blank(
+                string_value(monitoring.get("latestJoinOutputUrl")),
+                string_value(latest_join_output.get("downloadUrl")),
             ),
-            "latestLastFrameUrl": _string_value(latest_video_extra.get("lastFrameUrl")),
+            "latestLastFrameUrl": string_value(latest_video_extra.get("lastFrameUrl")),
             "hasAudioClip": has_audio_clip,
         }
 
@@ -305,7 +292,7 @@ class TaskDiagnosisService:
         rendered = self._existing_video_clip_indices(task)
         planned = _int_value(monitoring.get("plannedClipCount"), 0)
         contiguous = _int_value(monitoring.get("contiguousRenderedClipCount"), 0)
-        task_status = _string_value(getattr(task, "status", ""))
+        task_status = string_value(getattr(task, "status", ""))
 
         findings: list[TaskFinding] = []
         if task_status == "FAILED":
@@ -335,7 +322,7 @@ class TaskDiagnosisService:
             return latest_video_output_of(outputs)
         if result_type == "video_join":
             return latest_join_output_of(outputs)
-        matching = [item for item in outputs if result_type == _string_value(item.get("resultType")).lower()]
+        matching = [item for item in outputs if result_type == string_value(item.get("resultType")).lower()]
         matching.sort(key=lambda item: _int_value(item.get("clipIndex"), 0))
         return matching[-1] if matching else {}
 
@@ -380,7 +367,7 @@ class TaskDiagnosisService:
         contiguous_rendered_clip_count: int,
         planned_clip_count: int,
     ) -> str:
-        task_status = _string_value(getattr(task, "status", ""))
+        task_status = string_value(getattr(task, "status", ""))
         if task_status == "FAILED":
             return ("Retry; resume from the failed clip with existing clips."
                     if contiguous_rendered_clip_count > 0
@@ -445,27 +432,27 @@ class TaskRequestSnapshotFactory:
     def create(self, request: Any, task: Any) -> GenerationRequestSnapshot:
         """Build a GenerationRequestSnapshot from a request and task record."""
         task_type = self._normalized_task_type(
-            _string_value(task.task_type if task is not None else ""),
-            _string_value(getattr(request, "task_type", None) if hasattr(request, "task_type") else
+            string_value(task.task_type if task is not None else ""),
+            string_value(getattr(request, "task_type", None) if hasattr(request, "task_type") else
                           getattr(request, "taskType", None)),
         )
 
         return GenerationRequestSnapshot(
             task_type=task_type,
             asset_type=self._normalized_asset_type(
-                _string_value(getattr(request, "asset_type", None) if hasattr(request, "asset_type") else
+                string_value(getattr(request, "asset_type", None) if hasattr(request, "asset_type") else
                               getattr(request, "assetType", None)),
                 task_type,
             ),
-            title=_string_value(getattr(task, "title", "")),
-            creative_prompt=_string_value(getattr(task, "creative_prompt", getattr(task, "creativePrompt", ""))),
-            aspect_ratio=_string_value(getattr(task, "aspect_ratio", getattr(task, "aspectRatio", ""))),
+            title=string_value(getattr(task, "title", "")),
+            creative_prompt=string_value(getattr(task, "creative_prompt", getattr(task, "creativePrompt", ""))),
+            aspect_ratio=string_value(getattr(task, "aspect_ratio", getattr(task, "aspectRatio", ""))),
             image_size=_trimmed(
                 getattr(request, "image_size", None) if hasattr(request, "image_size") else
                 getattr(request, "imageSize", None),
                 "",
             ),
-            style_preset=_first_non_blank(
+            style_preset=first_non_blank(
                 self._model_resolver_value("catalog.defaults", "style_preset", "cinematic"),
                 "cinematic",
             ),
@@ -502,7 +489,7 @@ class TaskRequestSnapshotFactory:
             ),
             min_duration_seconds=_int_value(getattr(task, "min_duration_seconds", getattr(task, "minDurationSeconds", 0)), 0),
             max_duration_seconds=_int_value(getattr(task, "max_duration_seconds", getattr(task, "maxDurationSeconds", 0)), 0),
-            transcript_text=_string_value(getattr(task, "transcript_text", getattr(task, "transcriptText", ""))),
+            transcript_text=string_value(getattr(task, "transcript_text", getattr(task, "transcriptText", ""))),
             stop_before_video_generation=bool(
                 getattr(request, "stop_before_video_generation", None) if hasattr(request, "stop_before_video_generation") else
                 getattr(request, "stopBeforeVideoGeneration", None) or False
@@ -528,14 +515,14 @@ class TaskRequestSnapshotFactory:
             try:
                 result = self._model_resolver.value(section, key, fallback)
                 if result is not None:
-                    return _string_value(result)
+                    return string_value(result)
             except Exception:  # noqa: S110 — best-effort config resolution
                 pass
         return fallback
 
     @staticmethod
     def _normalized_task_type(task_value: str, request_value: str) -> str:
-        normalized = _first_non_blank(request_value, task_value, "generation")
+        normalized = first_non_blank(request_value, task_value, "generation")
         if not request_value and normalized == "video_generation":
             return "generation"
         valid = {"image_generation", "image_to_image", "character_sheet", "video_generation", "generation"}
@@ -553,7 +540,7 @@ class TaskRequestSnapshotFactory:
     def _normalize_output_count(output_count: object) -> object:
         if output_count is None:
             return "auto"
-        raw = _string_value(output_count)
+        raw = string_value(output_count)
         if not raw or raw.lower() == "auto":
             return "auto"
         try:

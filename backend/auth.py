@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, Request, Response, status
+from fastapi import Request, Response
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from backend.config import settings
 from backend.domain.enums import UserRole
+from backend.exceptions import InsufficientPermissionsError, InvalidCredentialsError
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
@@ -112,12 +113,12 @@ async def get_current_user(request: Request) -> dict | None:
 async def require_user(request: Request) -> dict:
     user = await get_current_user(request)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise InvalidCredentialsError("Not authenticated")
     return user
 
 
 async def require_admin(request: Request) -> dict:
     user = await require_user(request)
     if user["role"] != UserRole.ADMIN.value:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+        raise InsufficientPermissionsError("Admin only")
     return user

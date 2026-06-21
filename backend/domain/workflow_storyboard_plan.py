@@ -4,33 +4,14 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-
-def _trim(value: Any, fallback: str = "") -> str:
-    if value is None:
-        return fallback.strip()
-    stripped = str(value).strip()
-    return stripped if stripped else fallback.strip()
-
-
-def _safe_int(value: Any, fallback: int = 0) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if value is not None:
-        try:
-            return int(str(value).strip())
-        except (ValueError, TypeError):
-            pass
-    return fallback
+from backend.shared import safe_int, trim
 
 
 def _strip_markdown_cell(value: str) -> str:
-    return re.sub(r"<br\s*/?>", " ", _trim(value), flags=re.IGNORECASE).replace("\\|", "|").strip()
-
+    return re.sub(r"<br\s*/?>", " ", trim(value), flags=re.IGNORECASE).replace("\\|", "|").strip()
 
 def _split_markdown_row(line: str) -> list[str]:
-    stripped = _trim(line)
+    stripped = trim(line)
     if not stripped.startswith("|") or not stripped.endswith("|"):
         return []
     cells: list[str] = []
@@ -54,10 +35,8 @@ def _split_markdown_row(line: str) -> list[str]:
     cells.append(_strip_markdown_cell("".join(current)))
     return cells
 
-
 def _is_markdown_separator(cells: list[str]) -> bool:
     return bool(cells) and all(re.fullmatch(r"\s*:?-{3,}:?\s*", cell or "") for cell in cells)
-
 
 @dataclass(frozen=True)
 class WorkflowCharacterPlan:
@@ -71,7 +50,6 @@ class WorkflowCharacterPlan:
             "appearance": self.appearance,
             "summary": self.summary,
         }
-
 
 @dataclass(frozen=True)
 class WorkflowStoryboardClipPlan:
@@ -94,7 +72,6 @@ class WorkflowStoryboardClipPlan:
             "targetDurationSeconds": self.target_duration_seconds,
         }
 
-
 @dataclass(frozen=True)
 class WorkflowStoryboardPlan:
     characters: list[WorkflowCharacterPlan]
@@ -103,7 +80,6 @@ class WorkflowStoryboardPlan:
     def to_view(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         return [character.to_view() for character in self.characters], [clip.to_view() for clip in self.clips]
 
-
 def parse_workflow_storyboard_markdown(markdown: str) -> WorkflowStoryboardPlan:
     """Parse workflow storyboard markdown tables into character and clip plans."""
     characters: list[WorkflowCharacterPlan] = []
@@ -111,7 +87,7 @@ def parse_workflow_storyboard_markdown(markdown: str) -> WorkflowStoryboardPlan:
     section = ""
     table_headers: list[str] = []
     for line in markdown.splitlines():
-        text = _trim(line)
+        text = trim(line)
         if not text:
             continue
         if "角色定义" in text:
@@ -136,7 +112,6 @@ def parse_workflow_storyboard_markdown(markdown: str) -> WorkflowStoryboardPlan:
             clips.append(_clip_from_cells(cells, len(clips) + 1))
     return WorkflowStoryboardPlan(characters=characters, clips=clips)
 
-
 def _character_from_cells(headers: list[str], cells: list[str]) -> WorkflowCharacterPlan | None:
     name = cells[0] if cells else ""
     if not name or name == "角色":
@@ -152,12 +127,11 @@ def _character_from_cells(headers: list[str], cells: list[str]) -> WorkflowChara
         summary="；".join(details[:4]) or name,
     )
 
-
 def _clip_from_cells(cells: list[str], fallback_index: int) -> WorkflowStoryboardClipPlan:
-    clip_no = _safe_int(cells[0] if cells else None, fallback_index)
+    clip_no = safe_int(cells[0] if cells else None, fallback_index)
     duration_text = cells[4] if len(cells) > 4 else ""
     duration_match = re.search(r"\d+", duration_text)
-    duration_seconds = _safe_int(duration_match.group(0), 8) if duration_match else 8
+    duration_seconds = safe_int(duration_match.group(0), 8) if duration_match else 8
     return WorkflowStoryboardClipPlan(
         clip_index=clip_no if clip_no > 0 else fallback_index,
         shot_label=f"镜头 {cells[0]}" if cells else f"镜头 {fallback_index}",

@@ -4,9 +4,10 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 
 from backend.auth import get_current_user
+from backend.errors import bad_request, internal_error, not_found, unauthorized
 from backend.schemas.common import MessageResponse
 from backend.schemas.task import (
     CreateGenerationTaskRequest,
@@ -27,7 +28,7 @@ def _svc(request: Request):
     """从 app.state 获取 TaskApplicationService 实例。"""
     svc = request.app.state.task_application_service
     if svc is None:
-        raise HTTPException(status_code=500, detail="task service not configured")
+        raise internal_error("task service not configured")
     return svc
 
 
@@ -35,7 +36,7 @@ async def _uid(request: Request) -> int:
     """获取当前登录用户 ID，未登录则返回 401。"""
     user = await get_current_user(request)
     if user is None:
-        raise HTTPException(status_code=401, detail="unauthenticated")
+        raise unauthorized()
     return user["id"]
 
 
@@ -70,7 +71,7 @@ async def create_generation_task(body: CreateGenerationTaskRequest, request: Req
     try:
         return await _svc(request).create_generation_task_for_user(user_id, body)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise bad_request(str(exc))
 
 
 @router.post("/generate-prompt", response_model=GenerateCreativePromptResponse)
@@ -92,7 +93,7 @@ async def get_task(task_id: str, request: Request):
     try:
         return await _svc(request).get_task(task_id, user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 # ── 子集合 ───────────────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ async def get_task_trace(
     try:
         return await _svc(request).get_trace(task_id, user_id, limit=limit)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.get("/{task_id}/logs")
@@ -120,7 +121,7 @@ async def get_task_logs(
     try:
         return await _svc(request).get_logs(task_id, user_id, limit=limit)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.get("/{task_id}/status-history")
@@ -129,7 +130,7 @@ async def get_task_status_history(task_id: str, request: Request):
     try:
         return await _svc(request).get_status_history(task_id, user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.get("/{task_id}/model-calls")
@@ -138,7 +139,7 @@ async def get_task_model_calls(task_id: str, request: Request):
     try:
         return await _svc(request).get_model_calls(task_id, user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.get("/{task_id}/results")
@@ -147,7 +148,7 @@ async def get_task_results(task_id: str, request: Request):
     try:
         return await _svc(request).get_results(task_id, user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.get("/{task_id}/materials")
@@ -156,7 +157,7 @@ async def get_task_materials(task_id: str, request: Request):
     try:
         return await _svc(request).get_materials(task_id, user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 # ── 生命周期操作 ─────────────────────────────────────────────────────────
@@ -168,7 +169,7 @@ async def delete_task(task_id: str, request: Request):
         result = await _svc(request).delete_task(task_id, user_id)
         return TaskDeleteResult(success=True, task_id=result.get("taskId", task_id))
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.post("/{task_id}/retry", response_model=TaskDetailResponse)
@@ -177,7 +178,7 @@ async def retry_task(task_id: str, request: Request):
     try:
         return await _svc(request).retry_task(task_id, user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.post("/{task_id}/pause", response_model=MessageResponse)
@@ -187,7 +188,7 @@ async def pause_task(task_id: str, request: Request):
         await _svc(request).pause_task(task_id, user_id)
         return MessageResponse(message="paused")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.post("/{task_id}/continue", response_model=MessageResponse)
@@ -197,7 +198,7 @@ async def continue_task(task_id: str, request: Request):
         await _svc(request).continue_task(task_id, user_id)
         return MessageResponse(message="continued")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.post("/{task_id}/terminate", response_model=MessageResponse)
@@ -207,7 +208,7 @@ async def terminate_task(task_id: str, request: Request):
         await _svc(request).terminate_task(task_id, user_id)
         return MessageResponse(message="terminated")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise not_found(str(exc))
 
 
 @router.post("/{task_id}/effect-rating", response_model=MessageResponse)
@@ -217,4 +218,4 @@ async def rate_task_effect(task_id: str, body: RateTaskEffectRequest, request: R
         await _svc(request).rate_task_effect(task_id, user_id, body)
         return MessageResponse(message="rated")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise bad_request(str(exc))

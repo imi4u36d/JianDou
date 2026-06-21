@@ -2,21 +2,13 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.task import BizMaterialAsset
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
+from backend.shared import now_iso, string_value
 
 
 def _optional_int(value: Any) -> int | None:
@@ -135,49 +127,49 @@ class MaterialAssetService:
         return self.to_view(row)
 
     async def upsert_asset(self, owner_user_id: int, asset_id: str | None = None, **values: Any) -> BizMaterialAsset:
-        resolved_id = _string_value(asset_id) or f"mat_{uuid.uuid4().hex}"
+        resolved_id = string_value(asset_id) or f"mat_{uuid.uuid4().hex}"
         row = await self._find_by_asset_id(resolved_id)
-        now = _now_iso()
+        now = now_iso()
         metadata = _metadata_dict(values.get("metadata"))
         payload = {
-            "remark": _string_value(values.get("remark", "")),
+            "remark": string_value(values.get("remark", "")),
             "owner_user_id": owner_user_id,
-            "task_id": _string_value(values.get("taskId", "")) or None,
-            "workflow_id": _string_value(values.get("workflowId", "")) or None,
-            "source_task_id": _string_value(values.get("sourceTaskId", "")) or None,
-            "source_material_id": _string_value(values.get("sourceMaterialId", "")) or None,
-            "asset_role": _string_value(values.get("assetType", values.get("assetRole", "free"))) or None,
-            "stage_type": _string_value(values.get("stageType", "material")) or None,
+            "task_id": string_value(values.get("taskId", "")) or None,
+            "workflow_id": string_value(values.get("workflowId", "")) or None,
+            "source_task_id": string_value(values.get("sourceTaskId", "")) or None,
+            "source_material_id": string_value(values.get("sourceMaterialId", "")) or None,
+            "asset_role": string_value(values.get("assetType", values.get("assetRole", "free"))) or None,
+            "stage_type": string_value(values.get("stageType", "material")) or None,
             "clip_index": _optional_int(values.get("clipIndex")) if "clipIndex" in values else 0,
             "version_no": _optional_int(values.get("versionNo")) if "versionNo" in values else 1,
             "selected_for_next": _bool_to_int(values.get("selectedForNext", False)),
             "user_rating": _optional_int(values.get("userRating")),
-            "rating_note": _string_value(values.get("ratingNote", "")) or None,
-            "media_type": _string_value(values.get("mediaType", "image")) or None,
-            "title": _string_value(values.get("title", "素材")) or None,
-            "origin_provider": _string_value(values.get("originProvider", "")) or None,
-            "origin_model": _string_value(values.get("originModel", "")) or None,
-            "remote_task_id": _string_value(values.get("remoteTaskId", "")) or None,
-            "remote_asset_id": _string_value(values.get("remoteAssetId", "")) or None,
-            "original_file_name": _string_value(values.get("originalFileName", "")) or None,
-            "stored_file_name": _string_value(values.get("storedFileName", "")) or None,
-            "file_ext": _string_value(values.get("fileExt", "")) or None,
-            "storage_provider": _string_value(values.get("storageProvider", "")) or None,
-            "mime_type": _string_value(values.get("mimeType", "")) or None,
+            "rating_note": string_value(values.get("ratingNote", "")) or None,
+            "media_type": string_value(values.get("mediaType", "image")) or None,
+            "title": string_value(values.get("title", "素材")) or None,
+            "origin_provider": string_value(values.get("originProvider", "")) or None,
+            "origin_model": string_value(values.get("originModel", "")) or None,
+            "remote_task_id": string_value(values.get("remoteTaskId", "")) or None,
+            "remote_asset_id": string_value(values.get("remoteAssetId", "")) or None,
+            "original_file_name": string_value(values.get("originalFileName", "")) or None,
+            "stored_file_name": string_value(values.get("storedFileName", "")) or None,
+            "file_ext": string_value(values.get("fileExt", "")) or None,
+            "storage_provider": string_value(values.get("storageProvider", "")) or None,
+            "mime_type": string_value(values.get("mimeType", "")) or None,
             "size_bytes": _optional_int(values.get("sizeBytes")),
-            "sha256": _string_value(values.get("sha256", "")) or None,
+            "sha256": string_value(values.get("sha256", "")) or None,
             "duration_seconds": _optional_float(values.get("durationSeconds")),
             "width": _optional_int(values.get("width")),
             "height": _optional_int(values.get("height")),
             "has_audio": _bool_to_int(values.get("hasAudio", False)),
-            "local_storage_path": _string_value(values.get("storagePath", "")) or None,
-            "local_file_path": _string_value(values.get("localFilePath", values.get("storagePath", ""))) or None,
-            "public_url": _string_value(values.get("fileUrl", values.get("publicUrl", ""))) or None,
-            "thumbnail_url": _string_value(values.get("thumbnailUrl", values.get("previewUrl", ""))) or None,
-            "third_party_url": _string_value(values.get("thirdPartyUrl", "")) or None,
-            "remote_url": _string_value(values.get("remoteUrl", "")) or None,
+            "local_storage_path": string_value(values.get("storagePath", "")) or None,
+            "local_file_path": string_value(values.get("localFilePath", values.get("storagePath", ""))) or None,
+            "public_url": string_value(values.get("fileUrl", values.get("publicUrl", ""))) or None,
+            "thumbnail_url": string_value(values.get("thumbnailUrl", values.get("previewUrl", ""))) or None,
+            "third_party_url": string_value(values.get("thirdPartyUrl", "")) or None,
+            "remote_url": string_value(values.get("remoteUrl", "")) or None,
             "metadata_json": json.dumps(metadata, ensure_ascii=False),
-            "captured_at": _string_value(values.get("capturedAt", now)) or None,
+            "captured_at": string_value(values.get("capturedAt", now)) or None,
             "timezone_offset_minutes": _optional_int(values.get("timezoneOffsetMinutes")),
             "update_time": now,
             "is_deleted": 0,
@@ -205,7 +197,7 @@ class MaterialAssetService:
             return None
         row.user_rating = rating
         row.rating_note = note
-        row.update_time = _now_iso()
+        row.update_time = now_iso()
         await self.db.commit()
         await self.db.refresh(row)
         return self.to_view(row)
@@ -214,7 +206,7 @@ class MaterialAssetService:
         row = await self._find_owned(owner_user_id, asset_id)
         if row is None:
             return None
-        row.update_time = _now_iso()
+        row.update_time = now_iso()
         await self.db.commit()
         await self.db.refresh(row)
         return self.to_view(row)
@@ -224,7 +216,7 @@ class MaterialAssetService:
         if row is None:
             return False
         row.is_deleted = 1
-        row.update_time = _now_iso()
+        row.update_time = now_iso()
         await self.db.commit()
         return True
 

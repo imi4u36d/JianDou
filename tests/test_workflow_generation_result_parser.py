@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pytest
+pytestmark = pytest.mark.service
+import pytest
 
 from backend.services.workflow_generation_result_parser import WorkflowGenerationResultParser
 

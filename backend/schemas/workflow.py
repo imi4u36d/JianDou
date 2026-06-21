@@ -84,3 +84,35 @@ class RateStageVersionRequest(WorkflowRequestModel):
 class WorkflowDeleteResult(BaseModel):
     deleted: bool = False
     workflow_id: str = ""
+
+WorkflowListResponse = list[WorkflowSummaryResponse]
+
+
+class WorkflowDetailResponse(BaseModel):
+    """Full workflow detail returned by get/create/update endpoints."""
+    id: str = ""
+    title: str = ""
+    status: str = ""
+    current_stage: str = ""
+    aspect_ratio: str = ""
+    transcript_text: str | None = None
+    style_preset: str | None = None
+    video_size: str | None = None
+    duration_mode: str | None = None
+    min_duration_seconds: int | None = None
+    max_duration_seconds: int | None = None
+    effect_rating: int | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class WorkflowActionResponse(BaseModel):
+    """Generic response for workflow action endpoints (generate, select, rate, finalize)."""
+    id: str = ""
+    status: str = ""
+    current_stage: str = ""
+    updated_at: str = ""
+
+    model_config = ConfigDict(extra="allow")

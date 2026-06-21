@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.domain
 from backend.domain.media_result import (
     media_output_url,
     remote_source_url,

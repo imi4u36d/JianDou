@@ -13,12 +13,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backend.services.provider_payload_sanitizer import ProviderPayloadSanitizer
+from backend.shared import first_non_blank
 
 _logger_task_trace = logging.getLogger("jiandou.task.trace")
 _logger_workflow_trace = logging.getLogger("jiandou.workflow.trace")
 
 MAX_RECENT_EVENTS = 1000
-
 
 class StructuredApplicationLogger:
     """Writes task/workflow diagnostic events to the application log.
@@ -98,8 +98,8 @@ class StructuredApplicationLogger:
         return {
             "logType": "task_trace",
             "taskId": _str(task_id),
-            "traceId": _first_non_blank(_str(trace.get("traceId")), ""),
-            "timestamp": _first_non_blank(_str(trace.get("timestamp")), _now_iso()),
+            "traceId": first_non_blank(_str(trace.get("traceId")), ""),
+            "timestamp": first_non_blank(_str(trace.get("timestamp")), now_iso()),
             "level": _normalize_level(_str(trace.get("level"))),
             "stage": _str(trace.get("stage")),
             "event": _str(trace.get("event")),
@@ -124,7 +124,7 @@ class StructuredApplicationLogger:
             "taskId": _str(owner_ref_id),
             "ownerRefId": _str(owner_ref_id),
             "traceId": "",
-            "timestamp": _now_iso(),
+            "timestamp": now_iso(),
             "level": _normalize_level(level),
             "module": _str(module),
             "stage": _str(stage),
@@ -184,7 +184,6 @@ class StructuredApplicationLogger:
             or query in _str(event.get("stage")).lower()
         )
 
-
 # ---------------------------------------------------------------------------
 # Module-level utility functions
 # ---------------------------------------------------------------------------
@@ -192,15 +191,9 @@ class StructuredApplicationLogger:
 def _str(value: Any) -> str:
     return "" if value is None else str(value)
 
-
 def _normalize_level(raw_level: str | None) -> str:
     normalized = (raw_level or "").strip().upper()
     return normalized if normalized else "INFO"
 
-
-def _first_non_blank(value: str, fallback: str) -> str:
-    return value if value and value.strip() else fallback
-
-
-def _now_iso() -> str:
+def now_iso() -> str:
     return datetime.now(UTC).isoformat()

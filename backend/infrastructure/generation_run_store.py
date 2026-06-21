@@ -1,5 +1,6 @@
 """Generation run store — in-memory + local file persistence for generation runs.
 
+from backend.shared import now_iso
 Translates the Java LocalGenerationRunStore.
 """
 

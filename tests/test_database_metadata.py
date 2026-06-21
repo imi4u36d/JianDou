@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.integration
 from sqlalchemy import CheckConstraint
 
 import backend.models  # noqa: F401

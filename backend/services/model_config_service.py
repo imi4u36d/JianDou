@@ -158,6 +158,9 @@ def _vendor_property(vendor: str, suffix: str) -> str:
 # ---------------------------------------------------------------------------
 
 @dataclass
+# =============================================================================
+# TYPE DEFINITIONS — provider profiles, capabilities, and value objects
+# =============================================================================
 class ResolvedModel:
     canonical_name: str
     section: dict[str, Any]
@@ -313,6 +316,9 @@ def _host_of(raw: str) -> str:
 # ModelRuntimePropertiesResolver
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# CONFIG RESOLVER — loads YAML model config, resolves runtime profiles
+# =============================================================================
 class ModelRuntimePropertiesResolver:
     """Resolves model runtime properties from YAML config files.
 
@@ -875,6 +881,9 @@ class ModelRuntimePropertiesResolver:
 # RuntimeModelCredentialProvider (protocol/interface)
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# CREDENTIAL PROVIDER — manages model API keys
+# =============================================================================
 class RuntimeModelCredentialProvider:
     """Interface for resolving user-scoped API keys."""
 
@@ -973,6 +982,9 @@ class AdminModelConfigValidationResponse:
 # AdminModelConfigService
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# ADMIN SERVICE — CRUD for model configuration
+# =============================================================================
 class AdminModelConfigService:
     """Admin operations for model configuration.
 
@@ -1368,6 +1380,9 @@ class AdminModelConfigService:
 # AdminModelConfigSecretsService (interface placeholder)
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# SECRETS SERVICE — encrypted secret storage
+# =============================================================================
 class AdminModelConfigSecretsService:
     """Interface for saving admin API key secrets."""
 
@@ -1421,6 +1436,9 @@ class LocalAdminModelConfigSecretsService(AdminModelConfigSecretsService):
 # ---------------------------------------------------------------------------
 
 @dataclass
+# =============================================================================
+# USER CONFIG — per-user model configuration and API keys
+# =============================================================================
 class ApiKeyUpdateBatch:
     api_keys: dict[str, str]
     errors: list[str]
@@ -1869,6 +1887,9 @@ class UserModelConfigService:
         return _first_non_blank(_normalize(vendor), _normalize(fallback))
 
 
+# =============================================================================
+# REPOSITORIES — credential persistence adapters
+# =============================================================================
 class MybatisUserModelCredentialRepository:
     """Interface for user credential persistence."""
 

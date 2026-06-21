@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from sqlalchemy import select
 
 from backend.domain.task_record import TaskRecord

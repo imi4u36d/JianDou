@@ -8,17 +8,7 @@ from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_artifact_assembler import _TaskArtifactNaming
 from backend.services.task_worker_status_stage_service import TaskExecutionAbortedException
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
-
-
-def _first_non_blank(*values: str | None) -> str:
-    for value in values:
-        if value is not None and value.strip():
-            return value.strip()
-    return ""
+from backend.shared import first_non_blank, string_value
 
 
 def _truncate_text(value: str, max_length: int) -> str:
@@ -71,18 +61,18 @@ class TaskExecutionRuntimeSupport:
         if not task.active_attempt_id:
             return None
         for row in task.attempts:
-            if task.active_attempt_id == _string_value(row.get("attemptId", "")):
+            if task.active_attempt_id == string_value(row.get("attemptId", "")):
                 return row
         return None
 
     def resolve_dimensions(self, task: TaskRecord) -> list[int]:
         snapshot = task.request_snapshot or {}
-        image_size = _string_value(snapshot.get("imageSize", ""))
+        image_size = string_value(snapshot.get("imageSize", ""))
         if image_size:
             parsed = self._parse_dimensions(image_size)
             if parsed:
                 return parsed
-        video_size = _string_value(snapshot.get("videoSize", ""))
+        video_size = string_value(snapshot.get("videoSize", ""))
         if video_size:
             parsed = self._parse_dimensions(video_size)
             if parsed:
@@ -118,10 +108,10 @@ class TaskExecutionRuntimeSupport:
             return
         if TaskStatus.is_execution_active(TaskStatus(task.status) if TaskStatus(task.status) else None):
             return
-        raise TaskExecutionAbortedException(task.status, _first_non_blank(task.error_message, "任务已停止执行。"))
+        raise TaskExecutionAbortedException(task.status, first_non_blank(task.error_message, "任务已停止执行。"))
 
     def build_script_run_request(self, task: TaskRecord) -> dict[str, Any]:
-        source_text = _first_non_blank(
+        source_text = first_non_blank(
             task.transcript_text,
             task.creative_prompt,
             task.title,
@@ -181,7 +171,7 @@ class TaskExecutionRuntimeSupport:
                 "fileStem": f"clip{max(1, clip_index)}-{normalized_frame_role}",
             },
             "metadata": {
-                "relatedTaskId": _string_value(task.id),
+                "relatedTaskId": string_value(task.id),
                 "clipIndex": max(1, clip_index),
                 "frameRole": normalized_frame_role,
             },
@@ -191,11 +181,11 @@ class TaskExecutionRuntimeSupport:
 
     def build_workspace_image_run_request(self, task: TaskRecord, width: int, height: int) -> dict[str, Any]:
         snapshot = task.request_snapshot or {}
-        asset_type = _string_value(snapshot.get("assetType", ""))
+        asset_type = string_value(snapshot.get("assetType", ""))
         if not asset_type:
             asset_type = "character_sheet" if task.task_type == "character_sheet" else "free"
-        prompt = _first_non_blank(
-            _string_value(snapshot.get("creativePrompt", "")),
+        prompt = first_non_blank(
+            string_value(snapshot.get("creativePrompt", "")),
             task.creative_prompt,
             task.title,
         )
@@ -231,7 +221,7 @@ class TaskExecutionRuntimeSupport:
                 "requireRemoteSourceUrl": False,
             },
             "metadata": {
-                "relatedTaskId": _string_value(task.id),
+                "relatedTaskId": string_value(task.id),
                 "taskType": task.task_type,
                 "assetType": asset_type,
                 "referenceImageCount": len(compatible),
@@ -280,7 +270,7 @@ class TaskExecutionRuntimeSupport:
                 "fileStem": f"clip{max(1, clip_index)}",
             },
             "metadata": {
-                "relatedTaskId": _string_value(task.id),
+                "relatedTaskId": string_value(task.id),
                 "clipIndex": max(1, clip_index),
             },
         }
@@ -288,7 +278,7 @@ class TaskExecutionRuntimeSupport:
         return dict(request)
 
     def _parse_dimensions(self, value: str) -> list[int] | None:
-        normalized = _string_value(value).lower().replace("x", "*")
+        normalized = string_value(value).lower().replace("x", "*")
         parts = normalized.split("*")
         if len(parts) != 2:
             return None
@@ -310,14 +300,14 @@ class TaskExecutionRuntimeSupport:
 
     def _required_snapshot_model(self, task: TaskRecord, field_name: str, label: str) -> str:
         snapshot = task.request_snapshot or {}
-        configured = _string_value(snapshot.get(field_name, ""))
+        configured = string_value(snapshot.get(field_name, ""))
         if configured:
             return configured
         raise ValueError(f"任务缺少必选模型：{label}（{field_name}）")
 
     def _style_preset(self, task: TaskRecord) -> str:
         snapshot = task.request_snapshot or {}
-        configured = _string_value(snapshot.get("stylePreset", ""))
+        configured = string_value(snapshot.get("stylePreset", ""))
         return configured if configured else "cinematic"
 
     def _task_seed(self, task: TaskRecord) -> int | None:
@@ -331,7 +321,7 @@ class TaskExecutionRuntimeSupport:
         seed = self._task_seed(task)
         if seed is not None:
             return seed
-        task_identity = _first_non_blank(task.id, task.title, task.creative_prompt, "task")
+        task_identity = first_non_blank(task.id, task.title, task.creative_prompt, "task")
         seed_source = f"{task_identity}:clip:{max(1, clip_index)}:keyframe"
         raw = uuid.uuid5(uuid.NAMESPACE_OID, seed_source).int >> 64
         return (raw % (2**31 - 2)) + 1
@@ -340,7 +330,7 @@ class TaskExecutionRuntimeSupport:
         return "last" if frame_role.lower() == "last" else "first"
 
     def _compatible_single_image_reference_url(self, reference_image_url: str, image_model: str) -> list[str]:
-        normalized = _string_value(reference_image_url)
+        normalized = string_value(reference_image_url)
         if not normalized:
             return []
         if normalized.startswith("/storage/"):
@@ -380,23 +370,23 @@ class TaskExecutionRuntimeSupport:
         if isinstance(raw, list):
             values: list[str] = []
             for item in raw:
-                normalized = _string_value(item)
+                normalized = string_value(item)
                 if normalized and normalized not in values:
                     values.append(normalized)
             return values
         return []
 
     def _supports_image_data_uri_references(self, image_model: str) -> bool:
-        lower = _string_value(image_model).lower()
+        lower = string_value(image_model).lower()
         return "gpt-image" in lower or "seedream" in lower
 
     def _build_workspace_image_prompt(self, asset_type: str, title: str, description: str, has_references: bool) -> str:
-        normalized_asset_type = _string_value(asset_type)
-        normalized_description = _string_value(description)
+        normalized_asset_type = string_value(asset_type)
+        normalized_description = string_value(description)
         if normalized_asset_type in ("free", ""):
             return normalized_description
         parts: list[str] = [
-            f"素材标题：{_first_non_blank(title, '工作台图片生成')}",
+            f"素材标题：{first_non_blank(title, '工作台图片生成')}",
             f"素材描述：{normalized_description}",
         ]
         if has_references:

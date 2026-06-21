@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import (
@@ -12,6 +12,7 @@ from backend.auth import (
 )
 from backend.config import settings
 from backend.database import get_db
+from backend.errors import bad_request, forbidden, unauthorized
 from backend.schemas.auth import ActivateInviteRequest, AuthSessionResponse, LoginRequest
 from backend.schemas.common import MessageResponse
 from backend.services.auth_rate_limiter import check_auth_subject_rate_limit
@@ -39,7 +40,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
     try:
         user = await auth_service.login(payload.username, payload.password)
     except ValueError as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
+        raise forbidden(str(exc))
 
     if not user and payload.username.lower() == settings.bootstrap_admin_username.lower():
         if payload.password == settings.bootstrap_admin_password:
@@ -50,7 +51,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             )
 
     if not user:
-        raise HTTPException(status_code=401, detail="invalid_credentials")
+        raise unauthorized("invalid_credentials")
 
     token_data = create_token_data(user["id"], user["username"], user["role"])
     access_token = create_access_token(token_data)
@@ -80,10 +81,10 @@ async def activate_invite(
             payload.password,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise bad_request(str(exc))
 
     if not user:
-        raise HTTPException(status_code=400, detail="invite_activation_failed")
+        raise bad_request("invite_activation_failed")
 
     token_data = create_token_data(user["id"], user["username"], user["role"])
     access_token = create_access_token(token_data)

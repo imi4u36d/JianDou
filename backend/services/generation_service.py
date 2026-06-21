@@ -1,3 +1,5 @@
+# ruff: noqa: F811  # class method delegates to shared.py
+
 """Generation services — catalog, factory, run support, and application service.
 
 Translates the Java classes:
@@ -58,6 +60,17 @@ from backend.services.model_config_service import (
     ModelRuntimeProfile,
     ModelRuntimePropertiesResolver,
 )
+from backend.shared import (
+    find_nested_string,
+    first_non_blank,
+    first_positive_int,
+    map_value,
+    now_iso,
+    positive_int,
+    safe_bool,
+    string_value,
+    truncate_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +122,9 @@ def _get_video_model_provider():
 # Exceptions
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# EXCEPTIONS
+# =============================================================================
 class GenerationProviderException(Exception):
     """Raised when a provider (text/image/video API) returns an error."""
 
@@ -203,6 +219,9 @@ def _stub_video_submission(
 # GenerationRunSupport
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# GENERATION RUN SUPPORT
+# =============================================================================
 class GenerationRunSupport:
     """Utility class providing helper methods for generation run orchestration.
 
@@ -275,8 +294,6 @@ class GenerationRunSupport:
     ) -> bool:
         return nested_boolean(payload, parent_key, child_key, default)
 
-    # ── Utility ──────────────────────────────────────────────────────
-
     def map_value(self, value: Any) -> dict[str, Any]:
         return map_value(value)
 
@@ -296,12 +313,10 @@ class GenerationRunSupport:
         raise ValueError(f"请先选择{label}（{field_name}）")
 
     def now_iso(self) -> str:
-        return datetime.now(UTC).isoformat()
+        return now_iso()
 
     def truncate_text(self, value: str, limit: int) -> str:
-        if not value:
-            return ""
-        return value if len(value) <= limit else value[:limit]
+        return truncate_text(value, limit)
 
     def strip_markdown_fence(self, text: str) -> str:
         value = text.strip() if text else ""
@@ -317,17 +332,10 @@ class GenerationRunSupport:
         return max(min_val, min(max_val, value))
 
     def positive_int(self, raw: str, fallback: int) -> int:
-        try:
-            v = int(str(raw).strip())
-            return v if v > 0 else fallback
-        except (ValueError, TypeError):
-            return fallback
+        return positive_int(raw, fallback)
 
     def first_positive_int(self, *values: int) -> int:
-        for v in values:
-            if v > 0:
-                return v
-        return 0
+        return first_positive_int(*values)
 
     def normalize_value(self, value: str) -> str:
         return value.strip().lower() if value else ""
@@ -482,6 +490,9 @@ class GenerationRunSupport:
 # GenerationRunFactory
 # ===========================================================================
 
+# =============================================================================
+# GENERATION RUN FACTORY
+# =============================================================================
 class GenerationRunFactory:
     """Creates generation runs by dispatching to remote model providers.
 
@@ -1588,6 +1599,9 @@ class GenerationRunFactory:
 # DefaultGenerationApplicationService
 # ===========================================================================
 
+# =============================================================================
+# APPLICATION SERVICE
+# =============================================================================
 class DefaultGenerationApplicationService:
     """Main generation service combining catalog, factory, and run store.
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from backend.services.model_config_snapshot import ConfigSnapshot
 from backend.services.model_config_values import (
     configured_provider_model,
@@ -26,8 +28,8 @@ def test_base_url_helpers_normalize_provider_endpoints() -> None:
 
 def test_list_and_secret_helpers_preserve_runtime_config_contracts() -> None:
     assert first_valid_secret("", "placeholder", "changeme", "sk-live") == "sk-live"
-    assert parse_string_list(["720x1280", "720x1280", "1024x1024"]) == ["720x1280", "1024x1024"]
-    assert parse_integer_list(["8", "bad", "8", "12", "0"]) == [8, 12]
+    assert parse_string_list("720x1280,720x1280,1024x1024") == ["720x1280", "1024x1024"]
+    assert parse_integer_list("8,bad,8,12,0") == [8, 12]
 
 
 def test_responses_api_support_uses_explicit_config_before_provider_heuristics() -> None:

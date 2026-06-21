@@ -87,11 +87,20 @@ npx vitest run --coverage
 ### 后端开发
 
 ```bash
-# 代码检查
-npm run api:lint
+# 代码检查（ruff lint，零错误）
+uv run ruff check backend/
 
-# 运行测试
-npm run api:test
+# 运行全部测试（314 个测试，零失败）
+uv run pytest
+
+# 按标记分类运行测试
+uv run pytest -m unit      # 快速单元测试（64 个）
+uv run pytest -m api       # API 端点测试（90 个）
+uv run pytest -m domain    # 领域层测试（33 个）
+uv run pytest -m "not slow" # 跳过慢速测试
+
+# 导出 OpenAPI 模式
+uv run jiandou openapi --output docs/openapi.json
 
 # 仅启动 API
 npm run api:dev

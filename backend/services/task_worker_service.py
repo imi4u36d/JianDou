@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime, timezone
 from typing import Any, Optional
 
 from backend.domain.enums import AttemptStatus, TaskStatus, WorkerStatus
@@ -30,6 +29,11 @@ from backend.infrastructure.task_queue_port import TaskQueuePort
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.generation_service import (
     GenerationProviderException,
+)
+from backend.services.stubs import (
+    GenerationApplicationServiceStub,
+    LocalMediaArtifactServiceStub,
+    TaskStoryboardPlannerStub,
 )
 from backend.services.task_artifact_assembler import TaskExecutionArtifactAssembler, _TaskArtifactNaming
 from backend.services.task_execution_coordinator import (
@@ -52,46 +56,16 @@ from backend.services.task_worker_status_stage_service import (
     TaskStage as _TaskStage,
 )
 from backend.services.task_worker_view_mapper import TaskViewMapper
+from backend.shared import first_non_blank, map_value, now_iso, safe_int, string_value
 
 # ---------------------------------------------------------------------------
 # Module-level utility helpers (mirrors Java stringValue/intValue/firstNonBlank)
 # ---------------------------------------------------------------------------
 
-_ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-def _now_iso() -> str:
-    return datetime.now(UTC).strftime(_ISO_FMT)
 
 
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
-
-
-def _int_value(value: Any, fallback: int = 0) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if value is not None:
-        try:
-            return int(str(value).strip())
-        except (ValueError, TypeError):
-            pass
-    return fallback
-
-
-def _first_non_blank(*values: str | None) -> str:
-    for v in values:
-        if v is not None and v.strip():
-            return v.strip()
-    return ""
-
-
-def _map_value(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {}
 
 
 class _GenerationRunKinds:
@@ -99,95 +73,6 @@ class _GenerationRunKinds:
     IMAGE = "image"
     VIDEO = "video"
 
-
-# ---------------------------------------------------------------------------
-# Stub external service interfaces (to be wired via dependency injection)
-# ---------------------------------------------------------------------------
-
-class GenerationApplicationServiceStub:
-    """Stub for GenerationApplicationService. Replace with real client."""
-
-    async def create_run(self, request: dict[str, Any]) -> dict[str, Any]:
-        return {"message": "not yet implemented", "id": "", "status": "pending", "result": {}}
-
-    async def get_run(self, run_id: str) -> dict[str, Any]:
-        return {"id": run_id, "status": "completed", "result": {}}
-
-
-class LocalMediaArtifactServiceStub:
-    """Stub for LocalMediaArtifactService."""
-
-    class StoredArtifact:
-        def __init__(self, public_url: str = "", file_name: str = "", absolute_path: str = "", size_bytes: int = 0) -> None:
-            self._public_url = public_url
-            self._file_name = file_name
-            self._absolute_path = absolute_path
-            self._size_bytes = size_bytes
-
-        def public_url(self) -> str: ...
-        def file_name(self) -> str: ...
-        def absolute_path(self) -> str: ...
-        def size_bytes(self) -> int: ...
-
-    def materialize_artifact(self, source_url: str, relative_dir: str, target_file_name: str) -> StoredArtifact: ...
-    def copy_artifact(self, source_url: str, relative_dir: str, target_file_name: str) -> StoredArtifact: ...
-    def concat_videos(self, relative_dir: str, output_file_name: str, segment_urls: list[str]) -> StoredArtifact: ...
-    def build_externally_accessible_url(self, local_path: str) -> str: ...
-    def image_data_uri_from_public_url(self, public_url: str) -> str: ...
-    def ensure_media_thumbnail(self, media_type: str, public_url: str, candidate_image_urls: list[str], max_width: int) -> str: ...
-    def resolve_absolute_path(self, file_url: str) -> str: ...
-
-
-class TaskStoryboardPlannerStub:
-    """Stub for TaskStoryboardPlanner."""
-
-    class StoryboardShotPlan:
-        def __init__(self, *, sequential_index: int = 1, shot_label: str = "", scene: str = "",
-                     video_prompt: str = "", image_prompt: str = "", first_frame_prompt: str = "",
-                     last_frame_prompt: str = "", motion: str = "", camera_movement: str = "",
-                     duration_hint: str = "") -> None:
-            self._sequential_index = sequential_index
-            self._shot_label = shot_label
-            self._scene = scene
-            self._video_prompt = video_prompt
-            self._image_prompt = image_prompt
-            self._first_frame_prompt = first_frame_prompt
-            self._last_frame_prompt = last_frame_prompt
-            self._motion = motion
-            self._camera_movement = camera_movement
-            self._duration_hint = duration_hint
-
-        def sequential_index(self) -> int: return self._sequential_index
-        def shot_label(self) -> str: return self._shot_label
-        def scene(self) -> str: return self._scene
-        def video_prompt(self) -> str: return self._video_prompt
-        def image_prompt(self) -> str: return self._image_prompt
-        def first_frame_prompt(self) -> str: return self._first_frame_prompt
-        def last_frame_prompt(self) -> str: return self._last_frame_prompt
-        def motion(self) -> str: return self._motion
-        def camera_movement(self) -> str: return self._camera_movement
-        def duration_hint(self) -> str: return self._duration_hint
-
-    def build_storyboard_shot_plans(self, task: TaskRecord, storyboard_markdown: str) -> list[StoryboardShotPlan]:
-        return []
-
-    def resolve_requested_output_count(self, task: TaskRecord, storyboard_clip_count: int) -> int:
-        return storyboard_clip_count
-
-    def extract_storyboard_shot_duration_ranges(self, storyboard_markdown: str) -> list[list[int]]:
-        return []
-
-    def build_clip_duration_plan(self, task: TaskRecord, duration_seconds: int, clip_count: int, storyboard_markdown: str) -> list[list[int]]:
-        return [[duration_seconds, duration_seconds, duration_seconds]] * clip_count
-
-    def normalize_clip_duration_plan(self, video_model: str, clip_duration_plan: list[list[int]]) -> list[list[int]]:
-        return clip_duration_plan
-
-    def request_snapshot_output_count(self, task: TaskRecord) -> int:
-        return 0
-
-    def build_clip_duration_plan_context(self, clip_duration_plan: list[list[int]], duration_ranges: list[list[int]]) -> list[dict[str, Any]]:
-        return []
 
 
 class TaskStoryboardPlannerAdapter:
@@ -200,16 +85,16 @@ class TaskStoryboardPlannerAdapter:
         plans: list[TaskStoryboardPlannerStub.StoryboardShotPlan] = []
         for plan in self._planner.build_storyboard_shot_plans(task, storyboard_markdown):
             plans.append(TaskStoryboardPlannerStub.StoryboardShotPlan(
-                sequential_index=_int_value(getattr(plan, "sequential_index", 0), len(plans) + 1),
-                shot_label=_string_value(getattr(plan, "shot_label", "")),
-                scene=_string_value(getattr(plan, "scene", "")),
-                video_prompt=_string_value(getattr(plan, "video_prompt", "")),
-                image_prompt=_string_value(getattr(plan, "image_prompt", "")),
-                first_frame_prompt=_string_value(getattr(plan, "first_frame_prompt", "")),
-                last_frame_prompt=_string_value(getattr(plan, "last_frame_prompt", "")),
-                motion=_string_value(getattr(plan, "motion", "")),
-                camera_movement=_string_value(getattr(plan, "camera_movement", "")),
-                duration_hint=_string_value(getattr(plan, "duration_hint", "")),
+                sequential_index=safe_int(getattr(plan, "sequential_index", 0), len(plans) + 1),
+                shot_label=string_value(getattr(plan, "shot_label", "")),
+                scene=string_value(getattr(plan, "scene", "")),
+                video_prompt=string_value(getattr(plan, "video_prompt", "")),
+                image_prompt=string_value(getattr(plan, "image_prompt", "")),
+                first_frame_prompt=string_value(getattr(plan, "first_frame_prompt", "")),
+                last_frame_prompt=string_value(getattr(plan, "last_frame_prompt", "")),
+                motion=string_value(getattr(plan, "motion", "")),
+                camera_movement=string_value(getattr(plan, "camera_movement", "")),
+                duration_hint=string_value(getattr(plan, "duration_hint", "")),
             ))
         return plans
 
@@ -346,7 +231,7 @@ class TaskWorkerPipelineHandler:
             task.is_queued = False
             task.queue_position = None
             if not task.started_at:
-                task.started_at = _now_iso()
+                task.started_at = now_iso()
             self._runtime_support.assert_task_still_active(task)
             active_attempt = self._runtime_support.active_attempt(task)
             dimensions = self._runtime_support.resolve_dimensions(task)
@@ -360,8 +245,8 @@ class TaskWorkerPipelineHandler:
             existing_video_clip_indices = self._existing_video_clip_indices(task)
             completed_clip_count = self._last_contiguous_completed_clip_index(existing_video_clip_indices)
             render_start_index = max(1, completed_clip_count + 1)
-            requested_resume_stage = _string_value(active_attempt.get("resumeFromStage") if active_attempt else None)
-            requested_resume_clip_index = _int_value(
+            requested_resume_stage = string_value(active_attempt.get("resumeFromStage") if active_attempt else None)
+            requested_resume_clip_index = safe_int(
                 active_attempt.get("resumeFromClipIndex") if active_attempt else None,
                 render_start_index,
             )
@@ -415,27 +300,27 @@ class TaskWorkerPipelineHandler:
 
                 self._runtime_support.assert_task_still_active(task)
                 script_result = self._result_map(script_run)
-                storyboard_markdown = _string_value(script_result.get("scriptMarkdown"))
+                storyboard_markdown = string_value(script_result.get("scriptMarkdown"))
                 if not storyboard_markdown:
                     raise ValueError("分镜脚本为空，未生成有效输出。")
                 task.storyboard_script = storyboard_markdown
-                self._put_execution_context(task, "analysisRunId", _string_value(script_run.get("id")))
-                self._put_execution_context(task, "scriptRunId", _string_value(script_run.get("id")))
+                self._put_execution_context(task, "analysisRunId", string_value(script_run.get("id")))
+                self._put_execution_context(task, "scriptRunId", string_value(script_run.get("id")))
                 self._put_execution_context(task, "analysisScriptText", storyboard_markdown)
-                self._put_execution_context(task, "analysisPrompt", _string_value(script_result.get("prompt")))
+                self._put_execution_context(task, "analysisPrompt", string_value(script_result.get("prompt")))
                 await self._task_repository.save(task)
 
                 await self._save_result(self._status_stage_service.record_stage_run(
                     task, run_context, 1, _TaskStage.ANALYSIS, 1,
                     {"title": task.title, "aspectRatio": task.aspect_ratio},
-                    {"summary": "文本分析完成", "scriptRunId": _string_value(script_run.get("id"))},
+                    {"summary": "文本分析完成", "scriptRunId": string_value(script_run.get("id"))},
                 ))
                 analysis_model_call = self._status_stage_service.complete_model_call(pending_model_call, script_run, script_result)
                 await self._save_result(self._execution_coordinator.record_model_call(task, analysis_model_call))
                 self._status_stage_service.record_run_call_chain(task, _TaskStage.ANALYSIS, script_run, script_result)
                 script_material = self._artifact_assembler.create_text_material(task, script_run, script_result)
                 await self._save_result(self._execution_coordinator.record_material(task, script_material))
-                self._put_execution_context(task, "storyboardFileUrl", _string_value(script_material.get("fileUrl")))
+                self._put_execution_context(task, "storyboardFileUrl", string_value(script_material.get("fileUrl")))
                 await self._task_repository.save(task)
 
             shot_plans = self._storyboard_planner.build_storyboard_shot_plans(task, storyboard_markdown)
@@ -449,7 +334,7 @@ class TaskWorkerPipelineHandler:
             clip_duration_plan = self._storyboard_planner.build_clip_duration_plan(task, duration_seconds, len(clip_prompts), storyboard_markdown)
             snapshot = task.request_snapshot or {}
             clip_duration_plan = self._storyboard_planner.normalize_clip_duration_plan(
-                _string_value(snapshot.get("videoModel", "")),
+                string_value(snapshot.get("videoModel", "")),
                 clip_duration_plan,
             )
             self._put_execution_context(task, "storyboardClipCount", storyboard_clip_count)
@@ -535,11 +420,11 @@ class TaskWorkerPipelineHandler:
             raise
         self._runtime_support.assert_task_still_active(task)
         image_result = self._result_map(image_run)
-        image_metadata = _map_value(image_result.get("metadata"))
-        output_url = _first_non_blank(
-            _string_value(image_result.get("outputUrl")),
-            _string_value(image_metadata.get("outputUrl")),
-            _string_value(image_metadata.get("fileUrl")),
+        image_metadata = map_value(image_result.get("metadata"))
+        output_url = first_non_blank(
+            string_value(image_result.get("outputUrl")),
+            string_value(image_metadata.get("outputUrl")),
+            string_value(image_metadata.get("fileUrl")),
         )
         if not output_url:
             raise ValueError("图片生成结果为空，未返回可用输出地址。")
@@ -551,14 +436,14 @@ class TaskWorkerPipelineHandler:
         await self._save_result(self._execution_coordinator.record_material(task, image_material))
         image_output = self._artifact_assembler.create_image_result(task, image_run, image_result, image_material, image_model_call)
         await self._save_result(self._execution_coordinator.record_result(task, image_output))
-        self._put_execution_context(task, "latestImageRunId", _string_value(image_run.get("id")))
+        self._put_execution_context(task, "latestImageRunId", string_value(image_run.get("id")))
         self._put_execution_context(task, "latestImageOutputUrl", output_url)
-        self._put_execution_context(task, "latestMaterialAssetId", _string_value(image_material.get("id")))
+        self._put_execution_context(task, "latestMaterialAssetId", string_value(image_material.get("id")))
         await self._task_repository.save(task)
         await self._save_result(self._status_stage_service.record_stage_run(
             task, run_context, 1, _TaskStage.RENDER, 1,
             {"title": task.title, "taskType": task.task_type, "width": dimensions[0], "height": dimensions[1]},
-            {"summary": "工作台图片生成完成", "imageRunId": _string_value(image_run.get("id")), "outputUrl": output_url, "materialAssetId": _string_value(image_material.get("id"))},
+            {"summary": "工作台图片生成完成", "imageRunId": string_value(image_run.get("id")), "outputUrl": output_url, "materialAssetId": string_value(image_material.get("id"))},
         ))
         await self._save_result(self._status_stage_service.complete_workspace_image_task(task, run_context, image_run, output_url))
 
