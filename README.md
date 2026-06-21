@@ -1,22 +1,83 @@
-# JianDou（煎豆）
+<p align="center">
+  <strong>English</strong> | <a href="README_zh-CN.md">简体中文</a> | <a href="README_ja-JP.md">日本語</a>
+</p>
 
-JianDou 是一个文本到视频工作台。上传小说章节、粘贴正文或输入提示词，即可通过可配置的多模型链路生成视频。
+<p align="center">
+  <img src="static/web/brand/logo.png" alt="JianDou Logo" width="120" />
+</p>
 
-## 快速启动
+<h1 align="center">JianDou (煎豆)</h1>
 
-```bash
-# 1. 准备本地环境变量
-cp .env.dev.example .env
+<p align="center">
+  An open-source text-to-video workstation powered by a configurable multi-model pipeline.
+</p>
 
-# 2. 配置模型 API Key（按需启用）
-cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
-# 编辑 config/model/providers.secrets.yml，填入各厂商密钥
+<p align="center">
+  <a href="https://github.com/imi4u36d/JianDou/blob/main/License"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License" /></a>
+  <a href="https://github.com/imi4u36d/JianDou/releases"><img src="https://img.shields.io/badge/release-0.1.0-orange.svg" alt="Release" /></a>
+  <a href="https://github.com/imi4u36d/JianDou"><img src="https://img.shields.io/badge/python-3.12%2B-green.svg" alt="Python" /></a>
+  <a href="https://github.com/imi4u36d/JianDou"><img src="https://img.shields.io/badge/node-20%2B-brightgreen.svg" alt="Node" /></a>
+</p>
+
+---
+
+Upload novel chapters, paste text, or enter a prompt — JianDou turns your words into video through a chain of configurable AI models (text, visual, keyframe, and video). Each stage can be independently assigned to different providers and model versions, giving you full control over the generation pipeline.
+
+## Key Features
+
+**Flexible Input**
+- Upload `.txt` files or paste text directly — content is automatically extracted for prompt generation.
+- Enter custom prompts for full creative control.
+- Attach reference images as the first or last keyframe.
+
+**Multi-Model Pipeline**
+- Four independently configurable stages: Text Model (script/storyboard) → Visual Model (reference image understanding) → Keyframe Model (first/last frame generation) → Video Model (video synthesis).
+- Mix and match providers: Alibaba Cloud (Qwen/Wanxiang), Volcengine (Doubao/Seedream/Seedance), and any OpenAI-compatible endpoint.
+- Output parameters (aspect ratio, resolution, duration, count, seed) are dynamically filtered by the selected model's capabilities.
+
+**Task Management**
+- Real-time progress tracking with stage-level status, elapsed time, and video preview.
+- Full task lifecycle: create, filter, detail view, retry, pause, resume, abort, delete, and rate.
+- Seed management: automatically collect high-rated seeds and one-click backfill for consistent results.
+
+**Admin Console**
+- Dedicated admin portal separated from the user-facing frontend.
+- Role-based access control (admin / user) with invite-code registration.
+- Designed for content production teams and ops management.
+
+**Security & Deployment**
+- Rate limiting on auth endpoints, origin validation, encrypted API key storage.
+- Docker-first deployment with automatic database migrations and health checks.
+- Comprehensive configuration via environment variables and YAML files.
+
+## Architecture
+
+```
+Text Input --> Text Model (script/storyboard generation)
+                --> Visual Model (reference image understanding)
+                        --> Keyframe Model (first/last frame generation)
+                                --> Video Model (video synthesis)
+                                        --> Preview / Download / Rate
 ```
 
-**方式一：Docker**
+Each pipeline stage is independently configurable with its own provider and model version.
+
+## Quick Start
+
+### Prerequisites
+
+- **Python** 3.12+
+- **Node.js** 20+
+- **npm** (comes with Node.js)
+- **[uv](https://docs.astral.sh/uv/)** (Python package manager)
+
+### Option 1: Docker (Recommended)
 
 ```bash
+# 1. Prepare environment
 cp .env.docker.example .env.docker
+
+# 2. Build and run
 docker build -t jiandou .
 docker run -d -p 8100:8000 \
   --env-file .env.docker \
@@ -26,175 +87,167 @@ docker run -d -p 8100:8000 \
   jiandou
 ```
 
-镜像默认监听容器内 `8000` 端口，并在启动时自动执行数据库迁移；如需手动控制，可设置 `JIANDOU_AUTO_MIGRATE=false`。如果修改 `.env.docker` 里的 `JIANDOU_SERVER_PORT`，需要同步调整 `docker run -p` 的容器端口。
+The image exposes port `8000` inside the container and runs database migrations on startup. Set `JIANDOU_AUTO_MIGRATE=false` to skip automatic migration.
 
-**方式二：本地命令**
+### Option 2: Local Development
 
 ```bash
-# 首次需安装依赖
+# 1. Environment setup
+cp .env.dev.example .env
+cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
+# Edit providers.secrets.yml with your API keys
+
+# 2. Install dependencies
 npm install
 uv sync
+
+# 3. Apply database migrations
 uv run jiandou db migrate
+
+# 4. Start the server
 npm run serve
 ```
 
-启动后访问：
-- 用户前台：`http://127.0.0.1:8100`
-- 管理后台：`http://127.0.0.1:8100/admin`
+After startup:
+- **User Frontend**: `http://127.0.0.1:8100`
+- **Admin Portal**: `http://127.0.0.1:8100/admin`
 
-健康检查：
-- 存活检查：`GET /api/v3/health`
-- 就绪检查：`GET /api/v3/ready`，会验证数据库和存储目录可用性；容器镜像也使用该端点作为 `HEALTHCHECK`
+### Health Checks
 
-如果前端和 API 不在同一个 origin 下，部署时需要设置 `JIANDOU_WEB_ORIGIN`；多个可信前端域名可用逗号分隔写入 `JIANDOU_TRUSTED_ORIGINS`。后端会拒绝非可信来源发起的状态变更 API 请求。
+- **Liveness**: `GET /api/v3/health`
+- **Readiness**: `GET /api/v3/ready` (validates database and storage availability)
 
-登录和邀请码激活接口默认带有按客户端 IP 计数的基础限流，可通过 `JIANDOU_AUTH_LOGIN_RATE_LIMIT`、`JIANDOU_AUTH_INVITE_ACTIVATION_RATE_LIMIT` 和 `JIANDOU_AUTH_RATE_LIMIT_WINDOW_SECONDS` 调整。
+## Model Configuration
 
-API 默认发送基础浏览器安全响应头；当 `JIANDOU_COOKIE_SECURE=true` 时会额外启用 HSTS，生产环境应通过 HTTPS 访问。
-
-完整配置变量见 [docs/configuration.md](docs/configuration.md)。
-
-
-## 开发
-
-### 前端开发
-
-```bash
-# 拷贝环境变量模板
-cp frontends/web/.env.example frontends/web/.env
-
-# 启动前端开发服务器（默认 http://localhost:5173）
-npm run web:dev
-
-# 类型检查
-npm run web:typecheck
-
-# 代码检查与格式化
-npm run web:lint
-npm run web:format
-
-# 运行前端测试
-npm run web:test
-
-# 测试覆盖率
-npx vitest run --coverage
-```
-
-前端使用 Vite 开发服务器，自动将 `/api/v3` 和 `/storage` 请求代理到后端。如需修改后端地址，编辑 `frontends/web/.env` 中的 `VITE_API_PROXY_TARGET`。
-
-详细架构说明见 [docs/frontend-architecture.md](docs/frontend-architecture.md)，开发指南见 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-### 后端开发
-
-```bash
-# 代码检查（ruff lint，零错误）
-uv run ruff check backend/
-
-# 运行全部测试（314 个测试，零失败）
-uv run pytest
-
-# 按标记分类运行测试
-uv run pytest -m unit      # 快速单元测试（64 个）
-uv run pytest -m api       # API 端点测试（90 个）
-uv run pytest -m domain    # 领域层测试（33 个）
-uv run pytest -m "not slow" # 跳过慢速测试
-
-# 导出 OpenAPI 模式
-uv run jiandou openapi --output docs/openapi.json
-
-# 仅启动 API
-npm run api:dev
-```
-
-## 工作流程
-
-```
-文本输入 ──▶ 文本模型(生成分镜/提示词)
-                ──▶ 视觉模型(理解参考图)
-                        ──▶ 关键帧模型(生成首尾帧)
-                                ──▶ 视频模型(生成视频)
-                                        ──▶ 预览/下载/评分
-```
-
-每一段模型均可独立选择厂商和模型版本，按需组合。
-
-## 能力概述
-
-**创作输入**
-- 上传 TXT 文件或直接粘贴正文，自动提取内容生成提示词
-- 也可直接输入自定义提示词，灵活控制生成方向
-- 支持参考图作为关键帧的首帧或尾帧
-
-**生成控制**
-- 多段模型链路（文本/视觉/关键帧/视频）支持不同厂商自由组合
-- 输出参数动态约束：画幅、清晰度、时长区间、生成数量、Seed 等
-- 参数选项会根据所选视频模型的能力自动过滤，避免无效配置
-
-**任务管理**
-- 实时查看任务进度、阶段状态、耗时和视频预览
-- 支持任务的创建、筛选、详情查看
-- 支持重试、暂停、继续、终止、删除、评分等运维操作
-
-**Seed 管理**
-- 自动汇总高评分任务中的可用 Seed
-- 支持一键回填 Seed 到当前任务，提升稳定出片效率
-
-**管理后台**
-- 独立的管理后台，与用户前台分离
-- 适合内容生产团队和管理运维分层协作
-
-## 模型配置
-
-模型配置集中在 `config/model/` 目录：
+Model configuration lives in `config/model/`:
 
 ```
 config/model/
-├── models.yml                  # 可选模型列表定义
-├── providers/                  # 各厂商基础配置（base_url 等）
+├── models.yml                    # Available model definitions
+├── providers/                    # Provider base configs (base_url, etc.)
 │   ├── volcengine.yml
 │   ├── deepseek.yml
 │   └── openai.yml
-├── providers.secrets.example.yml # API Key 示例模板（提交到仓库）
-└── providers.secrets.yml       # API Key 覆盖（本地文件，不提交）
+├── providers.secrets.example.yml # API key template (committed)
+└── providers.secrets.yml         # Your API keys (local, not committed)
 ```
 
-支持的厂商：阿里云（通义千问/万相）、火山引擎（豆包/Seedream/Seedance）、OpenAI 兼容接口。
+Supported providers:
+- **Alibaba Cloud** — Qwen (通义千问), Wanxiang (万相)
+- **Volcengine** — Doubao (豆包), Seedream, Seedance
+- **OpenAI-compatible** — Any OpenAI-compatible API endpoint
 
-## 开发与验证
+## Configuration
+
+All runtime settings are controlled via environment variables. See [docs/configuration.md](docs/configuration.md) for the full reference.
+
+Key variables:
+
+| Variable | Description | Default |
+|---|---|---|
+| `JIANDOU_SERVER_PORT` | Backend listen port | `8100` |
+| `JIANDOU_DATABASE_URL` | Database connection string | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_SECRET_KEY` | JWT signing key | (must be set) |
+| `JIANDOU_WEB_ORIGIN` | Frontend origin for CORS | `http://127.0.0.1:8100` |
+| `JIANDOU_TRUSTED_ORIGINS` | Additional trusted origins (comma-separated) | — |
+| `JIANDOU_COOKIE_SECURE` | Enable secure cookies + HSTS | `false` |
+| `JIANDOU_WORKER_CONCURRENCY` | Async worker thread count | `2` |
+| `JIANDOU_DEFAULT_ASPECT_RATIO` | Default video aspect ratio | `16:9` |
+| `JIANDOU_DEFAULT_DURATION_SECONDS` | Default video duration | `8` |
+
+Authentication endpoints have built-in rate limiting. Tune via `JIANDOU_AUTH_LOGIN_RATE_LIMIT`, `JIANDOU_AUTH_INVITE_ACTIVATION_RATE_LIMIT`, and `JIANDOU_AUTH_RATE_LIMIT_WINDOW_SECONDS`.
+
+## Development
+
+### Frontend
+
+The frontend is built with **Vue 3 + TypeScript + Element Plus + Tailwind CSS**, using Vite as the dev server with automatic API proxying.
 
 ```bash
-# 后端 lint + 测试
+# Copy frontend env template
+cp frontends/web/.env.example frontends/web/.env
+
+# Dev server (default http://localhost:5173)
+npm run web:dev
+
+# Type checking
+npm run web:typecheck
+
+# Lint & format
+npm run web:lint
+npm run web:format
+
+# Unit tests
+npm run web:test
+
+# Test coverage
+npx vitest run --coverage
+```
+
+See [docs/frontend-architecture.md](docs/frontend-architecture.md) for the monorepo layout and component conventions.
+
+### Backend
+
+The backend is built with **FastAPI + SQLAlchemy + Alembic**, using SQLite via aiosqlite.
+
+```bash
+# Lint (ruff, zero errors expected)
+uv run ruff check backend/
+
+# Run all tests (314 tests, zero failures expected)
+uv run pytest
+
+# Run by test category
+uv run pytest -m unit      # Fast unit tests (64)
+uv run pytest -m api       # API endpoint tests (90)
+uv run pytest -m domain    # Domain layer tests (33)
+uv run pytest -m "not slow" # Skip slow tests
+
+# Export OpenAPI schema
+uv run jiandou openapi --output docs/openapi.json
+
+# API-only dev server
+npm run api:dev
+```
+
+See [docs/backend-architecture.md](docs/backend-architecture.md) for module ownership and [docs/database-design.md](docs/database-design.md) for schema constraints.
+
+### Verification
+
+```bash
+# Full test suite (backend lint + tests + frontend typecheck)
 npm test
 
-# 数据库迁移从空库验证
+# Verify migrations against a fresh temporary database
 TMP_DB=$(mktemp -t jiandou.XXXXXX.db) && \
   JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head && \
   rm -f "$TMP_DB"
 
-# 前端和共享包类型检查
+# Package type checks
 npm run packages:typecheck
 npm run web:typecheck
 
-# 导出 OpenAPI 契约（生成 docs/openapi.json，本地生成物不提交）
-npm run api:openapi
-
-# 发布前完整预检（会自动清理生成物）
+# Release preflight (cleans generated artifacts)
 npm run release:check
 ```
 
-后端数据库模型要求所有表/字段都有注释，核心字符串状态字段必须有数据库约束；这些规则已纳入测试门禁。
+## Documentation
 
-仓库只提交源码级静态资源，例如 `static/web/brand/` 下的品牌图形。`npm run web:build` 生成的 `static/web/assets/` 和 `static/web/index.html` 属于本地/镜像构建产物，不应提交；仓库卫生测试会拦截 secrets、本地数据库和前端构建产物被误提交。
+| Document | Description |
+|---|---|
+| [Configuration](docs/configuration.md) | Full environment variable reference |
+| [Backend Architecture](docs/backend-architecture.md) | Module ownership and change boundaries |
+| [Frontend Architecture](docs/frontend-architecture.md) | Monorepo layout and component conventions |
+| [Database Design](docs/database-design.md) | Schema constraints and migration rules |
+| [Release Process](docs/release-process.md) | Versioning and release workflow |
+| [API Reference](docs/openapi.json) | OpenAPI 3.1 specification (generated) |
 
-后端模块职责和改动边界见 [docs/backend-architecture.md](docs/backend-architecture.md)，数据库设计约束见 [docs/database-design.md](docs/database-design.md)。
+## Community & Support
 
-版本变更见 [CHANGELOG.md](CHANGELOG.md)，发布流程见 [docs/release-process.md](docs/release-process.md)。
-
-## 社区与支持
-
-- QQ 交流群：`1090387362`
-- [报告 Bug / 功能建议](https://github.com/imi4u36d/JianDou/issues)
-- 使用求助、Bug、功能建议和安全问题的分流说明见 [SUPPORT.md](SUPPORT.md)。
+- **QQ Group**: `1090387362`
+- [Report a Bug / Request a Feature](https://github.com/imi4u36d/JianDou/issues)
+- For security issues, see [SECURITY.md](SECURITY.md)
+- For usage questions and contribution guidelines, see [SUPPORT.md](SUPPORT.md) and [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Star History
 
@@ -208,4 +261,4 @@ npm run release:check
 
 ## License
 
-本项目采用仓库内的 [License](./License)。
+This project is licensed under the [Apache License 2.0](./License).
