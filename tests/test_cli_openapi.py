@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 pytestmark = pytest.mark.api
-import json
 
 from click.testing import CliRunner
 

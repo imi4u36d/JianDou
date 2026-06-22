@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 pytestmark = pytest.mark.service
-import json
 
 from backend.models.workflow import BizStageWorkflow
 from backend.services.workflow_persistence_row_factory import WorkflowPersistenceRowFactory

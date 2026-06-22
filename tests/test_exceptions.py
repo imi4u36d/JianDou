@@ -4,7 +4,6 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.unit
-import pytest
 
 from backend.exceptions import (
     AuthError,

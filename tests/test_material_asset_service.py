@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.service
-import pytest
 
 from backend.services.material_asset_service import MaterialAssetService
 

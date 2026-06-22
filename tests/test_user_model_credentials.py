@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 pytestmark = pytest.mark.service
-import sqlite3
 
 from backend.services.model_config_service import SqlAlchemyUserModelCredentialRepository
 
