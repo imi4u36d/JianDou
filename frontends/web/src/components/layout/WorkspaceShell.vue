@@ -1,27 +1,33 @@
 <template>
   <div class="workspace-shell">
-    <aside class="workspace-sidebar">
-      <div class="sidebar-brand">
-        <img alt="煎豆 Logo" src="/brand/jiandou-mark.svg" />
+    <aside
+      class="workspace-sidebar"
+    >
+      <div class="workspace-sidebar__top">
+        <div class="workspace-sidebar__topbar">
+          <div class="sidebar-brand">
+            <img alt="煎豆 Logo" class="sidebar-brand__logo" src="/brand/jiandou-mark.svg" />
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <RouterLink
+            v-for="item in navItems"
+            :key="item.to"
+            class="sidebar-nav__item"
+            :class="{ 'sidebar-nav__item-active': isActive(item.to) }"
+            :to="item.to"
+          >
+            <span class="sidebar-nav__icon"><component :is="iconComponentMap[item.icon]" /></span>
+            <span class="sidebar-nav__label">{{ item.label }}</span>
+          </RouterLink>
+        </nav>
       </div>
 
-      <nav class="sidebar-nav">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.to"
-          class="sidebar-nav__item"
-          :class="{ 'sidebar-nav__item-active': isActive(item.to) }"
-          :to="item.to"
-        >
-          <span class="sidebar-nav__icon"><component :is="iconComponentMap[item.icon]" /></span>
-          <span class="sidebar-nav__label">{{ item.label }}</span>
-        </RouterLink>
-      </nav>
-
-      <div class="sidebar-bottom">
-        <div class="sidebar-credits" :title="creditTitle">
-          <span class="sidebar-credits__label">积分</span>
-          <span class="sidebar-credits__value">{{ creditValue }}</span>
+      <section class="sidebar-account-zone">
+        <div class="sidebar-credit-card" :title="creditTitle">
+          <span class="sidebar-credit-card__label">积分</span>
+          <strong>{{ creditValue }}</strong>
         </div>
         <div ref="accountMenuRef" class="sidebar-account" @keydown.escape="closeUserMenu">
           <button
@@ -44,23 +50,74 @@
               </div>
             </div>
             <div class="sidebar-user-popover__actions">
-              <a v-if="isAdmin" class="sidebar-user-popover__link" :href="adminPortalUrl">管理</a>
-              <button v-if="currentUser" class="sidebar-user-popover__link" type="button" @click="keyDialogOpen = true; closeUserMenu()">Key</button>
-              <button v-if="currentUser" class="sidebar-user-popover__logout" type="button" @click="handleLogout">退出</button>
-              <RouterLink v-else class="sidebar-user-popover__link" to="/login" @click="closeUserMenu">登录</RouterLink>
+              <a
+                v-if="isAdmin"
+                class="sidebar-user-popover__link"
+                :href="adminPortalUrl"
+              >
+                管理
+              </a>
+              <button
+                v-if="currentUser"
+                class="sidebar-user-popover__link sidebar-user-popover__link--btn"
+                type="button"
+                @click="keyDialogOpen = true; closeUserMenu()"
+              >
+                Key
+              </button>
+              <button v-if="currentUser" class="sidebar-user-popover__logout" type="button" @click="handleLogout">
+                退出
+              </button>
+              <RouterLink v-else class="sidebar-user-popover__link" to="/login" @click="closeUserMenu">
+                登录
+              </RouterLink>
             </div>
           </div>
         </div>
-      </div>
+
+        <div class="sidebar-user-card">
+          <div class="sidebar-user-card__header">
+            <div class="sidebar-user-card__avatar">{{ avatarInitials }}</div>
+            <div>
+              <p class="sidebar-user-card__name">{{ accountTitle }}</p>
+              <p class="sidebar-user-card__meta">{{ accountMeta }}</p>
+            </div>
+          </div>
+          <div class="sidebar-user-card__actions">
+            <a
+              v-if="isAdmin"
+              class="sidebar-user-card__link"
+              :href="adminPortalUrl"
+            >
+              管理
+            </a>
+            <button
+              v-if="currentUser"
+              class="sidebar-user-card__link sidebar-user-card__link--btn"
+              type="button"
+              @click="keyDialogOpen = true"
+            >
+              Key
+            </button>
+            <button v-if="currentUser" class="sidebar-user-card__logout" type="button" @click="handleLogout">
+              退出
+            </button>
+            <RouterLink v-else class="sidebar-user-card__link" to="/login">
+              登录
+            </RouterLink>
+          </div>
+        </div>
+      </section>
     </aside>
 
     <div class="workspace-main">
-      <header class="workspace-topbar">
-        <h2 class="workspace-topbar__title">{{ currentTitle }}</h2>
-        <div class="workspace-topbar__right">
-          <span v-if="currentUser" class="workspace-topbar__user">{{ currentUser.displayName || currentUser.username }}</span>
-        </div>
-      </header>
+    <header class="workspace-topbar">
+      <h2>{{ currentTitle }}</h2>
+      <div class="workspace-topbar__right">
+        <span v-if="currentUser" class="workspace-topbar__user">{{ currentUser.displayName || currentUser.username }}</span>
+        <span class="workspace-topbar__credits" :title="creditTitle">{{ creditValue }}</span>
+      </div>
+    </header>
 
       <main class="workspace-content">
         <RouterView />
@@ -229,142 +286,204 @@ watch(
 );
 </script>
 
-
 <style scoped>
 .workspace-shell {
+  position: relative;
   display: flex;
   height: 100vh;
   min-height: 100vh;
   background: var(--bg-base);
+  color: var(--text-strong);
   overflow: hidden;
 }
 
 .workspace-sidebar {
-  width: 72px;
-  flex-shrink: 0;
+  --sidebar-bg: #f7fbff;
+  --sidebar-ink: #151b20;
+  --sidebar-muted: #7a8990;
+  --sidebar-cyan: var(--accent-indigo);
+  --sidebar-card: rgba(255, 255, 255, 0.72);
+  position: relative;
+  z-index: 30;
+  height: 100%;
+  width: 56px;
+  flex: 0 0 56px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 16px 0 20px;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border-subtle);
-  z-index: 20;
-  gap: 4px;
+  justify-content: space-between;
+  padding: 20px 6px 18px;
+  border-right: 1px solid rgba(79, 70, 229, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(247, 251, 255, 0.92)),
+    var(--sidebar-bg);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.78),
+    8px 0 30px rgba(27, 124, 255, 0.05);
+  backdrop-filter: blur(18px);
 }
 
-.sidebar-brand {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-blue));
+.workspace-sidebar__top {
+  display: grid;
+  gap: clamp(76px, 14vh, 150px);
+  justify-items: center;
+}
+
+.workspace-sidebar__topbar {
   display: grid;
   place-items: center;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
 }
 
-.sidebar-brand img {
-  width: 22px;
-  height: 22px;
-  filter: brightness(0) invert(1);
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.sidebar-brand:hover {
+  background: var(--sidebar-card);
+  box-shadow:
+    0 16px 34px rgba(27, 124, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+.sidebar-brand__logo {
+  display: block;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  object-fit: contain;
 }
 
 .sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  padding: 0 12px;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
 }
 
 .sidebar-nav__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 0;
-  border-radius: 10px;
-  color: var(--text-muted);
-  transition: all 120ms ease;
   position: relative;
-  text-decoration: none;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 44px;
+  min-height: 50px;
+  padding: 4px 2px;
+  border-radius: 14px;
+  color: var(--sidebar-ink);
+  border: 0;
+  background: transparent;
+  transition:
+    color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
 .sidebar-nav__item:hover {
-  color: var(--text-primary);
-  background: var(--bg-muted);
+  transform: translateY(-1px);
+  color: var(--accent-blue);
+  background: rgba(255, 255, 255, 0.52);
 }
 
 .sidebar-nav__item-active {
-  color: var(--accent-indigo);
-  background: var(--bg-accent-soft);
-}
-
-.sidebar-nav__item-active::before {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent-indigo);
+  color: var(--accent-blue);
+  background: rgba(237, 245, 255, 0.9);
 }
 
 .sidebar-nav__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 25px;
+  height: 25px;
+  color: currentColor;
+  transition: transform 180ms ease;
 }
 
 .sidebar-nav__icon :deep(svg) {
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.sidebar-nav__icon :deep(.icon__fill) {
+  fill: currentColor;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.sidebar-nav__item-active .sidebar-nav__icon :deep(.icon__fill) {
+  opacity: 1;
+}
+
+.sidebar-nav__item:hover .sidebar-nav__icon,
+.sidebar-nav__item-active .sidebar-nav__icon {
+  transform: scale(1.04);
 }
 
 .sidebar-nav__label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  display: inline-block;
   max-width: 42px;
   overflow: visible;
   white-space: normal;
-  text-align: center;
+  color: currentColor;
+  font-size: 0.74rem;
+  font-weight: 500;
   line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
 }
 
-.sidebar-bottom {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px;
+.sidebar-account-zone {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
 }
 
-.sidebar-credits {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 8px 0;
+.sidebar-credit-card {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(239, 252, 255, 0.96), rgba(242, 251, 238, 0.92));
+  color: var(--text-strong);
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
-.sidebar-credits__label {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+.sidebar-credit-card__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
-.sidebar-credits__value {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--accent-emerald);
+.sidebar-credit-card strong {
+  display: block;
+  max-width: 38px;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-account {
@@ -372,120 +491,214 @@ watch(
 }
 
 .sidebar-account__trigger {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 46px;
+  height: 46px;
   border: 0;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-rose), var(--accent-violet));
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
+  background: transparent;
+  color: var(--text-strong);
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  position: relative;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
 }
 
-.sidebar-account__trigger:hover {
-  box-shadow: var(--shadow-md);
+.sidebar-account__trigger:hover,
+.sidebar-account__trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow:
+    0 12px 26px rgba(27, 124, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  transform: translateY(-1px);
+}
+
+.sidebar-account__avatar,
+.sidebar-user-popover__avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-coral) 0%, var(--accent-blue) 54%, var(--accent-indigo) 100%);
+  color: #fff;
+  font-weight: 800;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.56),
+    0 8px 18px rgba(15, 20, 25, 0.12);
+}
+
+.sidebar-account__avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 0.72rem;
 }
 
 .sidebar-account__status {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 10px;
-  height: 10px;
+  right: 7px;
+  bottom: 7px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
   border-radius: 50%;
-  background: var(--accent-emerald);
-  border: 2px solid var(--bg-surface);
+  background: #23c778;
 }
 
 .sidebar-user-popover {
   position: absolute;
-  left: 48px;
+  left: 52px;
   bottom: 0;
   z-index: 50;
   display: grid;
-  gap: 12px;
-  width: 240px;
+  gap: 14px;
+  width: 252px;
   padding: 14px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-xl);
+  border: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 46px rgba(21, 27, 32, 0.14);
+  backdrop-filter: blur(18px);
 }
 
 .sidebar-user-popover__header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .sidebar-user-popover__avatar {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-rose), var(--accent-violet));
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  font-size: 0.74rem;
 }
 
-.sidebar-user-popover__name {
+.sidebar-user-popover__name,
+.sidebar-user-popover__meta {
+  max-width: 164px;
   margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.sidebar-user-popover__name {
+  color: var(--text-strong);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
 .sidebar-user-popover__meta {
-  margin: 2px 0 0;
-  font-size: 11px;
+  margin-top: 4px;
   color: var(--text-muted);
+  font-size: 0.76rem;
 }
 
 .sidebar-user-popover__actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .sidebar-user-popover__link,
 .sidebar-user-popover__logout {
   flex: 1;
-  min-height: 34px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
-  border-radius: 8px;
+  padding: 0 12px;
+  border-radius: 14px;
   border: 0;
-  background: var(--bg-muted);
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 700;
+  background: #f4f7f8;
+  color: var(--text-strong);
+  font-size: 0.8rem;
+  font-weight: 800;
   cursor: pointer;
-  text-decoration: none;
 }
 
 .sidebar-user-popover__logout {
-  background: rgba(244, 63, 94, 0.08);
-  color: var(--accent-rose);
+  background: rgba(255, 245, 245, 0.96);
+  color: #c33f3f;
 }
 
-.sidebar-user-popover__link:hover {
-  background: var(--bg-accent-soft);
-  color: var(--accent-indigo);
+.sidebar-user-popover__link--btn {
+  cursor: pointer;
+}
+
+.sidebar-user-card {
+  display: none;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(21, 27, 32, 0.08);
+}
+
+.sidebar-user-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-user-card__avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-coral), var(--accent-blue));
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.sidebar-user-card__name {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sidebar-user-card__meta {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.sidebar-user-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sidebar-user-card__link,
+.sidebar-user-card__logout {
+  flex: 1;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 0;
+  background: #f4f7f8;
+  color: var(--text-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.sidebar-user-card__logout {
+  cursor: pointer;
+}
+
+.sidebar-user-card__link--btn {
+  cursor: pointer;
 }
 
 .workspace-main {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -494,42 +707,66 @@ watch(
   overflow: hidden;
 }
 
+.workspace-content {
+  padding: 24px 28px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  
+  overflow: auto;
+}
+
 .workspace-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  min-height: 56px;
+  min-height: 48px;
   padding: 0 28px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex-shrink: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.04);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(12px);
 }
 
-.workspace-topbar__title {
+.workspace-topbar h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-strong);
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .workspace-topbar__right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
 }
 
 .workspace-topbar__user {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-strong);
+  font-weight: 700;
 }
 
-.workspace-content {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  padding: 24px 28px;
-  overflow: auto;
+.workspace-topbar__credits {
+  min-width: 56px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: rgba(239, 252, 255, 0.7);
+  color: var(--accent-indigo);
+  font-weight: 800;
+  text-align: center;
 }
+
+
+
+
+.shell-menu-btn {
+  flex-direction: column;
+  gap: 4px;
+}
+
+
+
+
 </style>

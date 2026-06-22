@@ -29,7 +29,7 @@
   --text-body: #5c5f77;
   --text-muted: #8b8fa8;
   --accent-indigo: #4f46e5;
-  --accent-cyan: #06b6d4;
+  --accent-cyan: #4f46e5;
   --accent-blue: #3b82f6;
   --accent-lime: #10b981;
   --accent-coral: #f43f5e;
@@ -114,7 +114,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(0, 169, 187, 0.18);
+  background: rgba(79, 70, 229, 0.18);
   color: var(--text-strong);
 }
 
@@ -122,7 +122,7 @@ textarea {
   outline: none;
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 4px rgba(0, 169, 187, 0.34);
+    0 0 0 4px rgba(79, 70, 229, 0.34);
 }
 
 #app {
@@ -298,9 +298,9 @@ textarea {
   .field-input:focus,
   .field-select:focus,
   .field-textarea:focus {
-    border-color: rgba(0, 169, 187, 0.42);
+    border-color: rgba(79, 70, 229, 0.42);
     box-shadow:
-      0 0 0 3px rgba(0, 169, 187, 0.1),
+      0 0 0 3px rgba(79, 70, 229, 0.1),
       0 10px 26px rgba(15, 20, 25, 0.06);
   }
 
@@ -309,7 +309,7 @@ textarea {
   }
 
   .field-select:hover {
-    border-color: rgba(0, 169, 187, 0.24);
+    border-color: rgba(79, 70, 229, 0.24);
     box-shadow: 0 8px 20px rgba(15, 20, 25, 0.04);
   }
 
@@ -388,13 +388,13 @@ textarea {
   }
 
   .btn-secondary {
-    border-color: rgba(0, 169, 187, 0.12);
+    border-color: rgba(79, 70, 229, 0.12);
     background: rgba(255, 255, 255, 0.86);
   }
 
   .btn-ghost {
     border-color: transparent;
-    background: #effcff;
+    background: #eef2ff;
     color: var(--text-body);
   }
 
@@ -439,8 +439,8 @@ textarea {
     gap: 0.35rem;
     padding: 0.3rem;
     border-radius: 16px;
-    background: #effcff;
-    border: 1px solid rgba(0, 169, 187, 0.1);
+    background: #eef2ff;
+    border: 1px solid rgba(79, 70, 229, 0.1);
   }
 
   .btn-segment {
