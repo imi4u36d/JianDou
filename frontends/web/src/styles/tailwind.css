@@ -17,38 +17,38 @@
     "Microsoft YaHei",
     sans-serif;
   font-weight: 400;
-  --bg-base: #f6fbff;
+  --bg-base: #f4f5f7;
   --bg-surface: #ffffff;
   --bg-surface-strong: #ffffff;
-  --bg-soft: #e9f8ff;
-  --bg-softer: #f4fbf7;
-  --surface-border: rgba(18, 28, 33, 0.08);
-  --surface-border-strong: rgba(0, 169, 187, 0.36);
-  --text-strong: #101819;
-  --text-body: #4f5f66;
-  --text-muted: #7a8990;
-  --accent-indigo: #4f8cff;
-  --accent-cyan: #00a9bb;
-  --accent-blue: #1b7cff;
-  --accent-lime: #8bd450;
-  --accent-coral: #ff6b5f;
-  --accent-danger: #e54865;
-  --accent-warning: #ff9f1c;
-  --accent-strong: #008da1;
-  --bg-accent: linear-gradient(135deg, #00a9bb 0%, #1b7cff 100%);
-  --bg-accent-soft: rgba(0, 169, 187, 0.12);
-  --shadow-panel: 0 12px 34px rgba(18, 28, 33, 0.07);
-  --shadow-soft: 0 8px 20px rgba(18, 28, 33, 0.05);
+  --bg-soft: #f8f9fb;
+  --bg-softer: #f8f9fb;
+  --bg-accent-soft: rgba(79, 70, 229, 0.06);
+  --surface-border: rgba(0, 0, 0, 0.06);
+  --surface-border-strong: rgba(79, 70, 229, 0.3);
+  --text-strong: #1a1a2e;
+  --text-body: #5c5f77;
+  --text-muted: #8b8fa8;
+  --accent-indigo: #4f46e5;
+  --accent-cyan: #06b6d4;
+  --accent-blue: #3b82f6;
+  --accent-lime: #10b981;
+  --accent-coral: #f43f5e;
+  --accent-danger: #f43f5e;
+  --accent-warning: #f59e0b;
+  --accent-strong: #4f46e5;
+  --bg-accent: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+  --shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-glow:
-    0 0 0 1px rgba(0, 169, 187, 0.12),
-    0 14px 34px rgba(27, 124, 255, 0.14);
+    0 0 0 1px rgba(79, 70, 229, 0.12),
+    0 12px 32px rgba(79, 70, 229, 0.1);
   --shadow-raise: var(--shadow-panel);
   --shadow-raise-soft: var(--shadow-soft);
-  --shadow-pressed: inset 0 1px 2px rgba(15, 20, 25, 0.08);
+  --shadow-pressed: inset 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-accent: var(--shadow-glow);
-  --scrollbar-track: rgba(15, 20, 25, 0.04);
-  --scrollbar-thumb: rgba(114, 128, 138, 0.34);
-  --scrollbar-thumb-hover: rgba(0, 169, 187, 0.5);
+  --scrollbar-track: rgba(0, 0, 0, 0.04);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(79, 70, 229, 0.5);
   --select-arrow:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23374151' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
