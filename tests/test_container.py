@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.api
-import pytest
 
 from backend.config import Settings
 from backend.container import AppContainer

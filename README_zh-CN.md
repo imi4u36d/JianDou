@@ -91,26 +91,24 @@ docker run -d -p 8100:8000 \
 
 ### 方式二：本地开发
 
+运行一键启动脚本：
+
 ```bash
-# 1. 环境配置
-cp .env.dev.example .env
-cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
-# 编辑 providers.secrets.yml 填入 API Key
-
-# 2. 安装依赖
-npm install
-uv sync
-
-# 3. 执行数据库迁移
-uv run jiandou db migrate
-
-# 4. 启动服务
-npm run serve
+./scripts/dev.sh
 ```
 
+该脚本会自动：
+1. 检查环境依赖（Node.js、uv）
+2. 从模板创建 `.env` 和 `providers.secrets.yml`（如不存在）
+3. 安装所有依赖
+4. 执行数据库迁移
+5. 启动服务
+
 启动后访问：
-- **用户前台**：`http://127.0.0.1:8100`
-- **管理后台**：`http://127.0.0.1:8100/admin`
+- **用户前台**：http://127.0.0.1:8100
+- **管理后台**：http://127.0.0.1:8100/admin
+
+使用模型功能前，请编辑 `config/model/providers.secrets.yml` 填入 API Key。
 
 ### 健康检查
 
@@ -240,6 +238,7 @@ npm run release:check
 | [前端架构](docs/frontend-architecture.md) | Monorepo 布局和组件规范 |
 | [数据库设计](docs/database-design.md) | Schema 约束和迁移规则 |
 | [发布流程](docs/release-process.md) | 版本管理和发布工作流 |
+| [更新日志](CHANGELOG.md) | 项目更新日志 |
 | [API 参考](docs/openapi.json) | OpenAPI 3.1 规范（自动生成） |
 
 ## 社区与支持

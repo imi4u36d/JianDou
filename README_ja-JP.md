@@ -91,26 +91,24 @@ docker run -d -p 8100:8000 \
 
 ### 方法2：ローカル開発
 
+ワンクリックセットアップスクリプトを実行：
+
 ```bash
-# 1. 環境設定
-cp .env.dev.example .env
-cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
-# providers.secrets.yml に API キーを入力
-
-# 2. 依存関係のインストール
-npm install
-uv sync
-
-# 3. データベースマイグレーションの適用
-uv run jiandou db migrate
-
-# 4. サーバーの起動
-npm run serve
+./scripts/dev.sh
 ```
 
+このスクリプトは自動的に以下を実行します：
+1. 前提条件のチェック（Node.js、uv）
+2. `.env` と `providers.secrets.yml` をテンプレートから作成（存在しない場合）
+3. すべての依存関係をインストール
+4. データベースマイグレーションを実行
+5. サーバーを起動
+
 起動後のアクセス先：
-- **ユーザーフロントエンド**：`http://127.0.0.1:8100`
-- **管理ポータル**：`http://127.0.0.1:8100/admin`
+- **ユーザーフロントエンド**：http://127.0.0.1:8100
+- **管理ポータル**：http://127.0.0.1:8100/admin
+
+モデル機能を使用する前に、`config/model/providers.secrets.yml` を編集して API キーを追加してください。
 
 ### ヘルスチェック
 
@@ -240,6 +238,7 @@ npm run release:check
 | [フロントエンドアーキテクチャ](docs/frontend-architecture.md) | Monorepo構成とコンポーネント規約 |
 | [データベース設計](docs/database-design.md) | スキーマ制約とマイグレーションルール |
 | [リリースプロセス](docs/release-process.md) | バージョニングとリリースワークフロー |
+| [変更履歴](CHANGELOG.md) | プロジェクトの変更履歴 |
 | [API リファレンス](docs/openapi.json) | OpenAPI 3.1 仕様（自動生成） |
 
 ## コミュニティとサポート

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.service
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -155,7 +156,7 @@ async def test_recover_stale_claims_requeues_running_attempt() -> None:
     )
 
     recovered = await coordinator.recover_stale_claims(
-        datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
         10,
         repository,
     )
@@ -191,7 +192,7 @@ async def test_recover_stale_claims_skips_worker_with_fresh_heartbeat() -> None:
     )
 
     recovered = await coordinator.recover_stale_claims(
-        datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
         10,
         repository,
     )

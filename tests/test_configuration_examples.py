@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import pytest
-pytestmark = pytest.mark.infra
 import re
+
+import pytest
+
+pytestmark = pytest.mark.infra
 from pathlib import Path
 
 from pydantic import AliasChoices

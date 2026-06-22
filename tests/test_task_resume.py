@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.domain
 from backend.domain.task_resume import (
     existing_video_clip_indices,

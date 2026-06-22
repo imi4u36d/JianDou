@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.api
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -15,7 +16,7 @@ from backend.models.workflow import BizStageWorkflow
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 async def _create_user_session(client, db_session_factory, *, username: str, role: str = UserRole.USER.value) -> int:
