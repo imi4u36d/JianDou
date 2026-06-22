@@ -313,7 +313,7 @@ async function loadDashboard() {
   }
 
   if (usersResult.status === "fulfilled") {
-    users.value = usersResult.value ?? [];
+    users.value = usersResult.value?.items ?? [];
   } else {
     errors.push(usersResult.reason instanceof Error ? usersResult.reason.message : "读取用户统计失败");
   }
@@ -416,7 +416,7 @@ onMounted(async () => {
 }
 
 .dashboard-page__stat-card.is-accent {
-  background: linear-gradient(180deg, rgba(196, 107, 47, 0.15), rgba(255, 255, 255, 0.8));
+  background: linear-gradient(180deg, rgba(0, 169, 187, 0.15), rgba(255, 255, 255, 0.8));
 }
 
 .dashboard-page__stat-card.is-secondary {

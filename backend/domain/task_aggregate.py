@@ -5,7 +5,7 @@ Mirrors the Java TaskAggregate record.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from backend.domain.enums import TaskStatus
 from backend.domain.task_attempt_snapshot import TaskAttemptSnapshot
@@ -47,8 +47,8 @@ class TaskAggregate:
     plan_json: str = ""
     retry_count: int = 0
     timezone_offset_minutes: int = 0
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
     attempts: list[TaskAttemptSnapshot] = field(default_factory=list)
     stage_runs: list[TaskStageRunSnapshot] = field(default_factory=list)
 

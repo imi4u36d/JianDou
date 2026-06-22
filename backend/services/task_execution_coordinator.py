@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 from backend.domain.enums import (
     AttemptStatus,
@@ -21,27 +21,7 @@ from backend.domain.enums import (
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.infrastructure.task_queue_port import InMemoryTaskQueue, TaskQueuePort
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
-
-
-def _int_value(value: Any, fallback: int = 0) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if value is not None:
-        try:
-            return int(str(value).strip())
-        except (ValueError, TypeError):
-            pass
-    return fallback
+from backend.shared import now_iso, safe_int, string_value
 
 
 class TaskExecutionCoordinator:
@@ -49,7 +29,7 @@ class TaskExecutionCoordinator:
 
     def __init__(
         self,
-        task_queue_port: Optional[TaskQueuePort] = None,
+        task_queue_port: TaskQueuePort | None = None,
     ) -> None:
         self._task_queue_port: TaskQueuePort = task_queue_port or InMemoryTaskQueue()
 
@@ -155,7 +135,7 @@ class TaskExecutionCoordinator:
         else:
             trigger_str = AttemptTriggerType._missing_(trigger_type)
             if trigger_str is None:
-                trigger_str = _string_value(trigger_type).lower()
+                trigger_str = string_value(trigger_type).lower()
 
         task.current_attempt_no += 1
         attempt_id = "att_" + uuid.uuid4().hex
@@ -174,8 +154,8 @@ class TaskExecutionCoordinator:
             "claimedAt": None,
             "startedAt": None,
             "finishedAt": None,
-            "resumeFromStage": _string_value(safe_payload.get("resumeFromStage")),
-            "resumeFromClipIndex": _int_value(safe_payload.get("resumeFromClipIndex"), 0),
+            "resumeFromStage": string_value(safe_payload.get("resumeFromStage")),
+            "resumeFromClipIndex": safe_int(safe_payload.get("resumeFromClipIndex"), 0),
             "failureCode": "",
             "failureMessage": "",
             "payload": safe_payload,
@@ -207,7 +187,7 @@ class TaskExecutionCoordinator:
         attempt = self._active_attempt(task)
         if attempt is None:
             return None
-        now = _now_iso()
+        now = now_iso()
         attempt["status"] = AttemptStatus.RUNNING.value
         attempt["workerInstanceId"] = worker_instance_id if worker_instance_id else ""
         attempt["claimedAt"] = now
@@ -241,7 +221,7 @@ class TaskExecutionCoordinator:
         attempt = self._active_attempt(task)
         if attempt is None:
             return None
-        now = _now_iso()
+        now = now_iso()
         attempt["status"] = attempt_status.value
         attempt["finishedAt"] = now
         if error_message and error_message.strip():
@@ -269,7 +249,7 @@ class TaskExecutionCoordinator:
     def transition_task(
         self,
         task: TaskRecord,
-        transition: "TaskStateTransition | TaskStateTransitionBuilder",
+        transition: TaskStateTransition | TaskStateTransitionBuilder,
         task_mutator: Callable[[TaskRecord], None] | None = None,
     ) -> dict[str, Any]:
         """Atomically transition task state, recording trace + status history."""
@@ -287,12 +267,12 @@ class TaskExecutionCoordinator:
         task.progress = transition.progress
         if transition.next_status == "FAILED":
             task.error_message = transition.attempt_error_message or transition.message
-            task.finished_at = _now_iso()
+            task.finished_at = now_iso()
             task.is_queued = False
             task.queue_position = None
         elif transition.next_status in ("COMPLETED", "CANCELLED"):
             task.error_message = ""
-            task.finished_at = _now_iso()
+            task.finished_at = now_iso()
             task.is_queued = False
             task.queue_position = None
         elif transition.next_status in ("PENDING", "ANALYZING", "PLANNING", "RENDERING"):
@@ -459,7 +439,7 @@ class TaskExecutionCoordinator:
         status: str,
         metadata: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        now = _now_iso()
+        now = now_iso()
         row: dict[str, Any] = {
             "workerInstanceId": worker_instance_id,
             "workerType": worker_type,
@@ -485,17 +465,17 @@ class TaskExecutionCoordinator:
         metadata: dict[str, Any] | None,
         existing_instance: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        now = _now_iso()
+        now = now_iso()
         started_at = (
-            _string_value(existing_instance.get("startedAt", now))
+            string_value(existing_instance.get("startedAt", now))
             if existing_instance
             else now
         )
         row: dict[str, Any] = {
             "workerInstanceId": worker_instance_id,
             "workerType": worker_type,
-            "queueName": _string_value(existing_instance.get("queueName", "default")) if existing_instance else "default",
-            "hostName": _string_value(existing_instance.get("hostName", "")) if existing_instance else "",
+            "queueName": string_value(existing_instance.get("queueName", "default")) if existing_instance else "default",
+            "hostName": string_value(existing_instance.get("hostName", "")) if existing_instance else "",
             "processId": existing_instance.get("processId", 0) if existing_instance else 0,
             "status": status,
             "startedAt": started_at,
@@ -503,7 +483,7 @@ class TaskExecutionCoordinator:
             "stoppedAt": (
                 now
                 if status in (WorkerStatus.STOPPED.value, WorkerStatus.FAILED.value)
-                else _string_value(existing_instance.get("stoppedAt", "")) if existing_instance else ""
+                else string_value(existing_instance.get("stoppedAt", "")) if existing_instance else ""
             ),
             "metadata": (
                 metadata
@@ -621,13 +601,13 @@ class TaskExecutionCoordinator:
     # ------------------------------------------------------------------
 
     def _touch(self, task: TaskRecord) -> None:
-        task.updated_at = _now_iso()
+        task.updated_at = now_iso()
 
     def _active_attempt(self, task: TaskRecord) -> dict[str, Any] | None:
         if not task.active_attempt_id:
             return None
         for row in task.attempts:
-            if task.active_attempt_id == _string_value(row.get("attemptId", "")):
+            if task.active_attempt_id == string_value(row.get("attemptId", "")):
                 return row
         return None
 
@@ -635,7 +615,7 @@ class TaskExecutionCoordinator:
         attempt = self._active_attempt(task)
         if attempt is None:
             return ""
-        return _string_value(attempt.get("workerInstanceId"))
+        return string_value(attempt.get("workerInstanceId"))
 
     def _mark_active_attempt_queued_in_memory(
         self,
@@ -644,7 +624,7 @@ class TaskExecutionCoordinator:
         attempt = self._active_attempt(task)
         if attempt is None:
             return None
-        now = _now_iso()
+        now = now_iso()
         attempt["status"] = AttemptStatus.QUEUED.value
         attempt["queueEnteredAt"] = now
         attempt["queueLeftAt"] = None
@@ -658,14 +638,14 @@ class TaskExecutionCoordinator:
     def _apply_attempt_transition(
         self,
         task: TaskRecord,
-        transition: "TaskStateTransition",
+        transition: TaskStateTransition,
     ) -> dict[str, Any] | None:
         if task is None or transition is None or not transition.updates_attempt:
             return None
         attempt = self._active_attempt(task)
         if attempt is None:
             return None
-        now = _now_iso()
+        now = now_iso()
         status = transition.attempt_status_enum
         attempt["status"] = transition.attempt_status
         if status == AttemptStatus.QUEUED:
@@ -698,7 +678,7 @@ class TaskExecutionCoordinator:
     ) -> dict[str, Any]:
         return {
             "traceId": "trace_" + uuid.uuid4().hex,
-            "timestamp": _now_iso(),
+            "timestamp": now_iso(),
             "level": level,
             "stage": stage,
             "event": event,
@@ -725,7 +705,7 @@ class TaskExecutionCoordinator:
             "event": event,
             "reason": reason,
             "operator": "system",
-            "changedAt": _now_iso(),
+            "changedAt": now_iso(),
             "payload": {},
         }
 
@@ -745,7 +725,7 @@ class TaskExecutionCoordinator:
             "workerInstanceId": self._active_attempt_worker_id(task),
             "queuePositionHint": task.queue_position if task.queue_position is not None else 0,
             "payload": payload if payload is not None else {},
-            "eventTime": _now_iso(),
+            "eventTime": now_iso(),
         }
 
     def _to_request_log(
@@ -756,9 +736,9 @@ class TaskExecutionCoordinator:
         row: dict[str, Any] = {}
         if model_call:
             row.update(model_call)
-        request_log_id = _string_value(row.get("requestLogId"))
+        request_log_id = string_value(row.get("requestLogId"))
         if not request_log_id:
-            model_call_id = _string_value(row.get("modelCallId"))
+            model_call_id = string_value(row.get("modelCallId"))
             request_log_id = (
                 "reqlog_" + uuid.uuid4().hex
                 if not model_call_id
@@ -856,7 +836,7 @@ class TaskStateTransition:
         event: str,
         message: str,
         payload: dict[str, Any] | None = None,
-    ) -> "TaskStateTransitionBuilder":
+    ) -> TaskStateTransitionBuilder:
         return TaskStateTransitionBuilder(next_status, progress, stage, event, message, "INFO", payload)
 
     @staticmethod
@@ -867,7 +847,7 @@ class TaskStateTransition:
         event: str,
         message: str,
         payload: dict[str, Any] | None = None,
-    ) -> "TaskStateTransitionBuilder":
+    ) -> TaskStateTransitionBuilder:
         return TaskStateTransitionBuilder(next_status, progress, stage, event, message, "WARN", payload)
 
     @staticmethod
@@ -878,7 +858,7 @@ class TaskStateTransition:
         event: str,
         message: str,
         payload: dict[str, Any] | None = None,
-    ) -> "TaskStateTransitionBuilder":
+    ) -> TaskStateTransitionBuilder:
         return TaskStateTransitionBuilder(next_status, progress, stage, event, message, "ERROR", payload)
 
 

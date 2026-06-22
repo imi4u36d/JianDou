@@ -2,18 +2,12 @@
   <div class="workspace-shell">
     <aside
       class="workspace-sidebar"
-      :class="{
-        'workspace-sidebar-open': sidebarOpen,
-      }"
     >
       <div class="workspace-sidebar__top">
         <div class="workspace-sidebar__topbar">
           <div class="sidebar-brand">
             <img alt="煎豆 Logo" class="sidebar-brand__logo" src="/brand/jiandou-mark.svg" />
           </div>
-          <button class="sidebar-close" type="button" aria-label="关闭导航" @click="sidebarOpen = false">
-            <IconClose size="sm" />
-          </button>
         </div>
 
         <nav class="sidebar-nav">
@@ -63,6 +57,14 @@
               >
                 管理
               </a>
+              <button
+                v-if="currentUser"
+                class="sidebar-user-popover__link sidebar-user-popover__link--btn"
+                type="button"
+                @click="keyDialogOpen = true; closeUserMenu()"
+              >
+                Key
+              </button>
               <button v-if="currentUser" class="sidebar-user-popover__logout" type="button" @click="handleLogout">
                 退出
               </button>
@@ -89,6 +91,14 @@
             >
               管理
             </a>
+            <button
+              v-if="currentUser"
+              class="sidebar-user-card__link sidebar-user-card__link--btn"
+              type="button"
+              @click="keyDialogOpen = true"
+            >
+              Key
+            </button>
             <button v-if="currentUser" class="sidebar-user-card__logout" type="button" @click="handleLogout">
               退出
             </button>
@@ -100,23 +110,20 @@
       </section>
     </aside>
 
-    <div v-if="sidebarOpen" class="workspace-sidebar-mask" @click="sidebarOpen = false"></div>
-
     <div class="workspace-main">
-      <header class="workspace-mobile-bar">
-        <button class="shell-ghost-btn shell-menu-btn" type="button" aria-label="打开导航" @click="sidebarOpen = true">
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-        </button>
-        <p class="workspace-mobile-bar__title">{{ currentTitle }}</p>
-        <span class="workspace-mobile-bar__placeholder"></span>
-      </header>
+    <header class="workspace-topbar">
+      <h2>{{ currentTitle }}</h2>
+      <div class="workspace-topbar__right">
+        <span v-if="currentUser" class="workspace-topbar__user">{{ currentUser.displayName || currentUser.username }}</span>
+        <span class="workspace-topbar__credits" :title="creditTitle">{{ creditValue }}</span>
+      </div>
+    </header>
 
       <main class="workspace-content">
         <RouterView />
       </main>
     </div>
+    <KeyManagementDialog v-model="keyDialogOpen" />
   </div>
 </template>
 
@@ -132,6 +139,7 @@ import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import type { CreditSummary } from "@/types";
 import { IconClose, iconComponentMap } from "@/components/icons";
 import type { IconName } from "@/components/icons";
+import KeyManagementDialog from "@/components/KeyManagementDialog.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -147,6 +155,7 @@ const navItems: { to: string; label: string; icon: IconName }[] = [
 
 const sidebarOpen = ref(false);
 const userMenuOpen = ref(false);
+const keyDialogOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
 const credits = ref<CreditSummary | null>(null);
 const creditsLoading = ref(false);
@@ -324,9 +333,6 @@ watch(
   place-items: center;
 }
 
-.sidebar-close {
-  display: none;
-}
 
 .sidebar-brand {
   display: flex;
@@ -617,6 +623,10 @@ watch(
   color: #c33f3f;
 }
 
+.sidebar-user-popover__link--btn {
+  cursor: pointer;
+}
+
 .sidebar-user-card {
   display: none;
   gap: 12px;
@@ -682,6 +692,10 @@ watch(
   cursor: pointer;
 }
 
+.sidebar-user-card__link--btn {
+  cursor: pointer;
+}
+
 .workspace-main {
   position: relative;
   z-index: 1;
@@ -694,222 +708,65 @@ watch(
 }
 
 .workspace-content {
+  padding: 24px 28px;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 0;
+  
   overflow: auto;
 }
 
-.workspace-mobile-bar {
-  display: none;
-}
-
-.workspace-sidebar-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  background: rgba(15, 20, 25, 0.24);
-  backdrop-filter: blur(4px);
-}
-
-.shell-ghost-btn {
-  display: inline-flex;
+.workspace-topbar {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 38px;
-  min-height: 38px;
-  padding: 0;
-  border-radius: 999px;
-  border: 0;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 48px;
+  padding: 0 28px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.04);
   background: rgba(255, 255, 255, 0.78);
-  color: var(--text-strong);
-  box-shadow:
-    0 8px 18px rgba(21, 27, 32, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(12px);
 }
+
+.workspace-topbar h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.workspace-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.workspace-topbar__user {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.workspace-topbar__credits {
+  min-width: 56px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: rgba(239, 252, 255, 0.7);
+  color: var(--accent-cyan);
+  font-weight: 800;
+  text-align: center;
+}
+
+
+
 
 .shell-menu-btn {
   flex-direction: column;
   gap: 4px;
 }
 
-.shell-menu-btn span {
-  width: 15px;
-  height: 2px;
-  border-radius: 999px;
-  background: currentColor;
-}
 
-.workspace-mobile-bar__title {
-  min-width: 0;
-  max-width: 56vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 0.9rem;
-  font-weight: 760;
-}
 
-.workspace-mobile-bar__placeholder {
-  width: 38px;
-}
 
-@media (max-width: 1024px) {
-  .sidebar-user-card {
-    display: grid;
-  }
-
-  .workspace-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: min(82vw, 292px);
-    flex-basis: min(82vw, 292px);
-    padding: 18px 16px 22px;
-    border-right: 0;
-    border-radius: 0 28px 28px 0;
-    box-shadow:
-      18px 0 54px rgba(15, 20, 25, 0.18),
-      inset -1px 0 0 rgba(255, 255, 255, 0.72);
-    transform: translateX(-100%);
-    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .workspace-sidebar__top {
-    gap: 24px;
-    justify-items: stretch;
-  }
-
-  .workspace-sidebar__topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .sidebar-brand {
-    width: 46px;
-    height: 46px;
-    border-radius: 17px;
-    background: rgba(255, 255, 255, 0.72);
-  }
-
-  .sidebar-close {
-    display: inline-grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    border: 0;
-    border-radius: 999px;
-    background: rgba(15, 20, 25, 0.05);
-    color: var(--text-strong);
-    cursor: pointer;
-  }
-
-  .sidebar-close:hover,
-  .sidebar-close:focus-visible {
-    background: rgba(27, 124, 255, 0.1);
-    color: var(--accent-blue);
-  }
-
-  .sidebar-nav {
-    justify-items: stretch;
-    gap: 10px;
-  }
-
-  .sidebar-nav__item {
-    grid-template-columns: 22px minmax(0, 1fr);
-    justify-items: start;
-    width: auto;
-    min-height: 46px;
-    padding: 0 14px;
-    gap: 12px;
-    border-radius: 16px;
-  }
-
-  .sidebar-nav__item-active {
-    background: rgba(237, 245, 255, 0.9);
-    font-weight: 800;
-  }
-
-  .sidebar-nav__label {
-    max-width: none;
-    font-size: 0.86rem;
-    white-space: nowrap;
-    text-align: left;
-  }
-
-  .sidebar-nav__icon {
-    width: 22px;
-    height: 22px;
-  }
-
-  .sidebar-account-zone {
-    justify-items: stretch;
-  }
-
-  .sidebar-account {
-    display: none;
-  }
-
-  .sidebar-credit-card {
-    grid-template-columns: auto minmax(0, 1fr);
-    place-items: center stretch;
-    justify-content: space-between;
-    gap: 10px;
-    width: auto;
-    min-height: 42px;
-    padding: 0 14px;
-    border-radius: 999px;
-  }
-
-  .sidebar-credit-card__label {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip: auto;
-    color: var(--sidebar-muted);
-    font-size: 0.74rem;
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  .sidebar-credit-card strong {
-    max-width: none;
-    text-align: right;
-    font-size: 0.86rem;
-  }
-
-  .sidebar-user-card__meta {
-    display: none;
-  }
-
-  .workspace-sidebar-open {
-    transform: translateX(0);
-  }
-
-  .workspace-sidebar-mask {
-    background: rgba(15, 20, 25, 0.34);
-    backdrop-filter: blur(10px);
-  }
-
-  .workspace-mobile-bar {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 52px;
-    padding: 8px 16px;
-    border-bottom: 1px solid rgba(15, 20, 25, 0.04);
-    background: rgba(246, 251, 255, 0.9);
-    backdrop-filter: blur(20px);
-  }
-}
 </style>

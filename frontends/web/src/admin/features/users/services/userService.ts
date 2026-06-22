@@ -5,6 +5,7 @@ export {
   enableAdminUser,
   fetchAdminModelConfig,
   fetchAdminUsers,
+  fetchUserModelConfig,
   resetAdminUserModelConfigKeys,
   updateAdminUser,
   updateAdminUserPassword

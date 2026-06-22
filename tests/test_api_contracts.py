@@ -1,6 +1,8 @@
 """Request contract tests for schema-backed routers."""
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.api
 from datetime import datetime, timezone
 
 from sqlalchemy import select

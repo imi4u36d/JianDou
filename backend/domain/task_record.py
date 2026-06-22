@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -16,7 +16,7 @@ class TaskRecord:
 
     # -- scalar fields -------------------------------------------------------
     id: str = ""
-    owner_user_id: Optional[int] = None
+    owner_user_id: int | None = None
     task_type: str = "video_generation"
     title: str = ""
     status: str = ""
@@ -28,8 +28,8 @@ class TaskRecord:
     min_duration_seconds: int = 8
     max_duration_seconds: int = 8
     retry_count: int = 0
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
     completed_output_count: int = 0
     current_attempt_no: int = 0
     has_transcript: bool = False
@@ -37,15 +37,15 @@ class TaskRecord:
     source_asset_count: int = 0
     editing_mode: str = ""
     is_queued: bool = False
-    queue_position: Optional[int] = None
+    queue_position: int | None = None
     active_attempt_id: str = ""
     intro_template: str = ""
     outro_template: str = ""
     creative_prompt: str = ""
-    task_seed: Optional[int] = None
-    effect_rating: Optional[int] = None
+    task_seed: int | None = None
+    effect_rating: int | None = None
     effect_rating_note: str = ""
-    rated_at: Optional[str] = None
+    rated_at: str | None = None
     error_message: str = ""
     transcript_text: str = ""
     storyboard_script: str = ""
@@ -96,7 +96,7 @@ class TaskRecord:
 
     @staticmethod
     def now_iso() -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     # -- view accessors (immutable-style, return same list) ------------------
 

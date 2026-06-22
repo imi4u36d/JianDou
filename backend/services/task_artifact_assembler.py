@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from backend.domain.media_artifacts import (
@@ -19,16 +18,7 @@ from backend.domain.media_result import (
 )
 from backend.domain.task_record import TaskRecord
 from backend.domain.task_result_types import IMAGE, TEXT, VIDEO
-
-_ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime(_ISO_FMT)
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
+from backend.shared import first_non_blank, map_value, now_iso, string_value
 
 
 def _int_value(value: Any, fallback: int = 0) -> int:
@@ -43,7 +33,6 @@ def _int_value(value: Any, fallback: int = 0) -> int:
             pass
     return fallback
 
-
 def _float_value(value: Any, fallback: float = 0.0) -> float:
     if isinstance(value, (int, float)):
         return float(value)
@@ -54,30 +43,16 @@ def _float_value(value: Any, fallback: float = 0.0) -> float:
             pass
     return fallback
 
-
 def _bool_value(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
         return value != 0
-    return _string_value(value).lower() in ("true", "1", "yes")
-
-
-def _map_value(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _first_non_blank(*values: str | None) -> str:
-    for value in values:
-        if value is not None and value.strip():
-            return value.strip()
-    return ""
-
+    return string_value(value).lower() in ("true", "1", "yes")
 
 def _stable_id(prefix: str, *parts: str) -> str:
     seed = prefix + ":" + ":".join(parts)
     return prefix + "_" + uuid.uuid5(uuid.NAMESPACE_OID, seed).hex
-
 
 class _TaskArtifactNaming:
     @staticmethod
@@ -112,14 +87,12 @@ class _TaskArtifactNaming:
     def join_name(end_clip_index: int) -> str:
         return f"join-{end_clip_index}"
 
-
 class _StoredArtifact:
     def __init__(self, public_url: str = "") -> None:
         self._public_url = public_url
 
     def public_url(self) -> str:
         return self._public_url
-
 
 class TaskExecutionArtifactAssembler:
     """Assembles execution artifacts, material rows, and result rows from task data."""
@@ -128,7 +101,7 @@ class TaskExecutionArtifactAssembler:
         self._local_media_artifact_service = local_media_artifact_service
 
     def create_text_material(self, task: TaskRecord, run: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-        file_url = _string_value(result.get("markdownUrl", ""))
+        file_url = string_value(result.get("markdownUrl", ""))
         artifact = self._normalize_task_artifact(
             task,
             file_url,
@@ -139,7 +112,7 @@ class TaskExecutionArtifactAssembler:
             task, run, TEXT, f"{task.title} 分镜脚本",
             artifact.public_url() if hasattr(artifact, "public_url") else file_url,
             artifact.public_url() if hasattr(artifact, "public_url") else file_url,
-            _string_value(result.get("mimeType", "text/markdown")),
+            string_value(result.get("mimeType", "text/markdown")),
             0.0, 0, 0, False, 1, "storyboard",
             {}, {"taskArtifact": True}, "",
         )
@@ -152,7 +125,7 @@ class TaskExecutionArtifactAssembler:
         clip_index: int,
         frame_role: str,
     ) -> dict[str, Any]:
-        output_url = _string_value(result.get("outputUrl", ""))
+        output_url = string_value(result.get("outputUrl", ""))
         metadata = result_metadata(result)
         normalized_frame_role = "last" if frame_role.lower() == "last" else "first"
         artifact = self._normalize_task_artifact(
@@ -170,7 +143,7 @@ class TaskExecutionArtifactAssembler:
             f"{task.title} {'尾帧关键画面' if normalized_frame_role == 'last' else '首帧关键画面'}",
             artifact.public_url() if hasattr(artifact, "public_url") else output_url,
             artifact.public_url() if hasattr(artifact, "public_url") else output_url,
-            _string_value(result.get("mimeType", "image/png")),
+            string_value(result.get("mimeType", "image/png")),
             0.0, _int_value(result.get("width"), 0), _int_value(result.get("height"), 0),
             False, clip_index, f"keyframe-{normalized_frame_role}",
             metadata,
@@ -198,12 +171,12 @@ class TaskExecutionArtifactAssembler:
             "keyframe",
         )
         snapshot = task.request_snapshot or {}
-        asset_type = _string_value(snapshot.get("assetType", "")) or _string_value(task.task_type)
+        asset_type = string_value(snapshot.get("assetType", "")) or string_value(task.task_type)
         return self._create_material(
             task, run, IMAGE, task.title,
             artifact.public_url() if hasattr(artifact, "public_url") else output_url,
             artifact.public_url() if hasattr(artifact, "public_url") else output_url,
-            _string_value(result.get("mimeType", "image/png")),
+            string_value(result.get("mimeType", "image/png")),
             0.0, _int_value(result.get("width"), 0), _int_value(result.get("height"), 0),
             False, 1, asset_type if asset_type else "free",
             metadata,
@@ -229,11 +202,11 @@ class TaskExecutionArtifactAssembler:
             normalized_frame_role,
             file_ext_or_default(file_name_from_url(source_url), "png"),
         )
-        file_url = _string_value(source_url)
+        file_url = string_value(source_url)
         try:
             artifact = self._normalize_task_artifact(task, source_url, target_file_name, "keyframe")
             file_url = artifact.public_url() if hasattr(artifact, "public_url") else file_url
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort artifact normalization
             pass
         return self._create_material(
             task, {}, IMAGE,
@@ -245,10 +218,10 @@ class TaskExecutionArtifactAssembler:
                 "taskArtifact": file_url.startswith("/storage/"),
                 "clipIndex": clip_index,
                 "frameRole": normalized_frame_role,
-                "remoteSourceUrl": _string_value(source_url),
+                "remoteSourceUrl": string_value(source_url),
                 "reusedFromPreviousClip": True,
             },
-            _string_value(source_url),
+            string_value(source_url),
         )
 
     def create_video_material(
@@ -271,7 +244,7 @@ class TaskExecutionArtifactAssembler:
             task, run, VIDEO, f"{task.title} 片段输出",
             artifact.public_url() if hasattr(artifact, "public_url") else output_url,
             artifact.public_url() if hasattr(artifact, "public_url") else output_url,
-            _string_value(result.get("mimeType", "video/mp4")),
+            string_value(result.get("mimeType", "video/mp4")),
             _float_value(result.get("durationSeconds"), float(fallback_duration_seconds)),
             _int_value(result.get("width"), 0),
             _int_value(result.get("height"), 0),
@@ -281,9 +254,9 @@ class TaskExecutionArtifactAssembler:
             {
                 "taskArtifact": True,
                 "clipIndex": clip_index,
-                "firstFrameUrl": _string_value(metadata.get("firstFrameUrl")),
+                "firstFrameUrl": string_value(metadata.get("firstFrameUrl")),
                 "lastFrameUrl": self.extract_last_frame_url(result),
-                "requestedLastFrameUrl": _string_value(metadata.get("requestedLastFrameUrl")),
+                "requestedLastFrameUrl": string_value(metadata.get("requestedLastFrameUrl")),
                 "remoteSourceUrl": remote_source_url(metadata),
             },
             remote_source_url(metadata),
@@ -310,22 +283,22 @@ class TaskExecutionArtifactAssembler:
             "clipIndex": clip_index,
             "title": f"{task.title} 成片输出 #{clip_index}",
             "reason": "Spring Boot worker 已按分镜顺序完成视频片段输出。",
-            "sourceModelCallId": _string_value(video_model_call.get("modelCallId")),
+            "sourceModelCallId": string_value(video_model_call.get("modelCallId")),
             "materialAssetId": video_material.get("id"),
             "startSeconds": 0.0,
             "endSeconds": _float_value(video_result.get("durationSeconds"), float(fallback_duration_seconds)),
             "durationSeconds": _float_value(video_result.get("durationSeconds"), float(fallback_duration_seconds)),
-            "previewUrl": _string_value(video_material.get("previewUrl")),
-            "downloadUrl": _string_value(video_material.get("fileUrl")),
-            "mimeType": _string_value(video_result.get("mimeType", "video/mp4")),
+            "previewUrl": string_value(video_material.get("previewUrl")),
+            "downloadUrl": string_value(video_material.get("fileUrl")),
+            "mimeType": string_value(video_result.get("mimeType", "video/mp4")),
             "width": _int_value(video_result.get("width"), 0),
             "height": _int_value(video_result.get("height"), 0),
-            "sizeBytes": self._file_size(self._resolve_absolute_path(_string_value(video_material.get("fileUrl")))),
-            "remoteUrl": _string_value(video_metadata.get("remoteSourceUrl")),
+            "sizeBytes": self._file_size(self._resolve_absolute_path(string_value(video_material.get("fileUrl")))),
+            "remoteUrl": string_value(video_metadata.get("remoteSourceUrl")),
             "extra": {
-                "runId": _string_value(video_run.get("id")),
-                "posterUrl": _string_value(image_material.get("fileUrl")),
-                "thumbnailUrl": _string_value(video_result.get("thumbnailUrl")),
+                "runId": string_value(video_run.get("id")),
+                "posterUrl": string_value(image_material.get("fileUrl")),
+                "thumbnailUrl": string_value(video_result.get("thumbnailUrl")),
                 "hasAudio": _bool_value(video_result.get("hasAudio")),
                 "clipIndex": clip_index,
                 "targetDurationSeconds": fallback_duration_seconds,
@@ -336,15 +309,15 @@ class TaskExecutionArtifactAssembler:
                     video_result.get("durationSeconds"),
                     float(fallback_duration_seconds),
                 ),
-                "remoteTaskId": _string_value(video_metadata.get("taskId")),
-                "firstFrameUrl": _first_non_blank(
-                    _string_value(video_metadata.get("firstFrameUrl")),
-                    _string_value(image_material.get("remoteUrl")),
+                "remoteTaskId": string_value(video_metadata.get("taskId")),
+                "firstFrameUrl": first_non_blank(
+                    string_value(video_metadata.get("firstFrameUrl")),
+                    string_value(image_material.get("remoteUrl")),
                 ),
                 "lastFrameUrl": resolved_last_frame_url,
-                "requestedLastFrameUrl": _string_value(video_metadata.get("requestedLastFrameUrl")),
+                "requestedLastFrameUrl": string_value(video_metadata.get("requestedLastFrameUrl")),
             },
-            "createdAt": _now_iso(),
+            "createdAt": now_iso(),
         }
 
     def create_image_result(
@@ -363,29 +336,29 @@ class TaskExecutionArtifactAssembler:
             "clipIndex": 1,
             "title": task.title,
             "reason": "工作台图片生成已完成。",
-            "sourceModelCallId": _string_value(model_call.get("modelCallId")),
+            "sourceModelCallId": string_value(model_call.get("modelCallId")),
             "materialAssetId": image_material.get("id"),
             "startSeconds": 0.0,
             "endSeconds": 0.0,
             "durationSeconds": 0.0,
-            "previewUrl": _string_value(image_material.get("previewUrl")),
-            "downloadUrl": _string_value(image_material.get("fileUrl")),
-            "mimeType": _string_value(image_result.get("mimeType", "image/png")),
+            "previewUrl": string_value(image_material.get("previewUrl")),
+            "downloadUrl": string_value(image_material.get("fileUrl")),
+            "mimeType": string_value(image_result.get("mimeType", "image/png")),
             "width": _int_value(image_result.get("width"), 0),
             "height": _int_value(image_result.get("height"), 0),
-            "sizeBytes": self._file_size(self._resolve_absolute_path(_string_value(image_material.get("fileUrl")))),
-            "remoteUrl": _string_value(metadata.get("remoteSourceUrl")),
+            "sizeBytes": self._file_size(self._resolve_absolute_path(string_value(image_material.get("fileUrl")))),
+            "remoteUrl": string_value(metadata.get("remoteSourceUrl")),
             "extra": {
-                "runId": _string_value(image_run.get("id")),
-                "assetType": _string_value(snapshot.get("assetType", "")),
+                "runId": string_value(image_run.get("id")),
+                "assetType": string_value(snapshot.get("assetType", "")),
                 "taskType": task.task_type,
                 "referenceImageUrls": metadata.get("referenceImageUrls", []),
             },
-            "createdAt": _now_iso(),
+            "createdAt": now_iso(),
         }
 
     def normalize_optional_task_artifact(self, task: TaskRecord, source_url: str, target_file_name: str) -> None:
-        if not _string_value(source_url) or not _string_value(target_file_name):
+        if not string_value(source_url) or not string_value(target_file_name):
             return
         if self._local_media_artifact_service:
             try:
@@ -394,7 +367,7 @@ class TaskExecutionArtifactAssembler:
                     _TaskArtifactNaming.task_running_relative_dir(task),
                     target_file_name,
                 )
-            except Exception:
+            except Exception:  # noqa: S110 — best-effort materialization
                 pass
 
     def extract_last_frame_url(self, value: Any) -> str:
@@ -404,7 +377,7 @@ class TaskExecutionArtifactAssembler:
         return self._find_nested_role_url(value, "last_frame")
 
     def _normalize_task_artifact(self, task: TaskRecord, source_url: str, target_file_name: str, fallback_kind: str) -> Any:
-        resolved = _string_value(target_file_name)
+        resolved = string_value(target_file_name)
         if not resolved:
             if fallback_kind == "storyboard":
                 resolved = _TaskArtifactNaming.storyboard_file_name(task, "bin")
@@ -439,15 +412,15 @@ class TaskExecutionArtifactAssembler:
         extra_metadata: dict[str, Any],
         remote_url: str,
     ) -> dict[str, Any]:
-        run_result = _map_value(run.get("result"))
-        model_info = _map_value(run_result.get("modelInfo"))
+        run_result = map_value(run.get("result"))
+        model_info = map_value(run_result.get("modelInfo"))
         absolute_path = self._resolve_absolute_path(file_url) if file_url else ""
         file_name = file_name_from_url(file_url) if file_url else ""
         metadata: dict[str, Any] = {
             "taskId": task.id,
             "kind": kind,
             "clipIndex": clip_index,
-            "runId": _string_value(run.get("id")),
+            "runId": string_value(run.get("id")),
             "sourceMetadata": source_metadata if source_metadata else {},
         }
         if extra_metadata:
@@ -459,9 +432,9 @@ class TaskExecutionArtifactAssembler:
             "kind": kind,
             "mediaType": media_type,
             "title": title,
-            "originProvider": _string_value(model_info.get("provider", "spring-placeholder")),
-            "originModel": _string_value(model_info.get("resolvedModel", model_info.get("providerModel"))),
-            "remoteTaskId": _first_non_blank(_string_value(source_metadata.get("taskId")), _string_value(run.get("id"))),
+            "originProvider": string_value(model_info.get("provider", "spring-placeholder")),
+            "originModel": string_value(model_info.get("resolvedModel", model_info.get("providerModel"))),
+            "remoteTaskId": first_non_blank(string_value(source_metadata.get("taskId")), string_value(run.get("id"))),
             "remoteAssetId": "",
             "originalFileName": file_name,
             "storedFileName": file_name,
@@ -480,13 +453,13 @@ class TaskExecutionArtifactAssembler:
             "thumbnailUrl": thumbnail_url or "",
             "remoteUrl": remote_url or "",
             "metadata": metadata,
-            "createdAt": _now_iso(),
+            "createdAt": now_iso(),
         }
 
     def _media_thumbnail_url(self, media_type: str, file_url: str, metadata: dict[str, Any]) -> str:
         candidate = thumbnail_candidate(metadata)
         if self._local_media_artifact_service:
-            return _string_value(self._local_media_artifact_service.ensure_media_thumbnail(
+            return string_value(self._local_media_artifact_service.ensure_media_thumbnail(
                 media_type,
                 file_url,
                 [candidate] if candidate else [],
@@ -530,7 +503,7 @@ class TaskExecutionArtifactAssembler:
 
     def _find_nested_role_url(self, value: Any, role: str) -> str:
         if isinstance(value, dict):
-            current_role = _string_value(value.get("role")).lower()
+            current_role = string_value(value.get("role")).lower()
             if role == current_role:
                 image_url = value.get("image_url") or value.get("imageUrl")
                 resolved = self._find_nested_string(image_url, "url", "href", "uri")

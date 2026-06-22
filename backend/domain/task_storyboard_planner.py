@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -63,6 +63,9 @@ _CHARACTER_APPEARANCE_ANCHOR_PATTERN = re.compile(
 
 
 @dataclass(frozen=True)
+# =============================================================================
+# STORYBOARD PLANNER
+# =============================================================================
 class CharacterDefinition:
     """A character definition extracted from storyboard markdown.
 
@@ -232,22 +235,22 @@ class _CharacterDefinitionTableSchema:
     """
 
     header_cells: list[str] = field(default_factory=list)
-    name_index: Optional[int] = None
-    gender_age_index: Optional[int] = None
-    position_index: Optional[int] = None
-    appearance_index: Optional[int] = None
-    face_index: Optional[int] = None
-    hair_index: Optional[int] = None
-    body_index: Optional[int] = None
-    clothing_index: Optional[int] = None
-    stable_accessories_index: Optional[int] = None
-    immutable_visual_index: Optional[int] = None
-    behavior_index: Optional[int] = None
-    speech_index: Optional[int] = None
-    gender_index: Optional[int] = None
-    age_index: Optional[int] = None
-    part_index: Optional[int] = None
-    detail_index: Optional[int] = None
+    name_index: int | None = None
+    gender_age_index: int | None = None
+    position_index: int | None = None
+    appearance_index: int | None = None
+    face_index: int | None = None
+    hair_index: int | None = None
+    body_index: int | None = None
+    clothing_index: int | None = None
+    stable_accessories_index: int | None = None
+    immutable_visual_index: int | None = None
+    behavior_index: int | None = None
+    speech_index: int | None = None
+    gender_index: int | None = None
+    age_index: int | None = None
+    part_index: int | None = None
+    detail_index: int | None = None
 
     @staticmethod
     def empty() -> _CharacterDefinitionTableSchema:
@@ -328,7 +331,7 @@ class _CharacterDefinitionTableSchema:
                 return False
         return True
 
-    def value(self, cells: list[str], index: Optional[int]) -> str:
+    def value(self, cells: list[str], index: int | None) -> str:
         if index is None or index < 0 or index >= len(cells):
             return ""
         return cells[index]
@@ -342,11 +345,11 @@ class _StoryboardTableSchema:
     """
 
     header_cells: list[str] = field(default_factory=list)
-    shot_no_index: Optional[int] = None
-    first_frame_prompt_index: Optional[int] = None
-    last_frame_prompt_index: Optional[int] = None
-    content_description_index: Optional[int] = None
-    duration_index: Optional[int] = None
+    shot_no_index: int | None = None
+    first_frame_prompt_index: int | None = None
+    last_frame_prompt_index: int | None = None
+    content_description_index: int | None = None
+    duration_index: int | None = None
 
     @staticmethod
     def empty() -> _StoryboardTableSchema:
@@ -389,7 +392,7 @@ class _StoryboardTableSchema:
                 return False
         return True
 
-    def cell(self, cells: list[str], index: Optional[int], fallback_index: int) -> str:
+    def cell(self, cells: list[str], index: int | None, fallback_index: int) -> str:
         resolved = index if index is not None else fallback_index
         if resolved < 0 or resolved >= len(cells):
             return ""
@@ -401,7 +404,7 @@ class _StoryboardTableSchema:
 # ---------------------------------------------------------------------------
 
 
-def _string_value(value: Any) -> str:
+def string_value(value: Any) -> str:
     """Safely convert a value to a trimmed string."""
     if value is None:
         return ""
@@ -411,7 +414,7 @@ def _string_value(value: Any) -> str:
 def _normalize_header(text: str) -> str:
     """Normalize a header cell for comparison (stripped, lowercased, no separators)."""
     return (
-        _string_value(text)
+        string_value(text)
         .lower()
         .replace("<br>", " ")
         .replace("<br/>", " ")
@@ -422,13 +425,13 @@ def _normalize_header(text: str) -> str:
 
 def _normalize_storyboard_header(text: str) -> str:
     """Normalize storyboard header text by removing whitespace and separators."""
-    return re.sub(r"[\s_\-()（）/\\+:：·,.，]", "", _string_value(text).lower().strip())
+    return re.sub(r"[\s_\-()（）/\\+:：·,.，]", "", string_value(text).lower().strip())
 
 
 def _normalize_storyboard_prompt_value(value: str) -> str:
     """Normalize a storyboard prompt cell value."""
     return (
-        _string_value(value)
+        string_value(value)
         .replace("<br>", " ")
         .replace("<br/>", " ")
         .replace("<br />", " ")
@@ -438,7 +441,7 @@ def _normalize_storyboard_prompt_value(value: str) -> str:
 def _normalize_prompt_value(value: str) -> str:
     """Normalize a storyboard prompt cell value (replace <br> with space, collapse whitespace)."""
     result = (
-        _string_value(value)
+        string_value(value)
         .replace("<br>", " ")
         .replace("<br/>", " ")
         .replace("<br />", " ")
@@ -466,7 +469,7 @@ def _trim_static_appearance_definition(value: str) -> str:
     return result.strip()
 
 
-def _resolve_header(headers: list[str], *aliases: str) -> Optional[int]:
+def _resolve_header(headers: list[str], *aliases: str) -> int | None:
     """Find the index of a header matching any of the given aliases."""
     for idx, header in enumerate(headers):
         norm = _normalize_header(header)
@@ -578,7 +581,7 @@ class TaskStoryboardPlanner:
         self, storyboard_markdown: str
     ) -> list[CharacterDefinition]:
         """Extract character definitions from storyboard markdown."""
-        normalized = _string_value(storyboard_markdown)
+        normalized = string_value(storyboard_markdown)
         if not normalized:
             return []
 
@@ -756,7 +759,7 @@ class TaskStoryboardPlanner:
         self, storyboard_markdown: str
     ) -> list[list[int]]:
         """Extract duration ranges from storyboard markdown."""
-        normalized = self._storyboard_section(_string_value(storyboard_markdown))
+        normalized = self._storyboard_section(string_value(storyboard_markdown))
         if not normalized:
             return []
 
@@ -790,7 +793,7 @@ class TaskStoryboardPlanner:
         self, storyboard_markdown: str
     ) -> list[ShotPlan]:
         """Parse storyboard markdown and extract individual shot plans."""
-        normalized = _string_value(storyboard_markdown)
+        normalized = string_value(storyboard_markdown)
         if not normalized:
             raise ValueError("分镜解析失败，分镜脚本不能为空，且必须是结构化 Markdown 表格。")
 
@@ -846,7 +849,7 @@ class TaskStoryboardPlanner:
                 if sequential_index > 1 and previous_last_frame_prompt
                 else parsed_first_frame
             )
-            scene = self._first_non_blank(first_frame_prompt, parsed_first_frame, last_frame)
+            scene = self.first_non_blank(first_frame_prompt, parsed_first_frame, last_frame)
             image_prompt = first_frame_prompt if sequential_index == 1 else ""
             video_prompt = self._build_continuous_clip_prompt(
                 first_frame_prompt,
@@ -882,7 +885,7 @@ class TaskStoryboardPlanner:
 
     def _storyboard_section(self, storyboard_markdown: str) -> str:
         """Extract the 【分镜脚本】 section from markdown."""
-        normalized = _string_value(storyboard_markdown)
+        normalized = string_value(storyboard_markdown)
         script_start = normalized.find("【分镜脚本】")
         return normalized[script_start:] if script_start >= 0 else normalized
 
@@ -937,7 +940,7 @@ class TaskStoryboardPlanner:
     ) -> list[CharacterDefinition]:
         """Extract character definitions from a list format."""
         definitions: list[CharacterDefinition] = []
-        for raw_line in _string_value(definitions_block).splitlines():
+        for raw_line in string_value(definitions_block).splitlines():
             stripped = raw_line.strip()
             matcher = _CHARACTER_DEFINITION_LIST_PATTERN.match(stripped)
             if not matcher:
@@ -972,7 +975,7 @@ class TaskStoryboardPlanner:
         builders: dict[str, _CharacterDefinitionBuilder] = {}
         schema = _CharacterDefinitionTableSchema.empty()
 
-        for raw_line in _string_value(definitions_block).splitlines():
+        for raw_line in string_value(definitions_block).splitlines():
             stripped = raw_line.strip()
             if not stripped.startswith("|"):
                 continue
@@ -1088,7 +1091,7 @@ class TaskStoryboardPlanner:
     # Internal: duration
     # -----------------------------------------------------------------------
 
-    def _parse_duration_range_hint(self, text: str) -> Optional[list[int]]:
+    def _parse_duration_range_hint(self, text: str) -> list[int] | None:
         """Parse a duration range hint from text.
 
         Tries patterns in order:
@@ -1097,7 +1100,7 @@ class TaskStoryboardPlanner:
         3. Plain duration range (e.g., "5-10")
         4. Plain single value (e.g., "5")
         """
-        normalized = _string_value(text)
+        normalized = string_value(text)
         if not normalized:
             return None
 
@@ -1140,7 +1143,7 @@ class TaskStoryboardPlanner:
     def _safe_rounded_seconds(self, value: str) -> int:
         """Safely parse a string to seconds, clamped [1, 120]."""
         try:
-            return max(1, min(120, round(float(_string_value(value)))))
+            return max(1, min(120, round(float(string_value(value)))))
         except (ValueError, TypeError):
             return 1
 
@@ -1173,7 +1176,7 @@ class TaskStoryboardPlanner:
 
     def _supported_video_durations(self, requested_video_model: str) -> list[int]:
         """Get supported video durations for a given model."""
-        normalized_model = _string_value(requested_video_model)
+        normalized_model = string_value(requested_video_model)
         if not normalized_model:
             return []
 
@@ -1187,7 +1190,7 @@ class TaskStoryboardPlanner:
         except (AttributeError, TypeError):
             return []
 
-        raw = _string_value(section.get("supported_durations")) if isinstance(section, dict) else ""
+        raw = string_value(section.get("supported_durations")) if isinstance(section, dict) else ""
         if not raw:
             return []
 
@@ -1271,7 +1274,7 @@ class TaskStoryboardPlanner:
 
     def _truncate_text(self, value: str, max_length: int) -> str:
         """Truncate text to max_length with an ellipsis if needed."""
-        normalized = _string_value(value)
+        normalized = string_value(value)
         if len(normalized) <= max_length:
             return normalized
         return normalized[: max(0, max_length - 1)].strip() + "…"
@@ -1333,7 +1336,7 @@ class TaskStoryboardPlanner:
         """Clamp a value between min and max."""
         return max(min_value, min(max_value, value))
 
-    def _first_non_blank(self, *values: str) -> str:
+    def first_non_blank(self, *values: str) -> str:
         """Return the first non-blank value."""
         for v in values:
             if v and v.strip():

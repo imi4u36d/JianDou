@@ -1,6 +1,8 @@
 """Generation catalog endpoint tests."""
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 
 async def test_generation_catalog_uses_configured_models(client):
     response = await client.get("/api/v3/generation/catalog")

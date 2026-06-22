@@ -7,8 +7,6 @@ Handles the multi-stage creative workflow lifecycle:
 from __future__ import annotations
 
 import re
-import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -23,6 +21,7 @@ from backend.services.workflow_generation_request_builder import WorkflowGenerat
 from backend.services.workflow_generation_result_parser import WorkflowGenerationResultParser
 from backend.services.workflow_persistence_row_factory import WorkflowPersistenceRowFactory
 from backend.services.workflow_view_mapper import WorkflowViewMapper
+from backend.shared import first_non_blank, now_iso, random_id, safe_float, safe_int, trim
 
 # ---------------------------------------------------------------------------
 # Constants (mirroring WorkflowConstants.java)
@@ -47,78 +46,19 @@ DEFAULT_MAX_DURATION_SECONDS = 12
 # ---------------------------------------------------------------------------
 
 
-def _random_id() -> str:
-    return uuid.uuid4().hex
 
 
-def _trim(value: str | None, fallback: str = "") -> str:
-    if value is None:
-        return fallback.strip()
-    stripped = value.strip()
-    return stripped if stripped else fallback.strip()
 
 
-def _first_non_blank(*values: str | None) -> str:
-    for v in values:
-        if v and v.strip():
-            return v.strip()
-    return ""
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _safe_int(value: Any, fallback: int = 0) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if value is not None:
-        try:
-            return int(str(value).strip())
-        except (ValueError, TypeError):
-            pass
-    return fallback
-
-
-def _safe_float(value: Any, fallback: float = 0.0) -> float:
-    if isinstance(value, float):
-        return value
-    if isinstance(value, int):
-        return float(value)
-    if value is not None:
-        try:
-            return float(str(value).strip())
-        except (ValueError, TypeError):
-            pass
-    return fallback
-
-
-def _safe_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return value != 0
-    s = str(value).strip().lower()
-    return s in ("true", "1", "yes")
-
-
-def _read_json(text: str | None) -> dict[str, Any]:
-    return read_json_object(text)
-
-
-def _write_json(data: dict[str, Any]) -> str:
-    return write_json_object(data)
 
 
 def _default_video_size(aspect_ratio: str | None) -> str:
-    return "1280*720" if _trim(aspect_ratio) == "16:9" else "720*1280"
+    return "1280*720" if trim(aspect_ratio) == "16:9" else "720*1280"
 
 
 def _aspect_ratio_from_asset(asset: BizMaterialAsset) -> str:
-    width = _safe_int(asset.width, 0)
-    height = _safe_int(asset.height, 0)
+    width = safe_int(asset.width, 0)
+    height = safe_int(asset.height, 0)
     if width > 0 and height > 0:
         ratio = width / height
         if 0.95 <= ratio <= 1.05:
@@ -133,14 +73,14 @@ def _normalize_duration_mode(
     min_seconds: int | None,
     max_seconds: int | None,
 ) -> str:
-    mode = _trim(duration_mode).lower()
+    mode = trim(duration_mode).lower()
     if mode in ("manual", "auto"):
         return mode
     return "manual" if (min_seconds is not None or max_seconds is not None) else "auto"
 
 
 def _dimensions_from_aspect_ratio(aspect_ratio: str | None) -> tuple[int, int]:
-    ar = _trim(aspect_ratio)
+    ar = trim(aspect_ratio)
     if ar == "16:9":
         return 1824, 1024
     if ar == "1:1":
@@ -149,10 +89,10 @@ def _dimensions_from_aspect_ratio(aspect_ratio: str | None) -> tuple[int, int]:
 
 
 def _dimensions_from_size(value: str | None, fallback_aspect_ratio: str | None = None) -> tuple[int, int]:
-    raw = _trim(value).lower().replace("x", "*")
+    raw = trim(value).lower().replace("x", "*")
     match = re.search(r"(\d{3,5})\s*\*\s*(\d{3,5})", raw)
     if match:
-        return _safe_int(match.group(1), 0), _safe_int(match.group(2), 0)
+        return safe_int(match.group(1), 0), safe_int(match.group(2), 0)
     if "1280" in raw and "720" in raw:
         return 1280, 720
     if "720" in raw and "1280" in raw:
@@ -163,6 +103,18 @@ def _dimensions_from_size(value: str | None, fallback_aspect_ratio: str | None =
 # ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
+
+
+# =============================================================================
+# WORKFLOW SERVICE
+# =============================================================================
+
+def _read_json(text: str | None) -> dict[str, Any]:
+    return read_json_object(text)
+
+
+def _write_json(data: dict[str, Any]) -> str:
+    return write_json_object(data)
 
 
 class WorkflowService:
@@ -200,7 +152,7 @@ class WorkflowService:
             ("视频模型", video_model, "video"),
         ]
         for label, model, kind in checks:
-            value = _trim(model)
+            value = trim(model)
             if not value:
                 raise ValueError(f"请先选择{label}。")
             try:
@@ -240,8 +192,8 @@ class WorkflowService:
         owner_user_id: int | None = None,
     ) -> dict[str, Any] | None:
         """Create a draft workflow."""
-        workflow_id = f"wf_{_random_id()[:12]}"
-        aspect_ratio = _trim(request.get("aspectRatio", "9:16"))
+        workflow_id = f"wf_{random_id()[:12]}"
+        aspect_ratio = trim(request.get("aspectRatio", "9:16"))
         keyframe_seed = request.get("keyframeSeed") or request.get("seed")
         video_seed = request.get("videoSeed") or request.get("seed")
         duration_mode = _normalize_duration_mode(
@@ -252,29 +204,29 @@ class WorkflowService:
         min_dur = (
             DEFAULT_MIN_DURATION_SECONDS
             if duration_mode == "auto"
-            else max(1, _safe_int(request.get("minDurationSeconds"), 1))
+            else max(1, safe_int(request.get("minDurationSeconds"), 1))
         )
         max_dur = (
             DEFAULT_MAX_DURATION_SECONDS
             if duration_mode == "auto"
-            else max(_safe_int(request.get("maxDurationSeconds", min_dur)), min_dur)
+            else max(safe_int(request.get("maxDurationSeconds", min_dur)), min_dur)
         )
-        text_model = _trim(request.get("textAnalysisModel"), "")
-        image_model = _trim(request.get("imageModel"), "")
-        video_model = _trim(request.get("videoModel"), "")
+        text_model = trim(request.get("textAnalysisModel"), "")
+        image_model = trim(request.get("imageModel"), "")
+        video_model = trim(request.get("videoModel"), "")
         await self._validate_generation_models(owner_user_id or 0, text_model, image_model, video_model)
-        now = _now_iso()
+        now = now_iso()
         workflow = BizStageWorkflow(
             workflow_id=workflow_id,
             owner_user_id=owner_user_id or 0,
-            title=_trim(request.get("title"), "未命名工作流"),
-            transcript_text=_trim(request.get("transcriptText"), ""),
+            title=trim(request.get("title"), "未命名工作流"),
+            transcript_text=trim(request.get("transcriptText"), ""),
             aspect_ratio=aspect_ratio,
-            style_preset=_trim(request.get("stylePreset"), "cinematic"),
+            style_preset=trim(request.get("stylePreset"), "cinematic"),
             text_analysis_model=text_model,
             image_model=image_model,
             video_model=video_model,
-            video_size=_trim(request.get("videoSize"), _default_video_size(aspect_ratio)),
+            video_size=trim(request.get("videoSize"), _default_video_size(aspect_ratio)),
             keyframe_seed=keyframe_seed,
             video_seed=video_seed,
             duration_mode=duration_mode,
@@ -309,9 +261,9 @@ class WorkflowService:
         asset = await self._require_material_asset(asset_id, owner_user_id)
         if asset is None:
             return None
-        workflow_id = f"wf_{_random_id()[:12]}"
-        title = f"{_trim(asset.title, '素材')}复用"
-        now = _now_iso()
+        workflow_id = f"wf_{random_id()[:12]}"
+        title = f"{trim(asset.title, '素材')}复用"
+        now = now_iso()
         aspect_ratio = _aspect_ratio_from_asset(asset)
         workflow = BizStageWorkflow(
             workflow_id=workflow_id,
@@ -339,7 +291,7 @@ class WorkflowService:
             metadata_json=_write_json({
                 "source": "material_reuse",
                 "sourceMaterialAssetId": asset.material_asset_id,
-                "reuseMode": _trim(mode, "clone"),
+                "reuseMode": trim(mode, "clone"),
             }),
             timezone_offset_minutes=0,
             remark="",
@@ -400,7 +352,7 @@ class WorkflowService:
             return None
         versions = await self._list_stage_versions(workflow_id)
         asset_ids: set[str] = set()
-        now = _now_iso()
+        now = now_iso()
         for v in versions:
             if v.material_asset_id:
                 asset_ids.add(v.material_asset_id)
@@ -426,7 +378,7 @@ class WorkflowService:
         wf = await self._require_workflow(workflow_id, owner_user_id)
         if wf is None:
             return None
-        aspect_ratio = _trim(request.get("aspectRatio", "9:16"))
+        aspect_ratio = trim(request.get("aspectRatio", "9:16"))
         duration_mode = _normalize_duration_mode(
             request.get("durationMode"),
             request.get("minDurationSeconds"),
@@ -435,29 +387,29 @@ class WorkflowService:
         min_dur = (
             DEFAULT_MIN_DURATION_SECONDS
             if duration_mode == "auto"
-            else max(1, _safe_int(request.get("minDurationSeconds"), 1))
+            else max(1, safe_int(request.get("minDurationSeconds"), 1))
         )
         max_dur = (
             DEFAULT_MAX_DURATION_SECONDS
             if duration_mode == "auto"
-            else max(_safe_int(request.get("maxDurationSeconds"), min_dur), min_dur)
+            else max(safe_int(request.get("maxDurationSeconds"), min_dur), min_dur)
         )
-        text_model = _trim(request.get("textAnalysisModel"), "")
-        image_model = _trim(request.get("imageModel"), "")
-        video_model = _trim(request.get("videoModel"), "")
+        text_model = trim(request.get("textAnalysisModel"), "")
+        image_model = trim(request.get("imageModel"), "")
+        video_model = trim(request.get("videoModel"), "")
         await self._validate_generation_models(wf.owner_user_id, text_model, image_model, video_model)
         wf.aspect_ratio = aspect_ratio
-        wf.style_preset = _trim(request.get("stylePreset"), "cinematic")
+        wf.style_preset = trim(request.get("stylePreset"), "cinematic")
         wf.text_analysis_model = text_model
         wf.image_model = image_model
         wf.video_model = video_model
-        wf.video_size = _trim(request.get("videoSize"), _default_video_size(aspect_ratio))
+        wf.video_size = trim(request.get("videoSize"), _default_video_size(aspect_ratio))
         wf.keyframe_seed = request.get("keyframeSeed")
         wf.video_seed = request.get("videoSeed")
         wf.duration_mode = duration_mode
         wf.min_duration_seconds = min_dur
         wf.max_duration_seconds = max_dur
-        wf.update_time = _now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -480,7 +432,7 @@ class WorkflowService:
             raise ValueError("请先填写正文内容，再生成分镜。")
 
         # Create a new storyboard version
-        version_id = f"sv_{_random_id()[:12]}"
+        version_id = f"sv_{random_id()[:12]}"
 
         # Count existing storyboard versions for version number
         result = await self.db.execute(
@@ -494,7 +446,7 @@ class WorkflowService:
 
         # Call real AI generation for storyboard
         gen_service = self._get_generation_service()
-        text_model = _trim(getattr(wf, 'text_analysis_model', ''))
+        text_model = trim(getattr(wf, 'text_analysis_model', ''))
         if not text_model:
             raise ValueError("请先选择文本模型。")
 
@@ -548,7 +500,7 @@ class WorkflowService:
         wf.selected_storyboard_version_id = version_id
         wf.current_stage = STAGE_KEYFRAME
         wf.status = STATUS_READY
-        wf.update_time = _now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -570,7 +522,7 @@ class WorkflowService:
             return None
 
         # Update the version with adjustment info
-        now = _now_iso()
+        now = now_iso()
         version.update_time = now
         await self.db.commit()
 
@@ -603,12 +555,12 @@ class WorkflowService:
                 raise ValueError("角色不存在，请重新选择分镜版本。")
             character = characters[char_index]
         else:
-            clip = next((item for item in clips if _safe_int(item.get("clipIndex"), 0) == clip_index), None)
+            clip = next((item for item in clips if safe_int(item.get("clipIndex"), 0) == clip_index), None)
             if clip is None:
                 raise ValueError("镜头不存在，请重新选择分镜版本。")
 
-        version_id = f"kv_{_random_id()[:12]}"
-        now = _now_iso()
+        version_id = f"kv_{random_id()[:12]}"
+        now = now_iso()
 
         # Count existing keyframe versions for this clip
         result = await self.db.execute(
@@ -648,8 +600,8 @@ class WorkflowService:
             width=image_result.width,
             height=image_result.height,
             duration_seconds=0,
-            origin_provider=_trim(image_result.metadata.get("provider")),
-            origin_model=_trim(image_result.metadata.get("providerModel")),
+            origin_provider=trim(image_result.metadata.get("provider")),
+            origin_model=trim(image_result.metadata.get("providerModel")),
             remote_url=image_result.remote_source_url,
             metadata={
                 "runId": gen_result.get("id") or image_result.run_id,
@@ -743,7 +695,7 @@ class WorkflowService:
             return None
 
         # Create a placeholder frame version
-        version_id = f"fv_{_random_id()[:12]}"
+        version_id = f"fv_{random_id()[:12]}"
 
         # Count existing versions for this clip and frame role
         result = await self.db.execute(
@@ -791,7 +743,7 @@ class WorkflowService:
         await self._mark_selected_stage_version(workflow_id, STAGE_KEYFRAME, clip_index, version_id)
         wf.current_stage = STAGE_VIDEO
         wf.status = STATUS_READY
-        wf.update_time = _now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -809,7 +761,7 @@ class WorkflowService:
             return None
         wf.current_stage = STAGE_VIDEO
         wf.status = STATUS_READY
-        wf.update_time = _now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -826,7 +778,7 @@ class WorkflowService:
             return None
 
         # Update the workflow with the selected asset
-        now = _now_iso()
+        now = now_iso()
         wf.update_time = now
         await self.db.commit()
 
@@ -850,7 +802,7 @@ class WorkflowService:
         if storyboard_version is None:
             raise ValueError("请先选中一个分镜版本。")
         _, clips = self._storyboard_plan(storyboard_version)
-        clip = next((item for item in clips if _safe_int(item.get("clipIndex"), 0) == clip_index), None)
+        clip = next((item for item in clips if safe_int(item.get("clipIndex"), 0) == clip_index), None)
         if clip is None:
             raise ValueError("镜头不存在，请重新选择分镜版本。")
         versions = await self._list_stage_versions(workflow_id)
@@ -860,22 +812,22 @@ class WorkflowService:
                 if v.stage_type == STAGE_KEYFRAME
                 and v.clip_index == clip_index
                 and v.selected == 1
-                and _trim(_read_json(v.input_summary_json).get("variantKind", "")) != VARIANT_KIND_CHARACTER_SHEET
+                and trim(_read_json(v.input_summary_json).get("variantKind", "")) != VARIANT_KIND_CHARACTER_SHEET
             ),
             None,
         )
         if selected_keyframe is None:
             raise ValueError("请先为该镜头生成并选中关键帧。")
         keyframe_output = _read_json(selected_keyframe.output_summary_json)
-        first_frame_url = _first_non_blank(
-            _trim(keyframe_output.get("startFrameRemoteUrl")),
-            _trim(keyframe_output.get("remoteSourceUrl")),
-            _trim(keyframe_output.get("remoteUrl")),
+        first_frame_url = first_non_blank(
+            trim(keyframe_output.get("startFrameRemoteUrl")),
+            trim(keyframe_output.get("remoteSourceUrl")),
+            trim(keyframe_output.get("remoteUrl")),
         )
-        last_frame_url = _first_non_blank(
-            _trim(keyframe_output.get("endFrameRemoteUrl")),
-            _trim(keyframe_output.get("remoteSourceUrl")),
-            _trim(keyframe_output.get("remoteUrl")),
+        last_frame_url = first_non_blank(
+            trim(keyframe_output.get("endFrameRemoteUrl")),
+            trim(keyframe_output.get("remoteSourceUrl")),
+            trim(keyframe_output.get("remoteUrl")),
         )
         if not first_frame_url:
             raise ValueError("关键帧缺少远端首帧图片 URL，无法生成视频。")
@@ -884,8 +836,8 @@ class WorkflowService:
         if not model_first_frame_url:
             raise ValueError("关键帧远端首帧图片 URL 不是视频模型可访问的地址，无法生成视频。")
 
-        version_id = f"vv_{_random_id()[:12]}"
-        now = _now_iso()
+        version_id = f"vv_{random_id()[:12]}"
+        now = now_iso()
 
         # Count existing video versions for this clip
         result = await self.db.execute(
@@ -898,7 +850,7 @@ class WorkflowService:
         )
         version_count = result.scalar() or 0
         width, height = _dimensions_from_size(wf.video_size, wf.aspect_ratio)
-        duration_seconds = _safe_int(clip.get("targetDurationSeconds"), wf.min_duration_seconds or 8)
+        duration_seconds = safe_int(clip.get("targetDurationSeconds"), wf.min_duration_seconds or 8)
         duration_seconds = max(1, min(duration_seconds, wf.max_duration_seconds or duration_seconds))
         generation_request, prompt = self._generation_request_builder.build_video_request(
             wf,
@@ -933,8 +885,8 @@ class WorkflowService:
                 width=video_result.width,
                 height=video_result.height,
                 duration_seconds=video_result.duration_seconds,
-                origin_provider=_trim(video_result.metadata.get("provider")),
-                origin_model=_trim(video_result.metadata.get("providerModel")),
+                origin_provider=trim(video_result.metadata.get("provider")),
+                origin_model=trim(video_result.metadata.get("providerModel")),
                 remote_task_id=video_result.remote_task_id,
                 metadata={
                     "runId": video_result.run_id,
@@ -1008,7 +960,7 @@ class WorkflowService:
         await self._mark_selected_stage_version(workflow_id, STAGE_VIDEO, clip_index, version_id)
         wf.current_stage = STAGE_JOINED
         wf.status = STATUS_READY
-        wf.update_time = _now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -1028,7 +980,7 @@ class WorkflowService:
         versions = await self._list_stage_versions(workflow_id)
         selected_videos = [
             v for v in versions
-            if v.stage_type == STAGE_VIDEO and v.selected == 1 and _trim(v.preview_url)
+            if v.stage_type == STAGE_VIDEO and v.selected == 1 and trim(v.preview_url)
         ]
         if not selected_videos:
             raise ValueError("请先为每个镜头选中视频版本。")
@@ -1045,7 +997,7 @@ class WorkflowService:
             mime_type="video/mp4",
             width=0,
             height=0,
-            duration_seconds=sum(_safe_float(_read_json(v.output_summary_json).get("durationSeconds"), 0.0) for v in selected_videos),
+            duration_seconds=sum(safe_float(_read_json(v.output_summary_json).get("durationSeconds"), 0.0) for v in selected_videos),
             metadata={
                 "sourceVideoVersionIds": [v.stage_version_id for v in selected_videos],
                 "note": "当前环境使用首个已选视频作为成片预览，真实拼接服务接入后会生成完整拼接文件。",
@@ -1055,7 +1007,7 @@ class WorkflowService:
         wf.final_join_asset_id = asset.material_asset_id
         wf.current_stage = STAGE_JOINED
         wf.status = STATUS_COMPLETED
-        wf.update_time = _now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -1076,8 +1028,8 @@ class WorkflowService:
             return None
         wf.effect_rating = rating
         wf.effect_rating_note = note
-        wf.rated_at = _now_iso()
-        wf.update_time = _now_iso()
+        wf.rated_at = now_iso()
+        wf.update_time = now_iso()
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
@@ -1098,8 +1050,8 @@ class WorkflowService:
             return None
         version.rating = rating
         version.rating_note = note
-        version.rated_at = _now_iso()
-        version.update_time = _now_iso()
+        version.rated_at = now_iso()
+        version.update_time = now_iso()
         if version.material_asset_id:
             asset = await self._find_asset(version.material_asset_id)
             if asset is not None:
@@ -1123,7 +1075,7 @@ class WorkflowService:
             return None
         versions = await self._list_stage_versions(workflow_id)
         to_delete = self._resolve_delete_version_chain(target, versions)
-        now = _now_iso()
+        now = now_iso()
         for v in to_delete:
             v.selected = 0
             v.is_deleted = 1
@@ -1189,7 +1141,7 @@ class WorkflowService:
                 BizMaterialAsset.material_asset_id == asset_id,
                 BizMaterialAsset.is_deleted == 0,
             )
-            .values(selected_for_next=0, is_deleted=1, update_time=_now_iso())
+            .values(selected_for_next=0, is_deleted=1, update_time=now_iso())
         )
         await self.db.execute(stmt)
 
@@ -1215,20 +1167,20 @@ class WorkflowService:
         versions: list[BizStageVersion],
     ) -> bool:
         changed = False
-        now = _now_iso()
+        now = now_iso()
         for version in versions:
             if version.stage_type != STAGE_VIDEO or version.is_deleted != 0:
                 continue
-            status = _trim(version.status).upper()
-            if status == "COMPLETED" and _trim(version.download_url):
+            status = trim(version.status).upper()
+            if status == "COMPLETED" and trim(version.download_url):
                 continue
             output_summary = _read_json(version.output_summary_json)
-            run_id = _trim(output_summary.get("runId")) or _trim(_read_json(version.model_call_summary_json).get("runId"))
+            run_id = trim(output_summary.get("runId")) or trim(_read_json(version.model_call_summary_json).get("runId"))
             if not run_id:
                 continue
             try:
                 run = await self._get_generation_service().get_run(run_id)
-            except Exception:
+            except Exception:  # noqa: S112 — best-effort run lookup
                 continue
             try:
                 refresh_result = self._generation_result_parser.parse_video_refresh_result(
@@ -1245,8 +1197,8 @@ class WorkflowService:
                     asset = self._row_factory.create_material_asset(
                         wf=wf,
                         stage_type=STAGE_VIDEO,
-                        clip_index=_safe_int(version.clip_index, 0),
-                        version_no=_safe_int(version.version_no, 1),
+                        clip_index=safe_int(version.clip_index, 0),
+                        version_no=safe_int(version.version_no, 1),
                         media_type="video",
                         title=version.title or f"镜头 {version.clip_index} 视频",
                         public_url=refresh_result.output_url,
@@ -1280,7 +1232,7 @@ class WorkflowService:
                 version.download_url = refresh_result.output_url
                 version.output_summary_json = _write_json(output_summary)
                 version.update_time = now
-                await self._mark_selected_stage_version(wf.workflow_id, STAGE_VIDEO, _safe_int(version.clip_index, 0), version.stage_version_id)
+                await self._mark_selected_stage_version(wf.workflow_id, STAGE_VIDEO, safe_int(version.clip_index, 0), version.stage_version_id)
                 wf.current_stage = STAGE_JOINED
                 wf.status = STATUS_READY
                 wf.update_time = now
@@ -1319,13 +1271,13 @@ class WorkflowService:
         )
         result = await self.db.execute(stmt)
         versions = result.scalars().all()
-        now = _now_iso()
+        now = now_iso()
         for v in versions:
             v.selected = 1 if v.stage_version_id == selected_version_id else 0
             v.update_time = now
 
     async def _selected_storyboard_version(self, wf: BizStageWorkflow) -> BizStageVersion | None:
-        version_id = _trim(wf.selected_storyboard_version_id)
+        version_id = trim(wf.selected_storyboard_version_id)
         versions = await self._list_stage_versions(wf.workflow_id)
         storyboards = [v for v in versions if v.stage_type == STAGE_STORYBOARD]
         if version_id:
@@ -1341,12 +1293,12 @@ class WorkflowService:
         if version is None:
             return [], []
         output = _read_json(version.output_summary_json)
-        script = _trim(output.get("scriptMarkdown") or output.get("previewText"))
+        script = trim(output.get("scriptMarkdown") or output.get("previewText"))
         return parse_workflow_storyboard_markdown(script).to_view()
 
     @staticmethod
     def _video_frame_model_input(public_url: str) -> str:
-        normalized = _trim(public_url)
+        normalized = trim(public_url)
         if normalized.startswith(("http://", "https://")):
             return normalized
         return ""

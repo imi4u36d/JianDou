@@ -1,6 +1,7 @@
 <template>
   <div class="page-shell login-view">
     <div class="login-view__intro">
+      <img alt="煎豆 Logo" class="login-view__logo" src="/brand/jiandou-mark.svg" />
       <h1>管理端登录</h1>
     </div>
 

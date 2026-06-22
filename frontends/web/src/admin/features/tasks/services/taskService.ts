@@ -1,4 +1,5 @@
 export {
+  bulkDeleteAdminTasks,
   bulkTerminateAdminTasks,
   deleteAdminTask,
   fetchAdminTask,

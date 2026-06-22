@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.domain
 from dataclasses import dataclass
 
 from backend.domain.task_queue_fairness import TaskQueueFairScheduler

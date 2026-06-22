@@ -5,11 +5,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
 from backend.database import get_db
+from backend.errors import bad_gateway, bad_request, not_found
+from backend.exceptions import GenerationProviderError
 from backend.schemas.workflow import (
     AdjustStoryboardRequest,
     CreateWorkflowRequest,
@@ -17,8 +19,11 @@ from backend.schemas.workflow import (
     RateWorkflowRequest,
     SelectCharacterSheetAssetRequest,
     UpdateWorkflowSettingsRequest,
+    WorkflowActionResponse,
+    WorkflowDeleteResult,
+    WorkflowDetailResponse,
+    WorkflowListResponse,
 )
-from backend.services.generation_service import GenerationProviderException
 from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
@@ -33,10 +38,9 @@ async def _run_action(action):
     try:
         return await action()
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except GenerationProviderException as exc:
-        detail = str(exc) or exc.__class__.__name__
-        raise HTTPException(status_code=502, detail=f"模型服务请求失败：{detail}") from exc
+        raise bad_request(str(exc)) from exc
+    except GenerationProviderError as exc:
+        raise bad_gateway(str(exc) or exc.__class__.__name__) from exc
 
 
 # ------------------------------------------------------------------
@@ -44,7 +48,7 @@ async def _run_action(action):
 # ------------------------------------------------------------------
 
 
-@router.get("")
+@router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -55,7 +59,7 @@ async def list_workflows(
     return await svc.list_workflows(owner_user_id=user["id"])
 
 
-@router.post("")
+@router.post("", response_model=WorkflowDetailResponse)
 async def create_workflow(
     payload: CreateWorkflowRequest,
     request: Request,
@@ -66,11 +70,11 @@ async def create_workflow(
     svc = _service(db, request)
     result = await _run_action(lambda: svc.create_workflow(payload.to_service_dict(), owner_user_id=user["id"]))
     if result is None:
-        raise HTTPException(status_code=400, detail="Failed to create workflow")
+        raise bad_request("Failed to create workflow")
     return result
 
 
-@router.get("/{workflow_id}")
+@router.get("/{workflow_id}", response_model=WorkflowDetailResponse)
 async def get_workflow(
     workflow_id: str,
     request: Request,
@@ -81,26 +85,26 @@ async def get_workflow(
     svc = _service(db, request)
     result = await svc.get_workflow(workflow_id, owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.delete("/{workflow_id}")
+@router.delete("/{workflow_id}", response_model=WorkflowDeleteResult)
 async def delete_workflow(
     workflow_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+) -> WorkflowDeleteResult:
     """Delete a workflow."""
     user = await require_user(request)
     svc = _service(db, request)
     result = await svc.delete_workflow(workflow_id, owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
-    return result
+        raise not_found("workflow")
+    return WorkflowDeleteResult(deleted=result.get("deleted", True), workflow_id=workflow_id)
 
 
-@router.patch("/{workflow_id}/settings")
+@router.patch("/{workflow_id}/settings", response_model=WorkflowDetailResponse)
 async def update_workflow_settings(
     workflow_id: str,
     payload: UpdateWorkflowSettingsRequest,
@@ -114,7 +118,7 @@ async def update_workflow_settings(
         lambda: svc.update_workflow_settings(workflow_id, payload.to_service_dict(), owner_user_id=user["id"])
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
@@ -123,7 +127,7 @@ async def update_workflow_settings(
 # ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/storyboards/generate")
+@router.post("/{workflow_id}/storyboards/generate", response_model=WorkflowDetailResponse)
 async def generate_storyboard(
     workflow_id: str,
     request: Request,
@@ -134,11 +138,11 @@ async def generate_storyboard(
     svc = _service(db, request)
     result = await _run_action(lambda: svc.generate_storyboard(workflow_id, owner_user_id=user["id"]))
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.post("/{workflow_id}/storyboards/{version_id}/select")
+@router.post("/{workflow_id}/storyboards/{version_id}/select", response_model=WorkflowDetailResponse)
 async def select_storyboard(
     workflow_id: str,
     version_id: str,
@@ -150,11 +154,11 @@ async def select_storyboard(
     svc = _service(db, request)
     result = await svc.select_storyboard(workflow_id, version_id, owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result
 
 
-@router.post("/{workflow_id}/storyboards/{version_id}/adjust")
+@router.post("/{workflow_id}/storyboards/{version_id}/adjust", response_model=WorkflowDetailResponse)
 async def adjust_storyboard(
     workflow_id: str,
     version_id: str,
@@ -167,7 +171,7 @@ async def adjust_storyboard(
     svc = _service(db, request)
     result = await svc.adjust_storyboard(workflow_id, version_id, payload.prompt or "", owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result
 
 
@@ -176,7 +180,7 @@ async def adjust_storyboard(
 # ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/generate")
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/generate", response_model=WorkflowDetailResponse)
 async def generate_keyframe(
     workflow_id: str,
     clip_index: int,
@@ -188,11 +192,11 @@ async def generate_keyframe(
     svc = _service(db, request)
     result = await _run_action(lambda: svc.generate_keyframe(workflow_id, clip_index, owner_user_id=user["id"]))
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{frame_role}/generate")
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{frame_role}/generate", response_model=WorkflowDetailResponse)
 async def generate_keyframe_frame(
     workflow_id: str,
     clip_index: int,
@@ -207,11 +211,11 @@ async def generate_keyframe_frame(
         lambda: svc.generate_keyframe_frame(workflow_id, clip_index, frame_role, owner_user_id=user["id"])
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/select")
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/select", response_model=WorkflowDetailResponse)
 async def select_keyframe(
     workflow_id: str,
     clip_index: int,
@@ -224,11 +228,11 @@ async def select_keyframe(
     svc = _service(db, request)
     result = await svc.select_keyframe(workflow_id, clip_index, version_id, owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/frames/{frame_role}/select")
+@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/frames/{frame_role}/select", response_model=WorkflowDetailResponse)
 async def select_keyframe_frame(
     workflow_id: str,
     clip_index: int,
@@ -248,7 +252,7 @@ async def select_keyframe_frame(
         owner_user_id=user["id"],
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result
 
 
@@ -257,7 +261,7 @@ async def select_keyframe_frame(
 # ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/character-sheets/{clip_index}/select-asset")
+@router.post("/{workflow_id}/character-sheets/{clip_index}/select-asset", response_model=WorkflowDetailResponse)
 async def select_character_sheet_asset(
     workflow_id: str,
     clip_index: int,
@@ -275,7 +279,7 @@ async def select_character_sheet_asset(
         owner_user_id=user["id"],
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
@@ -284,7 +288,7 @@ async def select_character_sheet_asset(
 # ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/videos/generate")
+@router.post("/{workflow_id}/clips/{clip_index}/videos/generate", response_model=WorkflowDetailResponse)
 async def generate_video(
     workflow_id: str,
     clip_index: int,
@@ -296,11 +300,11 @@ async def generate_video(
     svc = _service(db, request)
     result = await _run_action(lambda: svc.generate_video(workflow_id, clip_index, owner_user_id=user["id"]))
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/videos/{version_id}/select")
+@router.post("/{workflow_id}/clips/{clip_index}/videos/{version_id}/select", response_model=WorkflowDetailResponse)
 async def select_video(
     workflow_id: str,
     clip_index: int,
@@ -313,7 +317,7 @@ async def select_video(
     svc = _service(db, request)
     result = await svc.select_video(workflow_id, clip_index, version_id, owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result
 
 
@@ -322,7 +326,7 @@ async def select_video(
 # ------------------------------------------------------------------
 
 
-@router.post("/{workflow_id}/finalize")
+@router.post("/{workflow_id}/finalize", response_model=WorkflowDetailResponse)
 async def finalize_workflow(
     workflow_id: str,
     request: Request,
@@ -333,11 +337,11 @@ async def finalize_workflow(
     svc = _service(db, request)
     result = await _run_action(lambda: svc.finalize_workflow(workflow_id, owner_user_id=user["id"]))
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.post("/{workflow_id}/rating")
+@router.post("/{workflow_id}/rating", response_model=WorkflowActionResponse)
 async def rate_workflow(
     workflow_id: str,
     payload: RateWorkflowRequest,
@@ -354,11 +358,11 @@ async def rate_workflow(
         owner_user_id=user["id"],
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
+        raise not_found("workflow")
     return result
 
 
-@router.patch("/{workflow_id}/versions/{version_id}/rating")
+@router.patch("/{workflow_id}/versions/{version_id}/rating", response_model=WorkflowActionResponse)
 async def rate_stage_version(
     workflow_id: str,
     version_id: str,
@@ -377,11 +381,11 @@ async def rate_stage_version(
         owner_user_id=user["id"],
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result
 
 
-@router.delete("/{workflow_id}/versions/{version_id}")
+@router.delete("/{workflow_id}/versions/{version_id}", response_model=WorkflowActionResponse)
 async def delete_stage_version(
     workflow_id: str,
     version_id: str,
@@ -393,5 +397,5 @@ async def delete_stage_version(
     svc = _service(db, request)
     result = await svc.delete_stage_version(workflow_id, version_id, owner_user_id=user["id"])
     if result is None:
-        raise HTTPException(status_code=404, detail="workflow_or_version_not_found")
+        raise not_found("workflow_or_version")
     return result

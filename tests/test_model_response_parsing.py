@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from backend.services.model_response_parsing import (
     extract_first_string,
     extract_text_response,

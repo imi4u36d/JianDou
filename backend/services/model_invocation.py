@@ -63,13 +63,13 @@ class LocatedConfig:
     Mirrors Java GenerationConfigPathLocator.LocatedConfig record.
     """
 
-    config_dir: Optional[Path]
-    project_root: Optional[Path]
+    config_dir: Path | None
+    project_root: Path | None
     config_files: list[Path]
     source: str
     detail: str
 
-    def config_file(self) -> Optional[Path]:
+    def config_file(self) -> Path | None:
         if not self.config_files:
             return None
         return self.config_files[0]
@@ -147,7 +147,7 @@ class GenerationConfigPathLocator:
         logger.warning("Generation config directory not found; %s", detail)
         return LocatedConfig(None, None, [], "missing", detail)
 
-    def resolve_path(self, configured_path: str) -> Optional[Path]:
+    def resolve_path(self, configured_path: str) -> Path | None:
         """Resolve a configured path relative to the located config directory.
 
         Mirrors Java resolvePath().
@@ -168,7 +168,7 @@ class GenerationConfigPathLocator:
             return (located.config_dir / path).resolve()
         return (Path.cwd() / path).resolve()
 
-    def resolve_secrets_config_path(self) -> Optional[Path]:
+    def resolve_secrets_config_path(self) -> Path | None:
         """Resolve model secrets override file path.
 
         Mirrors Java resolveSecretsConfigPath().
@@ -178,7 +178,7 @@ class GenerationConfigPathLocator:
             return None
         return (located.config_dir / "model" / "providers.secrets.yml").resolve()
 
-    def collect_config_files(self, config_directory: Optional[Path]) -> list[Path]:
+    def collect_config_files(self, config_directory: Path | None) -> list[Path]:
         """Collect all YAML config files from well-known subdirectories.
 
         Mirrors Java collectConfigFiles().
@@ -213,7 +213,7 @@ class GenerationConfigPathLocator:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _resolve_explicit_config_dir(self, checked_candidates: list[Path]) -> Optional[Path]:
+    def _resolve_explicit_config_dir(self, checked_candidates: list[Path]) -> Path | None:
         for key in ("JIANDOU_CONFIG_DIR", "jiandou.config.dir"):
             value = os.environ.get(key, "").strip()
             if not value:
@@ -230,7 +230,7 @@ class GenerationConfigPathLocator:
         location: str,
         source_key: str,
         checked_candidates: list[Path],
-    ) -> Optional[Path]:
+    ) -> Path | None:
         value = self._trim_to_empty(location)
         if not value:
             return None
@@ -308,7 +308,7 @@ class GenerationConfigPathLocator:
 
     def _build_located_config(self, config_directory: Path, source_tag: str) -> LocatedConfig:
         config_dir = config_directory.resolve()
-        project_root: Optional[Path] = config_dir
+        project_root: Path | None = config_dir
         if (
             config_dir.name is not None
             and config_dir.name.lower() == "config"
@@ -348,7 +348,7 @@ class GenerationConfigPathLocator:
         return normalized.startswith("config/")
 
     @staticmethod
-    def _trim_to_empty(value: Optional[str]) -> str:
+    def _trim_to_empty(value: str | None) -> str:
         return "" if value is None else value.strip()
 
     @staticmethod
@@ -376,8 +376,8 @@ class PromptTemplateResolver:
 
     def __init__(
         self,
-        config_path_locator: Optional[GenerationConfigPathLocator] = None,
-        fail_fast_on_prompt_error: Optional[bool] = None,
+        config_path_locator: GenerationConfigPathLocator | None = None,
+        fail_fast_on_prompt_error: bool | None = None,
     ):
         self._config_path_locator = config_path_locator or GenerationConfigPathLocator()
         self._errors: list[str] = []
@@ -412,7 +412,7 @@ class PromptTemplateResolver:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _locate_prompt_file(self, prompt_name: str) -> Optional[Path]:
+    def _locate_prompt_file(self, prompt_name: str) -> Path | None:
         prompt_directory = self._first_non_blank(
             os.environ.get("JIANDOU_PROMPT_DIR", ""),
             os.environ.get("jiandou.prompt.dir", ""),
@@ -447,7 +447,7 @@ class PromptTemplateResolver:
             raise ValueError(f"Prompt key is blank: {key}")
         return text
 
-    def _fail_or_empty(self, message: str, cause: Optional[Exception]) -> str:
+    def _fail_or_empty(self, message: str, cause: Exception | None) -> str:
         self._errors = [message]
         if cause is None:
             logger.warning(message)
@@ -673,7 +673,7 @@ class TextProviderTransport:
     Mirrors Java TextProviderTransport.
     """
 
-    def __init__(self, client: Optional[httpx.AsyncClient] = None):
+    def __init__(self, client: httpx.AsyncClient | None = None):
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(120.0))
 
     async def send_json(
@@ -774,7 +774,7 @@ class TextProviderTransport:
             raise GenerationProviderException(f"text model request encode failed: {ex}")
 
     @staticmethod
-    def _truncate(value: Optional[str], limit: int) -> str:
+    def _truncate(value: str | None, limit: int) -> str:
         if value is None:
             return ""
         return value if len(value) <= limit else value[:limit]
@@ -794,8 +794,8 @@ class OpenAiCompatibleTextModelProvider:
 
     def __init__(
         self,
-        transport: Optional[TextProviderTransport] = None,
-        invocation_strategies: Optional[list[TextModelInvocationStrategy]] = None,
+        transport: TextProviderTransport | None = None,
+        invocation_strategies: list[TextModelInvocationStrategy] | None = None,
     ):
         self._transport = transport or TextProviderTransport()
         self._invocation_strategies = list(
@@ -884,7 +884,7 @@ class ImageGenerationRequest:
     height: int = 1024
     reference_image_urls: list[str] = field(default_factory=list)
     reference_image_url: str = ""
-    seed: Optional[int] = None
+    seed: int | None = None
 
 
 @dataclass
@@ -957,7 +957,7 @@ class ImageProviderTransport:
     Supports JSON POST, multipart upload, and binary download operations.
     """
 
-    def __init__(self, client: Optional[httpx.AsyncClient] = None):
+    def __init__(self, client: httpx.AsyncClient | None = None):
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(120.0),
             follow_redirects=True,
@@ -969,7 +969,7 @@ class ImageProviderTransport:
         api_key: str,
         body: dict[str, Any],
         timeout_seconds: int,
-        extra_headers: Optional[dict[str, str]] = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """Send a JSON POST request to the image provider."""
         headers = {
@@ -1030,7 +1030,7 @@ class ImageProviderTransport:
         fields: dict[str, str],
         files: list[MultipartFilePart],
         timeout_seconds: int,
-        request_payload: Optional[dict[str, Any]] = None,
+        request_payload: dict[str, Any] | None = None,
     ) -> httpx.Response:
         """Send a multipart/form-data POST request."""
         boundary = f"jiandou-{uuid.uuid4().hex}"
@@ -1129,22 +1129,22 @@ class ImageProviderTransport:
                 f"--{boundary}{line_break}"
                 f'Content-Disposition: form-data; name="{name}"{line_break}'
                 f"{line_break}"
-                f"{value}{line_break}".encode("utf-8")
+                f"{value}{line_break}".encode()
             )
         for file_part in files:
             parts.append(
                 f"--{boundary}{line_break}"
                 f'Content-Disposition: form-data; name="{file_part.field_name}"; filename="{file_part.file_name}"{line_break}'
                 f"Content-Type: {file_part.content_type or 'application/octet-stream'}{line_break}"
-                f"{line_break}".encode("utf-8")
+                f"{line_break}".encode()
             )
             parts.append(file_part.data if file_part.data is not None else b"")
             parts.append(line_break.encode("utf-8"))
-        parts.append(f"--{boundary}--{line_break}".encode("utf-8"))
+        parts.append(f"--{boundary}--{line_break}".encode())
         return b"".join(parts)
 
     @staticmethod
-    def _truncate(value: Optional[str], limit: int) -> str:
+    def _truncate(value: str | None, limit: int) -> str:
         if value is None:
             return ""
         return value if len(value) <= limit else value[:limit]
@@ -1161,7 +1161,7 @@ class SeedreamImageModelProvider:
     Mirrors Java SeedreamImageModelProvider.
     """
 
-    def __init__(self, transport: Optional[ImageProviderTransport] = None):
+    def __init__(self, transport: ImageProviderTransport | None = None):
         self._transport = transport or ImageProviderTransport()
 
     def supports(self, profile: MediaProviderProfile) -> bool:
@@ -1246,7 +1246,7 @@ class SeedreamImageModelProvider:
         prompt: str,
         size: str,
         reference_image_urls: list[str],
-        seed: Optional[int],
+        seed: int | None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": provider_model,
@@ -1308,7 +1308,7 @@ class VideoGenerationRequest:
     duration_seconds: int = 8
     first_frame_url: str = ""
     last_frame_url: str = ""
-    seed: Optional[int] = None
+    seed: int | None = None
     camera_fixed: bool = False
     watermark: bool = False
     return_last_frame: bool = True
@@ -1384,7 +1384,7 @@ class VideoProviderTransport:
     Supports JSON POST, GET query, and response parsing for task-based APIs.
     """
 
-    def __init__(self, client: Optional[httpx.AsyncClient] = None):
+    def __init__(self, client: httpx.AsyncClient | None = None):
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(120.0),
             follow_redirects=True,
@@ -1396,7 +1396,7 @@ class VideoProviderTransport:
         api_key: str,
         body: dict[str, Any],
         timeout_seconds: int,
-        extra_headers: Optional[dict[str, str]] = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """Send a JSON POST request to the video provider."""
         headers = {
@@ -1512,7 +1512,7 @@ class VideoProviderTransport:
             raise GenerationProviderException(f"provider request encode failed: {ex}")
 
     @staticmethod
-    def _last_resort_body_string(request_payload: Optional[dict[str, Any]]) -> str:
+    def _last_resort_body_string(request_payload: dict[str, Any] | None) -> str:
         body = (request_payload or {}).get("body")
         if isinstance(body, str):
             return body
@@ -1529,7 +1529,7 @@ class VideoProviderTransport:
         return first_non_blank(*values)
 
     @staticmethod
-    def _truncate(value: Optional[str], limit: int) -> str:
+    def _truncate(value: str | None, limit: int) -> str:
         if value is None:
             return ""
         return value if len(value) <= limit else value[:limit]
@@ -1545,7 +1545,7 @@ class VideoProviderTransport:
         )
 
     @staticmethod
-    def _summarize_error_response(status_code: int, body: Optional[str]) -> str:
+    def _summarize_error_response(status_code: int, body: str | None) -> str:
         normalized_body = (body or "").strip()
         if not normalized_body:
             return f"http {status_code}"
@@ -1571,7 +1571,7 @@ class SeedanceVideoModelProvider:
     Supports task submission and status querying via async HTTP.
     """
 
-    def __init__(self, transport: Optional[VideoProviderTransport] = None):
+    def __init__(self, transport: VideoProviderTransport | None = None):
         self._transport = transport or VideoProviderTransport()
 
     def supports(self, profile: MediaProviderProfile) -> bool:
@@ -1678,7 +1678,7 @@ class SeedanceVideoModelProvider:
         duration_seconds: int,
         first_frame_url: str,
         last_frame_url: str,
-        seed: Optional[int],
+        seed: int | None,
         camera_fixed: bool,
         watermark: bool,
         return_last_frame: bool,

@@ -1,0 +1,72 @@
+name: UI / Frontend bug
+description: Report a visual or interaction issue in the JianDou web frontend
+title: "[UI]: "
+labels: ["bug", "frontend", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve JianDou's frontend. Screenshots are especially helpful for UI bugs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What looks wrong, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Affected URL
+      description: Which page or route shows the issue?
+      placeholder: e.g. /workspace, /tasks, /admin/dashboard
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: viewport
+    attributes:
+      label: Screen / viewport size
+      description: Desktop or mobile? Approximate resolution?
+      placeholder: e.g. 1920×1080 desktop, or iPhone 15
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag and drop a screenshot here.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        - OS:
+        - Browser version:
+        - JianDou version or commit:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues.
+          required: true
+        - label: I have removed API keys and secrets from screenshots.
+          required: true

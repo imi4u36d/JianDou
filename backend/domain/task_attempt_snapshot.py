@@ -5,7 +5,7 @@ Mirrors the Java TaskAttemptSnapshot record.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from backend.domain.enums import AttemptTriggerType, TaskStatus
 
@@ -25,11 +25,11 @@ class TaskAttemptSnapshot:
     status: TaskStatus = TaskStatus.PENDING
     queue_name: str = ""
     worker_instance_id: str = ""
-    queue_entered_at: Optional[str] = None
-    queue_left_at: Optional[str] = None
-    claimed_at: Optional[str] = None
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    queue_entered_at: str | None = None
+    queue_left_at: str | None = None
+    claimed_at: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
     resume_from_stage: str = ""
     resume_from_clip_index: int = 0
     failure_code: str = ""

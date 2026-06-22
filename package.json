@@ -10,7 +10,10 @@
     "dev": "npm run web:dev",
     "web:dev": "npm --workspace @jiandou/web run dev",
     "web:build": "npm --workspace @jiandou/web run build && rm -rf static/web && mkdir -p static/web && cp -r frontends/web/dist/* static/web/",
+    "web:test": "npm --workspace @jiandou/web run test",
     "web:typecheck": "npm --workspace @jiandou/web run typecheck",
+    "web:lint": "npm --workspace @jiandou/web run lint",
+    "web:format": "npm --workspace @jiandou/web run format",
     "packages:build": "npm --workspaces --if-present run build --workspace @jiandou/api --workspace @jiandou/domain --workspace @jiandou/ui",
     "packages:typecheck": "npm --workspaces --if-present run typecheck --workspace @jiandou/api --workspace @jiandou/domain --workspace @jiandou/ui",
     "api:dev": "uv run backend/__main__.py serve",
@@ -19,7 +22,9 @@
     "api:openapi": "uv run jiandou openapi --output docs/openapi.json",
     "api:test": "uv run pytest tests/ -v",
     "release:check": "sh scripts/release-check.sh",
-    "test": "npm run api:lint && uv run pytest tests/ -v",
+    "lint": "npm run web:lint",
+    "format": "npm run web:format",
+    "test": "npm run api:lint && uv run pytest tests/ -v && npm run web:typecheck",
     "serve": "npm run packages:build && npm run web:build && uv run backend/__main__.py serve"
   },
   "devDependencies": {

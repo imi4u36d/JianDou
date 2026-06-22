@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pytest
+pytestmark = pytest.mark.domain
+import pytest
 
 from backend.domain.video_run_monitor import (
     assert_video_run_succeeded,

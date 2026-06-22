@@ -41,6 +41,7 @@ from backend.services.task_render_stage_payloads import (
 )
 from backend.services.task_worker_status_stage_service import TaskStage as _TaskStage
 from backend.services.task_worker_status_stage_service import TaskWorkerExecutionContext, TaskWorkerStatusStageService
+from backend.shared import first_non_blank, map_value, safe_int, string_value
 
 
 class GenerationApplicationServiceProtocol(Protocol):
@@ -48,11 +49,8 @@ class GenerationApplicationServiceProtocol(Protocol):
 
     async def get_run(self, run_id: str) -> dict[str, Any]: ...
 
-
 class JoinStageServiceProtocol(Protocol):
     def schedule_join(self, task_id: str, end_clip_index: int) -> None: ...
-
-
 
 class TaskWorkerRenderStageService:
     """Handles the render stage of task execution — keyframe generation and clip rendering."""
@@ -110,12 +108,12 @@ class TaskWorkerRenderStageService:
             shot_plan = request.shot_plans[index]
 
             clip_prompt = shot_plan.video_prompt()
-            first_frame_prompt = _first_non_blank(
+            first_frame_prompt = first_non_blank(
                 getattr(shot_plan, 'first_frame_prompt', lambda: "")(),
                 getattr(shot_plan, 'last_frame_prompt', lambda: "")(),
                 clip_prompt,
             )
-            last_frame_prompt = _first_non_blank(
+            last_frame_prompt = first_non_blank(
                 getattr(shot_plan, 'last_frame_prompt', lambda: "")(),
                 getattr(shot_plan, 'first_frame_prompt', lambda: "")(),
                 clip_prompt,
@@ -153,7 +151,7 @@ class TaskWorkerRenderStageService:
                 "generated_end_frame_keyframe", image_run_ids,
             )
 
-            self._put_execution_context(task, "imageRunId", _first_non_blank(start_frame.run_id(), end_frame.run_id()))
+            self._put_execution_context(task, "imageRunId", first_non_blank(start_frame.run_id(), end_frame.run_id()))
             self._put_execution_context(task, "keyframeOutputUrl", start_frame.material_url())
             self._put_execution_context(task, "keyframeRemoteSourceUrl", start_frame.source_url())
             self._put_execution_context(task, "firstFrameUrl", start_frame.video_input_url())
@@ -224,14 +222,14 @@ class TaskWorkerRenderStageService:
             self._runtime_support.assert_task_still_active(task)
 
             video_result = self._result_map(video_run)
-            video_metadata = _map_value(video_result.get("metadata"))
+            video_metadata = map_value(video_result.get("metadata"))
             extracted_last_frame_url = self._artifact_assembler.extract_last_frame_url(video_result)
-            provider_requested_last_frame_url = _string_value(video_metadata.get("requestedLastFrameUrl"))
+            provider_requested_last_frame_url = string_value(video_metadata.get("requestedLastFrameUrl"))
 
-            resolved_first_frame_url = _first_non_blank(
-                _string_value(video_metadata.get("firstFrameUrl")), start_frame.video_input_url(),
+            resolved_first_frame_url = first_non_blank(
+                string_value(video_metadata.get("firstFrameUrl")), start_frame.video_input_url(),
             )
-            resolved_last_frame_url = _first_non_blank(
+            resolved_last_frame_url = first_non_blank(
                 extracted_last_frame_url, provider_requested_last_frame_url, end_frame.video_input_url(),
             )
             resolved_last_frame_source_type = resolve_last_frame_source_type(
@@ -246,23 +244,23 @@ class TaskWorkerRenderStageService:
                 _TaskArtifactNaming.last_frame_file_name(clip_index, _file_ext_or_default(_file_name_from_url(resolved_last_frame_url), "png")),
             )
 
-            self._put_execution_context(task, "videoRunId", _string_value(video_run.get("id")))
-            self._put_execution_context(task, "videoOutputUrl", _string_value(video_result.get("outputUrl")))
-            self._put_execution_context(task, "videoThumbnailUrl", _string_value(video_result.get("thumbnailUrl")))
+            self._put_execution_context(task, "videoRunId", string_value(video_run.get("id")))
+            self._put_execution_context(task, "videoOutputUrl", string_value(video_result.get("outputUrl")))
+            self._put_execution_context(task, "videoThumbnailUrl", string_value(video_result.get("thumbnailUrl")))
             self._put_execution_context(task, "firstFrameUrl", resolved_first_frame_url)
             self._put_execution_context(task, "startFrameUrl", resolved_first_frame_url)
             self._put_execution_context(task, "lastFrameUrl", resolved_last_frame_url)
             self._put_execution_context(task, "lastFrameSourceType", resolved_last_frame_source_type)
             self._put_execution_context(task, "lastFrameSourceUrl", resolved_last_frame_source_url)
             self._put_execution_context(task, "requestedLastFrameUrl", end_frame.video_input_url())
-            self._put_execution_context(task, "videoRemoteTaskId", _string_value(video_metadata.get("taskId")))
-            self._put_execution_context(task, "videoRemoteSourceUrl", _string_value(video_metadata.get("remoteSourceUrl")))
+            self._put_execution_context(task, "videoRemoteTaskId", string_value(video_metadata.get("taskId")))
+            self._put_execution_context(task, "videoRemoteSourceUrl", string_value(video_metadata.get("remoteSourceUrl")))
             self._put_clip_frame_execution_context(
                 task, clip_index,
                 build_clip_frame_context(
                     shot_plan, clip_index, clip_duration_seconds, start_frame, end_frame,
-                    _string_value(video_run.get("id")),
-                    _first_non_blank(_string_value(video_result.get("outputUrl")), _string_value(video_metadata.get("remoteSourceUrl"))),
+                    string_value(video_run.get("id")),
+                    first_non_blank(string_value(video_result.get("outputUrl")), string_value(video_metadata.get("remoteSourceUrl"))),
                     resolved_last_frame_url, resolved_last_frame_source_type,
                 ),
             )
@@ -275,17 +273,17 @@ class TaskWorkerRenderStageService:
             video_material = self._artifact_assembler.create_video_material(task, video_run, video_result, clip_index, clip_duration_seconds)
             self._execution_coordinator.record_material(task, video_material)
 
-            self._put_execution_context(task, "videoOutputUrl", _string_value(video_material.get("fileUrl")))
+            self._put_execution_context(task, "videoOutputUrl", string_value(video_material.get("fileUrl")))
             self._put_clip_frame_execution_context(
                 task, clip_index,
                 build_clip_frame_context(
                     shot_plan, clip_index, clip_duration_seconds, start_frame, end_frame,
-                    _string_value(video_run.get("id")),
-                    _string_value(video_material.get("fileUrl")),
+                    string_value(video_run.get("id")),
+                    string_value(video_material.get("fileUrl")),
                     resolved_last_frame_url, resolved_last_frame_source_type,
                 ),
             )
-            latest_video_output_url = _string_value(video_material.get("fileUrl"))
+            latest_video_output_url = string_value(video_material.get("fileUrl"))
             task.completed_output_count = max(task.completed_output_count, clip_index)
             await self._task_repository.save(task) if self._task_repository else None
 
@@ -312,7 +310,7 @@ class TaskWorkerRenderStageService:
                 {
                     "clipIndex": clip_index,
                     "clipCount": len(request.shot_plans),
-                    "outputUrl": _string_value(video_material.get("fileUrl")),
+                    "outputUrl": string_value(video_material.get("fileUrl")),
                     "firstFrameUrl": resolved_first_frame_url,
                     "firstFrameSourceType": start_frame.source_type(),
                     "requestedLastFrameUrl": end_frame.video_input_url(),
@@ -321,7 +319,7 @@ class TaskWorkerRenderStageService:
                     "lastFrameSourceType": resolved_last_frame_source_type,
                 },
             )
-            video_run_ids.append(_string_value(video_run.get("id")))
+            video_run_ids.append(string_value(video_run.get("id")))
             previous_clip_last_frame_url = resolved_last_frame_url
             if self._join_stage_service:
                 self._join_stage_service.schedule_join(task.id, clip_index)
@@ -347,7 +345,7 @@ class TaskWorkerRenderStageService:
         if not is_video_run_active(current_status):
             assert_video_run_succeeded(initial_run, current_status)
             return initial_run
-        run_id = _string_value(initial_run.get("id"))
+        run_id = string_value(initial_run.get("id"))
         if not run_id:
             raise ValueError("video run is active but missing run id")
         current_run = initial_run
@@ -377,41 +375,41 @@ class TaskWorkerRenderStageService:
             raise
         self._runtime_support.assert_task_still_active(task)
         image_result = self._result_map(image_run)
-        image_metadata = _map_value(image_result.get("metadata"))
-        keyframe_source_url = _first_non_blank(
-            _string_value(image_metadata.get("remoteSourceUrl")),
-            _string_value(image_result.get("outputUrl")),
+        image_metadata = map_value(image_result.get("metadata"))
+        keyframe_source_url = first_non_blank(
+            string_value(image_metadata.get("remoteSourceUrl")),
+            string_value(image_result.get("outputUrl")),
         )
         image_model_call = self._status_stage_service.complete_model_call(pending_image_model_call, image_run, image_result)
         self._execution_coordinator.record_model_call(task, image_model_call)
         self._status_stage_service.record_run_call_chain(task, _TaskStage.PLANNING, image_run, image_result)
         image_material = self._artifact_assembler.create_image_material(task, image_run, image_result, clip_index, frame_role)
         self._execution_coordinator.record_material(task, image_material)
-        image_run_ids.append(_string_value(image_run.get("id")))
+        image_run_ids.append(string_value(image_run.get("id")))
         return FrameResolution(
-            prompt_value=_string_value(prompt),
-            frame_role_value=_string_value(frame_role),
-            source_type_value=_string_value(source_type),
+            prompt_value=string_value(prompt),
+            frame_role_value=string_value(frame_role),
+            source_type_value=string_value(source_type),
             source_url_value=keyframe_source_url,
-            material_url_value=_string_value(image_material.get("fileUrl")),
-            remote_url_value=_first_non_blank(_string_value(image_material.get("remoteUrl")), keyframe_source_url),
-            video_input_url_value=_first_non_blank(keyframe_source_url, _string_value(image_material.get("remoteUrl")), _string_value(image_material.get("fileUrl"))),
-            run_id_value=_string_value(image_run.get("id")),
+            material_url_value=string_value(image_material.get("fileUrl")),
+            remote_url_value=first_non_blank(string_value(image_material.get("remoteUrl")), keyframe_source_url),
+            video_input_url_value=first_non_blank(keyframe_source_url, string_value(image_material.get("remoteUrl")), string_value(image_material.get("fileUrl"))),
+            run_id_value=string_value(image_run.get("id")),
             material_value=image_material,
         )
 
     def _reuse_frame(self, task: TaskRecord, clip_index: int, source_url: str, frame_role: str, source_type: str) -> FrameResolution:
         image_material = self._artifact_assembler.create_reference_frame_material(task, clip_index, source_url, frame_role)
         self._execution_coordinator.record_material(task, image_material)
-        remote_url = _first_non_blank(_string_value(image_material.get("remoteUrl")), source_url)
+        remote_url = first_non_blank(string_value(image_material.get("remoteUrl")), source_url)
         return FrameResolution(
             prompt_value="",
-            frame_role_value=_string_value(frame_role),
-            source_type_value=_string_value(source_type),
-            source_url_value=_string_value(source_url),
-            material_url_value=_string_value(image_material.get("fileUrl")),
+            frame_role_value=string_value(frame_role),
+            source_type_value=string_value(source_type),
+            source_url_value=string_value(source_url),
+            material_url_value=string_value(image_material.get("fileUrl")),
             remote_url_value=remote_url,
-            video_input_url_value=_first_non_blank(remote_url, _string_value(image_material.get("fileUrl"))),
+            video_input_url_value=first_non_blank(remote_url, string_value(image_material.get("fileUrl"))),
             run_id_value="",
             material_value=image_material,
         )
@@ -422,10 +420,10 @@ class TaskWorkerRenderStageService:
         if isinstance(existing, list):
             for item in existing:
                 if isinstance(item, dict):
-                    if _int_value(item.get("clipIndex"), 0) != clip_index:
+                    if safe_int(item.get("clipIndex"), 0) != clip_index:
                         rows.append(dict(item))
         rows.append(clip_frame_context)
-        rows.sort(key=lambda r: _int_value(r.get("clipIndex"), 0))
+        rows.sort(key=lambda r: safe_int(r.get("clipIndex"), 0))
         self._put_execution_context(task, "clipFrameContexts", rows)
 
     def _result_map(self, run: dict[str, Any]) -> dict[str, Any]:
@@ -438,12 +436,12 @@ class TaskWorkerRenderStageService:
         for output in task.outputs:
             if not is_primary_video(output.get("resultType")):
                 continue
-            clip_index = _int_value(output.get("clipIndex"), 0)
+            clip_index = safe_int(output.get("clipIndex"), 0)
             if clip_index >= latest_clip_index:
                 latest_clip_index = clip_index
-                latest_output_url = _first_non_blank(
-                    _string_value(output.get("downloadUrl")),
-                    _string_value(output.get("previewUrl")),
+                latest_output_url = first_non_blank(
+                    string_value(output.get("downloadUrl")),
+                    string_value(output.get("previewUrl")),
                 )
         return latest_output_url
 
@@ -464,11 +462,11 @@ class TaskWorkerRenderStageService:
         merged: set[str] = set()
         if isinstance(existing, list):
             for item in existing:
-                v = _string_value(item)
+                v = string_value(item)
                 if v:
                     merged.add(v)
         for item in appended:
-            v = _string_value(item)
+            v = string_value(item)
             if v:
                 merged.add(v)
         return list(merged)
@@ -479,38 +477,8 @@ class TaskWorkerRenderStageService:
         import time
         time.sleep(self._video_run_poll_interval_ms / 1000.0)
 
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
-
-
-def _int_value(value: Any, fallback: int = 0) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if value is not None:
-        try:
-            return int(str(value).strip())
-        except (ValueError, TypeError):
-            pass
-    return fallback
-
-
-def _first_non_blank(*values: str | None) -> str:
-    for value in values:
-        if value is not None and value.strip():
-            return value.strip()
-    return ""
-
-
-def _map_value(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
 def _file_name_from_url(url: str) -> str:
     return artifact_file_name_from_url(url)
-
 
 def _file_ext_or_default(file_name: str, fallback: str) -> str:
     return artifact_file_ext_or_default(file_name, fallback)

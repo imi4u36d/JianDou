@@ -1399,12 +1399,23 @@ export interface AdminTaskQuery {
   q?: string;
   status?: TaskStatus | "";
   sort?: AdminTaskSortMode;
+  offset?: number;
+  limit?: number;
 }
 
 export interface AdminUserQuery {
   q?: string;
   role?: UserRole | "";
   status?: UserStatus | "";
+  offset?: number;
+  limit?: number;
+}
+
+export interface AdminPaginatedResponse<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
 }
 
 export interface CreateAdminUserRequest {

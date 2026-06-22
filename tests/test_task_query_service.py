@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from typing import Any
 
 import pytest
@@ -57,8 +59,10 @@ async def test_admin_list_tasks_includes_all_owners_and_sorts_by_progress() -> N
     completed = _task("task_done", 3, "Done", "COMPLETED", "2026-01-01T00:03:00+00:00", progress=100)
     service = TaskQueryService(_TaskQueryRepository([low, high, completed]), TaskExecutionCoordinator())
 
-    items = await service.admin_list_tasks(status="rendering", sort="progress_desc")
+    result = await service.admin_list_tasks(status="rendering", sort="progress_desc")
+    items = result["items"]
 
+    assert result["total"] == 2
     assert [item["id"] for item in items] == ["task_high", "task_low"]
     assert [item["ownerUserId"] for item in items] == [2, 1]
 

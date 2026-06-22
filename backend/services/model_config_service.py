@@ -14,7 +14,7 @@ import time
 from base64 import urlsafe_b64encode
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Optional
@@ -158,6 +158,9 @@ def _vendor_property(vendor: str, suffix: str) -> str:
 # ---------------------------------------------------------------------------
 
 @dataclass
+# =============================================================================
+# TYPE DEFINITIONS — provider profiles, capabilities, and value objects
+# =============================================================================
 class ResolvedModel:
     canonical_name: str
     section: dict[str, Any]
@@ -313,6 +316,9 @@ def _host_of(raw: str) -> str:
 # ModelRuntimePropertiesResolver
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# CONFIG RESOLVER — loads YAML model config, resolves runtime profiles
+# =============================================================================
 class ModelRuntimePropertiesResolver:
     """Resolves model runtime properties from YAML config files.
 
@@ -326,13 +332,13 @@ class ModelRuntimePropertiesResolver:
     def __init__(
         self,
         config_dir: str | Path = "./config",
-        credential_provider: Optional["RuntimeModelCredentialProvider"] = None,
+        credential_provider: RuntimeModelCredentialProvider | None = None,
     ):
         self._config_dir = Path(config_dir)
         self._credential_provider = credential_provider
         self._cache_ttl_ms: int = self._resolve_cache_ttl()
         self._fail_fast: bool = self._resolve_fail_fast()
-        self._cached_snapshot: Optional[tuple[ConfigSnapshot, float]] = None
+        self._cached_snapshot: tuple[ConfigSnapshot, float] | None = None
 
     # ---- Public API -------------------------------------------------------
 
@@ -875,6 +881,9 @@ class ModelRuntimePropertiesResolver:
 # RuntimeModelCredentialProvider (protocol/interface)
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# CREDENTIAL PROVIDER — manages model API keys
+# =============================================================================
 class RuntimeModelCredentialProvider:
     """Interface for resolving user-scoped API keys."""
 
@@ -956,10 +965,10 @@ class AdminModelConfigResponse:
         model_names: list[str]
 
     config_source: str
-    summary: "AdminModelConfigResponse.Summary"
-    defaults: "AdminModelConfigResponse.Defaults"
-    providers: list["AdminModelConfigResponse.ProviderItem"]
-    models: list["AdminModelConfigResponse.ModelItem"]
+    summary: AdminModelConfigResponse.Summary
+    defaults: AdminModelConfigResponse.Defaults
+    providers: list[AdminModelConfigResponse.ProviderItem]
+    models: list[AdminModelConfigResponse.ModelItem]
     config_errors: list[str]
 
 
@@ -973,6 +982,9 @@ class AdminModelConfigValidationResponse:
 # AdminModelConfigService
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# ADMIN SERVICE — CRUD for model configuration
+# =============================================================================
 class AdminModelConfigService:
     """Admin operations for model configuration.
 
@@ -985,7 +997,7 @@ class AdminModelConfigService:
     def __init__(
         self,
         model_resolver: ModelRuntimePropertiesResolver,
-        secrets_service: Optional["AdminModelConfigSecretsService"] = None,
+        secrets_service: AdminModelConfigSecretsService | None = None,
     ):
         self._model_resolver = model_resolver
         self._secrets_service = secrets_service
@@ -1170,7 +1182,7 @@ class AdminModelConfigService:
         self,
         request: AdminModelConfigKeyUpdateRequest | None,
         providers: list[AdminModelConfigResponse.ProviderItem],
-    ) -> "ApiKeyUpdateBatch":
+    ) -> ApiKeyUpdateBatch:
         known = self._build_provider_key_lookup(providers)
         errors: list[str] = []
         updates: dict[str, str] = OrderedDict()
@@ -1205,7 +1217,7 @@ class AdminModelConfigService:
     def _apply_api_key_overrides(
         self,
         base: AdminModelConfigResponse,
-        updates: "ApiKeyUpdateBatch",
+        updates: ApiKeyUpdateBatch,
     ) -> AdminModelConfigResponse:
         providers_by_lookup: dict[str, AdminModelConfigResponse.ProviderItem] = OrderedDict()
         providers: list[AdminModelConfigResponse.ProviderItem] = []
@@ -1368,6 +1380,9 @@ class AdminModelConfigService:
 # AdminModelConfigSecretsService (interface placeholder)
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# SECRETS SERVICE — encrypted secret storage
+# =============================================================================
 class AdminModelConfigSecretsService:
     """Interface for saving admin API key secrets."""
 
@@ -1421,6 +1436,9 @@ class LocalAdminModelConfigSecretsService(AdminModelConfigSecretsService):
 # ---------------------------------------------------------------------------
 
 @dataclass
+# =============================================================================
+# USER CONFIG — per-user model configuration and API keys
+# =============================================================================
 class ApiKeyUpdateBatch:
     api_keys: dict[str, str]
     errors: list[str]
@@ -1442,7 +1460,7 @@ class UserModelConfigService:
     def __init__(
         self,
         model_resolver: ModelRuntimePropertiesResolver,
-        user_credential_repo: Optional["MybatisUserModelCredentialRepository"] = None,
+        user_credential_repo: MybatisUserModelCredentialRepository | None = None,
     ):
         self._model_resolver = model_resolver
         self._user_credential_repo = user_credential_repo
@@ -1626,7 +1644,7 @@ class UserModelConfigService:
         )
 
     def _add_provider_catalog_models(
-        self, providers: dict[str, "_ProviderCatalogItem"], kind: str
+        self, providers: dict[str, _ProviderCatalogItem], kind: str
     ) -> None:
         for item in self._model_resolver.list_models_by_kind(kind):
             provider = _string_value(item.get("provider"))
@@ -1869,6 +1887,9 @@ class UserModelConfigService:
         return _first_non_blank(_normalize(vendor), _normalize(fallback))
 
 
+# =============================================================================
+# REPOSITORIES — credential persistence adapters
+# =============================================================================
 class MybatisUserModelCredentialRepository:
     """Interface for user credential persistence."""
 
@@ -1918,7 +1939,7 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
         if not normalized_updates:
             return
         self._ensure_table()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with sqlite3.connect(self._database_path) as conn:
             for provider_key, api_key in normalized_updates.items():
                 protected_api_key = _protect_user_api_key(api_key)

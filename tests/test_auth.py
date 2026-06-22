@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import pytest
+pytestmark = pytest.mark.api
+import pytest
 from sqlalchemy import select
 from sqlalchemy import update as sa_update
 

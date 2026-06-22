@@ -1,0 +1,7 @@
+dist/
+node_modules/
+static/web/
+*.min.js
+*.min.css
+package-lock.json
+uv.lock

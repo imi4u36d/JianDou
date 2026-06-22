@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_admin
 from backend.database import get_db
+from backend.errors import bad_request, not_found
 from backend.schemas.admin import (
     AdminAdjustCreditRequest,
     AdminBulkTerminateTasksRequest,
     AdminCreateInviteRequest,
     AdminCreateUserRequest,
     AdminModelConfigKeysRequest,
+    AdminOverviewResponse,
     AdminTaskBatchActionRequest,
+    AdminTaskBatchResult,
     AdminUpdateCreditRuleRequest,
     AdminUpdateUserPasswordRequest,
     AdminUpdateUserRequest,
@@ -26,15 +29,8 @@ from backend.services.model_config_service import AdminModelConfigKeyUpdateReque
 router = APIRouter(prefix="/api/v3/admin", tags=["admin"])
 
 
-def _bad_request(exc: Exception) -> HTTPException:
-    return HTTPException(status_code=400, detail=str(exc))
 
-
-def _not_found(detail: str) -> HTTPException:
-    return HTTPException(status_code=404, detail=detail)
-
-
-@router.get("/overview")
+@router.get("/overview", response_model=AdminOverviewResponse)
 async def admin_overview(request: Request):
     await require_admin(request)
     app_service = request.app.state.task_application_service
@@ -60,13 +56,24 @@ async def admin_list_tasks(request: Request):
     q = request.query_params.get("q", "")
     status = request.query_params.get("status", "")
     sort = request.query_params.get("sort", "")
+    offset_raw = request.query_params.get("offset", "0")
+    limit_raw = request.query_params.get("limit", "20")
+    try:
+        offset = max(0, int(offset_raw))
+    except (ValueError, TypeError):
+        offset = 0
+    try:
+        limit = max(1, min(int(limit_raw), 200))
+    except (ValueError, TypeError):
+        limit = 20
     app_service = request.app.state.task_application_service
-    tasks = await app_service.admin_list_tasks(
+    return await app_service.admin_list_tasks(
         q=q or None,
         status=status or None,
         sort=sort or None,
+        offset=offset,
+        limit=limit,
     )
-    return tasks
 
 
 @router.post("/tasks/batch-action")
@@ -157,9 +164,18 @@ async def admin_list_users(request: Request, db: AsyncSession = Depends(get_db))
     q = request.query_params.get("q", "")
     role = request.query_params.get("role", "")
     status_param = request.query_params.get("status", "")
+    offset_raw = request.query_params.get("offset", "0")
+    limit_raw = request.query_params.get("limit", "20")
+    try:
+        offset = max(0, int(offset_raw))
+    except (ValueError, TypeError):
+        offset = 0
+    try:
+        limit = max(1, min(int(limit_raw), 200))
+    except (ValueError, TypeError):
+        limit = 20
     auth_service = AuthService(db)
-    users = await auth_service.list_users(q, role, status_param)
-    return users
+    return await auth_service.list_users(q, role, status_param, offset=offset, limit=limit)
 
 
 @router.post("/users")
@@ -176,8 +192,45 @@ async def admin_create_user(body: AdminCreateUserRequest, request: Request, db: 
             task_concurrency_limit=body.task_concurrency_limit,
         )
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return user
+
+
+@router.get("/users/{user_id}/model-config")
+async def admin_get_user_model_config(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Get model config for a specific user (admin only)."""
+    await require_admin(request)
+    auth_service = AuthService(db)
+    user = await auth_service.get_user_by_id(user_id)
+    if not user:
+        raise not_found("user_not_found")
+    config_service = request.app.state.user_model_config_service
+    return config_service.read(user_id)
+
+
+@router.put("/users/{user_id}/model-config/keys")
+async def admin_update_user_model_config_keys(
+    user_id: int,
+    body: AdminModelConfigKeysRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update model API keys for a specific user (admin only)."""
+    await require_admin(request)
+    auth_service = AuthService(db)
+    user = await auth_service.get_user_by_id(user_id)
+    if not user:
+        raise not_found("user_not_found")
+    config_service = request.app.state.user_model_config_service
+    provider_inputs = [
+        ModelConfigKeyUpdateRequest.ProviderKeyInput(
+            key=provider.key,
+            apiKey=provider.api_key,
+        )
+        for provider in body.providers
+    ]
+    update_request = ModelConfigKeyUpdateRequest(providers=provider_inputs)
+    return config_service.save_keys(user_id, update_request)
 
 
 @router.patch("/users/{user_id}")
@@ -193,9 +246,9 @@ async def admin_update_user(
     try:
         user = await auth_service.update_user(user_id, updates)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     if not user:
-        raise _not_found("user_not_found")
+        raise not_found("user_not_found")
     return user
 
 
@@ -206,7 +259,7 @@ async def admin_delete_user(user_id: int, request: Request, db: AsyncSession = D
     try:
         result = await auth_service.delete_user(user_id)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return {"success": result}
 
 
@@ -222,9 +275,9 @@ async def admin_update_user_password(
     try:
         user = await auth_service.update_password(user_id, body.password)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     if not user:
-        raise _not_found("user_not_found")
+        raise not_found("user_not_found")
     return user
 
 
@@ -235,9 +288,9 @@ async def admin_enable_user(user_id: int, request: Request, db: AsyncSession = D
     try:
         user = await auth_service.enable_user(user_id)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     if not user:
-        raise _not_found("user_not_found")
+        raise not_found("user_not_found")
     return user
 
 
@@ -248,9 +301,9 @@ async def admin_disable_user(user_id: int, request: Request, db: AsyncSession = 
     try:
         user = await auth_service.disable_user(user_id)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     if not user:
-        raise _not_found("user_not_found")
+        raise not_found("user_not_found")
     return user
 
 
@@ -269,9 +322,9 @@ async def admin_update_user_status_legacy(
         elif body.action == "disable":
             user = await auth_service.disable_user(user_id)
         else:
-            raise HTTPException(status_code=400, detail="invalid_action")
+            raise bad_request("invalid_action")
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return user
 
 
@@ -296,7 +349,7 @@ async def admin_adjust_user_credit(
     try:
         result = await credit_service.adjust(user_id, body.amount, body.reason)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return result
 
 
@@ -309,6 +362,7 @@ async def admin_list_credit_rules(request: Request, db: AsyncSession = Depends(g
 
 
 @router.patch("/credits/rules/{rule_code}")
+@router.patch("/credits/rules/{rule_id}", response_model=dict)
 async def admin_update_credit_rule(
     rule_code: str,
     body: AdminUpdateCreditRuleRequest,
@@ -320,7 +374,7 @@ async def admin_update_credit_rule(
     try:
         result = await credit_service.update_rule(rule_code, body.cost)
     except ValueError as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return result
 
 
@@ -348,10 +402,10 @@ async def admin_revoke_invite(invite_id: int, request: Request, db: AsyncSession
         invite = await auth_service.revoke_invite(invite_id)
     except ValueError as exc:
         if str(exc) == "invite_not_found":
-            raise _not_found("invite_not_found")
-        raise _bad_request(exc)
+            raise not_found("invite_not_found")
+        raise bad_request(exc)
     if not invite:
-        raise _not_found("invite_not_found")
+        raise not_found("invite_not_found")
     return invite
 
 
@@ -362,11 +416,11 @@ async def admin_terminate_single_task(task_id: str, request: Request):
     try:
         await app_service.admin_terminate_task(task_id)
     except Exception as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return {"success": True, "taskId": task_id}
 
 
-@router.post("/tasks/bulk-terminate")
+@router.post("/tasks/bulk-terminate", response_model=AdminTaskBatchResult)
 async def admin_bulk_terminate_tasks(body: AdminBulkTerminateTasksRequest, request: Request):
     await require_admin(request)
     app_service = request.app.state.task_application_service
@@ -386,6 +440,27 @@ async def admin_bulk_terminate_tasks(body: AdminBulkTerminateTasksRequest, reque
     }
 
 
+@router.post("/tasks/bulk-delete")
+async def admin_bulk_delete_tasks(body: AdminBulkTerminateTasksRequest, request: Request):
+    await require_admin(request)
+    admin_user = await require_admin(request)
+    app_service = request.app.state.task_application_service
+    succeeded: list[str] = []
+    failed: list[dict] = []
+    for task_id in body.task_ids:
+        try:
+            await app_service.delete_task(task_id, admin_user["id"])
+            succeeded.append(task_id)
+        except Exception as exc:
+            failed.append({"taskId": task_id, "error": str(exc)})
+    return {
+        "action": "delete",
+        "requestedCount": len(body.task_ids),
+        "succeededTaskIds": succeeded,
+        "failed": failed,
+    }
+
+
 @router.post("/invites")
 async def admin_create_invite(
     body: AdminCreateInviteRequest,
@@ -397,7 +472,7 @@ async def admin_create_invite(
     try:
         invite = await auth_service.create_invite(body.role, admin_user["id"], body.expires_at)
     except (ValueError, RuntimeError) as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return invite
 
 
@@ -408,7 +483,7 @@ async def admin_get_task(task_id: str, request: Request):
     try:
         task = await app_service.admin_get_task(task_id)
     except Exception as exc:
-        raise _not_found(str(exc))
+        raise not_found(str(exc))
     return task
 
 
@@ -425,7 +500,7 @@ async def admin_get_task_trace(task_id: str, request: Request):
         task = await app_service.admin_get_task(task_id)
         trace = task.get("trace", [])[-limit:]
     except Exception as exc:
-        raise _not_found(str(exc))
+        raise not_found(str(exc))
     return trace
 
 
@@ -436,7 +511,7 @@ async def admin_get_task_diagnosis(task_id: str, request: Request):
     try:
         task = await app_service.admin_get_task(task_id)
     except Exception as exc:
-        raise _not_found(str(exc))
+        raise not_found(str(exc))
     severity = "info"
     if task.get("status") == "FAILED":
         severity = "high"
@@ -463,7 +538,7 @@ async def admin_retry_task(task_id: str, request: Request):
     try:
         result = await app_service.retry_task(task_id, admin_user["id"])
     except Exception as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return result
 
 
@@ -474,5 +549,5 @@ async def admin_delete_task(task_id: str, request: Request):
     try:
         await app_service.delete_task(task_id, admin_user["id"])
     except Exception as exc:
-        raise _bad_request(exc)
+        raise bad_request(exc)
     return {"success": True, "taskId": task_id}

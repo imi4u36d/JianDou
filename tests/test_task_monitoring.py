@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.domain
 from backend.domain.task_monitoring import missing_clip_indices, task_monitoring_snapshot, task_outputs
 from backend.domain.task_record import TaskRecord
 

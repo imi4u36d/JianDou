@@ -1,3 +1,5 @@
+# ruff: noqa: F811  # class method delegates to shared.py
+
 """Generation services — catalog, factory, run support, and application service.
 
 Translates the Java classes:
@@ -22,7 +24,7 @@ import logging
 import re
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any, Optional
 
 from backend.config import settings
@@ -57,6 +59,17 @@ from backend.services.generation_request_values import (
 from backend.services.model_config_service import (
     ModelRuntimeProfile,
     ModelRuntimePropertiesResolver,
+)
+from backend.shared import (
+    find_nested_string,
+    first_non_blank,
+    first_positive_int,
+    map_value,
+    now_iso,
+    positive_int,
+    safe_bool,
+    string_value,
+    truncate_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,13 +122,16 @@ def _get_video_model_provider():
 # Exceptions
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# EXCEPTIONS
+# =============================================================================
 class GenerationProviderException(Exception):
     """Raised when a provider (text/image/video API) returns an error."""
 
     def __init__(
         self,
         message: str,
-        provider_request: Optional[dict[str, Any]] = None,
+        provider_request: dict[str, Any] | None = None,
         provider_response: Any = None,
         http_status: int = 0,
     ) -> None:
@@ -203,6 +219,9 @@ def _stub_video_submission(
 # GenerationRunSupport
 # ---------------------------------------------------------------------------
 
+# =============================================================================
+# GENERATION RUN SUPPORT
+# =============================================================================
 class GenerationRunSupport:
     """Utility class providing helper methods for generation run orchestration.
 
@@ -267,15 +286,13 @@ class GenerationRunSupport:
 
     def nested_nullable_int(
         self, payload: dict[str, Any], parent_key: str, child_key: str
-    ) -> Optional[int]:
+    ) -> int | None:
         return nested_nullable_int(payload, parent_key, child_key)
 
     def nested_boolean(
         self, payload: dict[str, Any], parent_key: str, child_key: str, default: bool = False
     ) -> bool:
         return nested_boolean(payload, parent_key, child_key, default)
-
-    # ── Utility ──────────────────────────────────────────────────────
 
     def map_value(self, value: Any) -> dict[str, Any]:
         return map_value(value)
@@ -296,12 +313,10 @@ class GenerationRunSupport:
         raise ValueError(f"请先选择{label}（{field_name}）")
 
     def now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return now_iso()
 
     def truncate_text(self, value: str, limit: int) -> str:
-        if not value:
-            return ""
-        return value if len(value) <= limit else value[:limit]
+        return truncate_text(value, limit)
 
     def strip_markdown_fence(self, text: str) -> str:
         value = text.strip() if text else ""
@@ -317,17 +332,10 @@ class GenerationRunSupport:
         return max(min_val, min(max_val, value))
 
     def positive_int(self, raw: str, fallback: int) -> int:
-        try:
-            v = int(str(raw).strip())
-            return v if v > 0 else fallback
-        except (ValueError, TypeError):
-            return fallback
+        return positive_int(raw, fallback)
 
     def first_positive_int(self, *values: int) -> int:
-        for v in values:
-            if v > 0:
-                return v
-        return 0
+        return first_positive_int(*values)
 
     def normalize_value(self, value: str) -> str:
         return value.strip().lower() if value else ""
@@ -389,7 +397,7 @@ class GenerationRunSupport:
     # ── Call log ─────────────────────────────────────────────────────
 
     def call_log(
-        self, stage: str, event: str, status: str, message: str, details: Optional[dict[str, Any]] = None
+        self, stage: str, event: str, status: str, message: str, details: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         safe = {}
         if details:
@@ -414,7 +422,7 @@ class GenerationRunSupport:
         profile: dict[str, Any],
         requested_model: str,
         media_kind: str,
-        response: Optional[dict[str, Any]],
+        response: dict[str, Any] | None,
         source_tag: str,
     ) -> dict[str, Any]:
         return build_model_info(profile, requested_model, media_kind, response, source_tag)
@@ -422,13 +430,13 @@ class GenerationRunSupport:
     def build_media_model_info(
         self,
         text_profile: dict[str, Any],
-        rewrite_profile: Optional[dict[str, Any]],
-        vision_profile: Optional[dict[str, Any]],
+        rewrite_profile: dict[str, Any] | None,
+        vision_profile: dict[str, Any] | None,
         media_profile: dict[str, Any],
         requested_model: str,
         media_kind: str,
-        text_response: Optional[dict[str, Any]],
-        vision_response: Optional[dict[str, Any]],
+        text_response: dict[str, Any] | None,
+        vision_response: dict[str, Any] | None,
         resolved_model: str,
         endpoint_host: str,
         task_endpoint_host: str,
@@ -482,6 +490,9 @@ class GenerationRunSupport:
 # GenerationRunFactory
 # ===========================================================================
 
+# =============================================================================
+# GENERATION RUN FACTORY
+# =============================================================================
 class GenerationRunFactory:
     """Creates generation runs by dispatching to remote model providers.
 
@@ -495,12 +506,12 @@ class GenerationRunFactory:
 
     def __init__(
         self,
-        support: Optional[GenerationRunSupport] = None,
-        config_resolver: Optional[ModelRuntimePropertiesResolver] = None,
-        text_provider: Optional[Any] = None,
-        prompt_resolver: Optional[Any] = None,
-        image_provider: Optional[Any] = None,
-        video_provider: Optional[Any] = None,
+        support: GenerationRunSupport | None = None,
+        config_resolver: ModelRuntimePropertiesResolver | None = None,
+        text_provider: Any | None = None,
+        prompt_resolver: Any | None = None,
+        image_provider: Any | None = None,
+        video_provider: Any | None = None,
     ) -> None:
         self._support = support or GenerationRunSupport()
         self._config_resolver = config_resolver or _model_config_resolver
@@ -1030,7 +1041,7 @@ class GenerationRunFactory:
             },
             "storageRelativeDir": self._support.storage_relative_dir(request, run_id),
             "storageFileStem": self._support.storage_file_stem(request, "video"),
-            "nextPollAt": datetime.now(timezone.utc).timestamp() * 1000,
+            "nextPollAt": datetime.now(UTC).timestamp() * 1000,
         }
 
         result: dict[str, Any] = {
@@ -1077,7 +1088,7 @@ class GenerationRunFactory:
         if not task_id or not requested_model:
             return run
         next_poll_at = metadata.get("nextPollAt", 0)
-        now_ms = datetime.now(timezone.utc).timestamp() * 1000
+        now_ms = datetime.now(UTC).timestamp() * 1000
         if isinstance(next_poll_at, (int, float)) and next_poll_at > now_ms:
             return run
 
@@ -1193,7 +1204,7 @@ class GenerationRunFactory:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_text_profile(self, requested_model: str, user_id: Optional[int] = None) -> dict[str, Any]:
+    def _resolve_text_profile(self, requested_model: str, user_id: int | None = None) -> dict[str, Any]:
         """Resolve text model profile using the real config resolver."""
         try:
             profile = self._config_resolver.resolve_text_profile(requested_model, user_id)
@@ -1254,7 +1265,7 @@ class GenerationRunFactory:
         self,
         requested_model: str,
         media_kind: str,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         """Resolve media model profile using the real config resolver."""
         try:
@@ -1287,7 +1298,7 @@ class GenerationRunFactory:
         width: int,
         height: int,
         reference_image_urls: list[str],
-        seed: Optional[int],
+        seed: int | None,
     ) -> dict[str, Any]:
         """Call the real image model provider."""
         from backend.services.model_invocation import ImageGenerationRequest
@@ -1327,7 +1338,7 @@ class GenerationRunFactory:
         duration_seconds: int,
         first_frame_url: str,
         last_frame_url: str,
-        seed: Optional[int],
+        seed: int | None,
         camera_fixed: bool,
         watermark: bool,
         return_last_frame: bool,
@@ -1430,7 +1441,7 @@ class GenerationRunFactory:
         }
 
     @staticmethod
-    def _user_id_from_request(request: dict[str, Any]) -> Optional[int]:
+    def _user_id_from_request(request: dict[str, Any]) -> int | None:
         auth = request.get("auth", {})
         if isinstance(auth, dict):
             uid = auth.get("userId")
@@ -1444,7 +1455,7 @@ class GenerationRunFactory:
         return None
 
     @staticmethod
-    def _user_id_from_run(run: dict[str, Any]) -> Optional[int]:
+    def _user_id_from_run(run: dict[str, Any]) -> int | None:
         request = run.get("request")
         if isinstance(request, dict):
             user_id = GenerationRunFactory._user_id_from_request(request)
@@ -1588,6 +1599,9 @@ class GenerationRunFactory:
 # DefaultGenerationApplicationService
 # ===========================================================================
 
+# =============================================================================
+# APPLICATION SERVICE
+# =============================================================================
 class DefaultGenerationApplicationService:
     """Main generation service combining catalog, factory, and run store.
 
@@ -1596,11 +1610,11 @@ class DefaultGenerationApplicationService:
 
     def __init__(
         self,
-        generation_run_store: Optional[LocalGenerationRunStore] = None,
-        catalog_service: Optional[GenerationCatalogService] = None,
-        generation_run_factory: Optional[GenerationRunFactory] = None,
-        support: Optional[GenerationRunSupport] = None,
-        config_resolver: Optional[ModelRuntimePropertiesResolver] = None,
+        generation_run_store: LocalGenerationRunStore | None = None,
+        catalog_service: GenerationCatalogService | None = None,
+        generation_run_factory: GenerationRunFactory | None = None,
+        support: GenerationRunSupport | None = None,
+        config_resolver: ModelRuntimePropertiesResolver | None = None,
     ) -> None:
         self._store = generation_run_store or LocalGenerationRunStore()
         self._catalog_service = catalog_service or GenerationCatalogService()
@@ -1648,7 +1662,7 @@ class DefaultGenerationApplicationService:
         """List recent generation runs."""
         return await self._store.list(limit)
 
-    async def get_run(self, run_id: str) -> Optional[dict[str, Any]]:
+    async def get_run(self, run_id: str) -> dict[str, Any] | None:
         """Get a single generation run by ID, refreshing if it's a video run."""
         run = self._runs_cache.get(run_id)
         if run is None:

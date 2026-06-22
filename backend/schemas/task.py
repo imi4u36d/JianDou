@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import AliasGenerator, BaseModel, ConfigDict
 
-
-def _to_camel(name: str) -> str:
-    parts = name.split("_")
-    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+from backend.schemas.common import _to_camel
 
 
 class TaskListItemResponse(BaseModel):
@@ -23,19 +20,19 @@ class TaskListItemResponse(BaseModel):
     min_duration_seconds: int = 0
     max_duration_seconds: int = 0
     retry_count: int = 0
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
     completed_output_count: int = 0
-    task_seed: Optional[int] = None
-    effect_rating: Optional[int] = None
+    task_seed: int | None = None
+    effect_rating: int | None = None
     effect_rating_note: str = ""
-    rated_at: Optional[str] = None
+    rated_at: str | None = None
     has_transcript: bool = False
     has_timed_transcript: bool = False
     source_asset_count: int = 0
     editing_mode: str = ""
     is_queued: bool = False
-    queue_position: Optional[int] = None
+    queue_position: int | None = None
     current_stage: str = ""
     active_worker_instance_id: str = ""
     planned_clip_count: int = 0
@@ -46,9 +43,9 @@ class TaskListItemResponse(BaseModel):
     recommended_action: str = ""
     failure_reason: str = ""
     failure_stage: str = ""
-    failure_clip_index: Optional[int] = None
+    failure_clip_index: int | None = None
     thumbnail_url: str = ""
-    owner_user_id: Optional[int] = None
+    owner_user_id: int | None = None
     owner_username: str = ""
     owner_display_name: str = ""
     owner_role: str = ""
@@ -66,21 +63,21 @@ class TaskDetailResponse(BaseModel):
     min_duration_seconds: int = 0
     max_duration_seconds: int = 0
     retry_count: int = 0
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
     completed_output_count: int = 0
-    task_seed: Optional[int] = None
-    effect_rating: Optional[int] = None
+    task_seed: int | None = None
+    effect_rating: int | None = None
     effect_rating_note: str = ""
-    rated_at: Optional[str] = None
+    rated_at: str | None = None
     is_queued: bool = False
-    queue_position: Optional[int] = None
+    queue_position: int | None = None
     current_stage: str = ""
     active_worker_instance_id: str = ""
-    owner_user_id: Optional[int] = None
+    owner_user_id: int | None = None
     owner_username: str = ""
     owner_display_name: str = ""
-    error_message: Optional[str] = None
+    error_message: str | None = None
     editing_mode: str = ""
     trace: list = []
     status_history: list = []
@@ -98,24 +95,24 @@ class CreateGenerationTaskRequest(BaseModel):
     )
 
     title: str
-    task_type: Optional[str] = None
-    asset_type: Optional[str] = None
-    creative_prompt: Optional[str] = None
-    aspect_ratio: Optional[str] = None
-    image_size: Optional[str] = None
-    text_analysis_model: Optional[str] = None
-    image_model: Optional[str] = None
-    video_model: Optional[str] = None
-    video_size: Optional[str] = None
-    seed: Optional[int] = None
-    video_duration_seconds: Optional[Any] = None
-    output_count: Optional[Any] = None
-    min_duration_seconds: Optional[int] = None
-    max_duration_seconds: Optional[int] = None
-    transcript_text: Optional[str] = None
-    stop_before_video_generation: Optional[bool] = None
-    reference_image_urls: Optional[list[str]] = None
-    reference_asset_ids: Optional[list[str]] = None
+    task_type: str | None = None
+    asset_type: str | None = None
+    creative_prompt: str | None = None
+    aspect_ratio: str | None = None
+    image_size: str | None = None
+    text_analysis_model: str | None = None
+    image_model: str | None = None
+    video_model: str | None = None
+    video_size: str | None = None
+    seed: int | None = None
+    video_duration_seconds: Any | None = None
+    output_count: Any | None = None
+    min_duration_seconds: int | None = None
+    max_duration_seconds: int | None = None
+    transcript_text: str | None = None
+    stop_before_video_generation: bool | None = None
+    reference_image_urls: list[str] | None = None
+    reference_asset_ids: list[str] | None = None
 
 class GenerateCreativePromptRequest(BaseModel):
     model_config = ConfigDict(
@@ -124,12 +121,12 @@ class GenerateCreativePromptRequest(BaseModel):
     )
 
     title: str
-    aspect_ratio: Optional[str] = None
-    min_duration_seconds: Optional[int] = None
-    max_duration_seconds: Optional[int] = None
-    intro_template: Optional[str] = None
-    outro_template: Optional[str] = None
-    transcript_text: Optional[str] = None
+    aspect_ratio: str | None = None
+    min_duration_seconds: int | None = None
+    max_duration_seconds: int | None = None
+    intro_template: str | None = None
+    outro_template: str | None = None
+    transcript_text: str | None = None
 
 class RateTaskEffectRequest(BaseModel):
     model_config = ConfigDict(
@@ -137,9 +134,14 @@ class RateTaskEffectRequest(BaseModel):
         populate_by_name=True,
     )
 
-    effect_rating: Optional[int] = None
-    effect_rating_note: Optional[str] = None
+    effect_rating: int | None = None
+    effect_rating_note: str | None = None
 
 class TaskDeleteResult(BaseModel):
     success: bool = False
     task_id: str = ""
+
+
+class GenerateCreativePromptResponse(BaseModel):
+    prompt: str = ""
+    source: str = "default"

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     PENDING = "PENDING"
     PAUSED = "PAUSED"
     ANALYZING = "ANALYZING"
@@ -32,7 +32,7 @@ class TaskStatus(str, Enum):
         return self in (TaskStatus.ANALYZING, TaskStatus.PLANNING, TaskStatus.RENDERING, TaskStatus.PENDING)
 
 
-class AttemptStatus(str, Enum):
+class AttemptStatus(StrEnum):
     CREATED = "CREATED"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
@@ -52,14 +52,14 @@ class AttemptStatus(str, Enum):
         return None
 
 
-class AttemptTriggerType(str, Enum):
+class AttemptTriggerType(StrEnum):
     CREATE = "create"
     RETRY = "retry"
     CONTINUE = "continue"
     RECOVER = "recover"
 
 
-class StageRunStatus(str, Enum):
+class StageRunStatus(StrEnum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -84,7 +84,7 @@ class StageRunStatus(str, Enum):
         return None
 
 
-class TraceLevel(str, Enum):
+class TraceLevel(StrEnum):
     INFO = "INFO"
     WARN = "WARN"
     ERROR = "ERROR"
@@ -92,14 +92,14 @@ class TraceLevel(str, Enum):
     RECOVERY = "RECOVERY"
 
 
-class WorkerStatus(str, Enum):
+class WorkerStatus(StrEnum):
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
     FAILED = "FAILED"
     STALE = "STALE"
 
 
-class QueueEventType(str, Enum):
+class QueueEventType(StrEnum):
     ENQUEUED = "enqueued"
     CLAIMED = "claimed"
     COMPLETED = "completed"
@@ -130,48 +130,48 @@ class QueueEventType(str, Enum):
         return mapping.get(status)
 
 
-class ExecutionMode(str, Enum):
+class ExecutionMode(StrEnum):
     QUEUE = "queue"
     DIRECT = "direct"
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     USER = "USER"
     ADMIN = "ADMIN"
 
 
-class UserStatus(str, Enum):
+class UserStatus(StrEnum):
     ACTIVE = "ACTIVE"
     DISABLED = "DISABLED"
 
 
-class InviteStatus(str, Enum):
+class InviteStatus(StrEnum):
     UNUSED = "UNUSED"
     USED = "USED"
     EXPIRED = "EXPIRED"
     REVOKED = "REVOKED"
 
 
-class WorkflowStatus(str, Enum):
+class WorkflowStatus(StrEnum):
     DRAFT = "DRAFT"
     READY = "READY"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
 
-class WorkflowStage(str, Enum):
+class WorkflowStage(StrEnum):
     STORYBOARD = "storyboard"
     KEYFRAME = "keyframe"
     VIDEO = "video"
     JOINED = "joined"
 
 
-class WorkflowDurationMode(str, Enum):
+class WorkflowDurationMode(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
 
 
-class StageVersionStatus(str, Enum):
+class StageVersionStatus(StrEnum):
     QUEUED = "QUEUED"
     SUBMITTED = "SUBMITTED"
     RUNNING = "RUNNING"

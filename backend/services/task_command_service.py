@@ -21,10 +21,6 @@ from backend.services.task_execution_coordinator import (
 )
 
 
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()
-
-
 def _trimmed(value: str | None, fallback: str) -> str:
     if value is None:
         return fallback

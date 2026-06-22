@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from backend.services.model_config_snapshot import (
     ConfigSnapshot,
     merge_maps,

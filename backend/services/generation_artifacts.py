@@ -7,9 +7,9 @@ import os
 from typing import Any
 
 from backend.domain.generation_run import GenerationModelKinds
+from backend.shared import map_value, string_value
 
 logger = logging.getLogger(__name__)
-
 
 class GenerationArtifactStore:
     def __init__(self, storage_root: str, web_origin: str) -> None:
@@ -17,18 +17,18 @@ class GenerationArtifactStore:
         self._web_origin = web_origin
 
     def storage_relative_dir(self, request: dict[str, Any], run_id: str) -> str:
-        storage = _map_value(request.get("storage"))
-        configured = _string_value(storage.get("relativeDir"))
+        storage = map_value(request.get("storage"))
+        configured = string_value(storage.get("relativeDir"))
         return configured if configured else f"gen/_runs/{run_id}"
 
     def storage_file_stem(self, request: dict[str, Any], fallback: str) -> str:
-        storage = _map_value(request.get("storage"))
-        configured = _string_value(storage.get("fileStem"))
+        storage = map_value(request.get("storage"))
+        configured = string_value(storage.get("fileStem"))
         return configured if configured else fallback
 
     def storage_file_name(self, request: dict[str, Any], fallback: str) -> str:
-        storage = _map_value(request.get("storage"))
-        configured = _string_value(storage.get("fileName"))
+        storage = map_value(request.get("storage"))
+        configured = string_value(storage.get("fileName"))
         return configured if configured else fallback
 
     def write_text_artifact(
@@ -109,7 +109,6 @@ class GenerationArtifactStore:
     def image_data_uri_from_public_url(self, public_url: str) -> str:
         return ""
 
-
 def extension_from_mime_or_url(mime_type: str, source_url: str, media_type: str) -> str:
     normalized_mime = mime_type.lower() if mime_type else ""
     if normalized_mime.startswith("image/png"):
@@ -129,7 +128,6 @@ def extension_from_mime_or_url(mime_type: str, source_url: str, media_type: str)
             return path[dot + 1 :].lower()
     return "png" if media_type == GenerationModelKinds.IMAGE else "mp4"
 
-
 def mime_from_name(file_name: str) -> str:
     lower = file_name.lower() if file_name else ""
     if lower.endswith(".mp4"):
@@ -144,12 +142,3 @@ def mime_from_name(file_name: str) -> str:
         return "image/webp"
     return "application/octet-stream"
 
-
-def _map_value(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return {str(key): item for key, item in value.items()}
-    return {}
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value).strip()

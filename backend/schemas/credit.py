@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 
 class CreditSummaryResponse(BaseModel):
     exempt: bool = False
-    balance: Optional[int] = None
+    balance: int | None = None
     rules: list = []
 
 class AdminCreditUserResponse(BaseModel):
@@ -21,7 +19,7 @@ class AdminCreditUserResponse(BaseModel):
     total_adjusted: int = 0
     image_generation_count: int = 0
     video_generation_count: int = 0
-    last_used_at: Optional[str] = None
+    last_used_at: str | None = None
 
 class CreditAdjustmentRequest(BaseModel):
     amount: int

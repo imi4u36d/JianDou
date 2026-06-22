@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+pytestmark = pytest.mark.service
 from typing import Any
 
 from backend.domain.enums import TaskStatus

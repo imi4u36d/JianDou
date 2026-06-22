@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
 
-
-def _to_camel(name: str) -> str:
-    parts = name.split("_")
-    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+from backend.schemas.common import _to_camel
 
 
 class WorkflowRequestModel(BaseModel):
@@ -22,19 +17,19 @@ class WorkflowRequestModel(BaseModel):
 
 class CreateWorkflowRequest(WorkflowRequestModel):
     title: str
-    transcript_text: Optional[str] = None
-    aspect_ratio: Optional[str] = None
-    style_preset: Optional[str] = None
-    text_analysis_model: Optional[str] = None
-    image_model: Optional[str] = None
-    video_model: Optional[str] = None
-    video_size: Optional[str] = None
-    keyframe_seed: Optional[int] = None
-    video_seed: Optional[int] = None
-    seed: Optional[int] = None
-    duration_mode: Optional[str] = None
-    min_duration_seconds: Optional[int] = None
-    max_duration_seconds: Optional[int] = None
+    transcript_text: str | None = None
+    aspect_ratio: str | None = None
+    style_preset: str | None = None
+    text_analysis_model: str | None = None
+    image_model: str | None = None
+    video_model: str | None = None
+    video_size: str | None = None
+    keyframe_seed: int | None = None
+    video_seed: int | None = None
+    seed: int | None = None
+    duration_mode: str | None = None
+    min_duration_seconds: int | None = None
+    max_duration_seconds: int | None = None
 
 
 class WorkflowSummaryResponse(BaseModel):
@@ -43,7 +38,7 @@ class WorkflowSummaryResponse(BaseModel):
     status: str = ""
     current_stage: str = ""
     aspect_ratio: str = ""
-    effect_rating: Optional[int] = None
+    effect_rating: int | None = None
     created_at: str = ""
     updated_at: str = ""
     storyboard_version_count: int = 0
@@ -55,21 +50,21 @@ class WorkflowSummaryResponse(BaseModel):
 
 
 class UpdateWorkflowSettingsRequest(WorkflowRequestModel):
-    aspect_ratio: Optional[str] = None
-    style_preset: Optional[str] = None
-    text_analysis_model: Optional[str] = None
-    image_model: Optional[str] = None
-    video_model: Optional[str] = None
-    video_size: Optional[str] = None
-    keyframe_seed: Optional[int] = None
-    video_seed: Optional[int] = None
-    duration_mode: Optional[str] = None
-    min_duration_seconds: Optional[int] = None
-    max_duration_seconds: Optional[int] = None
+    aspect_ratio: str | None = None
+    style_preset: str | None = None
+    text_analysis_model: str | None = None
+    image_model: str | None = None
+    video_model: str | None = None
+    video_size: str | None = None
+    keyframe_seed: int | None = None
+    video_seed: int | None = None
+    duration_mode: str | None = None
+    min_duration_seconds: int | None = None
+    max_duration_seconds: int | None = None
 
 
 class AdjustStoryboardRequest(WorkflowRequestModel):
-    prompt: Optional[str] = None
+    prompt: str | None = None
 
 
 class SelectCharacterSheetAssetRequest(WorkflowRequestModel):
@@ -78,9 +73,46 @@ class SelectCharacterSheetAssetRequest(WorkflowRequestModel):
 
 class RateWorkflowRequest(WorkflowRequestModel):
     effect_rating: int = Field(ge=1, le=5)
-    effect_rating_note: Optional[str] = None
+    effect_rating_note: str | None = None
 
 
 class RateStageVersionRequest(WorkflowRequestModel):
     effect_rating: int = Field(ge=1, le=5)
-    effect_rating_note: Optional[str] = None
+    effect_rating_note: str | None = None
+
+
+class WorkflowDeleteResult(BaseModel):
+    deleted: bool = False
+    workflow_id: str = ""
+
+WorkflowListResponse = list[WorkflowSummaryResponse]
+
+
+class WorkflowDetailResponse(BaseModel):
+    """Full workflow detail returned by get/create/update endpoints."""
+    id: str = ""
+    title: str = ""
+    status: str = ""
+    current_stage: str = ""
+    aspect_ratio: str = ""
+    transcript_text: str | None = None
+    style_preset: str | None = None
+    video_size: str | None = None
+    duration_mode: str | None = None
+    min_duration_seconds: int | None = None
+    max_duration_seconds: int | None = None
+    effect_rating: int | None = None
+    created_at: str = ""
+    updated_at: str = ""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class WorkflowActionResponse(BaseModel):
+    """Generic response for workflow action endpoints (generate, select, rate, finalize)."""
+    id: str = ""
+    status: str = ""
+    current_stage: str = ""
+    updated_at: str = ""
+
+    model_config = ConfigDict(extra="allow")

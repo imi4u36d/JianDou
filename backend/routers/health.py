@@ -67,7 +67,7 @@ def _model_info(request: Request) -> dict[str, Any]:
                 "max_tokens": text_profile.config.max_tokens,
                 "config_errors": list(model_resolver.config_errors()),
         }
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort health probe
             pass
 
     return model_info
