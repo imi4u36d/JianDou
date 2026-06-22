@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.api
 import pytest
 from starlette import status

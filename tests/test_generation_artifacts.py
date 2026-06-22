@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.service
 from backend.domain.generation_run import GenerationModelKinds
 from backend.services.generation_artifacts import (

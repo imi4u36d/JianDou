@@ -103,7 +103,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "S108", "S607"]
 "backend/services/generation_service.py" = ["F401", "F841"]
 "backend/container.py" = ["F821"]  # lazy imports used in type annotations
 "backend/services/model_config_service.py" = ["F401", "F841"]

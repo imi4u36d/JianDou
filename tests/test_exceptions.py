@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.unit
 import pytest
 
@@ -114,6 +115,7 @@ class TestCompatAliases:
 
     def test_generation_provider_exception_alias(self):
         import warnings
+
         from backend.exceptions import GenerationProviderException
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

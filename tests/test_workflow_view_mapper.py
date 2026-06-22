@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.service
 from backend.models.task import BizMaterialAsset
 from backend.models.workflow import BizStageVersion, BizStageWorkflow

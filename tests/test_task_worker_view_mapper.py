@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 pytestmark = pytest.mark.service
 from backend.domain.task_record import TaskRecord
 from backend.services.task_worker_view_mapper import TaskViewMapper
