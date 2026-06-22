@@ -856,7 +856,7 @@ onBeforeUnmount(() => {
 .home-page {
   min-height: 100%;
   padding: 56px 48px 48px;
-  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 46%, #f4f5f7 100%);
+  background: linear-gradient(180deg, #f4f5f7 0%, #ffffff 46%, #f4f5f7 100%);
   color: var(--text-strong);
 }
 
