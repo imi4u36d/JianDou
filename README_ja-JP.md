@@ -238,6 +238,7 @@ npm run release:check
 | [フロントエンドアーキテクチャ](docs/frontend-architecture.md) | Monorepo構成とコンポーネント規約 |
 | [データベース設計](docs/database-design.md) | スキーマ制約とマイグレーションルール |
 | [リリースプロセス](docs/release-process.md) | バージョニングとリリースワークフロー |
+| [変更履歴](CHANGELOG.md) | プロジェクトの変更履歴 |
 | [API リファレンス](docs/openapi.json) | OpenAPI 3.1 仕様（自動生成） |
 
 ## コミュニティとサポート

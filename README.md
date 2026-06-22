@@ -238,6 +238,7 @@ npm run release:check
 | [Frontend Architecture](docs/frontend-architecture.md) | Monorepo layout and component conventions |
 | [Database Design](docs/database-design.md) | Schema constraints and migration rules |
 | [Release Process](docs/release-process.md) | Versioning and release workflow |
+| [Changelog](CHANGELOG.md) | Project changelog |
 | [API Reference](docs/openapi.json) | OpenAPI 3.1 specification (generated) |
 
 ## Community & Support

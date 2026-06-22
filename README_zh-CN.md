@@ -238,6 +238,7 @@ npm run release:check
 | [前端架构](docs/frontend-architecture.md) | Monorepo 布局和组件规范 |
 | [数据库设计](docs/database-design.md) | Schema 约束和迁移规则 |
 | [发布流程](docs/release-process.md) | 版本管理和发布工作流 |
+| [更新日志](CHANGELOG.md) | 项目更新日志 |
 | [API 参考](docs/openapi.json) | OpenAPI 3.1 规范（自动生成） |
 
 ## 社区与支持
