@@ -1989,12 +1989,14 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
 
     @staticmethod
     def _sqlite_path(database_url: str) -> str:
+        from backend.config import PROJECT_ROOT
+
         prefix = "sqlite+aiosqlite:///"
         if database_url.startswith(prefix):
             return database_url[len(prefix):]
         if database_url.startswith("sqlite:///"):
             return database_url[len("sqlite:///"):]
-        return "./data/jiandou.db"
+        return str(PROJECT_ROOT / "data" / "jiandou.db")
 
 
 class _ProviderCatalogItem:

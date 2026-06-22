@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-from pydantic import AliasChoices, Field
+from pathlib import Path
+
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
+
+# Resolve project root from this file's location: backend/config.py → project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_SECRET_KEY = "change-me-to-a-real-secret"
 DEFAULT_BOOTSTRAP_ADMIN_PASSWORD = "admin123"
@@ -84,6 +89,26 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    @model_validator(mode="after")
+    def _resolve_relative_paths(self) -> "Settings":
+        """Resolve CWD-relative paths against PROJECT_ROOT so the app works
+        regardless of which directory it is launched from."""
+        # --- storage_root ---
+        sr = Path(self.storage_root)
+        if not sr.is_absolute():
+            self.storage_root = str(PROJECT_ROOT / sr)
+
+        # --- database_url (sqlite path) ---
+        for prefix in ("sqlite+aiosqlite:///", "sqlite:///"):
+            if self.database_url.startswith(prefix):
+                db_path = self.database_url[len(prefix):]
+                p = Path(db_path)
+                if not p.is_absolute():
+                    self.database_url = prefix + str(PROJECT_ROOT / p)
+                break
+
+        return self
 
     @property
     def is_production(self) -> bool:

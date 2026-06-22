@@ -56,8 +56,8 @@ docs/openapi.json
 .codex/
 
 # Database files
-data/*.db
-data/*.db-journal
+**/data/*.db
+**/data/*.db-journal
 
 # Secrets (API keys)
 config/secrets/

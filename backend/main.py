@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import settings, validate_runtime_settings
+from backend.config import PROJECT_ROOT, settings, validate_runtime_settings
 from backend.container import AppContainer
 from backend.exceptions import InsufficientPermissionsError, InvalidCredentialsError, TokenExpiredError
 from backend.middleware import (
@@ -28,7 +28,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
     validate_runtime_settings(settings)
 
     # Create data directories
-    Path("./data").mkdir(parents=True, exist_ok=True)
+    Path(PROJECT_ROOT / "data").mkdir(parents=True, exist_ok=True)
     for d in [settings.uploads_dir, settings.generation_runs_dir, "thumbs"]:
         Path(settings.storage_root, d).mkdir(parents=True, exist_ok=True)
 
