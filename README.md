@@ -91,26 +91,24 @@ The image exposes port `8000` inside the container and runs database migrations 
 
 ### Option 2: Local Development
 
+Run the one-click setup script:
+
 ```bash
-# 1. Environment setup
-cp .env.dev.example .env
-cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
-# Edit providers.secrets.yml with your API keys
-
-# 2. Install dependencies
-npm install
-uv sync
-
-# 3. Apply database migrations
-uv run jiandou db migrate
-
-# 4. Start the server
-uv run jiandou serve
+./scripts/dev.sh
 ```
 
+This script automatically:
+1. Checks prerequisites (Node.js, uv)
+2. Creates `.env` and `providers.secrets.yml` from templates (if missing)
+3. Installs all dependencies
+4. Runs database migrations
+5. Starts the server
+
 After startup:
-- **User Frontend**: `http://127.0.0.1:8100`
-- **Admin Portal**: `http://127.0.0.1:8100/admin`
+- **User Frontend**: http://127.0.0.1:8100
+- **Admin Portal**: http://127.0.0.1:8100/admin
+
+Edit `config/model/providers.secrets.yml` to add your API keys before using model features.
 
 ### Health Checks
 

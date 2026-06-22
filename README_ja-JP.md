@@ -91,26 +91,24 @@ docker run -d -p 8100:8000 \
 
 ### 方法2：ローカル開発
 
+ワンクリックセットアップスクリプトを実行：
+
 ```bash
-# 1. 環境設定
-cp .env.dev.example .env
-cp config/model/providers.secrets.example.yml config/model/providers.secrets.yml
-# providers.secrets.yml に API キーを入力
-
-# 2. 依存関係のインストール
-npm install
-uv sync
-
-# 3. データベースマイグレーションの適用
-uv run jiandou db migrate
-
-# 4. サーバーの起動
-uv run jiandou serve
+./scripts/dev.sh
 ```
 
+このスクリプトは自動的に以下を実行します：
+1. 前提条件のチェック（Node.js、uv）
+2. `.env` と `providers.secrets.yml` をテンプレートから作成（存在しない場合）
+3. すべての依存関係をインストール
+4. データベースマイグレーションを実行
+5. サーバーを起動
+
 起動後のアクセス先：
-- **ユーザーフロントエンド**：`http://127.0.0.1:8100`
-- **管理ポータル**：`http://127.0.0.1:8100/admin`
+- **ユーザーフロントエンド**：http://127.0.0.1:8100
+- **管理ポータル**：http://127.0.0.1:8100/admin
+
+モデル機能を使用する前に、`config/model/providers.secrets.yml` を編集して API キーを追加してください。
 
 ### ヘルスチェック
 
