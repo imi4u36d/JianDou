@@ -105,7 +105,7 @@ uv sync
 uv run jiandou db migrate
 
 # 4. サーバーの起動
-npm run serve
+uv run jiandou serve
 ```
 
 起動後のアクセス先：

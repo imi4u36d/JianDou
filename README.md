@@ -105,7 +105,7 @@ uv sync
 uv run jiandou db migrate
 
 # 4. Start the server
-npm run serve
+uv run jiandou serve
 ```
 
 After startup:

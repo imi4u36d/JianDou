@@ -105,7 +105,7 @@ uv sync
 uv run jiandou db migrate
 
 # 4. 启动服务
-npm run serve
+uv run jiandou serve
 ```
 
 启动后访问：
