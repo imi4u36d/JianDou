@@ -119,12 +119,12 @@ async function handleSubmit() {
   gap: 20px;
   padding: 22px;
   border-radius: 22px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.82);
   box-shadow:
     0 16px 38px rgba(27, 124, 255, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .auth-screen__hero {
@@ -180,7 +180,7 @@ async function handleSubmit() {
   min-height: 48px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.9);
   color: var(--text-strong);
   transition:

@@ -14,7 +14,7 @@
         </button>
       </nav>
 
-      <div class="material-topbar__tools">
+      <div class="material-topbar__tools liquid-glass">
         <label class="material-search">
           <span aria-hidden="true"><IconSearch size="sm" /></span>
           <input v-model="filters.q" type="search" placeholder="搜索" @keyup.enter="loadAssets" />
@@ -861,7 +861,7 @@ watch(
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 12px 30px rgba(27, 124, 255, 0.06);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .material-search {
@@ -959,7 +959,7 @@ watch(
 .material-toolbar-divider {
   width: 1px;
   height: 18px;
-  background: rgba(15, 20, 25, 0.06);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .material-filter-drawer,
@@ -970,7 +970,7 @@ watch(
   align-items: end;
   padding: 10px 0 0;
   border: 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.07);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -1006,7 +1006,7 @@ watch(
 .material-filter-drawer .field-input {
   min-height: 40px;
   border-radius: 12px;
-  border-color: rgba(15, 20, 25, 0.07);
+  border-color: rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.78);
   box-shadow: none;
 }
@@ -1019,11 +1019,11 @@ watch(
   grid-template-columns: none;
   margin: -2px 0 2px;
   padding: 8px 10px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 10px 26px rgba(27, 124, 255, 0.06);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .material-batch-bar span {
@@ -1099,7 +1099,7 @@ watch(
   width: 26px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.1);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .material-load-more :deep(svg) {
@@ -1115,10 +1115,10 @@ watch(
   padding: 9px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   color: var(--text-strong);
   box-shadow: 0 8px 20px rgba(27, 124, 255, 0.045);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(40px) saturate(2.0);
   transition:
     transform 180ms ease,
     border-color 180ms ease,
@@ -1151,8 +1151,8 @@ watch(
   height: 24px;
   border: 2px solid #fff;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.18);
-  box-shadow: 0 4px 14px rgba(15, 20, 25, 0.18);
+  background: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
 
 .material-card__check input:checked + span {
@@ -1224,7 +1224,7 @@ watch(
   min-height: 34px;
   padding: 0;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.72);
+  background: rgba(255, 255, 255, 0.6);
   color: #fff;
   font-size: 0.72rem;
   font-weight: 800;
@@ -1249,7 +1249,7 @@ watch(
   min-height: 28px;
   padding: 0 10px;
   border-radius: 8px;
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text-muted);
 }
 
@@ -1277,7 +1277,7 @@ watch(
 .material-card__text :deep(th),
 .material-card__text :deep(td) {
   padding: 5px 6px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   vertical-align: top;
 }
 
@@ -1330,7 +1330,7 @@ watch(
   justify-content: center;
   min-height: 25px;
   padding: 0 8px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 999px;
   background: #f7fbff;
   color: var(--text-muted);
@@ -1380,15 +1380,15 @@ watch(
   width: 168px;
   gap: 0;
   padding: 8px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
   box-shadow:
-    0 18px 42px rgba(15, 20, 25, 0.12),
-    0 2px 8px rgba(18, 28, 33, 0.04);
+    0 18px 42px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .material-more-menu__panel:popover-open {
@@ -1443,8 +1443,8 @@ watch(
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 20, 25, 0.74);
-  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .material-preview-dialog {
@@ -1452,13 +1452,13 @@ watch(
   flex-direction: column;
   width: min(980px, calc(100vw - 48px));
   max-height: min(86vh, 960px);
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
   box-shadow:
-    0 22px 56px rgba(15, 20, 25, 0.16),
-    0 2px 8px rgba(18, 28, 33, 0.04);
+    0 22px 56px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04);
   overflow: hidden;
 }
 
@@ -1476,7 +1476,7 @@ watch(
   justify-content: space-between;
   gap: 16px;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .material-preview-dialog__head h3 {
@@ -1511,7 +1511,7 @@ watch(
 .material-preview-dialog__close:focus-visible {
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
 }
 
 .material-preview-dialog__close-floating {
@@ -1519,10 +1519,10 @@ watch(
   right: 28px;
   top: 24px;
   z-index: 2;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.5);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .material-preview-dialog__caption {
@@ -1536,14 +1536,14 @@ watch(
   min-height: 38px;
   overflow: hidden;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   font-size: 0.88rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .material-preview-dialog__image {
@@ -1563,7 +1563,7 @@ watch(
   width: min(520px, calc(100vw - 56px));
   min-height: 220px;
   padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
@@ -1612,7 +1612,7 @@ watch(
 .material-preview-dialog__markdown :deep(th),
 .material-preview-dialog__markdown :deep(td) {
   padding: 8px 9px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   vertical-align: top;
 }
 
@@ -1716,7 +1716,7 @@ watch(
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
     box-shadow:
-      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 -18px 46px rgba(0, 0, 0, 0.08),
       0 0 0 1px rgba(255, 255, 255, 0.82) inset;
   }
 
@@ -1727,7 +1727,7 @@ watch(
     height: 4px;
     margin: -9px 0 2px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.16);
+    background: rgba(0, 0, 0, 0.08);
   }
 
   .material-asset-grid {
@@ -1765,8 +1765,8 @@ watch(
     max-width: calc(100vw - 82px);
     padding: 7px 10px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.32);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(40px) saturate(2.0);
     font-size: 0.78rem;
   }
 

@@ -57,9 +57,9 @@ const emit = defineEmits<{
   align-items: center;
   min-height: 46px;
   padding: 8px 9px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(0, 0, 0, 0.03);
   color: var(--text-body);
   text-align: left;
   cursor: pointer;
@@ -74,10 +74,10 @@ const emit = defineEmits<{
 .workflow-stage-step:hover,
 .workflow-stage-step-active {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.2);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.94), rgba(237, 245, 255, 0.9));
+  border-color: rgba(90, 200, 250, 0.25);
+  background: rgba(90, 200, 250, 0.1);
   color: var(--accent-blue);
-  box-shadow: 0 12px 24px rgba(27, 124, 255, 0.08);
+  box-shadow: none;
 }
 
 .workflow-stage-step__index {
@@ -86,7 +86,7 @@ const emit = defineEmits<{
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #effcff;
+  background: rgba(90, 200, 250, 0.12);
   color: currentColor;
   font-size: 0.76rem;
   font-weight: 900;

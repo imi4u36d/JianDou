@@ -22,8 +22,9 @@ const clampedValue = computed(() => Math.max(0, Math.min(100, Math.round(props.v
 .linear-progress {
   overflow: hidden;
   height: 8px;
-  border-radius: 999px;
-  background: rgba(15, 20, 25, 0.07);
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
 }
 
 .linear-progress__bar {

@@ -168,8 +168,8 @@ function formatKind(kind: string) {
   display: grid;
   place-items: center;
   padding: 18px;
-  background: rgba(15, 20, 25, 0.42);
-  backdrop-filter: blur(14px);
+  background: rgba(10, 10, 20, 0.25);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .key-dialog {
@@ -179,11 +179,12 @@ function formatKind(kind: string) {
   display: grid;
   gap: 16px;
   padding: 20px;
-  border-radius: 22px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 22px 56px rgba(15, 20, 25, 0.14);
-  backdrop-filter: blur(20px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .key-dialog__head {
@@ -207,17 +208,17 @@ function formatKind(kind: string) {
   height: 36px;
   flex: 0 0 36px;
   border: 0;
-  border-radius: 11px;
-  background: #f1f4f6;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-body);
   line-height: 0;
   cursor: pointer;
 }
 
 .key-dialog__close:hover {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.55);
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
 }
 
 .key-dialog__hint {
@@ -258,14 +259,14 @@ function formatKind(kind: string) {
   display: grid;
   gap: 10px;
   padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.03);
   transition: border-color 0.2s;
 }
 
 .key-dialog__card:hover {
-  border-color: rgba(15, 20, 25, 0.12);
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 .key-dialog__card-header {
@@ -311,12 +312,12 @@ function formatKind(kind: string) {
 }
 
 .key-dialog__status--active {
-  color: #23c778;
+  color: var(--accent-lime);
 }
 
 .key-dialog__status--active .key-dialog__status-dot {
-  background: #23c778;
-  box-shadow: 0 0 4px rgba(35, 199, 120, 0.4);
+  background: var(--accent-lime);
+  box-shadow: 0 0 4px rgba(74, 222, 128, 0.4);
 }
 
 .key-dialog__status--empty {
@@ -325,7 +326,7 @@ function formatKind(kind: string) {
 }
 
 .key-dialog__status--empty .key-dialog__status-dot {
-  background: var(--text-body);
+  background: var(--text-muted);
 }
 
 .key-dialog__field {
@@ -349,9 +350,9 @@ function formatKind(kind: string) {
   width: 100%;
   min-height: 42px;
   padding: 0 60px 0 13px;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.03);
   color: var(--text-strong);
   font-size: 0.86rem;
   transition:
@@ -360,16 +361,15 @@ function formatKind(kind: string) {
 }
 
 .key-dialog__input-wrap input:focus {
-  border-color: rgba(0, 169, 187, 0.42);
+  border-color: rgba(90, 200, 250, 0.5);
   box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 24px rgba(27, 124, 255, 0.06);
+    0 0 0 3px rgba(90, 200, 250, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.15);
   outline: none;
 }
 
 .key-dialog__input-wrap input::placeholder {
-  color: var(--text-body);
-  opacity: 0.5;
+  color: var(--text-muted);
 }
 
 .key-dialog__toggle {
@@ -381,7 +381,7 @@ function formatKind(kind: string) {
   padding: 0 10px;
   border: 0;
   border-radius: 8px;
-  background: #f3f6f8;
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-body);
   font-size: 0.74rem;
   font-weight: 700;
@@ -389,7 +389,7 @@ function formatKind(kind: string) {
 }
 
 .key-dialog__toggle:hover {
-  background: #edf5ff;
+  background: rgba(90, 200, 250, 0.12);
   color: var(--accent-blue);
 }
 
@@ -408,35 +408,39 @@ function formatKind(kind: string) {
   min-height: 40px;
   padding: 0 18px;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   font-size: 0.86rem;
   font-weight: 820;
   cursor: pointer;
   transition: box-shadow 180ms ease, transform 180ms ease, opacity 180ms ease;
 }
 
+.key-dialog__btn:active {
+  transform: scale(0.97);
+}
+
 .key-dialog__btn--cancel {
-  background: #f3f6f8;
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-body);
 }
 
 .key-dialog__btn--cancel:hover {
-  background: #e8ecef;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .key-dialog__btn--save {
   background: var(--bg-accent);
   color: #fff;
-  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.18);
+  box-shadow: 0 12px 26px rgba(90, 200, 250, 0.2);
 }
 
 .key-dialog__btn--save:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(27, 124, 255, 0.22);
+  box-shadow: 0 14px 30px rgba(90, 200, 250, 0.28);
 }
 
 .key-dialog__btn--save:disabled {
-  opacity: 0.62;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -471,7 +475,7 @@ function formatKind(kind: string) {
     width: 100%;
     max-height: min(680px, calc(100dvh - 72px));
     padding: 20px 16px 16px;
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
   }
 
   .key-dialog::before {
@@ -481,7 +485,7 @@ function formatKind(kind: string) {
     height: 4px;
     margin: -9px 0 2px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.16);
+    background: rgba(255, 255, 255, 0.2);
   }
 
   .key-dialog__card-header {

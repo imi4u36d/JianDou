@@ -92,11 +92,11 @@ const compactTaskId = computed(() => {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
   color: var(--text-strong);
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow:
     0 12px 30px rgba(27, 124, 255, 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .card-head {
@@ -154,7 +154,7 @@ const compactTaskId = computed(() => {
   display: grid;
   gap: 8px;
   padding: 12px 0 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
   border-left: 0;
@@ -176,7 +176,7 @@ const compactTaskId = computed(() => {
   width: 100%;
   height: 6px;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 
@@ -216,7 +216,7 @@ const compactTaskId = computed(() => {
   display: grid;
   gap: 10px;
   padding: 12px 0 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
   border-left: 0;
@@ -253,7 +253,7 @@ const compactTaskId = computed(() => {
   font-size: 0.73rem;
   color: var(--text-body);
   background: rgba(255, 255, 255, 0.66);
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: none;
 }
 
@@ -266,7 +266,7 @@ const compactTaskId = computed(() => {
   color: var(--text-muted);
   text-align: center;
   background: rgba(248, 250, 252, 0.52);
-  border: 1px dashed rgba(15, 20, 25, 0.1);
+  border: 1px dashed rgba(0, 0, 0, 0.08);
   box-shadow: none;
 }
 

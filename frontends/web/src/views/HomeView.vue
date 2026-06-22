@@ -9,7 +9,7 @@
         项目
       </h1>
 
-      <form class="home-composer" @submit.prevent="submitComposer">
+      <form class="home-composer liquid-glass" @submit.prevent="submitComposer">
         <button
           type="button"
           class="home-composer__upload"
@@ -874,7 +874,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin: 0;
   max-width: 920px;
-  color: #131a20;
+  color: var(--text-strong);
   font-size: clamp(1.45rem, 2.6vw, 2.18rem);
   font-weight: 780;
   letter-spacing: 0;
@@ -931,7 +931,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   width: 68px;
   height: 98px;
-  border: 1px solid rgba(18, 28, 33, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 8px;
   background: linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);
   color: var(--accent-blue);
@@ -1006,7 +1006,7 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: cover;
   border-radius: 7px;
-  box-shadow: 0 6px 14px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
 }
 
 .home-composer__upload-preview-image {
@@ -1035,7 +1035,7 @@ onBeforeUnmount(() => {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(41, 46, 53, 0.94);
+  background: rgba(0, 0, 0, 0.6);
   color: #fff;
   line-height: 0;
   cursor: pointer;
@@ -1043,8 +1043,8 @@ onBeforeUnmount(() => {
   transform-origin: center;
   opacity: 0;
   box-shadow:
-    0 10px 24px rgba(15, 20, 25, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+    0 10px 24px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
   transition:
     opacity 220ms ease,
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1061,7 +1061,7 @@ onBeforeUnmount(() => {
   z-index: 0;
   display: grid;
   place-items: center;
-  border: 1px dashed rgba(15, 20, 25, 0.12);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
   background: linear-gradient(180deg, #fafafa 0%, #f4f4f4 100%);
   color: #7f8b97;
   transform: translateX(-18px) rotate(6deg) scale(0.92);
@@ -1099,12 +1099,12 @@ onBeforeUnmount(() => {
   max-width: min(420px, calc(100vw - 32px));
   min-height: 48px;
   padding: 10px 12px 10px 16px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
   color: var(--text-strong);
-  box-shadow: 0 18px 42px rgba(15, 20, 25, 0.14);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.07);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .home-task-toast span {
@@ -1172,8 +1172,8 @@ onBeforeUnmount(() => {
   line-height: 0;
   transform: none;
   box-shadow:
-    0 8px 18px rgba(15, 20, 25, 0.08),
-    0 0 0 1px rgba(15, 20, 25, 0.05);
+    0 8px 18px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
   transition:
     opacity 220ms ease,
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1193,7 +1193,7 @@ onBeforeUnmount(() => {
 .home-composer__upload-expanded .home-composer__upload-add-card {
   opacity: 1;
   transform: translateX(0) rotate(0deg) scale(1);
-  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.06);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
 }
 
 .home-composer__upload-preview-image:hover {
@@ -1297,7 +1297,7 @@ onBeforeUnmount(() => {
   color: var(--accent-indigo);
   font-size: 1.04rem;
   font-weight: 800;
-  box-shadow: 0 4px 10px rgba(15, 20, 25, 0.04);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
 }
 
 .home-composer__editor {
@@ -1349,7 +1349,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   min-height: 36px;
   padding: 0 13px;
-  border: 1px solid rgba(18, 28, 33, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
@@ -1384,7 +1384,7 @@ onBeforeUnmount(() => {
   border-color: rgba(27, 124, 255, 0.22);
   background: #edf5ff;
   color: var(--accent-blue);
-  box-shadow: inset 0 1px 2px rgba(18, 28, 33, 0.04);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .home-tool__icon {
@@ -1452,14 +1452,14 @@ onBeforeUnmount(() => {
   max-height: min(480px, calc(100vh - 120px));
   overflow-y: auto;
   padding: 8px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
   box-shadow:
-    0 18px 42px rgba(15, 20, 25, 0.105),
-    0 2px 8px rgba(18, 28, 33, 0.04);
-  backdrop-filter: blur(18px);
+    0 18px 42px rgba(0, 0, 0, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(40px) saturate(2.0);
   overscroll-behavior: contain;
 }
 
@@ -1484,7 +1484,7 @@ onBeforeUnmount(() => {
 
 .home-popover-section + .home-popover-section {
   padding-top: 8px;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .home-popover__label {
@@ -1613,7 +1613,7 @@ onBeforeUnmount(() => {
 .home-field input {
   min-height: 40px;
   width: 100%;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 12px;
   background: #f8fafb;
   color: var(--text-strong);
@@ -1686,7 +1686,7 @@ onBeforeUnmount(() => {
 .home-segment-active {
   background: #fff !important;
   color: var(--accent-blue) !important;
-  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .home-ratio-active {
@@ -1729,7 +1729,7 @@ onBeforeUnmount(() => {
 .home-resolution-active {
   background: #fff !important;
   color: #1f2831 !important;
-  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .home-dimension-row {
@@ -1831,7 +1831,7 @@ onBeforeUnmount(() => {
   align-items: center;
   min-height: 26px;
   padding: 0 10px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
@@ -1858,7 +1858,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   background: #101819;
   color: #fff;
-  box-shadow: 0 10px 24px rgba(15, 20, 25, 0.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
   cursor: pointer;
 }
 
@@ -1894,7 +1894,7 @@ onBeforeUnmount(() => {
 
 .home-active-tasks::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.12);
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .home-active-task-card {
@@ -1904,7 +1904,7 @@ onBeforeUnmount(() => {
   gap: 10px;
   min-height: 166px;
   padding: 16px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   background: #fff;
   color: var(--text-strong);
@@ -1988,7 +1988,7 @@ onBeforeUnmount(() => {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.07);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .home-active-task-card__progress span {
@@ -2128,7 +2128,7 @@ onBeforeUnmount(() => {
     padding: 20px 10px 10px;
     border-radius: 22px;
     box-shadow:
-      0 -18px 46px rgba(15, 20, 25, 0.16),
+      0 -18px 46px rgba(0, 0, 0, 0.08),
       0 0 0 1px rgba(255, 255, 255, 0.82) inset;
   }
 
@@ -2139,7 +2139,7 @@ onBeforeUnmount(() => {
     height: 4px;
     margin: -9px 0 2px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.16);
+    background: rgba(0, 0, 0, 0.08);
   }
 
   .home-popover-ratio {

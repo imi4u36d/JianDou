@@ -228,10 +228,10 @@ onBeforeUnmount(() => {
   width: 34px;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.74);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: none;
   transition:
     background 180ms ease,
@@ -243,14 +243,14 @@ onBeforeUnmount(() => {
 .hint-bell:hover,
 .hint-bell:focus-visible {
   transform: translateY(-1px);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.55);
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .hint-bell-active {
-  border-color: rgba(27, 124, 255, 0.18);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.98), rgba(237, 245, 255, 0.94));
+  border-color: rgba(90, 200, 250, 0.3);
+  background: rgba(90, 200, 250, 0.12);
   color: var(--accent-blue);
 }
 
@@ -267,23 +267,21 @@ onBeforeUnmount(() => {
   width: 6px;
   border-radius: 9999px;
   background: var(--accent-coral);
-  box-shadow: 0 0 0 2px #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
 .hint-popover {
   position: fixed;
   z-index: 4200;
   width: min(18rem, calc(100vw - 1.5rem));
-  border-radius: 16px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
   padding: 12px;
   color: var(--text-strong);
-  box-shadow:
-    0 18px 42px rgba(15, 20, 25, 0.11),
-    0 2px 8px rgba(18, 28, 33, 0.04);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .hint-title {

@@ -43,10 +43,12 @@ const { entries, remove } = useMessage();
   gap: 10px;
   min-height: 44px;
   padding: 10px 14px 10px 16px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 20, 25, 0.12);
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   pointer-events: auto;
 }
 
@@ -63,23 +65,23 @@ const { entries, remove } = useMessage();
 }
 
 .message-toast--success .message-toast__icon {
-  background: rgba(34, 197, 94, 0.12);
-  color: #16a34a;
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--accent-lime);
 }
 
 .message-toast--error .message-toast__icon {
-  background: rgba(229, 72, 101, 0.12);
-  color: var(--accent-danger, #e54865);
+  background: rgba(251, 113, 133, 0.15);
+  color: var(--accent-danger);
 }
 
 .message-toast--warning .message-toast__icon {
-  background: rgba(217, 137, 0, 0.12);
-  color: var(--accent-warning, #d98900);
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--accent-warning);
 }
 
 .message-toast--info .message-toast__icon {
-  background: rgba(46, 125, 255, 0.12);
-  color: #2e7dff;
+  background: rgba(90, 200, 250, 0.15);
+  color: var(--accent-blue);
 }
 
 .message-toast__content {
@@ -87,7 +89,7 @@ const { entries, remove } = useMessage();
   min-width: 0;
   font-size: 0.86rem;
   font-weight: 600;
-  color: var(--text-strong, #102842);
+  color: var(--text-strong);
   overflow-wrap: anywhere;
 }
 
@@ -102,14 +104,14 @@ const { entries, remove } = useMessage();
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-muted, #9aa5ad);
+  color: var(--text-muted);
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
 }
 
 .message-toast__close:hover {
-  background: rgba(15, 20, 25, 0.06);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .message-slide-enter-active,
@@ -143,7 +145,7 @@ const { entries, remove } = useMessage();
   .message-toast {
     width: 100%;
     padding: 10px 10px 10px 12px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
   }
 }
 </style>

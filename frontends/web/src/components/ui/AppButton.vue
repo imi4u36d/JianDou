@@ -69,8 +69,8 @@ const linkAttrs = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 700;
   font-family: inherit;
@@ -89,7 +89,7 @@ const linkAttrs = computed(() => {
   min-height: 28px;
   padding: 0 8px;
   font-size: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   gap: 0.35rem;
 }
 
@@ -97,7 +97,7 @@ const linkAttrs = computed(() => {
   min-height: 34px;
   padding: 0 14px;
   font-size: 13px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   gap: 0.4rem;
 }
 
@@ -105,105 +105,92 @@ const linkAttrs = computed(() => {
   min-height: 44px;
   padding: 0 16px;
   font-size: 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
 }
 
 .app-btn--lg {
   min-height: 52px;
   padding: 0 24px;
   font-size: 16px;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
 }
 
 /* ── Icon-only sizes ── */
-.app-btn--icon-only.app-btn--xs {
-  width: 28px;
-  padding: 0;
-}
-
-.app-btn--icon-only.app-btn--sm {
-  width: 34px;
-  padding: 0;
-}
-
-.app-btn--icon-only.app-btn--md {
-  width: 44px;
-  padding: 0;
-}
-
-.app-btn--icon-only.app-btn--lg {
-  width: 52px;
-  padding: 0;
-}
+.app-btn--icon-only.app-btn--xs { width: 28px; padding: 0; }
+.app-btn--icon-only.app-btn--sm { width: 34px; padding: 0; }
+.app-btn--icon-only.app-btn--md { width: 44px; padding: 0; }
+.app-btn--icon-only.app-btn--lg { width: 52px; padding: 0; }
 
 /* ── Variants ── */
 .app-btn--primary {
   border-color: transparent;
   background: var(--bg-accent);
   color: #fff;
-  box-shadow: 0 12px 28px rgba(27, 124, 255, 0.22);
+  box-shadow: 0 12px 28px rgba(90, 200, 250, 0.25);
 }
 
 .app-btn--secondary {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-strong);
-  border-color: rgba(15, 20, 25, 0.09);
+  border-color: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .app-btn--ghost {
-  background: #f3f6f8;
+  background: rgba(0, 0, 0, 0.03);
   color: var(--text-body);
   border-color: transparent;
 }
 
 .app-btn--danger {
-  background: rgba(229, 72, 101, 0.1);
-  border-color: rgba(229, 72, 101, 0.24);
-  color: #c5334e;
+  background: rgba(251, 113, 133, 0.15);
+  border-color: rgba(251, 113, 133, 0.25);
+  color: var(--accent-danger);
 }
 
 .app-btn--warning {
-  background: rgba(255, 186, 73, 0.14);
-  border-color: rgba(217, 137, 0, 0.22);
-  color: #9a6100;
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: var(--accent-warning);
 }
 
 .app-btn--accent {
   border-color: transparent;
-  background: linear-gradient(135deg, #43c6a7 0%, #2f8ead 100%);
+  background: linear-gradient(135deg, #4ade80 0%, #5ac8fa 100%);
   color: #fff;
-  box-shadow: 0 12px 28px rgba(47, 142, 173, 0.22);
+  box-shadow: 0 12px 28px rgba(74, 222, 128, 0.2);
 }
 
 /* ── Hover ── */
 .app-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--shadow-soft);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .app-btn--primary:hover:not(:disabled) {
-  box-shadow: 0 14px 32px rgba(27, 124, 255, 0.3);
+  box-shadow: 0 14px 36px rgba(90, 200, 250, 0.35);
 }
 
 .app-btn--accent:hover:not(:disabled) {
-  box-shadow: 0 14px 32px rgba(47, 142, 173, 0.3);
+  box-shadow: 0 14px 36px rgba(74, 222, 128, 0.3);
 }
 
-/* ── Active ── */
+/* ── Active (press feedback) ── */
 .app-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
+  transform: scale(0.97);
   box-shadow: var(--shadow-pressed);
 }
 
 /* ── Focus ── */
 .app-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(40, 195, 220, 0.28);
+  box-shadow: 0 0 0 3px rgba(90, 200, 250, 0.35);
 }
 
 /* ── Disabled ── */
 .app-btn:disabled {
-  opacity: 0.52;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;

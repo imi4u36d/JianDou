@@ -401,35 +401,35 @@ onBeforeUnmount(() => {
   width: 100%;
   min-height: 46px;
   padding: 0.86rem 1rem;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  background: #fff;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.03);
   box-shadow: none;
 }
 
 .app-select--field.app-select--compact .app-select__trigger {
   min-height: 44px;
   padding: 0.72rem 0.86rem;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .app-select--field .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(0, 169, 187, 0.26);
-  box-shadow: 0 8px 20px rgba(15, 20, 25, 0.04);
+  border-color: rgba(90, 200, 250, 0.3);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .app-select--field.app-select--open .app-select__trigger,
 .app-select--field .app-select__trigger:focus-visible {
-  border-color: rgba(0, 169, 187, 0.42);
+  border-color: rgba(90, 200, 250, 0.5);
   box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 26px rgba(15, 20, 25, 0.06);
+    0 0 0 3px rgba(90, 200, 250, 0.15),
+    0 10px 26px rgba(0, 0, 0, 0.2);
 }
 
 .app-select--field.app-select--disabled .app-select__trigger {
-  color: #9aa5ad;
-  background: #f3f5f6;
-  opacity: 0.78;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.02);
+  opacity: 0.6;
 }
 
 .app-select--toolbar .app-select__trigger {
@@ -438,17 +438,17 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-height: 38px;
   padding: 0 13px;
-  border-radius: 10px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  background: rgba(255, 255, 255, 0.78);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-strong);
 }
 
 .app-select--toolbar.app-select--open .app-select__trigger,
 .app-select--toolbar .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(0, 169, 187, 0.24);
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  border-color: rgba(90, 200, 250, 0.3);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
 }
 
 .app-select--admin .app-select__trigger {
@@ -457,35 +457,29 @@ onBeforeUnmount(() => {
   width: 100%;
   min-height: 44px;
   padding: 0.78rem 0.95rem;
-  border-radius: 1rem;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 1px 2px rgba(15, 23, 42, 0.04);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-strong);
 }
 
 .app-select--admin .app-select__trigger:hover:not(:disabled) {
-  border-color: #94a3b8;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 8px 18px rgba(15, 23, 42, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
 }
 
 .app-select--admin.app-select--open .app-select__trigger,
 .app-select--admin .app-select__trigger:focus-visible {
-  border-color: rgba(59, 130, 246, 0.52);
+  border-color: rgba(90, 200, 250, 0.5);
   box-shadow:
-    0 0 0 3px rgba(59, 130, 246, 0.12),
-    0 10px 22px rgba(15, 23, 42, 0.08);
+    0 0 0 3px rgba(90, 200, 250, 0.12),
+    0 10px 22px rgba(0, 0, 0, 0.2);
 }
 
 .app-select--admin.app-select--disabled .app-select__trigger {
-  color: rgba(15, 23, 42, 0.42);
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  opacity: 0.82;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.02);
+  opacity: 0.6;
 }
 
 .app-select__prefix {
@@ -517,20 +511,20 @@ onBeforeUnmount(() => {
 }
 
 .app-select--admin .app-select__label {
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 0.92rem;
 }
 
 .app-select--admin .app-select__label-placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .app-select--admin .app-select__chevron {
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .app-select__label-placeholder {
-  color: #9aa5ad;
+  color: var(--text-muted);
 }
 
 .app-select__chevron {
@@ -557,14 +551,12 @@ onBeforeUnmount(() => {
   z-index: 1400;
   overflow: auto;
   padding: 7px;
-  border-radius: 18px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
-  box-shadow:
-    0 18px 42px rgba(15, 20, 25, 0.11),
-    0 2px 8px rgba(18, 28, 33, 0.04);
-  backdrop-filter: blur(18px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .app-select__backdrop {
@@ -572,12 +564,9 @@ onBeforeUnmount(() => {
 }
 
 .app-select__menu--admin {
-  border-color: #dbe4ee;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 18px 36px rgba(15, 23, 42, 0.14),
-    0 2px 8px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(14px);
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.1);
 }
 
 .app-select__option {
@@ -589,7 +578,7 @@ onBeforeUnmount(() => {
   min-height: 40px;
   padding: 9px 12px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-strong);
   text-align: left;
@@ -601,35 +590,34 @@ onBeforeUnmount(() => {
 
 .app-select__option:hover:not(:disabled),
 .app-select__option-highlighted {
-  border-color: rgba(27, 124, 255, 0.16);
-  background: rgba(27, 124, 255, 0.07);
+  border-color: rgba(90, 200, 250, 0.2);
+  background: rgba(90, 200, 250, 0.1);
 }
 
 .app-select__option-selected {
-  border-color: rgba(27, 124, 255, 0.18);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.98), rgba(237, 245, 255, 0.94));
+  border-color: rgba(90, 200, 250, 0.25);
+  background: rgba(90, 200, 250, 0.15);
   color: var(--accent-blue);
 }
 
 .app-select__menu--admin .app-select__option {
-  color: #0f172a;
+  color: var(--text-strong);
 }
 
 .app-select__menu--admin .app-select__option:hover:not(:disabled),
 .app-select__menu--admin .app-select__option-highlighted {
-  border-color: rgba(148, 163, 184, 0.42);
-  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .app-select__menu--admin .app-select__option-selected {
-  border-color: rgba(59, 130, 246, 0.24);
-  background: linear-gradient(180deg, rgba(219, 234, 254, 0.9), rgba(239, 246, 255, 0.96));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  border-color: rgba(90, 200, 250, 0.3);
+  background: rgba(90, 200, 250, 0.15);
 }
 
 .app-select__option-disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: 0.35;
 }
 
 .app-select__option-copy {
@@ -653,18 +641,18 @@ onBeforeUnmount(() => {
 }
 
 .app-select__menu--admin .app-select__option-description {
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .app-select__check {
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  color: var(--accent-cyan);
+  color: var(--accent-blue);
 }
 
 .app-select__menu--admin .app-select__check {
-  color: #2563eb;
+  color: var(--accent-blue);
 }
 
 .app-select__check path {
@@ -702,17 +690,17 @@ onBeforeUnmount(() => {
     z-index: 1390;
     display: block;
     border: 0;
-    background: rgba(15, 20, 25, 0.28);
-    backdrop-filter: blur(6px);
+    background: rgba(10, 10, 20, 0.2);
+    backdrop-filter: blur(40px) saturate(2.0) saturate(1.5);
   }
 
   .app-select__menu {
     z-index: 1400;
     padding: 20px 10px 10px;
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
     box-shadow:
-      0 -18px 46px rgba(15, 20, 25, 0.16),
-      0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+      0 -18px 46px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 
   .app-select__menu::before {
@@ -722,12 +710,12 @@ onBeforeUnmount(() => {
     height: 4px;
     margin: -9px auto 8px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.16);
+    background: rgba(255, 255, 255, 0.2);
   }
 
   .app-select__option {
     min-height: 46px;
-    border-radius: 14px;
+    border-radius: var(--radius-sm);
   }
 
   .app-select-fade-enter-from,

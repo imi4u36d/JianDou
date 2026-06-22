@@ -154,14 +154,14 @@ defineExpose({
   display: grid;
   gap: 13px;
   padding: 18px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
   color: var(--text-strong);
   box-shadow:
     0 12px 30px rgba(27, 124, 255, 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .form-head {
@@ -186,7 +186,7 @@ defineExpose({
   justify-content: center;
   gap: 6px;
   min-height: 34px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.8);
   color: var(--text-body);
@@ -256,7 +256,7 @@ defineExpose({
 .field-textarea {
   width: 100%;
   min-height: 46px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 13px;
   background: rgba(255, 255, 255, 0.88);
   color: var(--text-strong);
@@ -294,7 +294,7 @@ defineExpose({
   min-height: 26px;
   border-radius: 999px;
   background: rgba(247, 251, 255, 0.78);
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   padding: 0 9px;
   color: var(--text-muted);
   font-size: 0.75rem;

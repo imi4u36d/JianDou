@@ -1222,23 +1222,15 @@ onUnmounted(() => {
   display: grid;
   align-content: start;
   gap: 14px;
-  padding: 18px 14px;
-  border: 1px solid rgba(79, 70, 229, 0.1);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 12px 30px rgba(27, 124, 255, 0.045);
-  backdrop-filter: blur(18px);
+  padding: 0 4px 0 0;
 }
 
 .task-detail-panel {
   display: grid;
   min-width: 0;
+  min-height: 0;
   padding: 14px;
-  border: 1px solid rgba(79, 70, 229, 0.1);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.64);
-  box-shadow: 0 12px 30px rgba(27, 124, 255, 0.045);
-  backdrop-filter: blur(18px);
+  overflow: auto;
 }
 
 .tasks-search-field {
@@ -1339,8 +1331,8 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.08);
-  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   background: transparent;
 }
 
@@ -1503,7 +1495,7 @@ onUnmounted(() => {
   min-height: 22px;
   padding: 0 7px;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.06);
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text-muted);
   line-height: 1;
 }
@@ -1532,7 +1524,7 @@ onUnmounted(() => {
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .task-list__progress i {
@@ -1597,7 +1589,7 @@ onUnmounted(() => {
 }
 
 .task-list__delete {
-  background: rgba(15, 20, 25, 0.06);
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text-muted);
 }
 
@@ -1663,10 +1655,10 @@ onUnmounted(() => {
   z-index: 5;
   padding: 2px 2px 12px;
   border: 0;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.07);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.76));
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(40px) saturate(2.0);
   box-shadow: none;
 }
 
@@ -1720,7 +1712,7 @@ onUnmounted(() => {
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid rgba(15, 20, 25, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.72);
   color: var(--text-muted);
@@ -1779,7 +1771,7 @@ onUnmounted(() => {
   top: 21px;
   height: 2px;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   transform: translateX(10px);
   z-index: 0;
 }
@@ -1808,7 +1800,7 @@ onUnmounted(() => {
   height: 16px;
   border-radius: 999px;
   position: relative;
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.92);
 }
 
@@ -1860,15 +1852,15 @@ onUnmounted(() => {
 }
 
 .task-stage-row--paused {
-  background: linear-gradient(90deg, rgba(255, 190, 100, 0.6), rgba(15, 20, 25, 0.06));
+  background: linear-gradient(90deg, rgba(255, 190, 100, 0.6), rgba(0, 0, 0, 0.06));
 }
 
 .task-stage-row--failed {
-  background: linear-gradient(90deg, rgba(255, 118, 150, 0.68), rgba(15, 20, 25, 0.06));
+  background: linear-gradient(90deg, rgba(255, 118, 150, 0.68), rgba(0, 0, 0, 0.06));
 }
 
 .task-stage-row--pending {
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .task-failure-card {
@@ -1973,7 +1965,7 @@ onUnmounted(() => {
 .detail-section-card {
   padding: 14px 0 0;
   border: 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.07);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -2010,7 +2002,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 7px 0;
   border: 0;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
   color: var(--text-body);
@@ -2029,7 +2021,7 @@ onUnmounted(() => {
 .detail-overview__progress {
   height: 6px;
   border-radius: 999px;
-  background: rgba(15, 20, 25, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 
@@ -2053,7 +2045,7 @@ onUnmounted(() => {
   min-height: 38px;
   padding: 8px 0;
   border: 0;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
 }
@@ -2093,7 +2085,7 @@ onUnmounted(() => {
 
 .task-detail-grid-primary > .detail-section-card,
 .task-detail-grid-secondary > .detail-section-card:first-child {
-  border-top: 1px solid rgba(15, 20, 25, 0.07);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .task-result-preview {
@@ -2103,7 +2095,7 @@ onUnmounted(() => {
   min-height: 190px;
   overflow: hidden;
   border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   background:
     linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(27, 124, 255, 0.08)),
     #f3fbff;
@@ -2167,7 +2159,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 12px 0 0;
   border: 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
 }
@@ -2192,7 +2184,7 @@ onUnmounted(() => {
   max-height: 260px;
   overflow: auto;
   border: 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
 }
@@ -2202,7 +2194,7 @@ onUnmounted(() => {
   position: relative;
   padding: 10px 10px 10px 30px;
   border: 0;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
   background: transparent;
 }
@@ -2252,9 +2244,9 @@ onUnmounted(() => {
   gap: 7px;
   margin: 0;
   padding: 11px 0 0;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.9) 28%);
-  backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.9) 28%);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .detail-action-btn {
@@ -2264,7 +2256,7 @@ onUnmounted(() => {
   gap: 6px;
   min-height: 36px;
   padding: 0 11px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--text-body);
@@ -2354,8 +2346,7 @@ onUnmounted(() => {
   .tasks-list-panel {
     padding: 0 0 18px;
     border-right: 0;
-    border-bottom: 1px solid rgba(15, 20, 25, 0.08);
-    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   }
 
   .task-detail-empty,
@@ -2366,7 +2357,6 @@ onUnmounted(() => {
   .task-detail-panel {
     padding: 14px;
   }
-
   .detail-actions {
     margin: 0;
     display: grid;
@@ -2419,13 +2409,6 @@ onUnmounted(() => {
   .task-detail-content {
     padding: 0;
     border-radius: 0;
-  }
-
-  .task-detail-panel {
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
   }
 
   .detail-overview__row-progress {

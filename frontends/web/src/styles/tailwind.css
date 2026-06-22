@@ -17,38 +17,83 @@
     "Microsoft YaHei",
     sans-serif;
   font-weight: 400;
-  --bg-base: #f4f5f7;
-  --bg-surface: #ffffff;
-  --bg-surface-strong: #ffffff;
-  --bg-soft: #f8f9fb;
-  --bg-softer: #f8f9fb;
-  --bg-accent-soft: rgba(79, 70, 229, 0.06);
-  --surface-border: rgba(0, 0, 0, 0.06);
-  --surface-border-strong: rgba(79, 70, 229, 0.3);
-  --text-strong: #1a1a2e;
-  --text-body: #5c5f77;
-  --text-muted: #8b8fa8;
-  --accent-indigo: #4f46e5;
-  --accent-cyan: #4f46e5;
+
+  /* ── Background system (light glass) ── */
+  --bg-base: #f0f2f7;
+  --bg-surface: rgba(255, 255, 255, 0.62);
+  --bg-surface-strong: rgba(255, 255, 255, 0.78);
+  --bg-soft: rgba(255, 255, 255, 0.45);
+  --bg-softer: rgba(255, 255, 255, 0.3);
+  --bg-accent-soft: rgba(90, 200, 250, 0.1);
+
+  /* ── Border system ── */
+  --surface-border: rgba(255, 255, 255, 0.7);
+  --surface-border-strong: rgba(255, 255, 255, 0.9);
+
+  /* ── Text system (dark on light) ── */
+  --text-strong: rgba(15, 20, 30, 0.92);
+  --text-body: rgba(40, 50, 65, 0.72);
+  --text-muted: rgba(80, 90, 110, 0.55);
+
+  /* ── Accent colors ── */
+  --accent-indigo: #6366f1;
+  --accent-cyan: #6366f1;
   --accent-blue: #3b82f6;
-  --accent-lime: #10b981;
-  --accent-coral: #f43f5e;
-  --accent-danger: #f43f5e;
-  --accent-warning: #f59e0b;
-  --accent-strong: #4f46e5;
-  --bg-accent: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
-  --shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --accent-lime: #16a34a;
+  --accent-coral: #e54865;
+  --accent-danger: #e54865;
+  --accent-warning: #d97706;
+  --accent-strong: #6366f1;
+  --bg-accent: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+
+  /* ── Shadow system (Liquid Glass — multi-layer) ── */
+  --shadow-panel:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.03) inset,
+    0 8px 40px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-soft:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
+    0 4px 20px rgba(0, 0, 0, 0.06);
   --shadow-glow:
-    0 0 0 1px rgba(79, 70, 229, 0.12),
-    0 12px 32px rgba(79, 70, 229, 0.1);
+    0 0 0 1px rgba(99, 102, 241, 0.15),
+    0 12px 32px rgba(99, 102, 241, 0.1);
   --shadow-raise: var(--shadow-panel);
   --shadow-raise-soft: var(--shadow-soft);
-  --shadow-pressed: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-pressed:
+    0 1px 3px rgba(0, 0, 0, 0.08) inset,
+    0 0 0 rgba(255, 255, 255, 0) inset;
   --shadow-accent: var(--shadow-glow);
-  --scrollbar-track: rgba(0, 0, 0, 0.04);
-  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
-  --scrollbar-thumb-hover: rgba(79, 70, 229, 0.5);
+
+  /* ── Liquid Glass parameters ── */
+  --glass-blur: blur(40px) saturate(2.0) brightness(1.02);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --glass-inner-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.5);
+  --glass-sheen: conic-gradient(
+    from 140deg at 50% 50%,
+    rgba(255, 255, 255, 0) 0deg,
+    rgba(255, 255, 255, 0.6) 40deg,
+    rgba(255, 255, 255, 0) 80deg,
+    rgba(255, 255, 255, 0) 180deg,
+    rgba(255, 255, 255, 0.3) 220deg,
+    rgba(255, 255, 255, 0) 260deg
+  );
+
+  /* ── Radius system ── */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  /* ── Scrollbar ── */
+  --scrollbar-track: rgba(0, 0, 0, 0.03);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb-hover: rgba(99, 102, 241, 0.4);
+
+  /* ── Select arrow (dark for light bg) ── */
   --select-arrow:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23374151' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
@@ -79,6 +124,7 @@ body {
   font-weight: 400;
   background: var(--bg-base);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -114,7 +160,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(79, 70, 229, 0.18);
+  background: rgba(99, 102, 241, 0.2);
   color: var(--text-strong);
 }
 
@@ -122,7 +168,7 @@ textarea {
   outline: none;
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 4px rgba(79, 70, 229, 0.34);
+    0 0 0 4px rgba(99, 102, 241, 0.34);
 }
 
 #app {
@@ -143,32 +189,72 @@ textarea {
 }
 
 @layer components {
+  /* ── Liquid Glass surface ── */
+  .glass {
+    background: var(--bg-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--glass-border);
+    box-shadow: var(--shadow-panel);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Refraction sheen — conic gradient simulates light bending through liquid */
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--glass-sheen);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Bottom inner shadow — creates depth and floating dimensionality */
+  .glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 85%,
+      rgba(0, 0, 0, 0.02) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Surface panels (Liquid Glass) ── */
   .surface-panel,
   .surface-tile,
   .page-header,
   .empty-state {
     position: relative;
     scrollbar-gutter: stable;
-    border: 1px solid var(--surface-border);
     background: var(--bg-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--glass-border);
     box-shadow: var(--shadow-panel);
   }
 
   .surface-panel {
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
   }
 
   .surface-tile {
-    border-radius: 14px;
+    border-radius: var(--radius-md);
   }
 
   .surface-panel-compact {
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-soft);
   }
 
   .surface-tile-compact {
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     box-shadow: var(--shadow-soft);
   }
 
@@ -176,6 +262,39 @@ textarea {
     background: var(--bg-surface-strong);
   }
 
+  /* ── Liquid Glass sheen utility ──
+     Apply to any glass panel to add conic refraction sheen + bottom inner shadow.
+     Element must have position: relative and overflow: hidden. */
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--glass-sheen);
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: inherit;
+  }
+
+  .liquid-glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 -1px 2px rgba(0, 0, 0, 0.03),
+      inset 0 1px 1px rgba(255, 255, 255, 0.6);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ensure child content sits above the sheen layers */
+  .liquid-glass > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Chips & pills ── */
   .surface-chip,
   .status-pill,
   .action-chip {
@@ -184,13 +303,14 @@ textarea {
     gap: 0.4rem;
     min-height: 28px;
     padding: 0 0.78rem;
-    border-radius: 999px;
-    border: 1px solid rgba(15, 20, 25, 0.06);
-    background: #f5f8fa;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.45);
     color: var(--text-body);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.02em;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
   }
 
   .surface-chip-compact {
@@ -199,10 +319,11 @@ textarea {
     font-size: 0.68rem;
   }
 
+  /* ── Page header ── */
   .page-header {
     overflow: hidden;
     padding: 1.35rem 1.5rem;
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
   }
 
   .page-header::before,
@@ -240,16 +361,20 @@ textarea {
     line-height: 1.7;
   }
 
+  /* ── Form inputs (Liquid Glass) ── */
   .field-input,
   .field-select,
   .field-textarea {
     width: 100%;
-    border: 1px solid rgba(15, 20, 25, 0.08);
-    border-radius: 14px;
-    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.45);
     color: var(--text-strong);
     padding: 0.9rem 1rem;
-    box-shadow: none;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
+      0 2px 8px rgba(0, 0, 0, 0.03);
     transition:
       border-color 180ms ease,
       box-shadow 180ms ease,
@@ -272,7 +397,7 @@ textarea {
   .field-input-compact,
   .field-select-compact,
   .field-textarea-compact {
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     padding: 0.72rem 0.86rem;
   }
 
@@ -292,16 +417,17 @@ textarea {
 
   .field-input::placeholder,
   .field-textarea::placeholder {
-    color: #9aa5ad;
+    color: var(--text-muted);
   }
 
   .field-input:focus,
   .field-select:focus,
   .field-textarea:focus {
-    border-color: rgba(79, 70, 229, 0.42);
+    border-color: rgba(90, 200, 250, 0.5);
     box-shadow:
-      0 0 0 3px rgba(79, 70, 229, 0.1),
-      0 10px 26px rgba(15, 20, 25, 0.06);
+      0 0 0 3px rgba(90, 200, 250, 0.15),
+      0 10px 26px rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.1);
   }
 
   .field-textarea {
@@ -309,15 +435,15 @@ textarea {
   }
 
   .field-select:hover {
-    border-color: rgba(79, 70, 229, 0.24);
-    box-shadow: 0 8px 20px rgba(15, 20, 25, 0.04);
+    border-color: rgba(90, 200, 250, 0.3);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
   }
 
   .field-select:disabled {
     cursor: not-allowed;
-    color: #9aa5ad;
-    background: #f3f5f6;
-    opacity: 0.78;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.03);
+    opacity: 0.6;
   }
 
   .field-select option,
@@ -326,6 +452,7 @@ textarea {
     color: var(--text-strong);
   }
 
+  /* ── Buttons ── */
   .btn-primary,
   .btn-secondary,
   .btn-ghost,
@@ -337,10 +464,14 @@ textarea {
     align-items: center;
     justify-content: center;
     gap: 0.55rem;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    border: 1px solid rgba(15, 20, 25, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     font-weight: 700;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
+      0 2px 8px rgba(0, 0, 0, 0.04);
     transition:
       transform 180ms ease,
       box-shadow 180ms ease,
@@ -361,55 +492,56 @@ textarea {
   .btn-compact {
     min-height: 38px;
     padding: 0 0.9rem;
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
   }
 
   .btn-sm {
     min-height: 34px;
     padding: 0 0.9rem;
     font-size: 0.8rem;
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
   }
 
   .btn-primary {
     border-color: transparent;
     background: var(--bg-accent);
     color: #fff;
-    box-shadow: 0 12px 28px rgba(27, 124, 255, 0.22);
+    box-shadow: 0 12px 28px rgba(90, 200, 250, 0.25);
   }
 
   .btn-secondary,
   .btn-ghost,
   .btn-segment,
   .shell-icon-btn {
-    background: #fff;
+    background: rgba(255, 255, 255, 0.5);
     color: var(--text-strong);
-    box-shadow: none;
+    backdrop-filter: blur(40px) saturate(2.0);
   }
 
   .btn-secondary {
-    border-color: rgba(79, 70, 229, 0.12);
-    background: rgba(255, 255, 255, 0.86);
+    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.55);
   }
 
   .btn-ghost {
     border-color: transparent;
-    background: #eef2ff;
+    background: rgba(255, 255, 255, 0.3);
     color: var(--text-body);
   }
 
   .btn-warning {
-    background: rgba(255, 186, 73, 0.14);
-    border-color: rgba(217, 137, 0, 0.22);
-    color: #9a6100;
+    background: rgba(217, 119, 6, 0.08);
+    border-color: rgba(217, 119, 6, 0.2);
+    color: var(--accent-warning);
   }
 
   .btn-danger {
-    background: rgba(229, 72, 101, 0.1);
-    border-color: rgba(229, 72, 101, 0.24);
-    color: #c5334e;
+    background: rgba(229, 72, 101, 0.08);
+    border-color: rgba(229, 72, 101, 0.2);
+    color: var(--accent-danger);
   }
 
+  /* Liquid Glass rim-lighting on hover */
   .btn-primary:hover:not(:disabled),
   .btn-secondary:hover:not(:disabled),
   .btn-ghost:hover:not(:disabled),
@@ -418,7 +550,22 @@ textarea {
   .btn-segment:hover:not(:disabled),
   .shell-icon-btn:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-soft);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.95) inset,
+      0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
+      0 0 0 3px rgba(255, 255, 255, 0.5),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+    border-color: rgba(255, 255, 255, 0.7);
+  }
+
+  .btn-primary:active:not(:disabled),
+  .btn-secondary:active:not(:disabled),
+  .btn-ghost:active:not(:disabled),
+  .btn-warning:active:not(:disabled),
+  .btn-danger:active:not(:disabled),
+  .btn-segment:active:not(:disabled),
+  .shell-icon-btn:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .btn-primary:disabled,
@@ -428,40 +575,44 @@ textarea {
   .btn-danger:disabled,
   .btn-segment:disabled,
   .shell-icon-btn:disabled {
-    opacity: 0.52;
+    opacity: 0.4;
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
   }
 
+  /* ── Segmented control (Liquid Glass) ── */
   .segmented-shell {
     display: inline-flex;
     gap: 0.35rem;
     padding: 0.3rem;
-    border-radius: 16px;
-    background: #eef2ff;
-    border: 1px solid rgba(79, 70, 229, 0.1);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) inset;
   }
 
   .btn-segment {
     min-height: 34px;
     padding: 0 0.85rem;
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     color: var(--text-body);
   }
 
   .btn-segment-active {
     color: var(--accent-blue);
-    border-color: rgba(27, 124, 255, 0.18);
-    background: #fff;
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.7);
     box-shadow: var(--shadow-soft);
   }
 
+  /* ── Progress ── */
   .linear-progress {
     overflow: hidden;
     height: 8px;
-    border-radius: 999px;
-    background: rgba(15, 20, 25, 0.07);
+    border-radius: var(--radius-full);
+    background: rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
   }
 
   .linear-progress__bar {
@@ -471,6 +622,7 @@ textarea {
     transition: width 240ms ease;
   }
 
+  /* ── Empty state ── */
   .empty-state {
     display: grid;
     place-items: center;
@@ -478,6 +630,6 @@ textarea {
     padding: 2rem;
     text-align: center;
     color: var(--text-muted);
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
   }
 }

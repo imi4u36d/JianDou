@@ -180,8 +180,8 @@ watch(
   display: grid;
   place-items: center;
   padding: 18px;
-  background: rgba(15, 20, 25, 0.42);
-  backdrop-filter: blur(14px);
+  background: rgba(10, 10, 20, 0.25);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .auth-dialog {
@@ -191,11 +191,12 @@ watch(
   display: grid;
   gap: 16px;
   padding: 20px;
-  border-radius: 22px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 22px 56px rgba(15, 20, 25, 0.14);
-  backdrop-filter: blur(20px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .auth-dialog__head {
@@ -230,8 +231,8 @@ watch(
   height: 36px;
   flex: 0 0 36px;
   border: 0;
-  border-radius: 11px;
-  background: #f1f4f6;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-body);
   line-height: 0;
   cursor: pointer;
@@ -244,9 +245,9 @@ watch(
 
 .auth-dialog__close:hover,
 .auth-dialog__close:focus-visible {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.55);
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
 }
 
 .auth-dialog__tabs {
@@ -254,25 +255,30 @@ watch(
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   padding: 6px;
-  border-radius: 14px;
-  background: #f3f6f8;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .auth-dialog__tabs button {
   min-height: 38px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-body);
   font-size: 0.88rem;
   font-weight: 800;
   cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.auth-dialog__tabs button:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .auth-dialog__tabs .auth-dialog__tab-active {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.55);
   color: var(--accent-blue);
-  box-shadow: 0 4px 14px rgba(15, 20, 25, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
 .auth-dialog__form {
@@ -303,9 +309,9 @@ watch(
   width: 100%;
   min-height: 48px;
   padding: 0 13px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 20, 25, 0.07);
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.03);
   color: var(--text-strong);
   transition:
     border-color 180ms ease,
@@ -313,11 +319,16 @@ watch(
     background 180ms ease;
 }
 
+.auth-dialog__field input::placeholder {
+  color: var(--text-muted);
+}
+
 .auth-dialog__field input:focus {
-  border-color: rgba(0, 169, 187, 0.42);
+  border-color: rgba(90, 200, 250, 0.5);
   box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 24px rgba(27, 124, 255, 0.06);
+    0 0 0 3px rgba(90, 200, 250, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .auth-dialog__password-wrap {
@@ -339,15 +350,15 @@ watch(
   min-height: 34px;
   padding: 0;
   border: 0;
-  border-radius: 11px;
-  background: rgba(239, 252, 255, 0.92);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-body);
   line-height: 0;
   cursor: pointer;
 }
 
 .auth-dialog__password-toggle:hover {
-  background: #edf5ff;
+  background: rgba(90, 200, 250, 0.12);
   color: var(--accent-blue);
 }
 
@@ -363,12 +374,12 @@ watch(
   gap: 8px;
   min-height: 48px;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--bg-accent);
   color: #fff;
   font-weight: 850;
   cursor: pointer;
-  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.18);
+  box-shadow: 0 12px 26px rgba(90, 200, 250, 0.2);
   transition:
     box-shadow 180ms ease,
     transform 180ms ease,
@@ -383,11 +394,15 @@ watch(
 .auth-dialog__submit:hover:not(:disabled),
 .auth-dialog__submit:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(27, 124, 255, 0.22);
+  box-shadow: 0 14px 30px rgba(90, 200, 250, 0.28);
+}
+
+.auth-dialog__submit:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .auth-dialog__submit:disabled {
-  opacity: 0.62;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -401,7 +416,7 @@ watch(
     width: 100%;
     max-height: min(680px, calc(100dvh - 72px));
     padding: 20px 16px 16px;
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
   }
 
   .auth-dialog::before {
@@ -411,7 +426,7 @@ watch(
     height: 4px;
     margin: -9px 0 2px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.16);
+    background: rgba(255, 255, 255, 0.2);
   }
 
   .auth-dialog__head h2 {

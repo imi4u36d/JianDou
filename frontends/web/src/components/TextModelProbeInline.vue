@@ -159,7 +159,7 @@ defineExpose<TextModelProbeInlineExpose>({
   justify-content: center;
   gap: 6px;
   min-height: 34px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.88);
   color: var(--accent-blue);

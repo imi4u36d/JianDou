@@ -1,8 +1,6 @@
 <template>
   <div class="workspace-shell">
-    <aside
-      class="workspace-sidebar"
-    >
+    <aside class="workspace-sidebar liquid-glass">
       <div class="workspace-sidebar__top">
         <div class="workspace-sidebar__topbar">
           <div class="sidebar-brand">
@@ -74,51 +72,10 @@
             </div>
           </div>
         </div>
-
-        <div class="sidebar-user-card">
-          <div class="sidebar-user-card__header">
-            <div class="sidebar-user-card__avatar">{{ avatarInitials }}</div>
-            <div>
-              <p class="sidebar-user-card__name">{{ accountTitle }}</p>
-              <p class="sidebar-user-card__meta">{{ accountMeta }}</p>
-            </div>
-          </div>
-          <div class="sidebar-user-card__actions">
-            <a
-              v-if="isAdmin"
-              class="sidebar-user-card__link"
-              :href="adminPortalUrl"
-            >
-              管理
-            </a>
-            <button
-              v-if="currentUser"
-              class="sidebar-user-card__link sidebar-user-card__link--btn"
-              type="button"
-              @click="keyDialogOpen = true"
-            >
-              Key
-            </button>
-            <button v-if="currentUser" class="sidebar-user-card__logout" type="button" @click="handleLogout">
-              退出
-            </button>
-            <RouterLink v-else class="sidebar-user-card__link" to="/login">
-              登录
-            </RouterLink>
-          </div>
-        </div>
       </section>
     </aside>
 
     <div class="workspace-main">
-    <header class="workspace-topbar">
-      <h2>{{ currentTitle }}</h2>
-      <div class="workspace-topbar__right">
-        <span v-if="currentUser" class="workspace-topbar__user">{{ currentUser.displayName || currentUser.username }}</span>
-        <span class="workspace-topbar__credits" :title="creditTitle">{{ creditValue }}</span>
-      </div>
-    </header>
-
       <main class="workspace-content">
         <RouterView />
       </main>
@@ -137,7 +94,7 @@ import { fetchCreditSummary } from "@/api/credits";
 import { getRuntimeConfig } from "@/api/runtime-config";
 import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
 import type { CreditSummary } from "@/types";
-import { IconClose, iconComponentMap } from "@/components/icons";
+import { iconComponentMap } from "@/components/icons";
 import type { IconName } from "@/components/icons";
 import KeyManagementDialog from "@/components/KeyManagementDialog.vue";
 
@@ -209,12 +166,6 @@ const creditTitle = computed(() => {
 function isActive(target: string) {
   return route.path === target || route.path.startsWith(`${target}/`);
 }
-
-const currentTitle = computed(() => {
-  const metaTitle = route.meta?.title;
-  const title = typeof metaTitle === "string" && metaTitle.trim() ? metaTitle : "煎豆工作台";
-  return title.replace(/\s*·\s*煎豆$/, "").replace(/管理$/, "");
-});
 
 function toggleUserMenu() {
   userMenuOpen.value = !userMenuOpen.value;
@@ -289,20 +240,16 @@ watch(
 <style scoped>
 .workspace-shell {
   position: relative;
+  z-index: 1;
   display: flex;
   height: 100vh;
   min-height: 100vh;
-  background: var(--bg-base);
+  background: transparent;
   color: var(--text-strong);
   overflow: hidden;
 }
 
 .workspace-sidebar {
-  --sidebar-bg: #f7fbff;
-  --sidebar-ink: #151b20;
-  --sidebar-muted: #7a8990;
-  --sidebar-cyan: var(--accent-indigo);
-  --sidebar-card: rgba(255, 255, 255, 0.72);
   position: relative;
   z-index: 30;
   height: 100%;
@@ -312,14 +259,8 @@ watch(
   flex-direction: column;
   justify-content: space-between;
   padding: 20px 6px 18px;
-  border-right: 1px solid rgba(79, 70, 229, 0.1);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(247, 251, 255, 0.92)),
-    var(--sidebar-bg);
-  box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.78),
-    8px 0 30px rgba(27, 124, 255, 0.05);
-  backdrop-filter: blur(18px);
+  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  background: transparent;
 }
 
 .workspace-sidebar__top {
@@ -332,7 +273,6 @@ watch(
   display: grid;
   place-items: center;
 }
-
 
 .sidebar-brand {
   display: flex;
@@ -348,9 +288,9 @@ watch(
 }
 
 .sidebar-brand:hover {
-  background: var(--sidebar-card);
+  background: rgba(255, 255, 255, 0.6);
   box-shadow:
-    0 16px 34px rgba(27, 124, 255, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transform: translateY(-1px);
 }
@@ -380,7 +320,7 @@ watch(
   min-height: 50px;
   padding: 4px 2px;
   border-radius: 14px;
-  color: var(--sidebar-ink);
+  color: var(--text-body);
   border: 0;
   background: transparent;
   transition:
@@ -393,12 +333,13 @@ watch(
 .sidebar-nav__item:hover {
   transform: translateY(-1px);
   color: var(--accent-blue);
-  background: rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .sidebar-nav__item-active {
   color: var(--accent-blue);
-  background: rgba(237, 245, 255, 0.9);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1);
 }
 
 .sidebar-nav__icon {
@@ -458,12 +399,11 @@ watch(
   width: 44px;
   min-height: 44px;
   padding: 4px 2px;
-  border: 0;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(239, 252, 255, 0.96), rgba(242, 251, 238, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.5);
   color: var(--text-strong);
   text-align: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .sidebar-credit-card__label {
@@ -478,7 +418,7 @@ watch(
   display: block;
   max-width: 38px;
   overflow: hidden;
-  color: var(--text-strong);
+  color: var(--accent-blue);
   font-size: 0.76rem;
   font-weight: 850;
   line-height: 1.1;
@@ -508,10 +448,10 @@ watch(
 
 .sidebar-account__trigger:hover,
 .sidebar-account__trigger[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.6);
   box-shadow:
-    0 12px 26px rgba(27, 124, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+    0 8px 24px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transform: translateY(-1px);
 }
 
@@ -520,12 +460,12 @@ watch(
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-coral) 0%, var(--accent-blue) 54%, var(--accent-indigo) 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #3b82f6 54%, #a78bfa 100%);
   color: #fff;
   font-weight: 800;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.56),
-    0 8px 18px rgba(15, 20, 25, 0.12);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
 .sidebar-account__avatar {
@@ -540,9 +480,9 @@ watch(
   bottom: 7px;
   width: 9px;
   height: 9px;
-  border: 2px solid #fff;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
-  background: #23c778;
+  background: #16a34a;
 }
 
 .sidebar-user-popover {
@@ -554,11 +494,12 @@ watch(
   gap: 14px;
   width: 252px;
   padding: 14px;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 46px rgba(21, 27, 32, 0.14);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .sidebar-user-popover__header {
@@ -611,88 +552,30 @@ watch(
   padding: 0 12px;
   border-radius: 14px;
   border: 0;
-  background: #f4f7f8;
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-strong);
   font-size: 0.8rem;
   font-weight: 800;
   cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.sidebar-user-popover__link:hover,
+.sidebar-user-popover__logout:hover {
+  background: rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .sidebar-user-popover__logout {
-  background: rgba(255, 245, 245, 0.96);
-  color: #c33f3f;
+  background: rgba(229, 72, 101, 0.08);
+  color: var(--accent-coral);
+}
+
+.sidebar-user-popover__logout:hover {
+  background: rgba(229, 72, 101, 0.14);
 }
 
 .sidebar-user-popover__link--btn {
-  cursor: pointer;
-}
-
-.sidebar-user-card {
-  display: none;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 18px;
-  border: 0;
-  background: #fff;
-  box-shadow: 0 12px 28px rgba(21, 27, 32, 0.08);
-}
-
-.sidebar-user-card__header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sidebar-user-card__avatar {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-coral), var(--accent-blue));
-  color: #fff;
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.sidebar-user-card__name {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.sidebar-user-card__meta {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-}
-
-.sidebar-user-card__actions {
-  display: flex;
-  gap: 8px;
-}
-
-.sidebar-user-card__link,
-.sidebar-user-card__logout {
-  flex: 1;
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  border: 0;
-  background: #f4f7f8;
-  color: var(--text-strong);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.sidebar-user-card__logout {
-  cursor: pointer;
-}
-
-.sidebar-user-card__link--btn {
   cursor: pointer;
 }
 
@@ -708,65 +591,11 @@ watch(
 }
 
 .workspace-content {
-  padding: 24px 28px;
+  padding: 0;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  
   overflow: auto;
 }
-
-.workspace-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  min-height: 48px;
-  padding: 0 28px;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.04);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(12px);
-}
-
-.workspace-topbar h2 {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.workspace-topbar__right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.workspace-topbar__user {
-  color: var(--text-strong);
-  font-weight: 700;
-}
-
-.workspace-topbar__credits {
-  min-width: 56px;
-  padding: 2px 12px;
-  border-radius: 999px;
-  background: rgba(239, 252, 255, 0.7);
-  color: var(--accent-indigo);
-  font-weight: 800;
-  text-align: center;
-}
-
-
-
-
-.shell-menu-btn {
-  flex-direction: column;
-  gap: 4px;
-}
-
-
-
 
 </style>

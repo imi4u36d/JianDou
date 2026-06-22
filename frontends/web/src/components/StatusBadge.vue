@@ -48,13 +48,13 @@ const statusClass = computed(() => {
   gap: 6px;
   min-height: 26px;
   padding: 0 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0;
-  background: #f5f8fa;
+  background: rgba(0, 0, 0, 0.04);
   color: var(--badge-color);
-  border: 1px solid rgba(15, 20, 25, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: none;
   white-space: nowrap;
 }
@@ -67,19 +67,19 @@ const statusClass = computed(() => {
 }
 
 .status-completed {
-  --badge-color: #1b9f63;
+  --badge-color: var(--accent-lime);
 }
 
 .status-failed {
-  --badge-color: #d73555;
+  --badge-color: var(--accent-danger);
 }
 
 .status-running {
-  --badge-color: var(--accent-cyan);
+  --badge-color: var(--accent-blue);
 }
 
 .status-paused {
-  --badge-color: #b7791f;
+  --badge-color: var(--accent-warning);
 }
 
 .status-idle {

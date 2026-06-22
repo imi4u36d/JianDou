@@ -51,8 +51,8 @@ const emit = defineEmits<{
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 20, 25, 0.34);
-  backdrop-filter: blur(10px);
+  background: rgba(10, 10, 20, 0.25);
+  backdrop-filter: blur(40px) saturate(2.0);
 }
 
 .app-confirm__panel {
@@ -62,12 +62,12 @@ const emit = defineEmits<{
   gap: 14px;
   width: min(420px, 100%);
   padding: 16px;
-  border: 1px solid rgba(15, 20, 25, 0.08);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 22px 56px rgba(15, 20, 25, 0.16),
-    0 2px 8px rgba(18, 28, 33, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .app-confirm__icon {
@@ -79,12 +79,12 @@ const emit = defineEmits<{
 }
 
 .app-confirm__icon-danger {
-  background: #fff4f6;
+  background: rgba(251, 113, 133, 0.15);
   color: var(--accent-danger);
 }
 
 .app-confirm__icon-primary {
-  background: #effcff;
+  background: rgba(90, 200, 250, 0.12);
   color: var(--accent-blue);
 }
 
@@ -126,15 +126,25 @@ const emit = defineEmits<{
   min-height: 38px;
   padding: 0 15px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   font-size: 0.84rem;
   font-weight: 820;
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.app-confirm__cancel:active,
+.app-confirm__confirm:active {
+  transform: scale(0.97);
 }
 
 .app-confirm__cancel {
-  background: #f3f6f8;
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-body);
+}
+
+.app-confirm__cancel:hover {
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .app-confirm__confirm {
@@ -142,11 +152,13 @@ const emit = defineEmits<{
 }
 
 .app-confirm__confirm-danger {
-  background: linear-gradient(135deg, #ff6b5f, #e54865);
+  background: linear-gradient(135deg, #fb7185, #e54865);
+  box-shadow: 0 8px 20px rgba(251, 113, 133, 0.25);
 }
 
 .app-confirm__confirm-primary {
   background: var(--bg-accent);
+  box-shadow: 0 8px 20px rgba(90, 200, 250, 0.2);
 }
 
 .app-confirm-fade-enter-active,
@@ -177,7 +189,7 @@ const emit = defineEmits<{
 
   .app-confirm__panel {
     width: 100%;
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
     padding: 26px 16px 14px;
   }
 
@@ -189,7 +201,7 @@ const emit = defineEmits<{
     width: 38px;
     height: 4px;
     border-radius: 999px;
-    background: rgba(15, 20, 25, 0.16);
+    background: rgba(255, 255, 255, 0.2);
     transform: translateX(-50%);
   }
 
