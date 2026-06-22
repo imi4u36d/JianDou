@@ -91,20 +91,24 @@ docker run -d -p 8100:8000 \
 
 ### 方法2：ローカル開発
 
-ワンクリックセットアップスクリプトを実行：
+ワンクリック起動：
 
 ```bash
-./scripts/dev.sh
+./scripts/start.sh
 ```
 
-このスクリプトは自動的に以下を実行します：
-1. 前提条件のチェック（Node.js、uv）
-2. `.env` と `providers.secrets.yml` をテンプレートから作成（存在しない場合）
-3. すべての依存関係をインストール
-4. データベースマイグレーションを実行
-5. サーバーを起動
+依存関係のインストール、フロントエンドビルド、データベース初期化、サーバー起動を自動で行います。起動後のアクセス先：
 
-起動後のアクセス先：
+前後端分離開発（推奨）の場合、2つのターミナルでそれぞれ実行：
+
+```bash
+# ターミナル 1：バックエンド（ホットリロード）
+./scripts/dev-backend.sh
+
+# ターミナル 2：フロントエンド（Vite HMR、http://localhost:5173）
+./scripts/dev-frontend.sh
+```
+
 - **ユーザーフロントエンド**：http://127.0.0.1:8100
 - **管理ポータル**：http://127.0.0.1:8100/admin
 
@@ -162,11 +166,8 @@ config/model/
 フロントエンドは **Vue 3 + TypeScript + Element Plus + Tailwind CSS** で構築され、Vite を開発サーバーとして使用し、API プロキシを自動で行います。
 
 ```bash
-# フロントエンド環境変数テンプレートのコピー
-cp frontends/web/.env.example frontends/web/.env
-
-# 開発サーバー（デフォルト http://localhost:5173）
-npm run web:dev
+npm run dev:backend   # バックエンドホットリロード（ポート 8100）
+npm run dev:frontend  # フロントエンド Vite HMR（ポート 5173）
 
 # 型チェック
 npm run web:typecheck
@@ -189,13 +190,13 @@ npx vitest run --coverage
 バックエンドは **FastAPI + SQLAlchemy + Alembic** で構築され、aiosqlite 経由で SQLite を使用します。
 
 ```bash
-# リント（ruff、ゼロエラーが期待）
+# リント（ruff）
 uv run ruff check backend/
 
-# 全テスト実行（314テスト、ゼロ失敗が期待）
+# 全テスト実行
 uv run pytest
 
-# カテゴリ別テスト実行
+# カテゴリ別
 uv run pytest -m unit      # 高速ユニットテスト（64）
 uv run pytest -m api       # API エンドポイントテスト（90）
 uv run pytest -m domain    # ドメイン層テスト（33）
@@ -204,11 +205,6 @@ uv run pytest -m "not slow" # 遅いテストをスキップ
 # OpenAPI スキーマのエクスポート
 uv run jiandou openapi --output docs/openapi.json
 
-# API のみ開発サーバー
-npm run api:dev
-```
-
-モジュール構成は [docs/backend-architecture.md](docs/backend-architecture.md)、データベース設計は [docs/database-design.md](docs/database-design.md) を参照してください。
 
 ### 検証
 

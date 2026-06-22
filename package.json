@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "npm run web:dev",
+    "dev:backend": "bash scripts/dev-backend.sh",
+    "dev:frontend": "bash scripts/dev-frontend.sh",
     "web:dev": "npm --workspace @jiandou/web run dev",
     "web:build": "npm --workspace @jiandou/web run build && rm -rf static/web && mkdir -p static/web && cp -r frontends/web/dist/* static/web/",
     "web:test": "npm --workspace @jiandou/web run test",
@@ -16,7 +18,7 @@
     "web:format": "npm --workspace @jiandou/web run format",
     "packages:build": "npm --workspaces --if-present run build --workspace @jiandou/api --workspace @jiandou/domain --workspace @jiandou/ui",
     "packages:typecheck": "npm --workspaces --if-present run typecheck --workspace @jiandou/api --workspace @jiandou/domain --workspace @jiandou/ui",
-    "api:dev": "uv run backend/__main__.py serve",
+    "api:dev": "uv run jiandou serve --reload",
     "api:lint": "uv run ruff check backend tests migrations",
     "api:migrate": "uv run jiandou db migrate",
     "api:openapi": "uv run jiandou openapi --output docs/openapi.json",
@@ -25,7 +27,7 @@
     "lint": "npm run web:lint",
     "format": "npm run web:format",
     "test": "npm run api:lint && uv run pytest tests/ -v && npm run web:typecheck",
-    "serve": "npm run packages:build && npm run web:build && uv run backend/__main__.py serve"
+    "serve": "bash scripts/start.sh"
   },
   "devDependencies": {
     "openapi-fetch": "0.17.0",

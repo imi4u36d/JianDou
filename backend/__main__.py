@@ -1,5 +1,5 @@
 """
-jiandou CLI - entry point for `python -m app` or `jiandou` command.
+jiandou CLI - entry point for `python -m backend` or `jiandou` command.
 """
 from __future__ import annotations
 
@@ -25,57 +25,10 @@ def cli():
 @click.option("--host", default="0.0.0.0", help="Host to bind to")
 @click.option("--port", default=8100, type=int, help="Port to listen on")
 @click.option("--reload", is_flag=True, help="Enable hot reload")
-@click.option("--skip-build", is_flag=True, help="Skip frontend build")
-def serve(host, port, reload, skip_build):
-    """Start the FastAPI server (auto-builds frontend)."""
-    if not skip_build:
-        _build_frontend()
+def serve(host, port, reload):
+    """Start the FastAPI server."""
     import uvicorn
     uvicorn.run("backend.main:app", host=host, port=port, reload=reload)
-
-
-def _build_frontend() -> None:
-    """Build the frontend SPA via Vite."""
-    frontend_dir = Path(__file__).resolve().parent.parent / "frontends" / "web"
-    if not frontend_dir.is_dir():
-        console.print("[yellow]Frontend directory not found, skipping build[/yellow]")
-        return
-    npm = "npm.cmd" if sys.platform == "win32" else "npm"
-    console.print("[blue]Building frontend...[/blue]")
-    import subprocess
-    result = subprocess.run(
-        [npm, "run", "build"],
-        cwd=str(frontend_dir),
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        console.print("[red]Frontend build failed:[/red]")
-        console.print(result.stderr)
-        console.print("[yellow]Continuing with existing static files (if any)[/yellow]")
-        return
-
-    # Copy built files to static/web/
-    dist_dir = frontend_dir / "dist"
-    static_dir = Path(__file__).resolve().parent.parent / "static" / "web"
-    static_dir.mkdir(parents=True, exist_ok=True)
-
-    import shutil
-    # Remove old static files
-    for item in static_dir.iterdir():
-        if item.is_dir():
-            shutil.rmtree(item)
-        else:
-            item.unlink()
-
-    # Copy new build
-    for item in dist_dir.iterdir():
-        if item.is_dir():
-            shutil.copytree(item, static_dir / item.name, dirs_exist_ok=True)
-        else:
-            shutil.copy2(item, static_dir / item.name)
-
-    console.print("[green]Frontend built successfully[/green]")
 
 
 @cli.command()
@@ -106,13 +59,6 @@ def openapi(output: Path):
         encoding="utf-8",
     )
     console.print(f"[green]OpenAPI schema written to {output}[/green]")
-
-
-async def _init_db():
-    import backend.models  # noqa: F401
-    from backend.database import Base, engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 
 @cli.command()
@@ -204,10 +150,59 @@ def history():
 
 
 def _run_migrations() -> None:
+    """Run Alembic migrations.
+
+    Handles the case where tables already exist (e.g. created by
+    ``Base.metadata.create_all``) but the ``alembic_version`` table
+    has not been stamped yet.  In that situation we stamp to the
+    current head first, then run a normal upgrade so any future
+    incremental migrations will still apply.
+    """
+    import sqlite3
+
     from alembic import command
     from alembic.config import Config
+    from alembic.script import ScriptDirectory
 
-    command.upgrade(Config("alembic.ini"), "head")
+    cfg = Config("alembic.ini")
+    script_dir = ScriptDirectory.from_config(cfg)
+    head = script_dir.get_current_head()
+    if not head:
+        console.print("[yellow]No migration revisions found, nothing to do.[/yellow]")
+        return
+
+    # Determine the database path for SQLite stamp detection.
+    from backend.config import settings
+    db_url = settings.database_url
+    db_path: str | None = None
+    if db_url.startswith("sqlite+aiosqlite:///"):
+        db_path = db_url.split("///", 1)[1]
+    elif db_url.startswith("sqlite:///"):
+        db_path = db_url.split("///", 1)[1]
+
+    need_stamp = False
+    if db_path and Path(db_path).exists():
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='alembic_version'"
+            )
+            has_version_table = cursor.fetchone() is not None
+            conn.close()
+            if not has_version_table:
+                need_stamp = True
+        except Exception:
+            need_stamp = True
+
+    if need_stamp:
+        console.print(
+            "[yellow]Tables exist but alembic_version is missing; "
+            "stamping to current head...[/yellow]"
+        )
+        command.stamp(cfg, "head")
+
+    command.upgrade(cfg, "head")
 
 
 if __name__ == "__main__":

@@ -91,24 +91,28 @@ The image exposes port `8000` inside the container and runs database migrations 
 
 ### Option 2: Local Development
 
-Run the one-click setup script:
+**Development mode** (two terminals):
 
 ```bash
-./scripts/dev.sh
+# Terminal 1 — backend with hot-reload on :8100
+bash scripts/dev-backend.sh
+
+# Terminal 2 — frontend Vite HMR on :5173
+bash scripts/dev-frontend.sh
 ```
 
-This script automatically:
-1. Checks prerequisites (Node.js, uv)
-2. Creates `.env` and `providers.secrets.yml` from templates (if missing)
-3. Installs all dependencies
-4. Runs database migrations
-5. Starts the server
+**One-command production start** (builds frontend, migrates DB, seeds data, serves on :8100):
+
+```bash
+bash scripts/start.sh
+```
+
+Both scripts auto-create `.env` and `providers.secrets.yml` from templates if missing.
+Edit `config/model/providers.secrets.yml` to add your API keys before using model features.
 
 After startup:
 - **User Frontend**: http://127.0.0.1:8100
 - **Admin Portal**: http://127.0.0.1:8100/admin
-
-Edit `config/model/providers.secrets.yml` to add your API keys before using model features.
 
 ### Health Checks
 
@@ -162,11 +166,8 @@ Authentication endpoints have built-in rate limiting. Tune via `JIANDOU_AUTH_LOG
 The frontend is built with **Vue 3 + TypeScript + Element Plus + Tailwind CSS**, using Vite as the dev server with automatic API proxying.
 
 ```bash
-# Copy frontend env template
-cp frontends/web/.env.example frontends/web/.env
-
-# Dev server (default http://localhost:5173)
-npm run web:dev
+# Dev server with HMR (default http://localhost:5173)
+bash scripts/dev-frontend.sh
 
 # Type checking
 npm run web:typecheck
@@ -189,10 +190,13 @@ See [docs/frontend-architecture.md](docs/frontend-architecture.md) for the monor
 The backend is built with **FastAPI + SQLAlchemy + Alembic**, using SQLite via aiosqlite.
 
 ```bash
+# Backend dev server with hot-reload
+bash scripts/dev-backend.sh
+
 # Lint (ruff, zero errors expected)
 uv run ruff check backend/
 
-# Run all tests (314 tests, zero failures expected)
+# Run all tests
 uv run pytest
 
 # Run by test category
@@ -203,9 +207,6 @@ uv run pytest -m "not slow" # Skip slow tests
 
 # Export OpenAPI schema
 uv run jiandou openapi --output docs/openapi.json
-
-# API-only dev server
-npm run api:dev
 ```
 
 See [docs/backend-architecture.md](docs/backend-architecture.md) for module ownership and [docs/database-design.md](docs/database-design.md) for schema constraints.

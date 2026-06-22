@@ -91,20 +91,24 @@ docker run -d -p 8100:8000 \
 
 ### 方式二：本地开发
 
-运行一键启动脚本：
+运行一键启动：
 
 ```bash
-./scripts/dev.sh
+./scripts/start.sh
 ```
 
-该脚本会自动：
-1. 检查环境依赖（Node.js、uv）
-2. 从模板创建 `.env` 和 `providers.secrets.yml`（如不存在）
-3. 安装所有依赖
-4. 执行数据库迁移
-5. 启动服务
+该脚本会自动安装依赖、构建前端、初始化数据库并启动服务。启动后访问：
 
-启动后访问：
+如需前后端分离开发（推荐），分别在两个终端运行：
+
+```bash
+# 终端 1：后端（热重载）
+./scripts/dev-backend.sh
+
+# 终端 2：前端（Vite HMR，http://localhost:5173）
+./scripts/dev-frontend.sh
+```
+
 - **用户前台**：http://127.0.0.1:8100
 - **管理后台**：http://127.0.0.1:8100/admin
 
@@ -162,11 +166,9 @@ config/model/
 前端使用 **Vue 3 + TypeScript + Element Plus + Tailwind CSS**，Vite 作为开发服务器并自动代理 API 请求。
 
 ```bash
-# 拷贝前端环境变量模板
-cp frontends/web/.env.example frontends/web/.env
-
-# 开发服务器（默认 http://localhost:5173）
-npm run web:dev
+# 一键启动前后端开发服务器
+npm run dev:backend   # 后端热重载（端口 8100）
+npm run dev:frontend  # 前端 Vite HMR（端口 5173）
 
 # 类型检查
 npm run web:typecheck
@@ -189,13 +191,13 @@ npx vitest run --coverage
 后端使用 **FastAPI + SQLAlchemy + Alembic**，SQLite 通过 aiosqlite 驱动。
 
 ```bash
-# 代码检查（ruff，要求零错误）
+# 代码检查（ruff）
 uv run ruff check backend/
 
-# 运行全部测试（314 个测试，要求零失败）
+# 运行全部测试
 uv run pytest
 
-# 按分类运行测试
+# 按分类运行
 uv run pytest -m unit      # 快速单元测试（64 个）
 uv run pytest -m api       # API 端点测试（90 个）
 uv run pytest -m domain    # 领域层测试（33 个）
@@ -204,11 +206,6 @@ uv run pytest -m "not slow" # 跳过慢速测试
 # 导出 OpenAPI 模式
 uv run jiandou openapi --output docs/openapi.json
 
-# 仅启动 API 开发服务器
-npm run api:dev
-```
-
-模块职责见 [docs/backend-architecture.md](docs/backend-architecture.md)，数据库设计见 [docs/database-design.md](docs/database-design.md)。
 
 ### 验证
 
