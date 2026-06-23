@@ -7,14 +7,36 @@ import { ref, computed, onUnmounted } from 'vue'
 import { startAutoPilot, pauseAutoPilot, resumeAutoPilot, terminateAutoPilot } from '@/api/workflows'
 import { messageApi } from '@/composables/useMessage'
 
+interface StatusLogEntry {
+  id: number
+  stage: string
+  message: string
+  timestamp: string
+}
+
+let logCounter = 0
+
 export function useAutoPilot(getWorkflowId: () => string) {
   // State
   const autoPilotState = ref<string>('idle')
   const nextStage = ref<string>('')
   const errorMessage = ref<string>('')
   const busy = ref(false)
-
+  const statusLog = ref<StatusLogEntry[]>([])
   let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * 向状态日志追加一条新条目，替换旧条目以保持最多 20 条。
+   */
+  function pushStatusLog(stage: string, message: string) {
+    const entry: StatusLogEntry = {
+      id: ++logCounter,
+      stage,
+      message,
+      timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    }
+    statusLog.value = [...statusLog.value.slice(-19), entry]
+  }
 
   function getCurrentWorkflowId(): string {
     return getWorkflowId()
@@ -105,6 +127,7 @@ export function useAutoPilot(getWorkflowId: () => string) {
     nextStage,
     errorMessage,
     busy,
+    statusLog,
     isRunning,
     isPaused,
     isFailed,
@@ -114,5 +137,6 @@ export function useAutoPilot(getWorkflowId: () => string) {
     terminateAutoPilot: terminateAutoPilotAction,
     startPolling,
     stopPolling,
+    pushStatusLog,
   }
 }

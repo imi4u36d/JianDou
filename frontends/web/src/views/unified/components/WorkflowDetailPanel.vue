@@ -52,8 +52,18 @@
         <div v-if="autoPilot.isRunning.value" class="autopilot-bar autopilot-bar-running surface-panel">
           <div class="autopilot-bar__status">
             <span class="autopilot-bar__dot autopilot-bar__dot-running"></span>
-            <strong>自动执行中...</strong>
-            <span v-if="autoPilot.nextStage.value" class="autopilot-bar__next-stage">下一步: {{ autoPilot.nextStage.value }}</span>
+            <strong>自动执行中</strong>
+          </div>
+          <div class="autopilot-bar__log">
+            <div
+              v-for="(entry) in recentLog"
+              :key="entry.id"
+              class="autopilot-log-entry"
+            >
+              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
+              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span class="autopilot-log-entry__message">{{ entry.message }}</span>
+            </div>
           </div>
           <div class="autopilot-bar__actions">
             <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.pauseAutoPilot()">
@@ -70,6 +80,13 @@
           <div class="autopilot-bar__status">
             <span class="autopilot-bar__dot autopilot-bar__dot-paused"></span>
             <strong>已暂停</strong>
+          </div>
+          <div class="autopilot-bar__log">
+            <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
+              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
+              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span class="autopilot-log-entry__message">{{ entry.message }}</span>
+            </div>
           </div>
           <div class="autopilot-bar__actions">
             <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.resumeAutoPilot()">
@@ -88,6 +105,13 @@
             <strong>自动执行失败</strong>
             <span v-if="autoPilot.errorMessage.value" class="autopilot-bar__error">{{ autoPilot.errorMessage.value }}</span>
           </div>
+          <div class="autopilot-bar__log">
+            <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
+              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
+              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span class="autopilot-log-entry__message">{{ entry.message }}</span>
+            </div>
+          </div>
           <div class="autopilot-bar__actions">
             <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.resumeAutoPilot()">
               <span>🔄 重试</span>
@@ -103,6 +127,13 @@
           <div class="autopilot-bar__status">
             <strong>自动执行就绪</strong>
             <span class="autopilot-bar__hint">点击启动后，工作流将自动依次执行各阶段。</span>
+          </div>
+          <div class="autopilot-bar__log">
+            <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
+              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
+              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span class="autopilot-log-entry__message">{{ entry.message }}</span>
+            </div>
           </div>
           <div class="autopilot-bar__actions">
             <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.startAutoPilot()">
@@ -437,7 +468,7 @@ import {
 } from "@/components/icons";
 import { useWorkflowDetail } from "../composables/useWorkflowDetail";
 import { useAutoPilot } from "@/composables/workflow/useAutoPilot";
-import { watch, computed } from "vue";
+import { watch, computed, ref } from "vue";
 
 const props = defineProps<{
   selectedWorkflowId: string;
@@ -456,20 +487,63 @@ const autoPilot = useAutoPilot(() => props.selectedWorkflowId);
 // Extract execution mode from the workflow summary
 const executionMode = computed(() => detail.selectedWorkflow.value?.executionMode ?? detail.selectedWorkflow.value?.durationMode ?? "manual");
 
-// Sync autoPilotState from workflow detail.
-// The auto-pilot state is stored in its own field on the workflow,
-// so we read it directly instead of mapping from workflow status.
+// Show only the last 2 log entries
+const recentLog = computed(() => autoPilot.statusLog.value.slice(-2));
+
+// Sync autoPilotState from workflow detail and push status log entries.
+// Uses a ref to track whether the first data load has completed.
+const _autoPilotInitialized = ref(false);
+
 watch(
   () => detail.selectedWorkflow.value?.autoPilotState,
-  (state) => {
-    if (state) {
-      autoPilot.autoPilotState.value = state;
+  (state, prevState) => {
+    // On first data load, initialize from backend state.
+    if (!_autoPilotInitialized.value) {
+      _autoPilotInitialized.value = true;
+      autoPilot.autoPilotState.value = state || 'idle';
+      autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
+      autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
+      if (state) {
+        const stage = autoPilot.nextStage.value;
+        const messages: Record<string, string> = {
+          running: `开始自动执行${stage ? ` — ${stage}` : ''}`,
+          paused: `已暂停`,
+          failed: `执行失败${autoPilot.errorMessage.value ? `：${autoPilot.errorMessage.value}` : ''}`,
+          idle: `自动执行已停止`,
+        };
+        autoPilot.pushStatusLog(state, messages[state] ?? state);
+      }
+      return;
     }
-    // Update next stage and error message from workflow detail
-    autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
-    autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
-  },
-  { immediate: true }
+
+    // Subsequent changes: only update when backend explicitly changes state.
+    if (state !== prevState) {
+      autoPilot.autoPilotState.value = state || 'idle';
+      autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
+      autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
+
+      const stage = autoPilot.nextStage.value;
+      const messages: Record<string, string> = {
+        running: `开始自动执行${stage ? ` — ${stage}` : ''}`,
+        paused: `已暂停`,
+        failed: `执行失败${autoPilot.errorMessage.value ? `：${autoPilot.errorMessage.value}` : ''}`,
+        idle: `自动执行已停止`,
+      };
+      if (state) {
+        autoPilot.pushStatusLog(state, messages[state] ?? state);
+      }
+    }
+  }
+);
+
+// Push log entry when next stage changes during polling (skip first load, handled by state watch).
+watch(
+  () => autoPilot.nextStage.value,
+  (stage, prevStage) => {
+    if (prevStage !== undefined && stage !== prevStage && autoPilot.isRunning.value && stage) {
+      autoPilot.pushStatusLog(stage, `执行中`);
+    }
+  }
 );
 
 // Start/stop polling based on auto mode
@@ -697,6 +771,62 @@ const {
 .autopilot-bar-idle {
   border-color: rgba(99, 102, 241, 0.2);
   background: rgba(99, 102, 241, 0.03);
+}
+
+/* ── Status Log ── */
+
+.autopilot-bar__log {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.025);
+  font-size: 0.74rem;
+}
+
+.autopilot-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-body);
+}
+
+.autopilot-log-entry__time {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+}
+
+.autopilot-log-entry__stage {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent-indigo);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.autopilot-log-entry__message {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes autopilot-log-slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .workflow-canvas-header {

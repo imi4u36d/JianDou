@@ -1,16 +1,16 @@
 <template>
   <section class="unified-tasks-view" :class="{ 'unified-tasks-view-detail-active': selectedId }">
     <UnifiedListPanel
-      v-model:search-text="list.searchText.value"
-      v-model:status-filter="list.statusFilter.value"
-      v-model:sort-mode="list.sortMode.value"
-      :filtered-items="list.filteredItems.value"
-      :loading="list.loading.value"
-      :selected-id="selection.selectedId.value"
-      @select="handleSelect"
-    />
+        v-model:search-text="list.searchText.value"
+        v-model:status-filter="list.statusFilter.value"
+        v-model:sort-mode="list.sortMode.value"
+        :filtered-items="list.filteredItems.value"
+        :loading="list.loading.value"
+        :selected-id="selection.selectedId.value"
+        @select="handleSelect"
+      />
 
-    <section class="unified-detail-area">
+      <section class="unified-detail-area">
       <div v-if="!selectedId" class="unified-detail-empty">
         <div class="unified-detail-empty__content">
           <h3>选择项目查看详情</h3>

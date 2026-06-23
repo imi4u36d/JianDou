@@ -76,7 +76,7 @@
     </aside>
 
     <div class="workspace-main">
-      <main class="workspace-content">
+      <main class="workspace-content glass">
         <RouterView />
       </main>
     </div>
