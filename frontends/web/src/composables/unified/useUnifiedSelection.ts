@@ -4,7 +4,7 @@
  */
 import { ref, watch, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { UnifiedItemKind, UnifiedListItem } from "@/types/unified-task";
+import type { UnifiedListItem } from "@/types/unified-task";
 
 const QUERY_SYNC_DELAY_MS = 160;
 
@@ -13,7 +13,6 @@ export function useUnifiedSelection() {
   const router = useRouter();
 
   const selectedId = ref("");
-  const selectedKind = ref<UnifiedItemKind | "">("");
 
   let querySyncTimer: number | null = null;
 
@@ -22,24 +21,12 @@ export function useUnifiedSelection() {
    */
   function applyRouteQuery() {
     const rawSelected = route.query.selected;
-    const rawKind = route.query.kind;
 
     const nextId = Array.isArray(rawSelected)
       ? rawSelected[0] ?? ""
       : rawSelected ?? "";
 
-    const nextKind = Array.isArray(rawKind)
-      ? rawKind[0] ?? ""
-      : rawKind ?? "";
-
     selectedId.value = String(nextId).trim();
-
-    if (nextKind === "task" || nextKind === "workflow") {
-      selectedKind.value = nextKind;
-    } else {
-      // kind 缺失时留空，由 useUnifiedList.findItem 自动查找
-      selectedKind.value = "";
-    }
   }
 
   /**
@@ -55,9 +42,6 @@ export function useUnifiedSelection() {
       if (selectedId.value) {
         query.selected = selectedId.value;
       }
-      if (selectedKind.value) {
-        query.kind = selectedKind.value;
-      }
       router.replace({ query }).catch(() => {});
     }, QUERY_SYNC_DELAY_MS);
   }
@@ -67,16 +51,14 @@ export function useUnifiedSelection() {
    */
   function selectItem(item: UnifiedListItem) {
     selectedId.value = item.id;
-    selectedKind.value = item.kind;
     syncToRoute();
   }
 
   /**
-   * 通过 ID 和 kind 选中（用于路由恢复）。
+   * 通过 ID 选中（用于路由恢复）。
    */
-  function selectById(id: string, kind?: UnifiedItemKind | "") {
+  function selectById(id: string) {
     selectedId.value = id;
-    selectedKind.value = kind ?? "";
   }
 
   /**
@@ -84,25 +66,20 @@ export function useUnifiedSelection() {
    */
   function clearSelection() {
     selectedId.value = "";
-    selectedKind.value = "";
     syncToRoute();
   }
 
   /**
-   * 根据已加载的列表项解析 kind（当 kind 为空时使用）。
+   * 根据已加载的列表项解析选中状态（当 ID 存在时确认项存在）。
    */
-  function resolveKind(findItem: (id: string, kind?: UnifiedItemKind) => UnifiedListItem | undefined) {
+  function resolveKind(findItem: (id: string) => UnifiedListItem | undefined) {
     if (!selectedId.value) return;
-    if (selectedKind.value) return; // 已经有 kind，无需解析
-    const found = findItem(selectedId.value);
-    if (found) {
-      selectedKind.value = found.kind;
-    }
+    findItem(selectedId.value);
   }
 
   // 路由变化时重新应用 query
   watch(
-    () => [route.query.selected, route.query.kind],
+    () => route.query.selected,
     () => applyRouteQuery(),
     { immediate: true }
   );
@@ -116,7 +93,6 @@ export function useUnifiedSelection() {
 
   return {
     selectedId,
-    selectedKind,
     selectItem,
     selectById,
     clearSelection,

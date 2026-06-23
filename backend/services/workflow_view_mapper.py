@@ -110,6 +110,8 @@ class WorkflowViewMapper:
             "characterSheetVersionCount": character_sheet_count,
             "characterSheetCount": character_sheet_count,
             "selectedCharacterSheetCount": selected_character_sheet_count,
+            "executionMode": wf.execution_mode,
+            "autoPilotState": wf.auto_pilot_state,
         }
 
     def to_workflow_detail(
@@ -220,6 +222,12 @@ class WorkflowViewMapper:
             "ratedAt": wf.rated_at,
             "createdAt": wf.create_time,
             "updatedAt": wf.update_time,
+            "executionMode": wf.execution_mode,
+            "autoPilotState": wf.auto_pilot_state,
+            "autoPilotNextStage": wf.auto_pilot_next_stage,
+            "autoPilotErrorMessage": wf.auto_pilot_error_message,
+            "autoPilotStartedAt": wf.auto_pilot_started_at,
+            "autoPilotPausedAt": wf.auto_pilot_paused_at,
             "storyboardVersions": [
                 self.to_stage_version_row(v, asset_map.get(v.material_asset_id))
                 for v in storyboard_versions

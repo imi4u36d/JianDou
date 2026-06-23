@@ -8,17 +8,23 @@ from backend.database import Base
 class BizStageWorkflow(Base):
     __tablename__ = "biz_stage_workflows"
     __table_args__ = (
-        CheckConstraint("status in ('DRAFT', 'READY', 'COMPLETED', 'FAILED')", name="ck_biz_stage_workflows_status"),
+        CheckConstraint("status in ('DRAFT', 'READY', 'RUNNING', 'PAUSED', 'COMPLETED', 'FAILED')", name="ck_biz_stage_workflows_status"),
         CheckConstraint(
             "current_stage in ('storyboard', 'keyframe', 'video', 'joined')",
             name="ck_biz_stage_workflows_current_stage",
         ),
         CheckConstraint("duration_mode in ('auto', 'manual')", name="ck_biz_stage_workflows_duration_mode"),
+        CheckConstraint("execution_mode in ('auto', 'manual')", name="ck_biz_stage_workflows_execution_mode"),
+        CheckConstraint(
+            "auto_pilot_state in ('idle', 'running', 'paused', 'failed', 'completed')",
+            name="ck_biz_stage_workflows_auto_pilot_state",
+        ),
         CheckConstraint("min_duration_seconds >= 1", name="ck_biz_stage_workflows_min_duration"),
         CheckConstraint("max_duration_seconds >= min_duration_seconds", name="ck_biz_stage_workflows_duration_range"),
         CheckConstraint("(effect_rating is null or effect_rating between 1 and 5)", name="ck_biz_stage_workflows_rating"),
         CheckConstraint("is_deleted in (0, 1)", name="ck_biz_stage_workflows_is_deleted"),
         Index("ix_biz_stage_workflows_owner_status", "owner_user_id", "status", "is_deleted"),
+        Index("ix_biz_stage_workflows_auto_pilot", "auto_pilot_state", "is_deleted"),
         {"comment": "Editable staged generation workflow owned by a user."},
     )
 
@@ -40,6 +46,12 @@ class BizStageWorkflow(Base):
     min_duration_seconds = Column(Integer, nullable=False, comment="Minimum per-clip duration in seconds.")
     max_duration_seconds = Column(Integer, nullable=False, comment="Maximum per-clip duration in seconds.")
     duration_mode = Column(String(32), nullable=False, comment="Duration mode: auto or manual.")
+    execution_mode = Column(String(32), nullable=False, comment="Execution mode: auto or manual.", default="manual")
+    auto_pilot_state = Column(String(32), nullable=False, comment="AutoPilotState enum value.", default="idle")
+    auto_pilot_next_stage = Column(String(64), nullable=False, comment="Next stage the auto-pilot should execute.", default="")
+    auto_pilot_error_message = Column(Text, nullable=False, comment="Error message when auto-pilot entered failed state.", default="")
+    auto_pilot_started_at = Column(String(32), nullable=False, comment="ISO timestamp when auto-pilot started execution.", default="")
+    auto_pilot_paused_at = Column(String(32), nullable=False, comment="ISO timestamp when auto-pilot was paused.", default="")
     status = Column(String(32), nullable=False, comment="WorkflowStatus enum value.")
     current_stage = Column(String(64), nullable=False, comment="WorkflowStage enum value representing the active stage.")
     selected_storyboard_version_id = Column(String(64), nullable=False, comment="Selected storyboard stage_version_id.")

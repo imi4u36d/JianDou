@@ -131,8 +131,20 @@ class QueueEventType(StrEnum):
 
 
 class ExecutionMode(StrEnum):
-    QUEUE = "queue"
-    DIRECT = "direct"
+    AUTO = "auto"
+    MANUAL = "manual"
+
+
+class AutoPilotState(StrEnum):
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    FAILED = "failed"
+    COMPLETED = "completed"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.IDLE
 
 
 class UserRole(StrEnum):
@@ -155,6 +167,8 @@ class InviteStatus(StrEnum):
 class WorkflowStatus(StrEnum):
     DRAFT = "DRAFT"
     READY = "READY"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 

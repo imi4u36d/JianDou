@@ -2,7 +2,7 @@
   <aside class="unified-list-panel">
     <label class="unified-search-field" aria-label="搜索">
       <IconSearch class="unified-search-field__icon" size="sm" aria-hidden="true" />
-      <input v-model="searchText" type="search" placeholder="搜索任务" />
+      <input v-model="searchText" type="search" placeholder="搜索工作流" />
       <button
         v-if="searchText"
         class="unified-search-field__clear"
@@ -27,19 +27,6 @@
       </button>
     </div>
 
-    <div class="unified-filter-strip" aria-label="类型筛选">
-      <button
-        v-for="item in kindFilterOptions"
-        :key="item.value"
-        type="button"
-        class="unified-filter-chip"
-        :class="{ 'unified-filter-chip-active': kindFilter === item.value }"
-        @click="kindFilter = item.value"
-      >
-        {{ item.label }}
-      </button>
-    </div>
-
     <label class="unified-sort-field" aria-label="排序">
       <AppSelect v-model="sortMode" :options="sortModeOptions" variant="toolbar" compact />
     </label>
@@ -55,9 +42,9 @@
     <div v-else class="unified-list">
       <UnifiedListItem
         v-for="item in filteredItems"
-        :key="`${item.kind}-${item.id}`"
+        :key="item.id"
         :item="item"
-        :active="item.id === selectedId && item.kind === selectedKind"
+        :active="item.id === selectedId"
         @select="$emit('select', $event)"
       />
     </div>
@@ -74,17 +61,15 @@ import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import UnifiedListItem from "./UnifiedListItem.vue";
 import type { UnifiedListItem as UnifiedListItemType } from "@/types/unified-task";
-import type { UnifiedKindFilter, UnifiedSortMode, UnifiedStatusFilter } from "@/types/unified-task";
+import type { UnifiedSortMode, UnifiedStatusFilter } from "@/types/unified-task";
 
 defineProps<{
   searchText: string;
   statusFilter: UnifiedStatusFilter;
-  kindFilter: UnifiedKindFilter;
   sortMode: UnifiedSortMode;
   filteredItems: UnifiedListItemType[];
   loading: boolean;
   selectedId: string;
-  selectedKind: string;
 }>();
 
 defineEmits<{
@@ -93,7 +78,6 @@ defineEmits<{
 
 const searchText = defineModel<string>("searchText");
 const statusFilter = defineModel<UnifiedStatusFilter>("statusFilter");
-const kindFilter = defineModel<UnifiedKindFilter>("kindFilter");
 const sortMode = defineModel<UnifiedSortMode>("sortMode");
 
 const isFilterActive = false; // simplified for now
@@ -104,12 +88,6 @@ const statusFilterOptions: Array<{ label: string; value: UnifiedStatusFilter }> 
   { label: "排队", value: "pending" },
   { label: "已完成", value: "completed" },
   { label: "失败", value: "failed" },
-];
-
-const kindFilterOptions: Array<{ label: string; value: UnifiedKindFilter }> = [
-  { label: "全部", value: "all" },
-  { label: "任务", value: "task" },
-  { label: "工作流", value: "workflow" },
 ];
 
 const sortModeOptions: AppSelectOption[] = [

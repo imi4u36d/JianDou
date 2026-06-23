@@ -112,3 +112,24 @@ export function rateStageVersion(workflowId: string, versionId: string, payload:
 export function deleteStageVersion(workflowId: string, versionId: string) {
   return deleteJson<WorkflowDetail>(`/workflows/${encodeURIComponent(workflowId)}/versions/${encodeURIComponent(versionId)}`);
 }
+
+export interface WorkflowActionResponse {
+  success: boolean;
+  message?: string;
+}
+
+export function startAutoPilot(id: string) {
+  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/start`, {})
+}
+
+export function pauseAutoPilot(id: string) {
+  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/pause`, {})
+}
+
+export function resumeAutoPilot(id: string) {
+  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/resume`, {})
+}
+
+export function terminateAutoPilot(id: string) {
+  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/terminate`, {})
+}

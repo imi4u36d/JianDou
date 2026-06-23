@@ -23,8 +23,9 @@ from backend.schemas.workflow import (
     WorkflowDeleteResult,
     WorkflowDetailResponse,
     WorkflowListResponse,
+    WorkflowSummaryResponse,
 )
-from backend.services.workflow_service import WorkflowService
+from backend.services.workflow_service import WorkflowService, now_iso
 
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
 
@@ -71,6 +72,103 @@ async def create_workflow(
     result = await _run_action(lambda: svc.create_workflow(payload.to_service_dict(), owner_user_id=user["id"]))
     if result is None:
         raise bad_request("Failed to create workflow")
+    return result
+
+
+@router.post("/{workflow_id}/auto-pilot/start", response_model=WorkflowDetailResponse)
+async def start_auto_pilot(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Start auto-pilot for a workflow (sets mode to auto, state to running)."""
+    user = await require_user(request)
+    svc = _service(db, request)
+    result = await _run_action(
+        lambda: svc._update_auto_pilot_fields(
+            workflow_id,
+            owner_user_id=user["id"],
+            execution_mode="auto",
+            auto_pilot_state="running",
+            auto_pilot_started_at=now_iso(),
+        )
+    )
+    if result is None:
+        raise not_found("workflow")
+    # Enqueue for processing if in auto mode
+    runner = getattr(request.app.state, "auto_pilot_runner", None)
+    if runner is not None:
+        runner.enqueue(workflow_id, user["id"])
+    return result
+
+
+@router.post("/{workflow_id}/auto-pilot/pause", response_model=WorkflowDetailResponse)
+async def pause_auto_pilot(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Pause auto-pilot for a workflow."""
+    user = await require_user(request)
+    svc = _service(db, request)
+    result = await _run_action(
+        lambda: svc._update_auto_pilot_fields(
+            workflow_id,
+            owner_user_id=user["id"],
+            auto_pilot_state="paused",
+            auto_pilot_paused_at=now_iso(),
+        )
+    )
+    if result is None:
+        raise not_found("workflow")
+    return result
+
+
+@router.post("/{workflow_id}/auto-pilot/resume", response_model=WorkflowDetailResponse)
+async def resume_auto_pilot(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Resume auto-pilot for a workflow."""
+    user = await require_user(request)
+    svc = _service(db, request)
+    result = await _run_action(
+        lambda: svc._update_auto_pilot_fields(
+            workflow_id,
+            owner_user_id=user["id"],
+            execution_mode="auto",
+            auto_pilot_state="running",
+        )
+    )
+    if result is None:
+        raise not_found("workflow")
+    # Enqueue for processing
+    runner = getattr(request.app.state, "auto_pilot_runner", None)
+    if runner is not None:
+        runner.enqueue(workflow_id, user["id"])
+    return result
+
+
+@router.post("/{workflow_id}/auto-pilot/terminate", response_model=WorkflowDetailResponse)
+async def terminate_auto_pilot(
+    workflow_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Terminate auto-pilot for a workflow (sets mode back to manual)."""
+    user = await require_user(request)
+    svc = _service(db, request)
+    result = await _run_action(
+        lambda: svc._update_auto_pilot_fields(
+            workflow_id,
+            owner_user_id=user["id"],
+            execution_mode="manual",
+            auto_pilot_state="idle",
+        )
+    )
+    if result is None:
+        raise not_found("workflow")
     return result
 
 

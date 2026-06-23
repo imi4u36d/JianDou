@@ -46,6 +46,72 @@
         </div>
       </header>
 
+      <!-- ── AutoPilot Control Bar ── -->
+      <template v-if="executionMode === 'auto' || executionMode === 'manual'">
+        <!-- Running state -->
+        <div v-if="autoPilot.isRunning.value" class="autopilot-bar autopilot-bar-running surface-panel">
+          <div class="autopilot-bar__status">
+            <span class="autopilot-bar__dot autopilot-bar__dot-running"></span>
+            <strong>自动执行中...</strong>
+            <span v-if="autoPilot.nextStage.value" class="autopilot-bar__next-stage">下一步: {{ autoPilot.nextStage.value }}</span>
+          </div>
+          <div class="autopilot-bar__actions">
+            <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.pauseAutoPilot()">
+              <span>⏸ 暂停</span>
+            </button>
+            <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.terminateAutoPilot()">
+              <span>⏹ 终止</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Paused state -->
+        <div v-else-if="autoPilot.isPaused.value" class="autopilot-bar autopilot-bar-paused surface-panel">
+          <div class="autopilot-bar__status">
+            <span class="autopilot-bar__dot autopilot-bar__dot-paused"></span>
+            <strong>已暂停</strong>
+          </div>
+          <div class="autopilot-bar__actions">
+            <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.resumeAutoPilot()">
+              <span>▶ 继续自动执行</span>
+            </button>
+            <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.terminateAutoPilot()">
+              <span>✏ 切换为手动模式</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Failed state -->
+        <div v-else-if="autoPilot.isFailed.value" class="autopilot-bar autopilot-bar-failed surface-panel">
+          <div class="autopilot-bar__status">
+            <span class="autopilot-bar__dot autopilot-bar__dot-failed"></span>
+            <strong>自动执行失败</strong>
+            <span v-if="autoPilot.errorMessage.value" class="autopilot-bar__error">{{ autoPilot.errorMessage.value }}</span>
+          </div>
+          <div class="autopilot-bar__actions">
+            <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.resumeAutoPilot()">
+              <span>🔄 重试</span>
+            </button>
+            <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.terminateAutoPilot()">
+              <span>✏ 手动修复后继续</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Idle state (not yet started or just created) -->
+        <div v-else class="autopilot-bar autopilot-bar-idle surface-panel">
+          <div class="autopilot-bar__status">
+            <strong>自动执行就绪</strong>
+            <span class="autopilot-bar__hint">点击启动后，工作流将自动依次执行各阶段。</span>
+          </div>
+          <div class="autopilot-bar__actions">
+            <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.startAutoPilot()">
+              <span>▶ 启动自动执行</span>
+            </button>
+          </div>
+        </div>
+      </template>
+
       <WorkflowStagePipeline :stages="canvasStageItems" :active-stage="activeCanvasStage" @switch="switchCanvasStage" />
 
       <section class="workflow-canvas-grid">
@@ -370,6 +436,8 @@ import {
   IconWarning,
 } from "@/components/icons";
 import { useWorkflowDetail } from "../composables/useWorkflowDetail";
+import { useAutoPilot } from "@/composables/workflow/useAutoPilot";
+import { watch, computed } from "vue";
 
 const props = defineProps<{
   selectedWorkflowId: string;
@@ -380,6 +448,50 @@ const detail = useWorkflowDetail({
   selectedWorkflowId: () => props.selectedWorkflowId,
   reloadWorkflows: props.reloadWorkflows,
 });
+
+// ── AutoPilot ──
+
+const autoPilot = useAutoPilot(() => props.selectedWorkflowId);
+
+// Extract execution mode from the workflow summary
+const executionMode = computed(() => detail.selectedWorkflow.value?.executionMode ?? detail.selectedWorkflow.value?.durationMode ?? "manual");
+
+// Sync autoPilotState from workflow detail
+watch(
+  () => detail.selectedWorkflow.value?.status,
+  (status) => {
+    if (!status) return;
+    // Map workflow status to autoPilot state
+    if (status === "RUNNING" || status === "PROCESSING") {
+      autoPilot.autoPilotState.value = "running";
+    } else if (status === "PAUSED") {
+      autoPilot.autoPilotState.value = "paused";
+    } else if (status === "FAILED") {
+      autoPilot.autoPilotState.value = "failed";
+    } else {
+      autoPilot.autoPilotState.value = "idle";
+    }
+    // Update next stage and error message from workflow detail
+    autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
+    autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
+  },
+  { immediate: true }
+);
+
+// Start/stop polling based on auto mode
+watch(
+  () => autoPilot.isRunning.value,
+  (running) => {
+    if (running) {
+      autoPilot.startPolling(detail.reloadCurrentWorkflow);
+    } else {
+      autoPilot.stopPolling();
+    }
+  }
+);
+
+// Expose reloadCurrentWorkflow for autoPilot polling
+const reloadCurrentWorkflow = detail.reloadCurrentWorkflow;
 
 const {
   selectedWorkflow,
@@ -484,6 +596,103 @@ const {
   overflow: auto;
   padding: 0;
   gap: 16px;
+}
+
+/* ── AutoPilot Control Bar ── */
+
+.autopilot-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.autopilot-bar__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.autopilot-bar__status strong {
+  font-size: 0.88rem;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+
+.autopilot-bar__hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.autopilot-bar__next-stage {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.autopilot-bar__error {
+  font-size: 0.78rem;
+  color: var(--accent-danger);
+}
+
+.autopilot-bar__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.autopilot-bar__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.autopilot-bar__dot-running {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+  animation: autopilot-pulse 2s ease-in-out infinite;
+}
+
+.autopilot-bar__dot-paused {
+  background: #f59e0b;
+}
+
+.autopilot-bar__dot-failed {
+  background: var(--accent-danger);
+}
+
+@keyframes autopilot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.autopilot-bar-running {
+  border-color: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.03);
+}
+
+.autopilot-bar-paused {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.03);
+}
+
+.autopilot-bar-failed {
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.autopilot-bar-idle {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.03);
 }
 
 .workflow-canvas-header {

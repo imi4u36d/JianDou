@@ -39,11 +39,13 @@ def create_app(start_worker: bool = True) -> FastAPI:
     async def lifespan(_app: FastAPI):
         if start_worker:
             await container.worker_runner.start()
+            await container.auto_pilot_runner.start()
         try:
             yield
         finally:
             if start_worker:
                 await container.worker_runner.stop()
+                await container.auto_pilot_runner.stop()
             await container.task_repository.close()
 
     app = FastAPI(

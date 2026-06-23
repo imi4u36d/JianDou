@@ -178,6 +178,29 @@ class AppContainer:
             )
         return self.__dict__["_worker_runner"]
 
+    @property
+    def auto_pilot_runner(self) -> AutoPilotWorkerRunner:
+        if "_auto_pilot_runner" not in self.__dict__:
+            from backend.services.auto_pilot_worker_runner import AutoPilotOpsConfig, AutoPilotWorkerRunner
+            self.__dict__["_auto_pilot_runner"] = AutoPilotWorkerRunner(
+                workflow_service=self._lazy_workflow_service(),
+                ops_config=AutoPilotOpsConfig(
+                    poll_interval_ms=1_000,
+                    maintenance_interval_ms=30_000,
+                ),
+            )
+        return self.__dict__["_auto_pilot_runner"]
+
+    def _lazy_workflow_service(self):
+        """Create a minimal WorkflowService for the auto-pilot runner.
+
+        The auto-pilot runner only needs the DB session and basic helpers,
+        not the full generation service.
+        """
+        from backend.services.workflow_service import WorkflowService
+        task_repo = self.task_repository
+        return WorkflowService(task_repo.session)
+
     # -- App binding -------------------------------------------------------
 
     def bind_app_state(self, app: FastAPI) -> None:
@@ -193,6 +216,7 @@ class AppContainer:
         app.state.generation_application_service = self.generation_application_service
         app.state.generation_catalog_service = self.generation_catalog_service
         app.state.task_worker_runner = self.worker_runner
+        app.state.auto_pilot_runner = self.auto_pilot_runner
         app.state.task_repository = self.task_repository
         app.state.credential_repository = self.credential_repository
         app.state.execution_coordinator = self.execution_coordinator

@@ -33,6 +33,8 @@ STAGE_JOINED = WorkflowStage.JOINED.value
 
 STATUS_DRAFT = WorkflowStatus.DRAFT.value
 STATUS_READY = WorkflowStatus.READY.value
+STATUS_RUNNING = WorkflowStatus.RUNNING.value
+STATUS_PAUSED = WorkflowStatus.PAUSED.value
 STATUS_COMPLETED = WorkflowStatus.COMPLETED.value
 STATUS_FAILED = WorkflowStatus.FAILED.value
 
@@ -214,6 +216,9 @@ class WorkflowService:
         text_model = trim(request.get("textAnalysisModel"), "")
         image_model = trim(request.get("imageModel"), "")
         video_model = trim(request.get("videoModel"), "")
+        execution_mode = trim(request.get("executionMode"), "manual")
+        if execution_mode not in ("auto", "manual"):
+            execution_mode = "manual"
         await self._validate_generation_models(owner_user_id or 0, text_model, image_model, video_model)
         now = now_iso()
         workflow = BizStageWorkflow(
@@ -230,6 +235,12 @@ class WorkflowService:
             keyframe_seed=keyframe_seed,
             video_seed=video_seed,
             duration_mode=duration_mode,
+            execution_mode=execution_mode,
+            auto_pilot_state="idle",
+            auto_pilot_next_stage="",
+            auto_pilot_error_message="",
+            auto_pilot_started_at="",
+            auto_pilot_paused_at="",
             task_seed=request.get("seed"),
             min_duration_seconds=min_dur,
             max_duration_seconds=max_dur,
@@ -279,6 +290,12 @@ class WorkflowService:
             keyframe_seed=None,
             video_seed=None,
             duration_mode="auto",
+            execution_mode="manual",
+            auto_pilot_state=AutoPilotState.IDLE,
+            auto_pilot_next_stage="",
+            auto_pilot_error_message="",
+            auto_pilot_started_at="",
+            auto_pilot_paused_at="",
             task_seed=None,
             min_duration_seconds=DEFAULT_MIN_DURATION_SECONDS,
             max_duration_seconds=DEFAULT_MAX_DURATION_SECONDS,
@@ -410,6 +427,43 @@ class WorkflowService:
         wf.min_duration_seconds = min_dur
         wf.max_duration_seconds = max_dur
         wf.update_time = now_iso()
+        await self.db.commit()
+        return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
+
+    # ------------------------------------------------------------------
+    # Auto-pilot field updates
+    # ------------------------------------------------------------------
+
+    async def _update_auto_pilot_fields(
+        self,
+        workflow_id: str,
+        owner_user_id: int | None = None,
+        *,
+        execution_mode: str | None = None,
+        auto_pilot_state: str | None = None,
+        auto_pilot_next_stage: str | None = None,
+        auto_pilot_error_message: str | None = None,
+        auto_pilot_started_at: str | None = None,
+        auto_pilot_paused_at: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Update auto-pilot related fields on a workflow."""
+        wf = await self._require_workflow(workflow_id, owner_user_id)
+        if wf is None:
+            return None
+        now = now_iso()
+        if execution_mode is not None:
+            wf.execution_mode = execution_mode
+        if auto_pilot_state is not None:
+            wf.auto_pilot_state = auto_pilot_state
+        if auto_pilot_next_stage is not None:
+            wf.auto_pilot_next_stage = auto_pilot_next_stage
+        if auto_pilot_error_message is not None:
+            wf.auto_pilot_error_message = auto_pilot_error_message
+        if auto_pilot_started_at is not None:
+            wf.auto_pilot_started_at = auto_pilot_started_at
+        if auto_pilot_paused_at is not None:
+            wf.auto_pilot_paused_at = auto_pilot_paused_at
+        wf.update_time = now
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 

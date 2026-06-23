@@ -1068,6 +1068,7 @@ export interface CreateWorkflowRequest {
   durationMode?: "auto" | "manual" | string | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
+  executionMode?: "auto" | "manual" | string | null;
 }
 
 export interface UpdateWorkflowSettingsRequest {
@@ -1262,6 +1263,10 @@ export interface WorkflowSummary {
   characterSheetVersionCount?: number;
   keyframeVersionCount: number;
   videoVersionCount: number;
+  executionMode?: string | null;
+  autoPilotState?: string | null;
+  nextStage?: string | null;
+  errorMessage?: string | null;
 }
 
 export interface WorkflowDeleteResult {
@@ -1297,6 +1302,12 @@ export interface WorkflowDetail {
   characterSheets?: WorkflowCharacterSheet[] | null;
   clipSlots: WorkflowClipSlot[];
   finalResult?: MaterialAssetLibraryItem | null;
+  executionMode?: string | null;
+  autoPilotState?: string | null;
+  autoPilotNextStage?: string | null;
+  autoPilotErrorMessage?: string | null;
+  autoPilotStartedAt?: string | null;
+  autoPilotPausedAt?: string | null;
 }
 
 export type MaterialAssetType = "character_sheet" | "scene" | "prop" | "free" | "workflow";

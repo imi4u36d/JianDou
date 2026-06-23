@@ -30,6 +30,7 @@ class CreateWorkflowRequest(WorkflowRequestModel):
     duration_mode: str | None = None
     min_duration_seconds: int | None = None
     max_duration_seconds: int | None = None
+    execution_mode: str = "manual"
 
 
 class WorkflowSummaryResponse(BaseModel):
@@ -47,6 +48,8 @@ class WorkflowSummaryResponse(BaseModel):
     character_sheet_version_count: int = 0
     keyframe_version_count: int = 0
     video_version_count: int = 0
+    execution_mode: str = "manual"
+    auto_pilot_state: str = "idle"
 
 
 class UpdateWorkflowSettingsRequest(WorkflowRequestModel):
@@ -104,6 +107,12 @@ class WorkflowDetailResponse(BaseModel):
     effect_rating: int | None = None
     created_at: str = ""
     updated_at: str = ""
+    execution_mode: str = "manual"
+    auto_pilot_state: str = "idle"
+    auto_pilot_next_stage: str = ""
+    auto_pilot_error_message: str = ""
+    auto_pilot_started_at: str = ""
+    auto_pilot_paused_at: str = ""
 
     model_config = ConfigDict(extra="allow")
 

@@ -3,12 +3,10 @@
     <UnifiedListPanel
       v-model:search-text="list.searchText.value"
       v-model:status-filter="list.statusFilter.value"
-      v-model:kind-filter="list.kindFilter.value"
       v-model:sort-mode="list.sortMode.value"
       :filtered-items="list.filteredItems.value"
       :loading="list.loading.value"
       :selected-id="selection.selectedId.value"
-      :selected-kind="selection.selectedKind.value"
       @select="handleSelect"
     />
 
@@ -20,18 +18,9 @@
         </div>
       </div>
 
-      <TaskDetailPanel
-        v-else-if="selectedKind === 'task'"
-        :key="`task-${selectedId}`"
-        :selected-task-id="selectedId"
-        :tasks="list.tasks.value"
-        :reload-tasks="list.load"
-        @close="selection.clearSelection()"
-        @deleted="handleDeleted"
-      />
-
+      <!-- 统一渲染 WorkflowDetailPanel -->
       <WorkflowDetailPanel
-        v-else-if="selectedKind === 'workflow'"
+        v-else
         :key="`workflow-${selectedId}`"
         :selected-workflow-id="selectedId"
         :reload-workflows="list.load"
@@ -41,7 +30,7 @@
     <button
       class="unified-create-fab"
       type="button"
-      aria-label="新建任务"
+      aria-label="新建"
       title="新建"
       @click="createDialogOpen = true"
     >
@@ -58,15 +47,13 @@
 
 <script setup lang="ts">
 /**
- * 统一任务视图。
- * 合并工作台、阶段工作流和任务监控为单一页面。
+ * 统一工作流视图。
+ * 所有创作均以工作流形式管理，区分自动执行和手动执行两种模式。
  */
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { useUnifiedList } from "@/composables/unified/useUnifiedList";
 import { useUnifiedSelection } from "@/composables/unified/useUnifiedSelection";
-import type { UnifiedListItem } from "@/types/unified-task";
 import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
-import TaskDetailPanel from "./unified/components/TaskDetailPanel.vue";
 import WorkflowDetailPanel from "./unified/components/WorkflowDetailPanel.vue";
 import CreateTaskDialog from "./unified/components/CreateTaskDialog.vue";
 import { IconPlus } from "@/components/icons";
@@ -75,29 +62,21 @@ const list = useUnifiedList();
 const selection = useUnifiedSelection();
 
 const selectedId = selection.selectedId;
-const selectedKind = selection.selectedKind;
 const createDialogOpen = ref(false);
 
-function handleSelect(item: UnifiedListItem) {
-  selection.selectItem(item);
+function handleSelect(item: { id: string }) {
+  selection.selectById(item.id);
 }
 
-function handleCreated(id: string, kind: "task" | "workflow") {
+function handleCreated(id: string) {
   createDialogOpen.value = false;
   // 刷新列表并选中新创建的项
   void list.load().then(() => {
-    const found = list.findItem(id, kind);
+    const found = list.findItem(id);
     if (found) {
       selection.selectItem(found);
     }
   });
-}
-
-function handleDeleted(taskId: string) {
-  // 删除的是当前选中的任务，清除选中状态
-  if (selectedId.value === taskId) {
-    selection.clearSelection();
-  }
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -116,11 +95,6 @@ onMounted(() => {
 onUnmounted(() => {
   list.stopPolling();
   window.removeEventListener("keydown", handleKeydown);
-});
-
-// 当选中的 ID 变化但 kind 为空时，尝试解析
-watch(selectedId, () => {
-  selection.resolveKind(list.findItem);
 });
 </script>
 

@@ -6,14 +6,13 @@
     :aria-label="`查看${item.title}`"
     @click="$emit('select', item)"
   >
-    <span class="unified-list-item__badge" :class="`unified-list-item__badge-${badgeClass}`" aria-hidden="true">
+    <span class="unified-list-item__badge unified-list-item__badge-workflow" aria-hidden="true">
       <img v-if="item.thumbnailUrl" :src="item.thumbnailUrl" alt="" class="unified-list-item__thumb" />
-      <AppIcon v-else :name="iconName" size="sm" />
+      <AppIcon v-else name="workflow" size="sm" />
     </span>
     <span class="unified-list-item__body">
       <span class="unified-list-item__title">{{ item.title }}</span>
       <span class="unified-list-item__meta">
-        <span class="unified-list-item__kind">{{ kindLabel }}</span>
         <span class="unified-list-item__status" :class="`unified-list-item__status-${statusTone}`">{{ statusLabel }}</span>
         <time :datetime="item.updatedAt || item.createdAt || undefined">{{ compactTime }}</time>
       </span>
@@ -27,10 +26,10 @@
 
 <script setup lang="ts">
 /**
- * 统一列表行组件。
+ * 统一列表行组件（仅工作流）。
  */
 import { computed } from "vue";
-import { AppIcon, type IconName } from "@/components/icons";
+import { AppIcon } from "@/components/icons";
 import type { UnifiedListItem } from "@/types/unified-task";
 
 const props = defineProps<{
@@ -42,65 +41,22 @@ defineEmits<{
   select: [item: UnifiedListItem];
 }>();
 
-const iconName = computed<IconName>(() => {
-  if (props.item.kind === "workflow") return "workflow";
-  switch (props.item.taskType) {
-    case "image_generation":
-    case "image_to_image": return "image";
-    case "character_sheet": return "character";
-    case "video_generation": return "video";
-    default: return "task";
-  }
-});
-
-const kindLabel = computed(() => {
-  if (props.item.kind === "workflow") return "工作流";
-  switch (props.item.taskType) {
-    case "image_generation": return "文生图";
-    case "image_to_image": return "图生图";
-    case "character_sheet": return "三视图";
-    case "video_generation": return "视频";
-    default: return "任务";
-  }
-});
-
-const badgeClass = computed(() => {
-  if (props.item.kind === "workflow") return "workflow";
-  switch (props.item.taskType) {
-    case "image_generation":
-    case "image_to_image": return "image";
-    case "character_sheet": return "character";
-    case "video_generation": return "video";
-    default: return "task";
-  }
-});
-
 const statusLabel = computed(() => {
   const s = props.item.status;
-  if (props.item.kind === "workflow") {
-    switch (s.toLowerCase()) {
-      case "draft": return "草稿";
-      case "ready": return "进行中";
-      case "completed": return "已完成";
-      case "failed": return "失败";
-      default: return s;
-    }
-  }
-  switch (s) {
-    case "PENDING": return "排队";
-    case "PAUSED": return "已暂停";
-    case "ANALYZING": return "分析中";
-    case "PLANNING": return "编排中";
-    case "RENDERING": return "生成中";
-    case "COMPLETED": return "已完成";
-    case "FAILED": return "失败";
+  switch (s.toLowerCase()) {
+    case "draft": return "草稿";
+    case "ready": return "准备中";
+    case "running": return "执行中";
+    case "paused": return "已暂停";
+    case "completed": return "已完成";
+    case "failed": return "失败";
     default: return s;
   }
 });
 
 const statusTone = computed(() => {
   const s = props.item.status;
-  if (["RENDERING", "ANALYZING", "PLANNING", "READY"].includes(s)) return "active";
+  if (["RUNNING", "READY", "DRAFT"].includes(s)) return "active";
   if (["COMPLETED"].includes(s)) return "done";
   if (["FAILED"].includes(s)) return "failed";
   if (["PAUSED"].includes(s)) return "paused";
@@ -159,11 +115,7 @@ const compactTime = computed(() => {
   overflow: hidden;
 }
 
-.unified-list-item__badge-video { background: rgba(99, 102, 241, 0.1); color: var(--accent-indigo); }
-.unified-list-item__badge-image { background: rgba(99, 102, 241, 0.1); color: var(--accent-indigo); }
-.unified-list-item__badge-character { background: rgba(22, 163, 74, 0.1); color: var(--accent-lime); }
 .unified-list-item__badge-workflow { background: rgba(99, 102, 241, 0.08); color: var(--accent-indigo); }
-.unified-list-item__badge-task { background: var(--bg-softer); color: var(--text-muted); }
 
 .unified-list-item__thumb {
   width: 100%;
