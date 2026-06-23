@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +19,8 @@ from backend.schemas.auth import ActivateInviteRequest, AuthSessionResponse, Log
 from backend.schemas.common import MessageResponse
 from backend.services.auth_rate_limiter import check_auth_subject_rate_limit
 from backend.services.auth_service import AuthService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v3/auth", tags=["auth"])
 

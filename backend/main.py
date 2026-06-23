@@ -15,7 +15,9 @@ from fastapi.staticfiles import StaticFiles
 from backend.config import PROJECT_ROOT, settings, validate_runtime_settings
 from backend.container import AppContainer
 from backend.exceptions import InsufficientPermissionsError, InvalidCredentialsError, TokenExpiredError
+from backend.logging_config import configure_logging
 from backend.middleware import (
+    AccessLogMiddleware,
     OriginGuardMiddleware,
     SecurityHeadersMiddleware,
     SpaFallbackMiddleware,
@@ -25,6 +27,18 @@ logger = logging.getLogger("jiandou.error")
 
 
 def create_app(start_worker: bool = True) -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    ``configure_logging`` is called here (rather than only in ``__main__.py``)
+    so that even when the app is started directly with ``uvicorn backend.main:app``
+    or imported programmatically (tests, OpenAPI export), log output is never
+    silently dropped.
+
+    The function is idempotent — it clears and re-adds handlers each call,
+    so calling it from both ``__main__.py`` and here is safe.
+    """
+    configure_logging(level=logging.INFO, json_format=settings.log_json_format)
+
     validate_runtime_settings(settings)
 
     # Create data directories
@@ -88,6 +102,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
     container.bind_app_state(app)
 
     # -- Middleware ---------------------------------------------------------
+    app.add_middleware(AccessLogMiddleware)
     app.add_middleware(OriginGuardMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
 

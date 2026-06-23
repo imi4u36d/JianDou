@@ -3,6 +3,7 @@ Workflow API router — delegates to WorkflowService.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -26,6 +27,8 @@ from backend.schemas.workflow import (
     WorkflowSummaryResponse,
 )
 from backend.services.workflow_service import WorkflowService, now_iso
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, datetime
 
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import hash_password, verify_password
 from backend.domain.enums import InviteStatus, UserRole, UserStatus
 from backend.models.user import SysInviteCode, SysUser
+
+logger = logging.getLogger(__name__)
 
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
 INVITE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

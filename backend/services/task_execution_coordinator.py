@@ -7,6 +7,7 @@ worker instance management.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -22,6 +23,8 @@ from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.infrastructure.task_queue_port import InMemoryTaskQueue, TaskQueuePort
 from backend.shared import now_iso, safe_int, string_value
+
+logger = logging.getLogger(__name__)
 
 
 class TaskExecutionCoordinator:

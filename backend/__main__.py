@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 from datetime import UTC
 from pathlib import Path
 
 import click
 from rich.console import Console
+
+from backend.logging_config import configure_logging
 
 console = Console()
 
@@ -27,8 +30,18 @@ def cli():
 @click.option("--reload", is_flag=True, help="Enable hot reload")
 def serve(host, port, reload):
     """Start the FastAPI server."""
+    from backend.config import settings
+
+    configure_logging(level=logging.INFO, json_format=settings.log_json_format)
+
     import uvicorn
-    uvicorn.run("backend.main:app", host=host, port=port, reload=reload)
+    uvicorn.run(
+        "backend.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level="info",
+    )
 
 
 @cli.command()

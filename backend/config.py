@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     worker_stale_timeout_seconds: int = 30
     worker_poll_interval_ms: int = 1000
 
+    # Logging
+    log_json_format: bool = False  # env: JIANDOU_LOG_JSON_FORMAT=true
+
     model_config = {
         "env_prefix": "JIANDOU_",
         "env_file": ".env",

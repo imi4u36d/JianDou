@@ -6,6 +6,7 @@ Handles the multi-stage creative workflow lifecycle:
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -22,6 +23,8 @@ from backend.services.workflow_generation_result_parser import WorkflowGeneratio
 from backend.services.workflow_persistence_row_factory import WorkflowPersistenceRowFactory
 from backend.services.workflow_view_mapper import WorkflowViewMapper
 from backend.shared import first_non_blank, now_iso, random_id, safe_float, safe_int, trim
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants (mirroring WorkflowConstants.java)
@@ -509,8 +512,7 @@ class WorkflowService:
         try:
             gen_result = await gen_service.create_run(generation_request)
         except Exception as ex:
-            import logging
-            logging.getLogger(__name__).warning("Storyboard generation failed: %s", ex)
+            logger.warning("Storyboard generation failed: %s", ex)
             raw_error = str(ex)
             if "missing api key" in raw_error.lower() or "missing api key or base url" in raw_error.lower():
                 raise ValueError("当前用户未设置对应模型 Key，请先在用户管理中配置 Key。") from ex

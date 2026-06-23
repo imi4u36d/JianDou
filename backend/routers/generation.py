@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Query, Request
 
 from backend.auth import get_current_user
@@ -11,6 +13,8 @@ from backend.schemas.generation import (
     GenerationUsageResponse,
 )
 from backend.services.generation_service import GenerationRunNotFoundException, UnsupportedGenerationKindException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v3/generation", tags=["generation"])
 

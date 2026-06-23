@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, File, UploadFile
 
 from backend.config import settings
 from backend.errors import bad_request
 from backend.schemas.upload import UploadAssetResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v3/uploads", tags=["uploads"])
 

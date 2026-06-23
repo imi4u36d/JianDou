@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import sys
 
-_DEFAULT_FORMAT = "[%(levelname)s] %(name)s: %(message)s"
+_DEFAULT_FORMAT = "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
 _JSON_FORMAT = '{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}'
 
 

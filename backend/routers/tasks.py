@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Query, Request
 
 from backend.auth import get_current_user
@@ -18,6 +20,8 @@ from backend.schemas.task import (
     TaskDetailResponse,
     TaskListItemResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v3/tasks", tags=["tasks"])
 
