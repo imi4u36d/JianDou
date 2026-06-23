@@ -80,7 +80,7 @@ const { entries, remove } = useMessage();
 }
 
 .message-toast--info .message-toast__icon {
-  background: rgba(90, 200, 250, 0.15);
+  background: rgba(99, 102, 241, 0.15);
   color: var(--accent-blue);
 }
 

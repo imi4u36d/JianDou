@@ -2,13 +2,22 @@
   <section class="tasks-view" :class="{ 'tasks-view-detail-active': selectedTaskId }">
     <aside class="tasks-list-panel">
       <label class="tasks-search-field" aria-label="搜索任务">
-        <div class="tasks-search-field__control">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
+        <svg class="tasks-search-field__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input v-model="searchText" type="search" placeholder="搜索任务" />
+        <button
+          v-if="searchText"
+          class="tasks-search-field__clear"
+          type="button"
+          @click="searchText = ''"
+          aria-label="清除搜索"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18" /><path d="m6 6 12 12" />
           </svg>
-          <input v-model="searchText" type="search" placeholder="标题、状态、类型" />
-        </div>
+        </button>
       </label>
 
       <div class="tasks-filter-strip" aria-label="任务筛选">
@@ -1234,39 +1243,78 @@ onUnmounted(() => {
 }
 
 .tasks-search-field {
-  display: grid;
-  gap: 0;
-}
-
-.tasks-search-field__control {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 54px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(79, 70, 229, 0.1);
-  background: #f3fbff;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.55);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
 }
 
-.tasks-search-field__control svg {
-  width: 18px;
-  height: 18px;
+.tasks-search-field:focus-within {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.tasks-search-field__icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color 180ms ease;
+}
+
+.tasks-search-field:focus-within .tasks-search-field__icon {
+  color: var(--accent-indigo);
+}
+
+.tasks-search-field input {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+}
+
+.tasks-search-field input:focus-visible {
+  box-shadow: none;
+}
+
+.tasks-search-field input::placeholder {
   color: var(--text-muted);
 }
 
-.tasks-search-field__control input {
-  width: 100%;
-  min-height: 42px;
+.tasks-search-field__clear {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
   border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text-strong);
-  font-size: 0.95rem;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
 }
 
-.tasks-search-field__control input::placeholder {
-  color: #9aa5ad;
+.tasks-search-field__clear:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
+}
+
+.tasks-search-field__clear svg {
+  width: 12px;
+  height: 12px;
 }
 
 .tasks-filter-strip {
@@ -1303,14 +1351,14 @@ onUnmounted(() => {
   border-color: rgba(79, 70, 229, 0.26);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
 }
 
 .tasks-filter-chip-active {
-  border-color: rgba(27, 124, 255, 0.2);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
+  border-color: rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
   color: var(--accent-blue);
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.08);
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
 }
 
 .tasks-sort-field {
@@ -1393,9 +1441,9 @@ onUnmounted(() => {
 }
 
 .task-list__item-active {
-  border-color: rgba(27, 124, 255, 0.18);
-  background: linear-gradient(90deg, rgba(237, 245, 255, 0.9), rgba(239, 252, 255, 0.7));
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.18);
+  background: linear-gradient(90deg, rgba(224, 231, 255, 0.9), rgba(238, 242, 255, 0.7));
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.06);
 }
 
 .task-list__item:hover {
@@ -1432,7 +1480,7 @@ onUnmounted(() => {
   height: 28px;
   overflow: hidden;
   border-radius: 9px;
-  background: linear-gradient(135deg, #eef2ff, #edf5ff);
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
   color: var(--accent-indigo);
   font-size: 0.72rem;
   font-weight: 900;
@@ -1445,7 +1493,7 @@ onUnmounted(() => {
 }
 
 .task-list__type-badge-video_generation {
-  background: linear-gradient(135deg, rgba(27, 124, 255, 0.12), rgba(79, 70, 229, 0.12));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(79, 70, 229, 0.12));
   color: var(--accent-blue);
 }
 
@@ -1456,7 +1504,7 @@ onUnmounted(() => {
 }
 
 .task-list__type-badge-character_sheet {
-  background: linear-gradient(135deg, rgba(255, 107, 95, 0.14), rgba(27, 124, 255, 0.1));
+  background: linear-gradient(135deg, rgba(255, 107, 95, 0.14), rgba(99, 102, 241, 0.1));
   color: var(--accent-coral);
 }
 
@@ -1511,7 +1559,7 @@ onUnmounted(() => {
 }
 
 .task-list__status-info {
-  background: rgba(27, 124, 255, 0.1);
+  background: rgba(99, 102, 241, 0.1);
   color: var(--accent-blue);
 }
 
@@ -1728,10 +1776,10 @@ onUnmounted(() => {
 .task-detail-close-button:hover,
 .task-detail-close-button:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.2);
+  border-color: rgba(99, 102, 241, 0.2);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
 }
 
 .task-detail-close-button :deep(svg) {
@@ -1848,7 +1896,7 @@ onUnmounted(() => {
 
 .task-stage-row--active {
   background: var(--accent-blue);
-  box-shadow: 0 0 0 4px rgba(27, 124, 255, 0.12);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
 .task-stage-row--paused {
@@ -2097,8 +2145,8 @@ onUnmounted(() => {
   border-radius: 14px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   background:
-    linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(27, 124, 255, 0.08)),
-    #f3fbff;
+    linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.08)),
+    #eef2ff;
   color: var(--text-muted);
   font-weight: 760;
 }
@@ -2133,7 +2181,7 @@ onUnmounted(() => {
   color: var(--accent-blue);
   font-size: 0.82rem;
   font-weight: 800;
-  border: 1px solid rgba(27, 124, 255, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.12);
 }
 
 .detail-result-list a:hover {
@@ -2278,7 +2326,7 @@ onUnmounted(() => {
   border-color: rgba(79, 70, 229, 0.24);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
 }
 
 .detail-action-btn:disabled {
@@ -2319,8 +2367,8 @@ onUnmounted(() => {
 }
 
 .detail-action-btn-primary {
-  border-color: rgba(27, 124, 255, 0.16);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.95), rgba(237, 245, 255, 0.9));
+  border-color: rgba(99, 102, 241, 0.16);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(224, 231, 255, 0.9));
   color: var(--accent-blue);
 }
 

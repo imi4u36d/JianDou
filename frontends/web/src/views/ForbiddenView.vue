@@ -3,9 +3,9 @@
     <div class="forbidden-view__card">
       <h1>没有权限</h1>
       <div class="forbidden-view__actions">
-        <RouterLink class="forbidden-view__secondary" to="/workspace">
+        <RouterLink class="forbidden-view__secondary" to="/tasks">
           <IconHome size="xs" />
-          <span>工作台</span>
+          <span>任务</span>
         </RouterLink>
         <RouterLink class="forbidden-view__primary" to="/tasks">
           <IconTask size="xs" />
@@ -36,7 +36,7 @@ import { IconHome, IconTask } from "@/components/icons";
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.82);
   box-shadow:
-    0 16px 38px rgba(27, 124, 255, 0.06),
+    0 16px 38px rgba(99, 102, 241, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(40px) saturate(2.0);
   text-align: center;
@@ -86,7 +86,7 @@ import { IconHome, IconTask } from "@/components/icons";
 .forbidden-view__primary {
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
   color: #fff;
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.16);
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.16);
 }
 
 .forbidden-view__secondary {
@@ -100,7 +100,7 @@ import { IconHome, IconTask } from "@/components/icons";
 .forbidden-view__primary:focus-visible,
 .forbidden-view__secondary:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.12);
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.12);
 }
 
 @media (max-width: 640px) {

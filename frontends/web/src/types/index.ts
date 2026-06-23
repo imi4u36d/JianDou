@@ -1056,7 +1056,7 @@ export type WorkflowStageType = "storyboard" | "keyframe" | "video" | "joined" |
 export interface CreateWorkflowRequest {
   title: string;
   transcriptText?: string | null;
-  aspectRatio: "9:16" | "16:9";
+  aspectRatio: string;
   stylePreset?: string | null;
   textAnalysisModel: string;
   imageModel: string;

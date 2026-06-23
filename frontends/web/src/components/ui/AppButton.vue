@@ -126,7 +126,7 @@ const linkAttrs = computed(() => {
   border-color: transparent;
   background: var(--bg-accent);
   color: #fff;
-  box-shadow: 0 12px 28px rgba(90, 200, 250, 0.25);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.25);
 }
 
 .app-btn--secondary {
@@ -169,7 +169,7 @@ const linkAttrs = computed(() => {
 }
 
 .app-btn--primary:hover:not(:disabled) {
-  box-shadow: 0 14px 36px rgba(90, 200, 250, 0.35);
+  box-shadow: 0 14px 36px rgba(99, 102, 241, 0.35);
 }
 
 .app-btn--accent:hover:not(:disabled) {
@@ -185,7 +185,7 @@ const linkAttrs = computed(() => {
 /* ── Focus ── */
 .app-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(90, 200, 250, 0.35);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.5);
 }
 
 /* ── Disabled ── */

@@ -2,13 +2,12 @@
   <section class="workflow-canvas-view" :class="{ 'workflow-canvas-view-detail': selectedWorkflowId }">
     <aside class="workflow-project-drawer">
       <label class="workflow-search-box">
-        <span class="workflow-search-box__icon"><IconSearch size="sm" /></span>
+        <IconSearch class="workflow-search-box__icon" size="sm" aria-hidden="true" />
         <input
           ref="workflowSearchInput"
           v-model="workflowSearch"
-          class="field-input workflow-search-box__field"
           type="search"
-          placeholder="搜索"
+          placeholder="搜索工作流"
         />
         <button
           v-if="workflowSearch"
@@ -309,7 +308,7 @@
                 <label class="workflow-field"><span>关键帧模型</span><AppSelect v-model="workflowSettingsDraft.imageModel" :options="imageModelSelectOptions" /></label>
                 <label class="workflow-field"><span>视频模型</span><AppSelect v-model="workflowSettingsDraft.videoModel" :options="videoModelSelectOptions" /></label>
                 <label class="workflow-field"><span>视觉风格</span><AppSelect v-model="workflowSettingsDraft.stylePreset" :options="stylePresetSelectOptions" /></label>
-                <label class="workflow-field"><span>长宽比</span><AppSelect v-model="workflowSettingsDraft.aspectRatio" :options="aspectRatioSelectOptions" /></label>
+                <label class="workflow-field"><span>画幅</span><AppSelect v-model="workflowSettingsDraft.aspectRatio" :options="aspectRatioSelectOptions" /></label>
                 <label class="workflow-field"><span>输出尺寸</span><AppSelect v-model="workflowSettingsDraft.videoSize" :options="workflowSettingsVideoSizeSelectOptions" /></label>
                 <label class="workflow-field workflow-field-compact"><span>关键帧 Seed</span><input v-model="workflowSettingsDraft.keyframeSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
                 <label class="workflow-field workflow-field-compact"><span>视频 Seed</span><input v-model="workflowSettingsDraft.videoSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
@@ -1324,7 +1323,7 @@ const workflowSettingsValidationMessage = computed(() => {
     return "请选择视觉风格";
   }
   if (!workflowSettingsDraft.aspectRatio) {
-    return "请选择长宽比";
+    return "请选择画幅";
   }
   if (!workflowSettingsDraft.videoModel) {
     return "请选择视频模型";
@@ -1765,7 +1764,7 @@ function syncWorkflowSettingsDraft(workflow: WorkflowDetail) {
     ? STORYBOARD_MANUAL_DURATION_MAX_SECONDS
     : workflow.maxDurationSeconds;
   const durationMode = workflow.durationMode === "manual" ? "manual" : "auto";
-  workflowSettingsDraft.aspectRatio = workflow.aspectRatio || "9:16";
+  workflowSettingsDraft.aspectRatio = workflow.aspectRatio || "16:9";
   workflowSettingsDraft.stylePreset = workflow.stylePreset || "";
   workflowSettingsDraft.textAnalysisModel = workflow.textAnalysisModel || "";
   workflowSettingsDraft.imageModel = workflow.imageModel || "";
@@ -1902,7 +1901,7 @@ function buildCreatePayload(): CreateWorkflowRequest {
   return {
     title: createForm.title.trim(),
     transcriptText: createForm.transcriptText.trim() || null,
-    aspectRatio: createForm.aspectRatio as "9:16" | "16:9",
+    aspectRatio: createForm.aspectRatio,
     stylePreset: createForm.stylePreset || null,
     textAnalysisModel: createForm.textAnalysisModel,
     imageModel: createForm.imageModel,
@@ -2476,43 +2475,6 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.workflow-search-box__control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  min-height: 54px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 20px;
-  background: #fff;
-  overflow: hidden;
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    background 180ms ease;
-}
-
-.workflow-search-box__control:focus-within {
-  border-color: rgba(0, 169, 187, 0.42);
-  box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 26px rgba(0, 0, 0, 0.06);
-}
-
-.workflow-search-box__field.field-input {
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  border-radius: 0;
-  padding: 0 1.15rem;
-  background: transparent;
-  box-shadow: none;
-}
-
-.workflow-search-box__field.field-input:focus {
-  border-color: transparent;
-  box-shadow: none;
-}
-
 .workflow-search-box__button {
   min-width: 88px;
   border: 0;
@@ -2544,12 +2506,14 @@ onBeforeUnmount(() => {
 }
 
 .workflow-search-box {
-  position: relative;
-  min-height: 44px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 8px 20px rgba(27, 124, 255, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.55);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -2557,95 +2521,58 @@ onBeforeUnmount(() => {
 }
 
 .workflow-search-box:focus-within {
-  border-color: rgba(0, 169, 187, 0.42);
-  background: #fff;
-  box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 26px rgba(27, 124, 255, 0.08);
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .workflow-search-box__icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
   color: var(--text-muted);
-  pointer-events: none;
-  z-index: 2;
+  transition: color 180ms ease;
 }
 
-.workflow-search-box__field.field-input {
-  min-width: 0;
-  min-height: 42px;
-  height: 42px;
+.workflow-search-box:focus-within .workflow-search-box__icon {
+  color: var(--accent-indigo);
+}
+
+.workflow-search-box input {
+  width: 100%;
+  min-height: 36px;
   border: 0;
-  border-radius: 14px;
-  padding: 0 42px 0 40px;
-  background: transparent;
+  outline: 0;
   box-shadow: none;
-  transition: border-color 180ms ease;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 0.86rem;
 }
 
-.workflow-search-box__field.field-input:focus {
-  border-color: transparent;
+.workflow-search-box input:focus-visible {
   box-shadow: none;
+}
+
+.workflow-search-box input::placeholder {
+  color: var(--text-muted);
 }
 
 .workflow-search-box__clear {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
   display: grid;
   place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
   border: 0;
-  border-radius: 999px;
-  background: transparent;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: background 150ms ease, color 150ms ease;
 }
 
 .workflow-search-box__clear:hover {
-  background: #effcff;
-  color: var(--accent-blue);
-  opacity: 1;
-  transform: translateY(-50%) scale(1.05);
-}
-
-.workflow-search-box__field.field-input:focus + .workflow-search-box__clear,
-.workflow-search-box__field.field-input:not(:placeholder-shown) + .workflow-search-box__clear {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.workflow-search-box__control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  min-height: 54px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
-  overflow: hidden;
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    background 180ms ease;
-  box-shadow: var(--shadow-soft);
-}
-
-.workflow-search-box__control:focus-within {
-  border-color: rgba(0, 169, 187, 0.42);
-  box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 26px rgba(27, 124, 255, 0.08);
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
 }
 
 .workflow-filter-strip {
@@ -2661,7 +2588,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.12);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
   color: var(--text-body);
@@ -2679,17 +2606,17 @@ onBeforeUnmount(() => {
 .workflow-filter-chip:hover,
 .workflow-filter-chip:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(0, 169, 187, 0.26);
+  border-color: rgba(99, 102, 241, 0.26);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
 }
 
 .workflow-filter-chip-active {
-  border-color: rgba(27, 124, 255, 0.2);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
+  border-color: rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
   color: var(--accent-blue);
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.08);
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
 }
 
 .workflow-project-list {
@@ -2714,7 +2641,7 @@ onBeforeUnmount(() => {
   gap: 10px;
   min-height: 48px;
   padding: 8px 10px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.12);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
   color: var(--text-strong);
@@ -2730,9 +2657,9 @@ onBeforeUnmount(() => {
 .workflow-new-tile:hover,
 .workflow-new-tile:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.28);
+  border-color: rgba(99, 102, 241, 0.28);
   background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.06);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.06);
 }
 
 .workflow-new-tile:disabled {
@@ -2746,7 +2673,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 9px;
-  background: linear-gradient(135deg, rgba(139, 212, 80, 0.18), rgba(0, 169, 187, 0.14));
+  background: linear-gradient(135deg, rgba(139, 212, 80, 0.18), rgba(99, 102, 241, 0.14));
   color: var(--accent-blue);
   line-height: 0;
 }
@@ -2788,15 +2715,15 @@ onBeforeUnmount(() => {
 .workflow-nav-item:hover,
 .workflow-nav-item:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(0, 169, 187, 0.16);
+  border-color: rgba(99, 102, 241, 0.16);
   background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.045);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.045);
 }
 
 .workflow-nav-item-active {
-  border-color: rgba(27, 124, 255, 0.18);
-  background: linear-gradient(90deg, rgba(237, 245, 255, 0.9), rgba(239, 252, 255, 0.7));
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.18);
+  background: linear-gradient(90deg, rgba(224, 231, 255, 0.9), rgba(238, 242, 255, 0.7));
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.06);
 }
 
 .workflow-nav-item__main {
@@ -2815,7 +2742,7 @@ onBeforeUnmount(() => {
 }
 
 .workflow-nav-item__main:focus-visible {
-  outline: 2px solid rgba(0, 169, 187, 0.34);
+  outline: 2px solid rgba(99, 102, 241, 0.34);
   outline-offset: 4px;
   border-radius: 10px;
 }
@@ -2824,14 +2751,14 @@ onBeforeUnmount(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(0, 169, 187, 0.22);
+  background: rgba(99, 102, 241, 0.22);
   flex-shrink: 0;
   transition: background 150ms ease;
 }
 
 .workflow-nav-item__dot-active {
   background: var(--accent-blue);
-  box-shadow: 0 0 0 4px rgba(27, 124, 255, 0.12);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
 .workflow-nav-item__title {
@@ -2873,7 +2800,7 @@ onBeforeUnmount(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: #effcff;
+  background: #eef2ff;
   color: var(--accent-cyan);
   margin: 0 auto 4px;
 }
@@ -2939,8 +2866,8 @@ onBeforeUnmount(() => {
 }
 
 .workflow-canvas-header__settings-button-active {
-  border-color: rgba(27, 124, 255, 0.22);
-  background: #edf5ff;
+  border-color: rgba(99, 102, 241, 0.22);
+  background: #e0e7ff;
   color: var(--accent-blue);
 }
 
@@ -2952,9 +2879,9 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   max-width: 100%;
   padding: 6px 11px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.1);
   border-radius: 999px;
-  background: linear-gradient(135deg, #f7fbff, #f4fffb);
+  background: linear-gradient(135deg, #eef2ff, #f4fffb);
 }
 
 .workflow-summary__meta-compact {
@@ -3074,7 +3001,7 @@ onBeforeUnmount(() => {
 
 .workflow-more-menu[open] summary,
 .workflow-more-menu summary:hover {
-  background: #effcff;
+  background: #eef2ff;
   color: var(--accent-blue);
 }
 
@@ -3098,9 +3025,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-more-menu__trigger:hover {
-  background: #effcff;
+  background: #eef2ff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.1);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.1);
 }
 
 .workflow-more-menu__popover {
@@ -3152,7 +3079,7 @@ onBeforeUnmount(() => {
 
 .workflow-more-menu__popover > button:hover,
 .workflow-more-menu__popover > a:hover {
-  background: rgba(237, 245, 255, 0.76);
+  background: rgba(224, 231, 255, 0.76);
   color: var(--accent-blue);
 }
 
@@ -3256,7 +3183,7 @@ onBeforeUnmount(() => {
   min-height: 92px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff, #f3fbff);
+  background: linear-gradient(180deg, #ffffff, #eef2ff);
   color: var(--text-muted);
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -3269,10 +3196,10 @@ onBeforeUnmount(() => {
 
 .workflow-composer-upload:hover:not(:disabled),
 .workflow-composer-upload:focus-visible {
-  border-color: rgba(0, 169, 187, 0.22);
+  border-color: rgba(99, 102, 241, 0.22);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.07);
 }
 
 .workflow-composer-upload span {
@@ -3281,7 +3208,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: #effcff;
+  background: #eef2ff;
   font-size: 1.55rem;
   line-height: 1;
   color: currentColor;
@@ -3433,15 +3360,15 @@ onBeforeUnmount(() => {
 
 .tool-pill-interactive:hover {
   transform: translateY(-1px);
-  border-color: rgba(0, 169, 187, 0.26);
+  border-color: rgba(99, 102, 241, 0.26);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
 }
 
 .tool-pill-active {
-  border-color: rgba(27, 124, 255, 0.22);
-  background: linear-gradient(180deg, #effcff, #edf5ff);
+  border-color: rgba(99, 102, 241, 0.22);
+  background: linear-gradient(180deg, #eef2ff, #e0e7ff);
   color: var(--accent-blue);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
@@ -3512,10 +3439,8 @@ onBeforeUnmount(() => {
 }
 
 .workflow-create-popover .field-input:focus {
-  border-color: rgba(0, 169, 187, 0.42);
-  box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 26px rgba(0, 0, 0, 0.06);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 .composer-required-count {
@@ -3567,7 +3492,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
   color: #fff;
-  box-shadow: 0 12px 28px rgba(27, 124, 255, 0.24);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.24);
   cursor: pointer;
   transition:
     transform 160ms ease,
@@ -3582,7 +3507,7 @@ onBeforeUnmount(() => {
 .workflow-composer-submit:hover:not(:disabled),
 .workflow-composer-submit:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 32px rgba(27, 124, 255, 0.28);
+  box-shadow: 0 14px 32px rgba(99, 102, 241, 0.28);
 }
 
 .workflow-composer-submit:disabled {
@@ -3665,10 +3590,10 @@ button:disabled {
 .workflow-stage-step-active,
 .workflow-stage-step:hover {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.2);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.94), rgba(237, 245, 255, 0.9));
+  border-color: rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.94), rgba(224, 231, 255, 0.9));
   color: var(--accent-blue);
-  box-shadow: 0 12px 24px rgba(27, 124, 255, 0.08);
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.08);
 }
 
 .workflow-stage-step__index {
@@ -3677,7 +3602,7 @@ button:disabled {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #effcff;
+  background: #eef2ff;
   color: currentColor;
   font-size: 0.76rem;
   font-weight: 900;
@@ -3822,7 +3747,7 @@ button:disabled {
   align-items: center;
   min-width: 164px;
   padding: 9px 11px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.1);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
   transition:
@@ -3833,14 +3758,14 @@ button:disabled {
 }
 
 .version-switcher__tab-active {
-  border-color: rgba(27, 124, 255, 0.22);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.08);
+  border-color: rgba(99, 102, 241, 0.22);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
 }
 
 .version-switcher__tab:hover {
   transform: translateY(-1px);
-  border-color: rgba(0, 169, 187, 0.2);
+  border-color: rgba(99, 102, 241, 0.2);
   background: #fff;
 }
 
@@ -3911,8 +3836,8 @@ button:disabled {
 
 .compact-version-card-active,
 .video-version-card-active {
-  border-color: rgba(27, 124, 255, 0.22);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
+  border-color: rgba(99, 102, 241, 0.22);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
 }
 
 .video-version-card__title {
@@ -3962,8 +3887,8 @@ button:disabled {
 }
 
 .missing-clip-card:hover {
-  border-color: rgba(27, 124, 255, 0.22);
-  background: rgba(237, 245, 255, 0.82);
+  border-color: rgba(99, 102, 241, 0.22);
+  background: rgba(224, 231, 255, 0.82);
 }
 
 .compact-version-card__badge,
@@ -3981,7 +3906,7 @@ button:disabled {
 }
 
 .compact-version-card__badge {
-  background: rgba(0, 169, 187, 0.1);
+  background: rgba(99, 102, 241, 0.1);
   color: var(--accent-cyan);
 }
 
@@ -4146,8 +4071,8 @@ button:disabled {
   min-height: 96px;
   border-radius: inherit;
   background:
-    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
-    #f3fbff;
+    linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.08)),
+    #eef2ff;
   color: var(--text-muted);
   text-align: center;
 }
@@ -4164,8 +4089,8 @@ button:disabled {
   padding: 0;
   border-radius: inherit;
   background:
-    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
-    #f3fbff;
+    linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.08)),
+    #eef2ff;
   color: var(--text-muted);
 }
 
@@ -4188,10 +4113,10 @@ button:disabled {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.1);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 16px 36px rgba(27, 124, 255, 0.08);
+  box-shadow: 0 16px 36px rgba(99, 102, 241, 0.08);
   backdrop-filter: blur(40px) saturate(2.0);
 }
 
@@ -4276,7 +4201,7 @@ button:disabled {
   gap: 2px;
   min-height: 48px;
   padding: 8px 10px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.1);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.82);
   text-align: left;
@@ -4296,9 +4221,9 @@ button:disabled {
 .clip-timeline__item-active,
 .clip-timeline__item:hover {
   transform: translateY(-1px);
-  border-color: rgba(27, 124, 255, 0.22);
-  background: linear-gradient(135deg, rgba(239, 252, 255, 0.96), rgba(237, 245, 255, 0.92));
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.08);
+  border-color: rgba(99, 102, 241, 0.22);
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
 }
 
 .clip-timeline__item span {
@@ -4388,13 +4313,13 @@ button:disabled {
     opacity 160ms ease;
 }
 
-.workflow-icon-action:hover:not(:disabled),
-.workflow-icon-action:focus-visible {
+.workflow-icon-action:hover:not(:disabled):not(.workflow-icon-action-primary),
+.workflow-icon-action:focus-visible:not(.workflow-icon-action-primary) {
   transform: translateY(-1px);
-  border-color: rgba(0, 169, 187, 0.24);
+  border-color: rgba(99, 102, 241, 0.24);
   background: #fff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
 }
 
 .workflow-icon-action:disabled {
@@ -4408,16 +4333,17 @@ button:disabled {
 }
 
 .workflow-icon-action-primary {
-  border-color: rgba(27, 124, 255, 0.2);
+  border-color: rgba(99, 102, 241, 0.2);
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
   color: #fff;
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.16);
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.16);
 }
 
 .workflow-icon-action-primary:hover,
 .workflow-icon-action-primary:focus-visible {
   color: #fff;
-  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.2);
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.28);
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
 }
 
 .character-mini-card__actions {
@@ -4462,8 +4388,8 @@ button:disabled {
 
 .keyframe-frame-card__failure-soft {
   background:
-    linear-gradient(135deg, rgba(0, 169, 187, 0.08), rgba(27, 124, 255, 0.08)),
-    #f3fbff;
+    linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.08)),
+    #eef2ff;
   color: var(--text-muted);
 }
 

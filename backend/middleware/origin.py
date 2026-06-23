@@ -41,10 +41,19 @@ class OriginGuardMiddleware(BaseHTTPMiddleware):
 def _trusted_origins(request: Request) -> set[str]:
     from backend.config import settings
 
-    trusted = {
-        _normalize_origin(settings.web_origin),
-        _normalize_origin(str(request.base_url)),
-    }
+    trusted: set[str] = set()
+    # web_origin may be a single URL or comma-separated list
+    for raw in settings.web_origin.split(","):
+        trusted.add(_normalize_origin(raw))
+    trusted.add(_normalize_origin(str(request.base_url)))
     for origin in settings.trusted_origins.split(","):
         trusted.add(_normalize_origin(origin))
+    # For localhost / 127.0.0.1, also trust the port-less variant
+    # so that any dev-server port is accepted.
+    extra: set[str] = set()
+    for o in trusted:
+        parsed = urlsplit(o)
+        if parsed.hostname in ("localhost", "127.0.0.1") and parsed.port:
+            extra.add(f"{parsed.scheme}://{parsed.hostname}")
+    trusted.update(extra)
     return {origin for origin in trusted if origin}

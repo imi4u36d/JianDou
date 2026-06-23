@@ -272,7 +272,7 @@ class TaskWorkerStatusStageService:
                 100,
                 TaskStage.PIPELINE,
                 "task.completed",
-                "Spring worker 已通过 generation 服务完成分镜视频生成。",
+                "任务已通过生成服务完成所有镜头的视频渲染。",
                 {
                     "scriptRunId": string_value(script_run.get("id")),
                     "imageRunIds": image_run_ids,
@@ -305,7 +305,7 @@ class TaskWorkerStatusStageService:
                 100,
                 TaskStage.PIPELINE,
                 "task.completed",
-                "Spring worker 已完成工作台图片生成。",
+                "图片生成任务已完成。",
                 {
                     "imageRunId": string_value(image_run.get("id")),
                     "outputUrl": output_url,
@@ -335,7 +335,7 @@ class TaskWorkerStatusStageService:
                 self._task_queue_port.remove(task.id)
             task.is_queued = False
             task.queue_position = None
-            error_message = str(ex) if ex else "Spring worker 执行失败"
+            error_message = str(ex) if ex else "任务执行失败"
             result = self._execution_coordinator.transition_task(
                 task,
                 TaskStateTransition.error(
@@ -343,7 +343,7 @@ class TaskWorkerStatusStageService:
                     task.progress,
                     TaskStage.PIPELINE,
                     "task.failed",
-                    "Spring worker 执行失败。",
+                    "任务执行异常，已标记为失败状态。",
                     {"error": error_message},
                 ).with_attempt(AttemptStatus.FAILED.value, error_message),
             )

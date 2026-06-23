@@ -1,0 +1,40 @@
+<svg width="420" height="96" viewBox="0 0 420 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="JianDou - Text to Video Workstation">
+  <defs>
+    <linearGradient id="jd-grad" x1="20" y1="16" x2="76" y2="80" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8b5cf6"/>
+      <stop offset="0.5" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="jd-gloss" x1="20" y1="20" x2="70" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.36"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .jd-cn { fill: #1e1b4b; }
+    .jd-en { fill: #6366f1; }
+    .jd-tag { fill: #64748b; }
+    @media (prefers-color-scheme: dark) {
+      .jd-cn { fill: #e2e8f0; }
+      .jd-en { fill: #a78bfa; }
+      .jd-tag { fill: #94a3b8; }
+    }
+  </style>
+  <!-- Mark scaled to fit 96px height -->
+  <g transform="translate(0,0) scale(0.75)">
+    <!-- J letterform -->
+    <path d="M27 39C32.7 34 43.2 33.5 49.5 38.8" stroke="url(#jd-grad)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M44 37C45.2 51.2 44.7 64.5 41.5 75C37.4 88.6 27.9 95.3 18.5 90.5" stroke="url(#jd-grad)" stroke-width="14" stroke-linecap="round"/>
+    <!-- D letterform -->
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M77 30H87C105.7 30 116 42.5 116 62C116 81.5 105.7 94 87 94H77C70.9 94 67 90.1 67 84V40C67 33.9 70.9 30 77 30ZM84 46V78H87C96.4 78 101.4 72.1 101.4 62C101.4 51.9 96.4 46 87 46H84Z" fill="url(#jd-grad)"/>
+    <!-- Highlights -->
+    <path d="M31 38.5C35.1 36.7 42 36.8 46.4 39" stroke="url(#jd-gloss)" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M77 40C79.4 36.7 84.2 35.2 89.2 35.5" stroke="url(#jd-gloss)" stroke-width="4.5" stroke-linecap="round"/>
+  </g>
+  <!-- Chinese name -->
+  <text x="108" y="46" class="jd-cn" font-family="'PingFang SC','Hiragino Sans GB','Noto Sans SC',sans-serif" font-weight="700" font-size="36" letter-spacing="-0.02em">煎豆</text>
+  <!-- English name -->
+  <text x="108" y="74" class="jd-en" font-family="'Manrope','Inter',sans-serif" font-weight="800" font-size="22" letter-spacing="0.04em">JIANDOU</text>
+  <!-- Tagline -->
+  <text x="250" y="74" class="jd-tag" font-family="'Manrope','Inter',sans-serif" font-weight="500" font-size="13" letter-spacing="0.01em">Text to Video</text>
+</svg>

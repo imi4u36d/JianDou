@@ -361,10 +361,8 @@ function formatKind(kind: string) {
 }
 
 .key-dialog__input-wrap input:focus {
-  border-color: rgba(90, 200, 250, 0.5);
-  box-shadow:
-    0 0 0 3px rgba(90, 200, 250, 0.12),
-    0 10px 24px rgba(0, 0, 0, 0.15);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
   outline: none;
 }
 
@@ -389,7 +387,7 @@ function formatKind(kind: string) {
 }
 
 .key-dialog__toggle:hover {
-  background: rgba(90, 200, 250, 0.12);
+  background: rgba(99, 102, 241, 0.12);
   color: var(--accent-blue);
 }
 
@@ -431,12 +429,12 @@ function formatKind(kind: string) {
 .key-dialog__btn--save {
   background: var(--bg-accent);
   color: #fff;
-  box-shadow: 0 12px 26px rgba(90, 200, 250, 0.2);
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.2);
 }
 
 .key-dialog__btn--save:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(90, 200, 250, 0.28);
+  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.28);
 }
 
 .key-dialog__btn--save:disabled {

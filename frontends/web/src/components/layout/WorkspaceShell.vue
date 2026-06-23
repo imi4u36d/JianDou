@@ -104,8 +104,6 @@ const authState = useAuthSessionState();
 const adminPortalUrl = getRuntimeConfig().adminBaseUrl;
 
 const navItems: { to: string; label: string; icon: IconName }[] = [
-  { to: "/workspace", label: "工作", icon: "home" },
-  { to: "/workflows", label: "阶段", icon: "workflow" },
   { to: "/tasks", label: "任务", icon: "task" },
   { to: "/materials", label: "素材", icon: "material" },
 ];
@@ -368,6 +366,11 @@ watch(
   opacity: 1;
 }
 
+.sidebar-nav__item-active .sidebar-nav__icon :deep(.icon__detail) {
+  stroke: #fff;
+  fill: #fff;
+}
+
 .sidebar-nav__item:hover .sidebar-nav__icon,
 .sidebar-nav__item-active .sidebar-nav__icon {
   transform: scale(1.04);
@@ -460,7 +463,7 @@ watch(
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1 0%, #3b82f6 54%, #a78bfa 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 54%, #a78bfa 100%);
   color: #fff;
   font-weight: 800;
   box-shadow:

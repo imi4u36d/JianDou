@@ -94,7 +94,7 @@ const compactTaskId = computed(() => {
   color: var(--text-strong);
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow:
-    0 12px 30px rgba(27, 124, 255, 0.045),
+    0 12px 30px rgba(99, 102, 241, 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(40px) saturate(2.0);
 }
@@ -133,7 +133,7 @@ const compactTaskId = computed(() => {
 }
 
 .status-running {
-  --status-color: #2563eb;
+  --status-color: #6366f1;
 }
 
 .status-paused {

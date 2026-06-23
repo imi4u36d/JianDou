@@ -24,7 +24,7 @@
   --bg-surface-strong: rgba(255, 255, 255, 0.78);
   --bg-soft: rgba(255, 255, 255, 0.45);
   --bg-softer: rgba(255, 255, 255, 0.3);
-  --bg-accent-soft: rgba(90, 200, 250, 0.1);
+  --bg-accent-soft: rgba(99, 102, 241, 0.1);
 
   /* ── Border system ── */
   --surface-border: rgba(255, 255, 255, 0.7);
@@ -38,13 +38,13 @@
   /* ── Accent colors ── */
   --accent-indigo: #6366f1;
   --accent-cyan: #6366f1;
-  --accent-blue: #3b82f6;
+  --accent-blue: #6366f1;
   --accent-lime: #16a34a;
   --accent-coral: #e54865;
   --accent-danger: #e54865;
   --accent-warning: #d97706;
   --accent-strong: #6366f1;
-  --bg-accent: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+  --bg-accent: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
 
   /* ── Shadow system (Liquid Glass — multi-layer) ── */
   --shadow-panel:
@@ -166,9 +166,13 @@ textarea {
 
 :focus-visible {
   outline: none;
-  box-shadow:
-    0 0 0 2px #fff,
-    0 0 0 4px rgba(99, 102, 241, 0.34);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.5);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  box-shadow: none;
 }
 
 #app {
@@ -423,11 +427,9 @@ textarea {
   .field-input:focus,
   .field-select:focus,
   .field-textarea:focus {
-    border-color: rgba(90, 200, 250, 0.5);
-    box-shadow:
-      0 0 0 3px rgba(90, 200, 250, 0.15),
-      0 10px 26px rgba(0, 0, 0, 0.2);
-    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
+    background: rgba(255, 255, 255, 0.55);
   }
 
   .field-textarea {
@@ -435,7 +437,7 @@ textarea {
   }
 
   .field-select:hover {
-    border-color: rgba(90, 200, 250, 0.3);
+    border-color: rgba(99, 102, 241, 0.3);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
   }
 
@@ -506,7 +508,7 @@ textarea {
     border-color: transparent;
     background: var(--bg-accent);
     color: #fff;
-    box-shadow: 0 12px 28px rgba(90, 200, 250, 0.25);
+    box-shadow: 0 12px 28px rgba(99, 102, 241, 0.25);
   }
 
   .btn-secondary,

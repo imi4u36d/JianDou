@@ -171,8 +171,8 @@ defineExpose<TextModelProbeInlineExpose>({
 }
 
 .text-model-probe__button:hover:not(:disabled) {
-  border-color: rgba(27, 124, 255, 0.22);
-  background: #effcff;
+  border-color: rgba(99, 102, 241, 0.22);
+  background: #eef2ff;
 }
 
 .text-model-probe__button:disabled {

@@ -263,7 +263,7 @@ class TaskWorkerPipelineHandler:
 
             await self._save_result(self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id))
             await self._save_result(self._status_stage_service.update_status(
-                task, run_context, "ANALYZING", 5, _TaskStage.ANALYSIS, "task.claimed", "任务已被 worker 领取。",
+                task, run_context, "ANALYZING", 5, _TaskStage.ANALYSIS, "task.claimed", "任务已被执行节点领取。",
             ))
             self._runtime_support.assert_task_still_active(task)
 

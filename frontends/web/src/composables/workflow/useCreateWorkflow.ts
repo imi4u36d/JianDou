@@ -155,7 +155,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
       items: [
         { key: "imageModel", label: "关键帧模型", valueLabel: valueOptionLabel(imageModelOptions.value, createForm.imageModel, "未设置"), configured: Boolean(createForm.imageModel), required: true },
         { key: "stylePreset", label: "风格预设", valueLabel: keyOptionLabel(stylePresetOptions.value, createForm.stylePreset, "未设置"), configured: Boolean(createForm.stylePreset), required: true },
-        { key: "aspectRatio", label: "长宽比", valueLabel: valueOptionLabel(aspectRatioOptions.value, createForm.aspectRatio, "未设置"), configured: Boolean(createForm.aspectRatio), required: true },
+        { key: "aspectRatio", label: "画幅", valueLabel: valueOptionLabel(aspectRatioOptions.value, createForm.aspectRatio, "未设置"), configured: Boolean(createForm.aspectRatio), required: true },
         { key: "keyframeSeed", label: "关键帧 Seed", valueLabel: createForm.keyframeSeed === "" ? "自动" : createForm.keyframeSeed, configured: true, required: false },
       ],
     },
@@ -231,7 +231,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     return {
       title: createForm.title.trim(),
       transcriptText: createForm.transcriptText.trim() || null,
-      aspectRatio: createForm.aspectRatio as "9:16" | "16:9",
+      aspectRatio: createForm.aspectRatio,
       stylePreset: createForm.stylePreset || null,
       textAnalysisModel: createForm.textAnalysisModel,
       imageModel: createForm.imageModel,

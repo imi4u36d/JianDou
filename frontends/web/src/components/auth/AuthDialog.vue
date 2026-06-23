@@ -324,10 +324,8 @@ watch(
 }
 
 .auth-dialog__field input:focus {
-  border-color: rgba(90, 200, 250, 0.5);
-  box-shadow:
-    0 0 0 3px rgba(90, 200, 250, 0.12),
-    0 10px 24px rgba(0, 0, 0, 0.15);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -358,7 +356,7 @@ watch(
 }
 
 .auth-dialog__password-toggle:hover {
-  background: rgba(90, 200, 250, 0.12);
+  background: rgba(99, 102, 241, 0.12);
   color: var(--accent-blue);
 }
 
@@ -379,7 +377,7 @@ watch(
   color: #fff;
   font-weight: 850;
   cursor: pointer;
-  box-shadow: 0 12px 26px rgba(90, 200, 250, 0.2);
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.2);
   transition:
     box-shadow 180ms ease,
     transform 180ms ease,
@@ -394,7 +392,7 @@ watch(
 .auth-dialog__submit:hover:not(:disabled),
 .auth-dialog__submit:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(90, 200, 250, 0.28);
+  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.28);
 }
 
 .auth-dialog__submit:active:not(:disabled) {

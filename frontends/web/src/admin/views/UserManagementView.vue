@@ -650,13 +650,13 @@ onMounted(async () => {
   min-height: 34px;
   padding: 0 7px;
   border-radius: 9px;
-  background: #f7fbff;
+  background: #eef2ff;
   font-size: 0.78rem;
   font-weight: 760;
 }
 
 .user-page__actions :deep(.el-button:hover) {
-  background: #effcff;
+  background: #eef2ff;
 }
 
 .user-page__dialog-grid {

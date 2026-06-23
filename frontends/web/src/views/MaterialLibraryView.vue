@@ -16,8 +16,17 @@
 
       <div class="material-topbar__tools liquid-glass">
         <label class="material-search">
-          <span aria-hidden="true"><IconSearch size="sm" /></span>
-          <input v-model="filters.q" type="search" placeholder="搜索" @keyup.enter="loadAssets" />
+          <span class="material-search__icon" aria-hidden="true"><IconSearch size="sm" /></span>
+          <input v-model="filters.q" type="search" placeholder="搜索素材" @keyup.enter="loadAssets" />
+          <button
+            v-if="filters.q"
+            class="material-search__clear"
+            type="button"
+            @click="filters.q = ''; loadAssets()"
+            aria-label="清除搜索"
+          >
+            <IconClose size="xs" />
+          </button>
         </label>
         <span class="material-toolbar-divider"></span>
         <button
@@ -42,7 +51,7 @@
         >
           <IconCheck size="sm" />
         </button>
-        <RouterLink class="material-toolbar-primary" to="/workspace">
+        <RouterLink class="material-toolbar-primary" to="/tasks">
           <IconPlus size="sm" />
           新建
         </RouterLink>
@@ -317,8 +326,8 @@ const typeFilterOptions: AppSelectOption[] = [
 ];
 const aspectRatioFilterOptions: AppSelectOption[] = [
   { label: "全部", value: "" },
-  { label: "9:16", value: "9:16" },
   { label: "16:9", value: "16:9" },
+  { label: "9:16", value: "9:16" },
 ];
 
 const filters = reactive({
@@ -860,7 +869,7 @@ watch(
   border: 1px solid rgba(79, 70, 229, 0.12);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 12px 30px rgba(27, 124, 255, 0.06);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.06);
   backdrop-filter: blur(40px) saturate(2.0);
 }
 
@@ -870,24 +879,69 @@ watch(
   gap: 8px;
   flex: 1 1 auto;
   min-width: 180px;
+  min-height: 34px;
   padding: 0 10px;
-  color: var(--text-muted);
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
 }
 
-.material-search > span,
-.material-toolbar-link,
-.material-toolbar-primary {
+.material-search:focus-within {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.material-search__icon {
   display: inline-grid;
   place-items: center;
+  color: var(--text-muted);
+  transition: color 180ms ease;
+}
+
+.material-search:focus-within .material-search__icon {
+  color: var(--accent-indigo);
 }
 
 .material-search input {
   width: 100%;
-  min-height: 32px;
+  min-height: 30px;
   border: 0;
   outline: 0;
+  box-shadow: none;
   background: transparent;
   color: var(--text-strong);
+  font-size: 0.86rem;
+}
+
+.material-search input:focus-visible {
+  box-shadow: none;
+}
+
+.material-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.material-search__clear {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.material-search__clear:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
 }
 
 .material-toolbar-link,
@@ -953,7 +1007,7 @@ watch(
   gap: 6px;
   background: linear-gradient(135deg, var(--accent-indigo), var(--accent-blue));
   color: #fff;
-  box-shadow: 0 10px 22px rgba(27, 124, 255, 0.16);
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.16);
 }
 
 .material-toolbar-divider {
@@ -1022,7 +1076,7 @@ watch(
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 10px 26px rgba(27, 124, 255, 0.06);
+  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.06);
   backdrop-filter: blur(40px) saturate(2.0);
 }
 
@@ -1117,7 +1171,7 @@ watch(
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(0, 0, 0, 0.06);
   color: var(--text-strong);
-  box-shadow: 0 8px 20px rgba(27, 124, 255, 0.045);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.045);
   backdrop-filter: blur(40px) saturate(2.0);
   transition:
     transform 180ms ease,
@@ -1128,8 +1182,8 @@ watch(
 
 .material-card:hover,
 .material-card-selected {
-  border-color: rgba(27, 124, 255, 0.2);
-  box-shadow: 0 14px 32px rgba(27, 124, 255, 0.085);
+  border-color: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 14px 32px rgba(99, 102, 241, 0.085);
   transform: translateY(-1px);
 }
 
@@ -1198,8 +1252,8 @@ watch(
   width: 100%;
   height: 100%;
   background:
-    linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(27, 124, 255, 0.08)),
-    #f3fbff;
+    linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.08)),
+    #eef2ff;
   color: var(--text-muted);
 }
 
@@ -1255,7 +1309,7 @@ watch(
 
 .material-card__text {
   padding: 14px;
-  background: #f7fbff;
+  background: #eef2ff;
   color: var(--text-body);
   line-height: 1.55;
   overflow: hidden;
@@ -1332,7 +1386,7 @@ watch(
   padding: 0 8px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 999px;
-  background: #f7fbff;
+  background: #eef2ff;
   color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 700;
@@ -1370,7 +1424,7 @@ watch(
 .material-more-menu__trigger:focus-visible {
   background: #eef2ff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(27, 124, 255, 0.08);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.08);
 }
 
 .material-more-menu__panel {
@@ -1428,7 +1482,7 @@ watch(
 
 .material-more-menu__panel button:hover,
 .material-more-menu__panel a:hover {
-  background: rgba(237, 245, 255, 0.76);
+  background: rgba(224, 231, 255, 0.76);
   color: var(--accent-blue);
 }
 

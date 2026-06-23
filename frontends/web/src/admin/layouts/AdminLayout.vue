@@ -139,7 +139,7 @@ async function handleLogout() {
   width: 48px;
   height: 48px;
   border-radius: 15px;
-  background: linear-gradient(135deg, rgba(0, 169, 187, 0.16), rgba(27, 124, 255, 0.16));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.16));
 }
 
 .admin-layout__brand-logo {

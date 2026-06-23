@@ -1,9 +1,9 @@
 <svg width="200" height="32" viewBox="0 0 200 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="JianDou">
   <defs>
     <linearGradient id="wm" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F2D66D"/>
-      <stop offset="0.45" stop-color="#43C6A7"/>
-      <stop offset="1" stop-color="#2F8EAD"/>
+      <stop stop-color="#8b5cf6"/>
+      <stop offset="0.5" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#3b82f6"/>
     </linearGradient>
   </defs>
   <!-- Mark: simplified "JD" monogram -->
@@ -14,7 +14,7 @@
     <rect x="19.2" y="9" width="5.6" height="11" rx="2.8" fill="url(#wm)" fill-opacity="0.15"/>
   </g>
   <!-- Text: 煎豆 -->
-  <text x="38" y="23" font-family="'PingFang SC','Hiragino Sans GB','Noto Sans SC',sans-serif" font-weight="700" font-size="20" fill="#0f1419" letter-spacing="-0.02em">煎豆</text>
+  <text x="38" y="23" font-family="'PingFang SC','Hiragino Sans GB','Noto Sans SC',sans-serif" font-weight="700" font-size="20" fill="#1e1b4b" letter-spacing="-0.02em">煎豆</text>
   <!-- Text: JianDou -->
-  <text x="88" y="23" font-family="'Manrope',sans-serif" font-weight="800" font-size="18" fill="#536471" letter-spacing="-0.02em">JianDou</text>
+  <text x="88" y="23" font-family="'Manrope',sans-serif" font-weight="800" font-size="18" fill="#6366f1" letter-spacing="-0.02em">JianDou</text>
 </svg>

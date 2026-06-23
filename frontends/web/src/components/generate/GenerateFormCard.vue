@@ -159,7 +159,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.82);
   color: var(--text-strong);
   box-shadow:
-    0 12px 30px rgba(27, 124, 255, 0.045),
+    0 12px 30px rgba(99, 102, 241, 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(40px) saturate(2.0);
 }
@@ -199,7 +199,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(0, 169, 187, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.1);
   border-radius: 12px;
   background: rgba(248, 250, 252, 0.76);
   color: var(--text-body);
@@ -276,10 +276,8 @@ defineExpose({
 .field-select:focus,
 .field-textarea:focus {
   outline: none;
-  border-color: rgba(0, 169, 187, 0.42);
-  box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 24px rgba(27, 124, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 .model-inline {
@@ -293,7 +291,7 @@ defineExpose({
   align-items: center;
   min-height: 26px;
   border-radius: 999px;
-  background: rgba(247, 251, 255, 0.78);
+  background: rgba(238, 242, 255, 0.78);
   border: 1px solid rgba(0, 0, 0, 0.06);
   padding: 0 9px;
   color: var(--text-muted);
@@ -315,7 +313,7 @@ defineExpose({
   font-size: 0.9rem;
   font-weight: 850;
   cursor: pointer;
-  box-shadow: 0 12px 28px rgba(27, 124, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.2);
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -325,7 +323,7 @@ defineExpose({
 .submit-btn:hover:not(:disabled),
 .submit-btn:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 32px rgba(27, 124, 255, 0.26);
+  box-shadow: 0 14px 32px rgba(99, 102, 241, 0.26);
 }
 
 .submit-btn:disabled {

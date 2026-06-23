@@ -414,16 +414,14 @@ onBeforeUnmount(() => {
 }
 
 .app-select--field .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(90, 200, 250, 0.3);
+  border-color: rgba(99, 102, 241, 0.3);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .app-select--field.app-select--open .app-select__trigger,
 .app-select--field .app-select__trigger:focus-visible {
-  border-color: rgba(90, 200, 250, 0.5);
-  box-shadow:
-    0 0 0 3px rgba(90, 200, 250, 0.15),
-    0 10px 26px rgba(0, 0, 0, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 .app-select--field.app-select--disabled .app-select__trigger {
@@ -446,7 +444,7 @@ onBeforeUnmount(() => {
 
 .app-select--toolbar.app-select--open .app-select__trigger,
 .app-select--toolbar .app-select__trigger:hover:not(:disabled) {
-  border-color: rgba(90, 200, 250, 0.3);
+  border-color: rgba(99, 102, 241, 0.3);
   background: rgba(255, 255, 255, 0.5);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
 }
@@ -470,10 +468,8 @@ onBeforeUnmount(() => {
 
 .app-select--admin.app-select--open .app-select__trigger,
 .app-select--admin .app-select__trigger:focus-visible {
-  border-color: rgba(90, 200, 250, 0.5);
-  box-shadow:
-    0 0 0 3px rgba(90, 200, 250, 0.12),
-    0 10px 22px rgba(0, 0, 0, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 .app-select--admin.app-select--disabled .app-select__trigger {
@@ -550,13 +546,16 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 1400;
   overflow: auto;
-  padding: 7px;
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.82);
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(40px) saturate(1.8);
   -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.12),
+    0 6px 16px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .app-select__backdrop {
@@ -564,9 +563,9 @@ onBeforeUnmount(() => {
 }
 
 .app-select__menu--admin {
-  border-color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.1);
+  border-color: rgba(99, 102, 241, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 6px 16px rgba(0, 0, 0, 0.06);
 }
 
 .app-select__option {
@@ -575,29 +574,35 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 40px;
-  padding: 9px 12px;
+  min-height: 42px;
+  padding: 10px 14px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
   background: transparent;
   color: var(--text-strong);
   text-align: left;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    transform 160ms ease;
+    background 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .app-select__option:hover:not(:disabled),
 .app-select__option-highlighted {
-  border-color: rgba(90, 200, 250, 0.2);
-  background: rgba(90, 200, 250, 0.1);
+  border-color: rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.06);
 }
 
 .app-select__option-selected {
-  border-color: rgba(90, 200, 250, 0.25);
-  background: rgba(90, 200, 250, 0.15);
-  color: var(--accent-blue);
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent-indigo);
+  font-weight: 600;
+}
+
+.app-select__option-selected:hover:not(:disabled),
+.app-select__option-selected.app-select__option-highlighted {
+  background: rgba(99, 102, 241, 0.12);
 }
 
 .app-select__menu--admin .app-select__option {
@@ -611,8 +616,8 @@ onBeforeUnmount(() => {
 }
 
 .app-select__menu--admin .app-select__option-selected {
-  border-color: rgba(90, 200, 250, 0.3);
-  background: rgba(90, 200, 250, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.15);
 }
 
 .app-select__option-disabled {
@@ -648,11 +653,11 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  color: var(--accent-blue);
+  color: var(--accent-indigo);
 }
 
 .app-select__menu--admin .app-select__check {
-  color: var(--accent-blue);
+  color: var(--accent-indigo);
 }
 
 .app-select__check path {

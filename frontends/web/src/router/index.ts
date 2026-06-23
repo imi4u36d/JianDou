@@ -18,15 +18,13 @@ const SystemView = () => import("@/admin/views/SystemView.vue");
 import { ensureAuthSession, useAuthSessionState } from "@/auth/session";
 import ActivateInviteView from "@/views/ActivateInviteView.vue";
 import ForbiddenView from "@/views/ForbiddenView.vue";
-import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
-import StageWorkflowView from "@/views/StageWorkflowView.vue";
-import TasksView from "@/views/TasksView.vue";
+import UnifiedTaskView from "@/views/UnifiedTaskView.vue";
 
 function normalizeRedirectTarget(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return authState.isAdmin.value ? "/admin" : "/workspace";
+    return authState.isAdmin.value ? "/admin" : "/tasks";
   }
   return value;
 }
@@ -68,30 +66,14 @@ const router = createRouter({
       children: [
         {
           path: "",
-          redirect: "/workspace"
+          redirect: "/tasks"
         },
         {
-          path: "workspace",
-          name: "workspace-home",
-          component: HomeView,
+          path: "tasks",
+          name: "tasks",
+          component: UnifiedTaskView,
           meta: {
-            title: "工作台"
-          }
-        },
-        {
-          path: "workflows",
-          name: "workflows",
-          component: StageWorkflowView,
-          meta: {
-            title: "阶段"
-          }
-        },
-        {
-          path: "workflows/:workflowId",
-          name: "workflow-detail",
-          component: StageWorkflowView,
-          meta: {
-            title: "阶段"
+            title: "任务"
           }
         },
         {
@@ -102,13 +84,21 @@ const router = createRouter({
             title: "素材"
           }
         },
+        // ── 旧路由重定向（向后兼容） ──
         {
-          path: "tasks",
-          name: "tasks",
-          component: TasksView,
-          meta: {
-            title: "任务"
-          }
+          path: "workspace",
+          redirect: "/tasks"
+        },
+        {
+          path: "workflows",
+          redirect: "/tasks"
+        },
+        {
+          path: "workflows/:workflowId",
+          redirect: (to) => ({
+            path: "/tasks",
+            query: { selected: to.params.workflowId, kind: "workflow" }
+          })
         }
       ]
     },

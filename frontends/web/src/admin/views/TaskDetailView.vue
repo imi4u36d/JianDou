@@ -637,7 +637,7 @@ watch(taskId, () => {
   padding: 12px 14px;
   border: 1px solid rgba(23, 32, 42, 0.08);
   border-radius: 14px;
-  background: #f7fbff;
+  background: #eef2ff;
 }
 
 .admin-task-detail-finding__head {
@@ -698,7 +698,7 @@ watch(taskId, () => {
   padding: 12px 14px;
   border: 1px solid rgba(23, 32, 42, 0.08);
   border-radius: 14px;
-  background: #f7fbff;
+  background: #eef2ff;
 }
 
 .admin-detail-section p,
@@ -712,9 +712,9 @@ watch(taskId, () => {
 .admin-detail-text-block {
   margin-top: 12px;
   padding: 12px 14px;
-  border: 1px solid rgba(0, 169, 187, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.12);
   border-radius: 14px;
-  background: linear-gradient(180deg, #f7feff, #f7fbff);
+  background: linear-gradient(180deg, #eef2ff, #eef2ff);
 }
 
 .admin-detail-text-block strong {

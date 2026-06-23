@@ -84,7 +84,7 @@ const emit = defineEmits<{
 }
 
 .app-confirm__icon-primary {
-  background: rgba(90, 200, 250, 0.12);
+  background: rgba(99, 102, 241, 0.12);
   color: var(--accent-blue);
 }
 
@@ -158,7 +158,7 @@ const emit = defineEmits<{
 
 .app-confirm__confirm-primary {
   background: var(--bg-accent);
-  box-shadow: 0 8px 20px rgba(90, 200, 250, 0.2);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.2);
 }
 
 .app-confirm-fade-enter-active,

@@ -416,7 +416,7 @@ onMounted(async () => {
 }
 
 .dashboard-page__stat-card.is-accent {
-  background: linear-gradient(180deg, rgba(0, 169, 187, 0.15), rgba(255, 255, 255, 0.8));
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.15), rgba(255, 255, 255, 0.8));
 }
 
 .dashboard-page__stat-card.is-secondary {

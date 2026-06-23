@@ -7,8 +7,8 @@ export function useWorkflowOptions() {
   const options = ref<GenerationOptionsResponse | null>(null);
 
   const aspectRatioOptions = computed(() => options.value?.aspectRatios ?? [
-    { value: "9:16", label: "9:16" },
     { value: "16:9", label: "16:9" },
+    { value: "9:16", label: "9:16" },
   ]);
   const stylePresetOptions = computed(() => options.value?.stylePresets ?? []);
   const textModelOptions = computed(() => options.value?.textAnalysisModels ?? []);

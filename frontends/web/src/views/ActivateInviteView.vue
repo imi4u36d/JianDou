@@ -122,7 +122,7 @@ async function handleSubmit() {
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.82);
   box-shadow:
-    0 16px 38px rgba(27, 124, 255, 0.06),
+    0 16px 38px rgba(99, 102, 241, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(40px) saturate(2.0);
 }
@@ -190,10 +190,8 @@ async function handleSubmit() {
 }
 
 .auth-form__field input:focus {
-  border-color: rgba(0, 169, 187, 0.42);
-  box-shadow:
-    0 0 0 3px rgba(0, 169, 187, 0.1),
-    0 10px 24px rgba(27, 124, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 .auth-form__password-wrap {
@@ -216,14 +214,14 @@ async function handleSubmit() {
   padding: 0;
   border: 0;
   border-radius: 11px;
-  background: rgba(239, 252, 255, 0.92);
+  background: rgba(238, 242, 255, 0.92);
   color: var(--text-body);
   line-height: 0;
   cursor: pointer;
 }
 
 .auth-form__password-toggle:hover {
-  background: #edf5ff;
+  background: #e0e7ff;
   color: var(--accent-blue);
 }
 
@@ -256,7 +254,7 @@ async function handleSubmit() {
   color: #fff;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 12px 26px rgba(27, 124, 255, 0.18);
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.18);
   transition:
     box-shadow 180ms ease,
     transform 180ms ease,
@@ -271,7 +269,7 @@ async function handleSubmit() {
 .auth-form__submit:hover:not(:disabled),
 .auth-form__submit:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(27, 124, 255, 0.22);
+  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.22);
 }
 
 .auth-form__submit:disabled {

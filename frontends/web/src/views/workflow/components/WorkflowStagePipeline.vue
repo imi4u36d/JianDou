@@ -74,8 +74,8 @@ const emit = defineEmits<{
 .workflow-stage-step:hover,
 .workflow-stage-step-active {
   transform: translateY(-1px);
-  border-color: rgba(90, 200, 250, 0.25);
-  background: rgba(90, 200, 250, 0.1);
+  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.1);
   color: var(--accent-blue);
   box-shadow: none;
 }
@@ -86,7 +86,7 @@ const emit = defineEmits<{
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(90, 200, 250, 0.12);
+  background: rgba(99, 102, 241, 0.12);
   color: currentColor;
   font-size: 0.76rem;
   font-weight: 900;

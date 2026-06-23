@@ -169,7 +169,7 @@ class TaskCommandService:
             task,
             "api",
             "task.created",
-            "Task created.",
+            "任务已创建，等待调度。",
             "INFO",
             {
                 "taskType": task.task_type,
@@ -179,7 +179,7 @@ class TaskCommandService:
         mutation = self._merge_mutation(mutation, trace)
 
         # Enqueue
-        enqueue_result = self.execution_coordinator.enqueue(task, "dispatch", "task.enqueued", "Task enqueued.")
+        enqueue_result = self.execution_coordinator.enqueue(task, "dispatch", "task.enqueued", "任务已加入执行队列。")
         mutation = self._merge_mutation(mutation, enqueue_result)
 
         # Save all mutation data
@@ -309,7 +309,7 @@ class TaskCommandService:
             task,
             "feedback",
             "task.effect_rated",
-            "Task effect rating updated.",
+            "已更新任务效果评分。",
             "INFO",
             {
                 "effectRating": task.effect_rating,

@@ -449,14 +449,14 @@ onMounted(async () => {
   min-height: 34px;
   padding: 0 8px;
   border-radius: 9px;
-  background: #f7fbff;
+  background: #eef2ff;
   font-size: 0.78rem;
   font-weight: 760;
 }
 
 .credit-page__actions :deep(.el-button:hover),
 .credit-page__table :deep(.el-button.is-link:hover) {
-  background: #effcff;
+  background: #eef2ff;
 }
 
 .credit-page__positive {

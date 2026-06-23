@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="static/web/brand/logo.png" alt="JianDou Logo" width="120" />
+  <img src="static/web/brand/logo.svg" alt="JianDou Logo" width="360" />
 </p>
 
 <h1 align="center">JianDou (煎豆)</h1>
