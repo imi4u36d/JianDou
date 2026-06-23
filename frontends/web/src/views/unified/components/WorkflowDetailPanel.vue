@@ -456,20 +456,14 @@ const autoPilot = useAutoPilot(() => props.selectedWorkflowId);
 // Extract execution mode from the workflow summary
 const executionMode = computed(() => detail.selectedWorkflow.value?.executionMode ?? detail.selectedWorkflow.value?.durationMode ?? "manual");
 
-// Sync autoPilotState from workflow detail
+// Sync autoPilotState from workflow detail.
+// The auto-pilot state is stored in its own field on the workflow,
+// so we read it directly instead of mapping from workflow status.
 watch(
-  () => detail.selectedWorkflow.value?.status,
-  (status) => {
-    if (!status) return;
-    // Map workflow status to autoPilot state
-    if (status === "RUNNING" || status === "PROCESSING") {
-      autoPilot.autoPilotState.value = "running";
-    } else if (status === "PAUSED") {
-      autoPilot.autoPilotState.value = "paused";
-    } else if (status === "FAILED") {
-      autoPilot.autoPilotState.value = "failed";
-    } else {
-      autoPilot.autoPilotState.value = "idle";
+  () => detail.selectedWorkflow.value?.autoPilotState,
+  (state) => {
+    if (state) {
+      autoPilot.autoPilotState.value = state;
     }
     // Update next stage and error message from workflow detail
     autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
@@ -483,8 +477,18 @@ watch(
   () => autoPilot.isRunning.value,
   (running) => {
     if (running) {
-      autoPilot.startPolling(detail.reloadCurrentWorkflow);
+      autoPilot.startPolling(detail.pollCurrentWorkflow);
     } else {
+      autoPilot.stopPolling();
+    }
+  }
+);
+
+// Stop polling when auto-pilot reaches a terminal state.
+watch(
+  () => autoPilot.autoPilotState.value,
+  (state) => {
+    if (state === 'idle' || state === 'failed') {
       autoPilot.stopPolling();
     }
   }

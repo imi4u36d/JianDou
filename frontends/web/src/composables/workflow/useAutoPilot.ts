@@ -25,6 +25,7 @@ export function useAutoPilot(getWorkflowId: () => string) {
     busy.value = true
     try {
       await startAutoPilot(getCurrentWorkflowId())
+      autoPilotState.value = 'running'
       messageApi.success('自动执行已启动')
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : '启动失败')
@@ -49,6 +50,7 @@ export function useAutoPilot(getWorkflowId: () => string) {
     busy.value = true
     try {
       await resumeAutoPilot(getCurrentWorkflowId())
+      autoPilotState.value = 'running'
       messageApi.success('已恢复自动执行')
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : '恢复失败')

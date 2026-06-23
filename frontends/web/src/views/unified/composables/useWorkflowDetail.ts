@@ -489,8 +489,9 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     };
   }
 
-  async function loadWorkflowDetail(workflowId: string) {
-    loadingDetail.value = true;
+  async function loadWorkflowDetail(workflowId: string, options?: { quiet?: boolean }) {
+    const quiet = options?.quiet ?? false;
+    if (!quiet) loadingDetail.value = true;
     try {
       selectedWorkflow.value = await fetchWorkflow(workflowId);
       const resolvedStage = resolveWorkflowCanvasStageFromCurrent(selectedWorkflow.value, hasMissingCharacterSheets);
@@ -516,6 +517,22 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     if (selectedWorkflowId.value) {
       await loadWorkflowDetail(selectedWorkflowId.value);
       await detailOptions.reloadWorkflows();
+    }
+  }
+
+  async function pollCurrentWorkflow() {
+    if (selectedWorkflowId.value) {
+      try {
+        const data = await fetchWorkflow(selectedWorkflowId.value);
+        // Merge into existing ref in-place to avoid replacing the object and triggering full re-render.
+        if (selectedWorkflow.value) {
+          Object.assign(selectedWorkflow.value, data);
+        } else {
+          selectedWorkflow.value = data;
+        }
+      } catch {
+        // Silently ignore polling errors — they will surface on the next user action.
+      }
     }
   }
 
@@ -781,6 +798,7 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     switchCanvasStage,
     loadWorkflowDetail,
     reloadCurrentWorkflow,
+    pollCurrentWorkflow,
     handleUpdateWorkflowSettings,
     handleGenerateStoryboard,
     handleAdjustStoryboard,
