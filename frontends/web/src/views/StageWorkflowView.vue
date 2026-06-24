@@ -2239,10 +2239,11 @@ async function handleReuseAsset(assetId: string, versionId: string) {
 function positionVersionMenu(event: ToggleEvent) {
   if (event.newState !== "open") return;
   const popover = event.target as HTMLElement;
-  const trigger = popover.parentElement?.querySelector<HTMLElement>(".workflow-more-menu__trigger");
+  // 通过 popovertarget 属性精确定位触发按钮，避免 DOM 层级依赖
+  const trigger = document.querySelector<HTMLElement>(`[popovertarget="${popover.id}"]`);
   if (!trigger) return;
   const rect = trigger.getBoundingClientRect();
-  const popoverWidth = 164;
+  const popoverWidth = popover.offsetWidth || 164;
   const popoverHeight = Math.max(popover.scrollHeight, popover.offsetHeight, 92);
   let left = rect.right - popoverWidth;
   if (left < 8) left = 8;
@@ -3033,6 +3034,7 @@ onBeforeUnmount(() => {
 .workflow-more-menu__popover {
   position: fixed;
   inset: unset;
+  margin: 0;
   width: 168px;
   padding: 7px;
   border: 1px solid rgba(0, 0, 0, 0.06);

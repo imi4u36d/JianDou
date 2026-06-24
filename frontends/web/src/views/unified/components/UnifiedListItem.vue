@@ -19,6 +19,15 @@
       <span class="unified-list-item__progress" aria-hidden="true"><i :style="{ width: `${item.progress}%` }"></i></span>
     </span>
     <span class="unified-list-item__side">
+      <button
+        type="button"
+        class="unified-list-item__delete"
+        aria-label="删除任务"
+        title="删除"
+        @click.stop="$emit('delete', item)"
+      >
+        <IconDelete size="xs" />
+      </button>
       <strong>{{ item.progress }}%</strong>
     </span>
   </button>
@@ -30,6 +39,7 @@
  */
 import { computed } from "vue";
 import { AppIcon } from "@/components/icons";
+import IconDelete from "@/components/icons/IconDelete.vue";
 import type { UnifiedListItem } from "@/types/unified-task";
 
 const props = defineProps<{
@@ -39,6 +49,7 @@ const props = defineProps<{
 
 defineEmits<{
   select: [item: UnifiedListItem];
+  delete: [item: UnifiedListItem];
 }>();
 
 const statusLabel = computed(() => {
@@ -180,5 +191,37 @@ const compactTime = computed(() => {
   font-size: 0.78rem;
   color: var(--text-muted);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.unified-list-item__delete {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.unified-list-item:hover .unified-list-item__delete,
+.unified-list-item-active .unified-list-item__delete {
+  opacity: 1;
+}
+
+.unified-list-item__delete:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--accent-danger);
 }
 </style>

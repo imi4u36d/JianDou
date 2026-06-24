@@ -25,10 +25,11 @@ function displayTitle(version: StageVersion): string {
 function positionMenu(event: ToggleEvent) {
   if (event.newState !== "open") return;
   const popover = event.target as HTMLElement;
-  const trigger = popover.parentElement?.querySelector<HTMLElement>(".workflow-more-menu__trigger");
+  // 通过 popovertarget 属性精确定位触发按钮，避免 DOM 层级依赖
+  const trigger = document.querySelector<HTMLElement>(`[popovertarget="${popover.id}"]`);
   if (!trigger) return;
   const rect = trigger.getBoundingClientRect();
-  const popoverWidth = 150;
+  const popoverWidth = popover.offsetWidth || 150;
   let left = rect.right - popoverWidth;
   if (left < 8) left = 8;
   if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8;

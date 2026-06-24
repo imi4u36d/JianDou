@@ -8,6 +8,7 @@
         :loading="list.loading.value"
         :selected-id="selection.selectedId.value"
         @select="handleSelect"
+        @delete="handleDelete"
       />
 
       <section class="unified-detail-area">
@@ -42,6 +43,8 @@
       @close="createDialogOpen = false"
       @created="handleCreated"
     />
+
+    <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
   </section>
 </template>
 
@@ -58,15 +61,53 @@ import WorkflowDetailPanel from "./unified/components/WorkflowDetailPanel.vue";
 import CreateTaskDialog from "./unified/components/CreateTaskDialog.vue";
 import { IconPlus } from "@/components/icons";
 import type { UnifiedListItem } from "@/types/unified-task";
+import { requireAuth } from "@/auth/modal";
+import { useConfirmDialog } from "@/composables/useConfirmDialog";
+import { messageApi } from "@/composables/useMessage";
+import { deleteWorkflow } from "@/api/workflows";
+import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 
 const list = useUnifiedList();
 const selection = useUnifiedSelection();
+const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
 const selectedId = selection.selectedId;
 const createDialogOpen = ref(false);
+const managingId = ref("");
 
 function handleSelect(item: UnifiedListItem) {
   selection.selectItem(item);
+}
+
+async function handleDelete(item: UnifiedListItem) {
+  if (managingId.value) return;
+  const authenticated = await requireAuth({
+    title: "登录后操作工作流",
+    message: "删除后无法恢复，请先登录或使用邀请码注册。",
+  });
+  if (!authenticated) {
+    messageApi.error("登录后可继续操作工作流");
+    return;
+  }
+  const ok = await requestConfirm({
+    title: "删除工作流",
+    message: `删除后无法恢复：${item.title || "未命名工作流"}`,
+    confirmText: "删除",
+  });
+  if (!ok) return;
+  managingId.value = item.id;
+  try {
+    await deleteWorkflow(item.id);
+    if (selectedId.value === item.id) {
+      selection.clearSelection();
+    }
+    await list.load();
+    messageApi.success("工作流已删除");
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "删除工作流失败");
+  } finally {
+    managingId.value = "";
+  }
 }
 
 function handleCreated(id: string) {

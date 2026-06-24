@@ -46,6 +46,7 @@
         :item="item"
         :active="item.id === selectedId"
         @select="$emit('select', $event)"
+        @delete="$emit('delete', $event)"
       />
     </div>
   </aside>
@@ -74,6 +75,7 @@ defineProps<{
 
 defineEmits<{
   select: [item: UnifiedListItemType];
+  delete: [item: UnifiedListItemType];
 }>();
 
 const searchText = defineModel<string>("searchText");

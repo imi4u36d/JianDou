@@ -1143,6 +1143,8 @@ const {
 
 .workflow-more-menu__popover {
   position: fixed;
+  inset: unset;
+  margin: 0;
   z-index: 100;
   min-width: 140px;
   padding: 6px;
