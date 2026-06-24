@@ -18,6 +18,7 @@ from backend.exceptions import InsufficientPermissionsError, InvalidCredentialsE
 from backend.logging_config import configure_logging
 from backend.middleware import (
     AccessLogMiddleware,
+    CamelCaseJsonMiddleware,
     OriginGuardMiddleware,
     SecurityHeadersMiddleware,
     SpaFallbackMiddleware,
@@ -102,9 +103,14 @@ def create_app(start_worker: bool = True) -> FastAPI:
     container.bind_app_state(app)
 
     # -- Middleware ---------------------------------------------------------
+    # BaseHTTPMiddleware wrappers must be added first (they become inner layers).
+    # CamelCaseJsonMiddleware is an ASGI middleware added last so it sits at the
+    # outermost layer — this lets it capture the raw body and recalculate
+    # Content-Length before any BaseHTTPMiddleware has locked it in.
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(OriginGuardMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CamelCaseJsonMiddleware)
 
     # -- Routers ------------------------------------------------------------
     from backend.routers import (

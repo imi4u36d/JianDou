@@ -9,7 +9,7 @@ from backend.schemas.common import _to_camel
 
 class AdminRequestModel(BaseModel):
     model_config = ConfigDict(
-        alias_generator=AliasGenerator(validation_alias=_to_camel),
+        alias_generator=AliasGenerator(validation_alias=_to_camel, serialization_alias=_to_camel),
         populate_by_name=True,
     )
 

@@ -645,11 +645,14 @@ class ModelRuntimePropertiesResolver:
     def _preferred_api_key_scopes(
         self, current: ConfigSnapshot, provider: str, vendor: str
     ) -> list[str]:
+        # Check provider first (most specific), then siblings, and finally vendor as the broadest fallback.
+        # This ensures that a key saved under any sibling or vendor name can still be resolved,
+        # while preserving the preference for a more specific provider-level key when it exists.
         scopes: list[str] = []
         self._add_api_key_scope(scopes, provider)
-        self._add_api_key_scope(scopes, vendor)
         for sibling in self._same_vendor_provider_keys(current, provider, vendor):
             self._add_api_key_scope(scopes, sibling)
+        self._add_api_key_scope(scopes, vendor)
         return scopes
 
     def _resolve_shared_configured_api_key(
@@ -1623,6 +1626,33 @@ class UserModelConfigService:
                 model_names=[m.name for m in provider_models],
             ))
 
+        # Also include config-only providers (those without any models) so that
+        # API keys saved for them are visible in the response.
+        existing_keys = {p.key.lower() for p in items}
+        for section in self._model_resolver.list_sections("model.providers"):
+            provider_val = _first_non_blank(section.values.get("provider"), section.name)
+            vendor_val = _string_value(section.values.get("vendor"))
+            entry_key = self._provider_group_key(vendor_val, provider_val)
+            if not entry_key or _normalize(entry_key) in existing_keys:
+                continue
+
+            vendor_name = _first_non_blank(vendor_val, provider_val, entry_key)
+            base_url = self._resolve_provider_base_url_for_config(entry_key, user_id)
+            task_base_url = ""
+            items.append(AdminModelConfigResponse.ProviderItem(
+                key=entry_key, provider=vendor_name, vendor=vendor_name,
+                kinds=[], base_url=base_url, task_base_url=task_base_url,
+                endpoint_host=_host_of(base_url),
+                task_endpoint_host="",
+                api_key_configured=self._contains_api_key(api_keys, entry_key)
+                                   or self._contains_api_key(api_keys, provider_val),
+                base_url_configured=bool(base_url),
+                task_base_url_configured=False,
+                extras={},
+                model_names=[],
+            ))
+            existing_keys.add(_normalize(entry_key))
+
         items.sort(key=lambda p: p.key.lower())
         return items
 
@@ -1691,6 +1721,31 @@ class UserModelConfigService:
             if configured:
                 return configured
         return ""
+
+    def _resolve_provider_base_url_for_config(
+        self, provider_key: str, user_id: int,
+    ) -> str:
+        """Resolve base_url for a config-only provider section (no models)."""
+        # Try resolving via text profile first, then media profiles for each known kind.
+        base_url = self._model_resolver.value(f"model.providers.{provider_key}", "base_url", "")
+        if base_url:
+            return self._normalize_base_url(base_url)
+        # Fall back to env or derived URL.
+        env_endpoint = os.environ.get("JIANDOU_MODEL_ENDPOINT", "").strip()
+        if env_endpoint:
+            return self._normalize_base_url(env_endpoint)
+        endpoint_host = os.environ.get("JIANDOU_MODEL_ENDPOINT_HOST", "").strip()
+        if endpoint_host:
+            return self._derive_base_url_from_host(endpoint_host)
+        return ""
+
+    @staticmethod
+    def _normalize_base_url(raw: str) -> str:
+        return normalize_base_url(raw)
+
+    @staticmethod
+    def _derive_base_url_from_host(host: str) -> str:
+        return derive_base_url_from_host(host)
 
     def _build_provider_key_lookup(
         self, providers: list[AdminModelConfigResponse.ProviderItem]
