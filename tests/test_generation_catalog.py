@@ -11,11 +11,11 @@ async def test_generation_catalog_uses_configured_models(client):
     assert response.status_code == 200
     data = response.json()
     assert data["defaultAspectRatio"] == "16:9"
-    assert data["defaultImageSize"] == "1824x1024"
+    assert data["defaultImageSize"] == "2560x1440"
     assert data["defaultVideoSize"] == "1280*720"
     assert data["defaultVideoDurationSeconds"] == 10
     assert any(model["value"] == "deepseek-v4-flash" for model in data["textAnalysisModels"])
-    assert any(model["value"] == "Doubao-Seedream-4.5" for model in data["imageModels"])
+    assert any(model["value"] == "Doubao-Seedream-5.0-Lite" for model in data["imageModels"])
     assert any(model["value"] == "seedance-1.5-pro" for model in data["videoModels"])
 
 

@@ -28,18 +28,19 @@ model:
         - "creative_prompt"
         - "script_generation"
       description: "DeepSeek 专业文本模型 deepseek-v4-pro。"
-    "Doubao-Seedream-4.5":
+    "Doubao-Seedream-5.0-Lite":
       provider: "seedream"
       vendor: "volcengine"
       kind: "image"
-      label: "Doubao Seedream 4.5"
-      provider_model: "doubao-seedream-4-5-251128"
+      label: "Doubao Seedream 5.0 Lite"
+      provider_model: "doubao-seedream-5-0-260128"
       timeout_seconds: 300
       family: "seedream"
       supports_image_data_uri_references: true
       capabilities:
         - "image_generation"
-      description: "Seedream 文生图模型。"
+      description: "Seedream 5.0 Lite 文生图模型，支持 2K/3K 分辨率、联网搜索、PNG 透明背景。"
+      supported_sizes: "2048x2048,2304x1728,1728x2304,2560x1440,1440x2560,2496x1664,1664x2496,3024x1296"
     "seedance-1.5-pro":
       provider: "seedance"
       vendor: "volcengine"

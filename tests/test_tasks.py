@@ -10,10 +10,10 @@ def generation_task_payload(title: str) -> dict:
     return {
         "title": title,
         "text_analysis_model": "deepseek-v4-flash",
-        "image_model": "Doubao-Seedream-4.5",
+        "image_model": "Doubao-Seedream-5.0-Lite",
         "video_model": "seedance-1.5-pro",
         "aspect_ratio": "16:9",
-        "image_size": "1824x1024",
+        "image_size": "2560x1440",
         "video_size": "1280*720",
         "video_duration_seconds": 10,
     }

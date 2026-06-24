@@ -117,7 +117,7 @@ def test_build_workspace_image_request_uses_data_uri_when_public_url_missing() -
     )
     task = _task(
         execution_context={"referenceImageUrls": ["/storage/ref.png"]},
-        request_snapshot={**_task().request_snapshot, "imageModel": "seedream-v4"},
+        request_snapshot={**_task().request_snapshot, "imageModel": "Doubao-Seedream-5.0-Lite"},
     )
 
     request = support.build_workspace_image_run_request(task, 512, 512)

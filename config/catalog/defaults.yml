@@ -1,7 +1,7 @@
 catalog:
   defaults:
     style_preset: "cinematic"
-    image_size: "1824x1024"
+    image_size: "2560x1440"
     video_size: "1280*720"
     video_duration_seconds: 10
     video_generate_audio: true

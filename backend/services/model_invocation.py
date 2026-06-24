@@ -1257,6 +1257,9 @@ class SeedreamImageModelProvider:
             "stream": False,
             "watermark": False,
         }
+        # Seedream 5.0 Lite supports output_format (png/jpeg) with PNG transparent background
+        if provider_model.strip().lower() == "doubao-seedream-5-0-260128":
+            body["output_format"] = "png"
         if reference_image_urls:
             body["image"] = reference_image_urls[0] if len(reference_image_urls) == 1 else reference_image_urls
         if seed is not None:
@@ -1265,8 +1268,19 @@ class SeedreamImageModelProvider:
 
     @staticmethod
     def _seedream_size(model_name: str, width: int, height: int) -> str:
+        """Compute the size string for Seedream API.
+
+        For Seedream 5.0 Lite, when width and height are both > 0 and the total
+        pixel count meets the minimum (3,686,400), use the exact "WxH" format so
+        the model generates at the precise target resolution. Otherwise fall back
+        to the "2K" preset.
+        """
         normalized = (model_name or "").strip().lower()
         if normalized == "doubao-seedream-4-5-251128":
+            return "2K"
+        if normalized == "doubao-seedream-5-0-260128":
+            if width > 0 and height > 0 and (width * height) >= 3_686_400:
+                return f"{width}x{height}"
             return "2K"
         return "1K"
 

@@ -4,6 +4,16 @@ catalog:
       label: "竖版 9:16"
     "16:9":
       label: "横版 16:9"
+    "4:3":
+      label: "标准 4:3"
+    "3:4":
+      label: "竖版 3:4"
+    "3:2":
+      label: "照片 3:2"
+    "2:3":
+      label: "竖版 2:3"
+    "21:9":
+      label: "超宽 21:9"
   style_presets:
     cinematic:
       label: "电影写实"
@@ -72,6 +82,47 @@ catalog:
       label: "4K 9:16 · 2160x3840"
       width: 2160
       height: 3840
+    # Seedream 5.0 Lite 推荐尺寸（2K-3K，最小像素 ≥ 3,686,400）
+    "2304x1728":
+      label: "2K 4:3 · 2304x1728"
+      width: 2304
+      height: 1728
+    "1728x2304":
+      label: "2K 3:4 · 1728x2304"
+      width: 1728
+      height: 2304
+    "2560x1440":
+      label: "2K 16:9 · 2560x1440"
+      width: 2560
+      height: 1440
+    "1440x2560":
+      label: "2K 9:16 · 1440x2560"
+      width: 1440
+      height: 2560
+    "2496x1664":
+      label: "2K 3:2 · 2496x1664"
+      width: 2496
+      height: 1664
+    "1664x2496":
+      label: "2K 2:3 · 1664x2496"
+      width: 1664
+      height: 2496
+    "3024x1296":
+      label: "2K 21:9 · 3024x1296"
+      width: 3024
+      height: 1296
+    "3072x3072":
+      label: "3K 1:1 · 3072x3072"
+      width: 3072
+      height: 3072
+    "3072x2304":
+      label: "3K 4:3 · 3072x2304"
+      width: 3072
+      height: 2304
+    "2304x3072":
+      label: "3K 3:4 · 2304x3072"
+      width: 2304
+      height: 3072
   video_sizes:
     "480*854":
       label: "480P · 9:16（480 x 854）"
