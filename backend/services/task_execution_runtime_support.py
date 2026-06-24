@@ -78,15 +78,16 @@ class TaskExecutionRuntimeSupport:
             if parsed:
                 return parsed
         aspect_map = {
-            "16:9": [1280, 720],
-            "1:1": [1024, 1024],
-            "21:9": [1536, 658],
-            "3:2": [1216, 832],
-            "4:3": [1152, 896],
-            "3:4": [896, 1152],
-            "2:3": [832, 1216],
+            "16:9": [2560, 1440],
+            "9:16": [1440, 2560],
+            "1:1": [3072, 3072],
+            "21:9": [3024, 1296],
+            "3:2": [2496, 1664],
+            "2:3": [1664, 2496],
+            "4:3": [3072, 2304],
+            "3:4": [2304, 3072],
         }
-        return aspect_map.get(task.aspect_ratio, [720, 1280])
+        return aspect_map.get(task.aspect_ratio, [1440, 2560])
 
     def resolve_duration_seconds(self, task: TaskRecord) -> int:
         snapshot = task.request_snapshot or {}
