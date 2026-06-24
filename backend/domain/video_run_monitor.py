@@ -8,6 +8,82 @@ from backend.shared import first_non_blank, map_value, string_value
 ACTIVE_VIDEO_RUN_STATUSES = frozenset({"pending", "running", "queued", "processing"})
 SUCCESSFUL_VIDEO_RUN_STATUSES = frozenset({"completed", "success", "succeeded"})
 
+# Error messages that indicate a permanent / non-retryable failure.
+# When these substrings appear in a provider error message, polling should stop
+# immediately rather than continuing to retry.
+_PERMANENT_ERROR_MARKERS: tuple[str, ...] = (
+    "quota",
+    "额度",
+    "billing",
+    "账户",
+    "account",
+    "insufficient",
+    "exceeded",
+    "limit reached",
+    "rate limit",
+    "too many requests",
+    "invalid api",
+    "invalid key",
+    "invalid token",
+    "invalid credentials",
+    "is invalid",
+    "unauthorized",
+    "authentication",
+    "forbidden",
+    "permission denied",
+    "not allowed",
+    "unsupported",
+    "model not found",
+    "model not available",
+    "deprecated",
+    "disabled",
+    "suspended",
+    "revoked",
+)
+
+
+def _find_nested_strings(payload: object, *keys: str) -> str:
+    """Recursively search a dict/list for string values matching any key."""
+    if isinstance(payload, str):
+        return payload
+    if isinstance(payload, dict):
+        for k, v in payload.items():
+            if k.lower() in {key.lower() for key in keys}:
+                return string_value(v)
+        for v in payload.values():
+            found = _find_nested_strings(v, *keys)
+            if found:
+                return found
+    if isinstance(payload, list):
+        for item in payload:
+            found = _find_nested_strings(item, *keys)
+            if found:
+                return found
+    return ""
+
+
+def is_permanent_provider_error(message: str, provider_response: object = None) -> bool:
+    """Return True when the error message or provider response body indicates a
+    permanent (non-retryable) error such as quota exceeded, billing issues, or
+    authentication failures.
+
+    Permanent errors should cause the caller to fail fast rather than retry.
+    """
+    normalized = (message or "").lower()
+    if not normalized:
+        return False
+    for marker in _PERMANENT_ERROR_MARKERS:
+        if marker in normalized:
+            return True
+    # Also check nested provider response body
+    if provider_response is not None:
+        body_text = _find_nested_strings(provider_response, "message", "error", "reason", "detail")
+        body_lower = body_text.lower()
+        for marker in _PERMANENT_ERROR_MARKERS:
+            if marker in body_lower:
+                return True
+    return False
+
 def normalized_video_run_status(run: dict[str, Any] | None) -> str:
     return string_value((run or {}).get("status")).lower()
 

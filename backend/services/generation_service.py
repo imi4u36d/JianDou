@@ -114,8 +114,19 @@ def _get_image_model_provider():
 def _get_video_model_provider():
     global _video_model_provider
     if _video_model_provider is None:
-        from backend.services.model_invocation import SeedanceVideoModelProvider, VideoProviderTransport
-        _video_model_provider = SeedanceVideoModelProvider(transport=VideoProviderTransport())
+        from backend.services.model_invocation import (
+            AgnesVideoModelProvider,
+            CompositeVideoModelProvider,
+            SeedanceVideoModelProvider,
+            VideoProviderTransport,
+        )
+        transport = VideoProviderTransport()
+        _video_model_provider = CompositeVideoModelProvider(
+            providers=[
+                SeedanceVideoModelProvider(transport=transport),
+                AgnesVideoModelProvider(transport=transport),
+            ]
+        )
     return _video_model_provider
 
 # ---------------------------------------------------------------------------
@@ -1110,9 +1121,50 @@ class GenerationRunFactory:
             query_status = "UNKNOWN"
             video_url = ""
             task_message = str(ex)
-            provider_response = {"error": task_message}
+            # Preserve provider response from GenerationProviderException for
+            # permanent-error detection (quota, billing, auth, etc.).
+            _ex_provider_response = getattr(ex, "provider_response", None)
+            provider_response = _ex_provider_response if _ex_provider_response is not None else {"error": task_message}
             provider_request = {"task_id": task_id}
-            query_http_status = 0
+            query_http_status = getattr(ex, "http_status", 0)
+
+        # Detect permanent provider errors (quota, billing, auth, etc.) and fail
+        # the run immediately instead of continuing to poll.
+        from backend.domain.video_run_monitor import is_permanent_provider_error
+        if is_permanent_provider_error(task_message, provider_response):
+            error_msg = self._support.first_non_blank(
+                task_message,
+                self._support.find_nested_string(provider_response, "message", "error", "reason", "detail"),
+                query_status,
+            )
+            result["error"] = error_msg
+            metadata["taskStatus"] = "FAILED"
+            metadata["taskMessage"] = task_message
+            metadata["error"] = error_msg
+            metadata["providerPayload"] = provider_response
+            metadata["nextPollAt"] = None
+            self._append_provider_query_history(metadata, {
+                "step": "video.query",
+                "providerRequest": provider_request,
+                "providerResponse": provider_response,
+                "httpStatus": query_http_status,
+                "endpointHost": _profile_dict.get("taskEndpointHost", ""),
+                "success": False,
+            })
+            call_chain.append(
+                self._support.call_log("generation", "video.failed", "error", "", {
+                    "taskId": task_id,
+                    "status": "FAILED",
+                    "error": error_msg,
+                    "reason": "permanent_provider_error",
+                })
+            )
+            result["callChain"] = call_chain
+            result["metadata"] = metadata
+            run["result"] = result
+            run["resultVideo"] = result
+            self._support.update_run_status(run, GenerationRunStatuses.FAILED)
+            return run
 
         metadata["taskStatus"] = query_status
         metadata["taskMessage"] = task_message

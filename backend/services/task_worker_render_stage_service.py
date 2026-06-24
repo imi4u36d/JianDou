@@ -355,7 +355,7 @@ class TaskWorkerRenderStageService:
             if not is_video_run_active(current_status):
                 assert_video_run_succeeded(current_run, current_status)
                 return current_run
-            self._sleep_before_next_video_poll()
+            await self._sleep_before_next_video_poll()
         raise TimeoutError(f"video run wait timeout: runId={run_id}, status={current_status}, maxPolls={self._video_run_max_polls}")
 
     async def _generate_frame(self, task: TaskRecord, clip_index: int, prompt: str, width: int, height: int,
@@ -471,11 +471,11 @@ class TaskWorkerRenderStageService:
                 merged.add(v)
         return list(merged)
 
-    def _sleep_before_next_video_poll(self) -> None:
+    async def _sleep_before_next_video_poll(self) -> None:
         if self._video_run_poll_interval_ms <= 0:
             return
-        import time
-        time.sleep(self._video_run_poll_interval_ms / 1000.0)
+        import asyncio
+        await asyncio.sleep(self._video_run_poll_interval_ms / 1000.0)
 
 def _file_name_from_url(url: str) -> str:
     return artifact_file_name_from_url(url)

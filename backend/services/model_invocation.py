@@ -998,7 +998,7 @@ class ImageProviderTransport:
             )
         if response.status_code < 200 or response.status_code >= 300:
             raise GenerationProviderException(
-                f"provider request failed: http {response.status_code} {self._truncate(response.text, 320)}",
+                f"provider request failed: {ImageProviderTransport._error_summary(response.status_code, response.text)}",
                 provider_request=request_payload,
                 provider_response=response.text,
                 http_status=response.status_code,
@@ -1085,7 +1085,7 @@ class ImageProviderTransport:
             )
         if response.status_code < 200 or response.status_code >= 300:
             raise GenerationProviderException(
-                f"{error_prefix}: http {response.status_code} {self._truncate(response.text, 320)}",
+                f"{error_prefix}: {ImageProviderTransport._error_summary(response.status_code, response.text)}",
                 provider_request=request_payload,
                 provider_response=response.text,
                 http_status=response.status_code,
@@ -1142,6 +1142,22 @@ class ImageProviderTransport:
             parts.append(line_break.encode("utf-8"))
         parts.append(f"--{boundary}--{line_break}".encode())
         return b"".join(parts)
+
+    @staticmethod
+    def _error_summary(status_code: int, body: str | None) -> str:
+        """Format error message with explicit tags for known non-retryable statuses."""
+        normalized_body = (body or "").strip()
+        status_tags: dict[int, str] = {
+            429: "rate limit / quota exceeded",
+            402: "payment required / quota exceeded",
+            403: "forbidden / permission denied",
+            401: "unauthorized / authentication failed",
+        }
+        tag = status_tags.get(status_code)
+        truncated = ImageProviderTransport._truncate(normalized_body, 320) if normalized_body else ""
+        if tag:
+            return f"http {status_code} {tag}" + (f": {truncated}" if truncated else "")
+        return f"http {status_code}" + (f" {truncated}" if truncated else "")
 
     @staticmethod
     def _truncate(value: str | None, limit: int) -> str:
@@ -1561,8 +1577,18 @@ class VideoProviderTransport:
     @staticmethod
     def _summarize_error_response(status_code: int, body: str | None) -> str:
         normalized_body = (body or "").strip()
+        # Explicit HTTP status tags for known non-retryable conditions so
+        # permanent-error detection (is_permanent_provider_error) can identify them.
+        _STATUS_TAGS: dict[int, str] = {
+            429: "rate limit / quota exceeded",
+            402: "payment required / quota exceeded",
+            403: "forbidden / permission denied",
+            401: "unauthorized / authentication failed",
+        }
+        status_tag = _STATUS_TAGS.get(status_code)
         if not normalized_body:
-            return f"http {status_code}"
+            prefix = f"http {status_code}" + (f" {status_tag}" if status_tag else "")
+            return prefix
         if VideoProviderTransport._looks_like_html(normalized_body):
             html_summaries = {
                 502: "http 502 upstream gateway error",
@@ -1570,7 +1596,10 @@ class VideoProviderTransport:
                 504: "http 504 upstream gateway timeout",
             }
             return html_summaries.get(status_code, f"http {status_code} upstream html error page")
-        return f"http {status_code} {VideoProviderTransport._truncate(normalized_body, 320)}"
+        truncated = VideoProviderTransport._truncate(normalized_body, 320)
+        if status_tag:
+            return f"http {status_code} {status_tag}: {truncated}"
+        return f"http {status_code} {truncated}"
 
 
 # =============================================================================
@@ -1745,3 +1774,191 @@ class SeedanceVideoModelProvider:
     @staticmethod
     def _blank_to(primary: str, fallback: str) -> str:
         return fallback if not primary else primary
+
+
+# =============================================================================
+# AgnesVideoModelProvider
+# =============================================================================
+
+
+class AgnesVideoModelProvider:
+    """Agnes Video V2.0 generation provider.
+
+    Submits video generation tasks to the Agnes AI API and polls for results.
+    API docs: https://agnes-ai.com/doc/agnes-video-v20
+    """
+
+    def __init__(self, transport: VideoProviderTransport | None = None):
+        self._transport = transport or VideoProviderTransport()
+
+    def supports(self, profile: MediaProviderProfile) -> bool:
+        provider = profile.config.provider if profile else ""
+        return "agnes" in provider.lower()
+
+    async def submit(
+        self,
+        profile: MediaProviderProfile,
+        request: VideoGenerationRequest,
+    ) -> RemoteVideoTaskSubmission:
+        if not profile.ready:
+            raise GenerationConfigurationException("agnes config missing endpoint or api key")
+        provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
+        frame_rate = 24
+        body = self._build_agnes_video_request_body(
+            provider_model,
+            request.prompt,
+            request.width,
+            request.height,
+            request.duration_seconds,
+            frame_rate,
+            request.first_frame_url,
+            request.seed,
+        )
+        submit_response = await self._transport.send_json(
+            profile.base_url,
+            profile.api_key,
+            body,
+            profile.config.timeout_seconds,
+            {"Authorization": f"Bearer {profile.api_key}"},
+        )
+        submit_payload = self._transport.decode(submit_response.text)
+        task_id = self._transport.extract_task_id(submit_payload)
+        if not task_id:
+            raise GenerationProviderException(
+                "agnes task response missing task id",
+                provider_request={"method": "POST", "endpoint": profile.base_url, "body": body},
+                provider_response=submit_payload,
+                http_status=submit_response.status_code,
+            )
+        return RemoteVideoTaskSubmission(
+            provider=profile.config.provider,
+            requested_model=request.requested_model,
+            provider_model=provider_model,
+            endpoint_host=profile.endpoint_host,
+            task_endpoint_host=profile.task_endpoint_host,
+            task_id=task_id,
+            first_frame_url=request.first_frame_url,
+            requested_last_frame_url=request.last_frame_url or "",
+            return_last_frame=request.return_last_frame,
+            generate_audio=request.generate_audio,
+            prompt=request.prompt,
+            provider_request={"method": "POST", "endpoint": profile.base_url, "body": body},
+            provider_response=submit_payload,
+            http_status=submit_response.status_code,
+        )
+
+    async def query(
+        self,
+        profile: MediaProviderProfile,
+        remote_task_id: str,
+    ) -> RemoteTaskQueryResult:
+        normalized_task_id = (remote_task_id or "").strip()
+        if not normalized_task_id:
+            raise GenerationProviderException("agnes task id is required")
+        if not profile.ready:
+            raise GenerationConfigurationException("agnes config missing task endpoint or api key")
+        poll_base = (profile.task_base_url or profile.base_url).rstrip("/")
+        poll_url = f"{poll_base}/{normalized_task_id}"
+        import httpx as _httpx
+        request = _httpx.Request(
+            "GET",
+            poll_url,
+            headers={
+                "Authorization": f"Bearer {profile.api_key}",
+                "Accept": "application/json",
+            },
+        )
+        response = await self._transport.send(request, "agnes task query failed")
+        payload = self._transport.decode(response.text)
+        request_payload: dict[str, Any] = {"method": "GET", "url": poll_url}
+        return RemoteTaskQueryResult(
+            task_id=self._blank_to(self._transport.extract_task_id(payload), normalized_task_id),
+            task_status=self._transport.extract_task_status(payload),
+            video_url=self._transport.extract_video_url(payload),
+            task_message=self._transport.extract_task_message(payload),
+            provider_response=payload,
+            provider_request=request_payload,
+            http_status=response.status_code,
+        )
+
+    def _build_agnes_video_request_body(
+        self,
+        provider_model: str,
+        prompt: str,
+        width: int,
+        height: int,
+        duration_seconds: int,
+        frame_rate: int,
+        first_frame_url: str,
+        seed: int | None,
+    ) -> dict[str, Any]:
+        num_frames = self._compute_num_frames(duration_seconds, frame_rate)
+        body: dict[str, Any] = {
+            "model": provider_model,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "num_frames": num_frames,
+            "frame_rate": frame_rate,
+        }
+        if first_frame_url and first_frame_url.strip():
+            body["image"] = first_frame_url.strip()
+        if seed is not None:
+            body["seed"] = seed
+        return body
+
+    @staticmethod
+    def _compute_num_frames(duration_seconds: int, frame_rate: int = 24) -> int:
+        """Map duration_seconds to a valid Agnes num_frames (8n+1, ≤ 441)."""
+        target = duration_seconds * frame_rate
+        best = 81
+        for n in range(10, 56):
+            candidate = 8 * n + 1
+            if abs(candidate - target) < abs(best - target):
+                best = candidate
+        return min(best, 441)
+
+    @staticmethod
+    def _blank_to(primary: str, fallback: str) -> str:
+        return fallback if not primary else primary
+
+
+# =============================================================================
+# CompositeVideoModelProvider
+# =============================================================================
+
+
+class CompositeVideoModelProvider:
+    """Multiplexing video provider that delegates to the right sub-provider
+    based on profile.config.provider.
+    """
+
+    def __init__(self, providers: list[VideoModelProvider] | None = None):
+        self._providers: list[VideoModelProvider] = providers or []
+
+    def supports(self, profile: MediaProviderProfile) -> bool:
+        return any(p.supports(profile) for p in self._providers)
+
+    async def submit(
+        self,
+        profile: MediaProviderProfile,
+        request: VideoGenerationRequest,
+    ) -> RemoteVideoTaskSubmission:
+        provider = self._resolve(profile)
+        return await provider.submit(profile, request)
+
+    async def query(
+        self,
+        profile: MediaProviderProfile,
+        remote_task_id: str,
+    ) -> RemoteTaskQueryResult:
+        provider = self._resolve(profile)
+        return await provider.query(profile, remote_task_id)
+
+    def _resolve(self, profile: MediaProviderProfile) -> VideoModelProvider:
+        for p in self._providers:
+            if p.supports(profile):
+                return p
+        raise GenerationProviderException(
+            f"no video provider supports provider={profile.config.provider}"
+        )
