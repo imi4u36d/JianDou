@@ -674,7 +674,7 @@ class TextProviderTransport:
     """
 
     def __init__(self, client: httpx.AsyncClient | None = None):
-        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(120.0))
+        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(120.0), trust_env=False)
 
     async def send_json(
         self,
@@ -961,6 +961,7 @@ class ImageProviderTransport:
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(120.0),
             follow_redirects=True,
+            trust_env=False,
         )
 
     async def send_json(
@@ -1320,6 +1321,263 @@ class SeedreamImageModelProvider:
 
 
 # =============================================================================
+# AgnesImageModelProvider
+# =============================================================================
+
+
+class AgnesImageModelProvider:
+    """Agnes Image generation provider.
+
+    Supports:
+    - Text-to-image: agnes-image-2.1-flash (OpenAI-compatible images/generations)
+    - Image-to-image: agnes-image-2.0-flash with reference images and data-URI fallback
+
+    Text-to-image uses URL output mode; image-to-image also uses URL output mode
+    for reference images. If the URL-based reference image request fails, it
+    falls back to downloading the images and sending them as data URIs.
+    """
+
+    TEXT_TO_IMAGE_MODEL = "agnes-image-2.1-flash"
+    IMAGE_TO_IMAGE_MODEL = "agnes-image-2.0-flash"
+
+    def __init__(self, transport: ImageProviderTransport | None = None):
+        self._transport = transport or ImageProviderTransport()
+
+    def supports(self, profile: MediaProviderProfile) -> bool:
+        provider = profile.config.provider if profile else ""
+        return "agnes" in provider.lower() and getattr(profile.config, "kind", "") == "image"
+
+    async def generate(
+        self,
+        profile: MediaProviderProfile,
+        request: ImageGenerationRequest,
+    ) -> RemoteImageGenerationResult:
+        if not profile.ready:
+            raise GenerationConfigurationException("image provider config missing api key or base url")
+
+        reference_image_urls = self._normalize_reference_image_urls(
+            request.reference_image_urls, request.reference_image_url
+        )
+        has_references = bool(reference_image_urls)
+
+        if has_references:
+            return await self._generate_image_to_image(profile, request, reference_image_urls)
+        else:
+            return await self._generate_text_to_image(profile, request)
+
+    # ------------------------------------------------------------------
+    # Text-to-image
+    # ------------------------------------------------------------------
+
+    async def _generate_text_to_image(
+        self,
+        profile: MediaProviderProfile,
+        request: ImageGenerationRequest,
+    ) -> RemoteImageGenerationResult:
+        provider_model = self.TEXT_TO_IMAGE_MODEL
+        size = f"{request.width}x{request.height}"
+        request_body: dict[str, Any] = {
+            "model": provider_model,
+            "prompt": request.prompt,
+            "size": size,
+        }
+        if request.seed is not None:
+            request_body["seed"] = request.seed
+
+        response = await self._transport.send_json(
+            profile.base_url,
+            profile.api_key,
+            request_body,
+            profile.config.timeout_seconds,
+        )
+        payload = self._transport.decode(response.text)
+        provider_request: dict[str, Any] = {
+            "method": "POST",
+            "endpoint": profile.base_url,
+            "body": request_body,
+        }
+        return await self._parse_openai_image_response(
+            payload, provider_request, response.status_code,
+            profile, provider_model, request,
+        )
+
+    # ------------------------------------------------------------------
+    # Image-to-image
+    # ------------------------------------------------------------------
+
+    async def _generate_image_to_image(
+        self,
+        profile: MediaProviderProfile,
+        request: ImageGenerationRequest,
+        reference_image_urls: list[str],
+    ) -> RemoteImageGenerationResult:
+        provider_model = self.IMAGE_TO_IMAGE_MODEL
+        size = f"{request.width}x{request.height}"
+
+        def _build_body(image_refs: list[str]) -> dict[str, Any]:
+            body: dict[str, Any] = {
+                "model": provider_model,
+                "prompt": request.prompt,
+                "size": size,
+                "tags": ["img2img"],
+                "image": image_refs,
+                "response_format": "url",
+            }
+            if request.seed is not None:
+                body["seed"] = request.seed
+            return body
+
+        # First attempt: use URLs directly
+        request_body = _build_body(reference_image_urls)
+        try:
+            response = await self._transport.send_json(
+                profile.base_url,
+                profile.api_key,
+                request_body,
+                profile.config.timeout_seconds,
+            )
+        except GenerationProviderException:
+            # Fallback: convert reference URLs to data URIs and retry
+            data_uris = await self._reference_urls_to_data_uris(
+                reference_image_urls, profile.config.timeout_seconds
+            )
+            if not data_uris:
+                raise
+            request_body = _build_body(data_uris)
+            response = await self._transport.send_json(
+                profile.base_url,
+                profile.api_key,
+                request_body,
+                profile.config.timeout_seconds,
+            )
+
+        payload = self._transport.decode(response.text)
+        provider_request: dict[str, Any] = {
+            "method": "POST",
+            "endpoint": profile.base_url,
+            "body": request_body,
+        }
+        return await self._parse_openai_image_response(
+            payload, provider_request, response.status_code,
+            profile, provider_model, request,
+        )
+
+    # ------------------------------------------------------------------
+    # Response parsing (OpenAI-compatible images/generations)
+    # ------------------------------------------------------------------
+
+    async def _parse_openai_image_response(
+        self,
+        payload: dict[str, Any],
+        provider_request: dict[str, Any],
+        http_status: int,
+        profile: MediaProviderProfile,
+        provider_model: str,
+        request: ImageGenerationRequest,
+    ) -> RemoteImageGenerationResult:
+        # OpenAI images/generations response: {"data": [{"url": "...", "b64_json": "..."}]}
+        data_list = payload.get("data")
+        if not data_list or not isinstance(data_list, list) or len(data_list) == 0:
+            raise GenerationProviderException(
+                "agnes image response did not include data array",
+                provider_request=provider_request,
+                provider_response=payload,
+                http_status=http_status,
+            )
+        first_item = data_list[0]
+        source_url = self._transport.extract_first_string(first_item, "url")
+
+        data: bytes
+        mime_type = "image/png"
+        if source_url:
+            binary = await self._transport.download_binary(source_url, profile.config.timeout_seconds)
+            data = binary.data
+            mime_type = binary.mime_type if binary.mime_type else mime_type
+        else:
+            b64 = self._transport.extract_first_string(first_item, "b64_json")
+            if not b64:
+                raise GenerationProviderException(
+                    "agnes image response did not include usable image data (no url or b64_json)",
+                    provider_request=provider_request,
+                    provider_response=payload,
+                    http_status=http_status,
+                )
+            try:
+                data = base64.b64decode(b64)
+            except (ValueError, base64.binascii.Error) as ex:
+                raise GenerationProviderException(
+                    "agnes image response returned invalid base64 image data",
+                    provider_request=provider_request,
+                    provider_response=payload,
+                    http_status=http_status,
+                )
+
+        return RemoteImageGenerationResult(
+            data=data,
+            mime_type=mime_type,
+            remote_source_url=source_url,
+            provider=profile.config.provider,
+            provider_model=provider_model,
+            endpoint_host=profile.endpoint_host,
+            width=request.width,
+            height=request.height,
+            requested_size=f"{request.width}x{request.height}",
+            provider_request=provider_request,
+            provider_response=payload,
+            http_status=http_status,
+        )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    async def _reference_urls_to_data_uris(
+        self,
+        urls: list[str],
+        timeout_seconds: int,
+    ) -> list[str]:
+        """Download reference images and encode as data URIs for the API.
+
+        When the API cannot access a reference image URL directly, this method
+        downloads the image and encodes it as a base64 data URI that can be
+        sent inline. URLs that are already data URIs are passed through unchanged.
+        """
+        data_uris: list[str] = []
+        for url in urls:
+            if not url or not url.strip():
+                continue
+            url = url.strip()
+            # Already a data URI — pass through
+            if url.startswith("data:image/") and ";base64," in url:
+                data_uris.append(url)
+                continue
+            # Download and encode
+            try:
+                binary = await self._transport.download_binary(url, timeout_seconds)
+                mime = binary.mime_type or "image/png"
+                b64 = base64.b64encode(binary.data).decode("ascii")
+                data_uris.append(f"data:{mime};base64,{b64}")
+            except Exception:
+                # If download fails, skip this URL (upstream will fail)
+                continue
+        return data_uris
+
+    @staticmethod
+    def _normalize_reference_image_urls(
+        reference_image_urls: list[str],
+        reference_image_url: str,
+    ) -> list[str]:
+        normalized: list[str] = []
+        if reference_image_urls:
+            for value in reference_image_urls:
+                if value and value.strip():
+                    normalized.append(value.strip())
+        if not normalized and reference_image_url and reference_image_url.strip():
+            normalized.append(reference_image_url.strip())
+        return normalized
+
+
+# =============================================================================
 # DTOs for video model invocation
 # =============================================================================
 
@@ -1418,6 +1676,7 @@ class VideoProviderTransport:
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(120.0),
             follow_redirects=True,
+            trust_env=False,
         )
 
     async def send_json(
@@ -1812,6 +2071,7 @@ class AgnesVideoModelProvider:
             request.duration_seconds,
             frame_rate,
             request.first_frame_url,
+            request.last_frame_url,
             request.seed,
         )
         submit_response = await self._transport.send_json(
@@ -1890,6 +2150,7 @@ class AgnesVideoModelProvider:
         duration_seconds: int,
         frame_rate: int,
         first_frame_url: str,
+        last_frame_url: str,
         seed: int | None,
     ) -> dict[str, Any]:
         num_frames = self._compute_num_frames(duration_seconds, frame_rate)
@@ -1901,8 +2162,17 @@ class AgnesVideoModelProvider:
             "num_frames": num_frames,
             "frame_rate": frame_rate,
         }
-        if first_frame_url and first_frame_url.strip():
-            body["image"] = first_frame_url.strip()
+        first = first_frame_url.strip() if first_frame_url else ""
+        last = last_frame_url.strip() if last_frame_url else ""
+        if first and last:
+            body["mode"] = "keyframes"
+            body["image"] = first
+            body["extra_body"] = {
+                "image": [first, last],
+                "mode": "keyframes",
+            }
+        elif first:
+            body["image"] = first
         if seed is not None:
             body["seed"] = seed
         return body
