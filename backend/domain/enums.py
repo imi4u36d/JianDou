@@ -137,6 +137,7 @@ class ExecutionMode(StrEnum):
 
 class AutoPilotState(StrEnum):
     IDLE = "idle"
+    QUEUED = "queued"
     RUNNING = "running"
     PAUSED = "paused"
     FAILED = "failed"

@@ -1308,6 +1308,8 @@ export interface WorkflowDetail {
   autoPilotErrorMessage?: string | null;
   autoPilotStartedAt?: string | null;
   autoPilotPausedAt?: string | null;
+  queuePosition?: number | null;
+  queueSize?: number | null;
 }
 
 export type MaterialAssetType = "character_sheet" | "scene" | "prop" | "free" | "workflow";

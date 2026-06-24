@@ -57,6 +57,7 @@ import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
 import WorkflowDetailPanel from "./unified/components/WorkflowDetailPanel.vue";
 import CreateTaskDialog from "./unified/components/CreateTaskDialog.vue";
 import { IconPlus } from "@/components/icons";
+import type { UnifiedListItem } from "@/types/unified-task";
 
 const list = useUnifiedList();
 const selection = useUnifiedSelection();
@@ -64,8 +65,8 @@ const selection = useUnifiedSelection();
 const selectedId = selection.selectedId;
 const createDialogOpen = ref(false);
 
-function handleSelect(item: { id: string }) {
-  selection.selectById(item.id);
+function handleSelect(item: UnifiedListItem) {
+  selection.selectItem(item);
 }
 
 function handleCreated(id: string) {

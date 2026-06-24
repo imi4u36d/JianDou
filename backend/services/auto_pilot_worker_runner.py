@@ -75,6 +75,21 @@ class AutoPilotWorkerRunner:
         self._job_queue.put_nowait((workflow_id, owner_user_id))
         logger.info("Auto-pilot job enqueued: workflowId=%s", workflow_id)
 
+    def queue_size(self) -> int:
+        """Return the current number of jobs waiting in the queue."""
+        return self._job_queue.qsize()
+
+    def queue_position_of(self, workflow_id: str) -> int | None:
+        """Return the 1-based position of a workflow in the queue, or None if not queued."""
+        for idx, (wid, _) in enumerate(self._job_queue._queue):
+            if wid == workflow_id:
+                return idx + 1
+        return None
+
+    def is_queued(self, workflow_id: str) -> bool:
+        """Return whether a given workflow is currently waiting in the queue."""
+        return any(wid == workflow_id for wid, _ in self._job_queue._queue)
+
     # -- Lifecycle ----------------------------------------------------------
 
     async def start(self) -> None:
@@ -148,11 +163,12 @@ class AutoPilotWorkerRunner:
                 logger.info("Workflow %s is not in auto mode, skipping", workflow_id)
                 return
 
-            # If already running/paused/failed, respect those states
+            # If already in an active or terminal state (other than queued), skip
             if wf.auto_pilot_state in (
                 AutoPilotState.RUNNING.value,
                 AutoPilotState.PAUSED.value,
                 AutoPilotState.FAILED.value,
+                AutoPilotState.COMPLETED.value,
             ):
                 logger.info(
                     "Workflow %s already in state %s, skipping",

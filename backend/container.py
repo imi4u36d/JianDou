@@ -192,14 +192,14 @@ class AppContainer:
         return self.__dict__["_auto_pilot_runner"]
 
     def _lazy_workflow_service(self):
-        """Create a minimal WorkflowService for the auto-pilot runner.
+        """Create a WorkflowService for the auto-pilot runner.
 
-        The auto-pilot runner only needs the DB session and basic helpers,
-        not the full generation service.
+        The auto-pilot runner needs the generation service to drive workflow
+        stages (storyboard, keyframe, video generation).
         """
         from backend.services.workflow_service import WorkflowService
         task_repo = self.task_repository
-        return WorkflowService(task_repo.session)
+        return WorkflowService(task_repo.session, generation_service=self.generation_application_service)
 
     # -- App binding -------------------------------------------------------
 

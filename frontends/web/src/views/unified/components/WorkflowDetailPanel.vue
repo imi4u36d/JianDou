@@ -58,10 +58,10 @@
             <div
               v-for="(entry) in recentLog"
               :key="entry.id"
-              class="autopilot-log-entry"
+              class="autopilot-log-entry autopilot-log-entry--active"
             >
               <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -75,6 +75,29 @@
           </div>
         </div>
 
+        <!-- Queued state -->
+        <div v-else-if="autoPilot.isQueued.value" class="autopilot-bar autopilot-bar-queued surface-panel">
+          <div class="autopilot-bar__status">
+            <span class="autopilot-bar__dot autopilot-bar__dot-queued"></span>
+            <strong>排队中</strong>
+            <span class="autopilot-bar__queue-info" v-if="selectedWorkflow?.queuePosition">
+              前面还有 {{ selectedWorkflow.queuePosition - 1 }} 个任务
+            </span>
+          </div>
+          <div class="autopilot-bar__log">
+            <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry autopilot-log-entry--active">
+              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
+              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
+              <span class="autopilot-log-entry__message">{{ entry.message }}</span>
+            </div>
+          </div>
+          <div class="autopilot-bar__actions">
+            <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.terminateAutoPilot()">
+              <span>取消</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Paused state -->
         <div v-else-if="autoPilot.isPaused.value" class="autopilot-bar autopilot-bar-paused surface-panel">
           <div class="autopilot-bar__status">
@@ -84,7 +107,7 @@
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
               <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -103,21 +126,17 @@
           <div class="autopilot-bar__status">
             <span class="autopilot-bar__dot autopilot-bar__dot-failed"></span>
             <strong>自动执行失败</strong>
-            <span v-if="autoPilot.errorMessage.value" class="autopilot-bar__error">{{ autoPilot.errorMessage.value }}</span>
           </div>
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
               <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
           <div class="autopilot-bar__actions">
             <button class="btn-primary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.resumeAutoPilot()">
-              <span>🔄 重试</span>
-            </button>
-            <button class="btn-secondary btn-sm" type="button" :disabled="autoPilot.busy.value" @click="autoPilot.terminateAutoPilot()">
-              <span>✏ 手动修复后继续</span>
+              <span>重试</span>
             </button>
           </div>
         </div>
@@ -131,7 +150,7 @@
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
               <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span class="autopilot-log-entry__stage">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -488,7 +507,7 @@ const autoPilot = useAutoPilot(() => props.selectedWorkflowId);
 const executionMode = computed(() => detail.selectedWorkflow.value?.executionMode ?? detail.selectedWorkflow.value?.durationMode ?? "manual");
 
 // Show only the last 2 log entries
-const recentLog = computed(() => autoPilot.statusLog.value.slice(-2));
+const recentLog = computed(() => autoPilot.statusLog.value.slice(-1));
 
 // Sync autoPilotState from workflow detail and push status log entries.
 // Uses a ref to track whether the first data load has completed.
@@ -506,9 +525,10 @@ watch(
       if (state) {
         const stage = autoPilot.nextStage.value;
         const messages: Record<string, string> = {
+          queued: '已加入队列，等待执行',
           running: `开始自动执行${stage ? ` — ${stage}` : ''}`,
           paused: `已暂停`,
-          failed: `执行失败${autoPilot.errorMessage.value ? `：${autoPilot.errorMessage.value}` : ''}`,
+          failed: `执行失败`,
           idle: `自动执行已停止`,
         };
         autoPilot.pushStatusLog(state, messages[state] ?? state);
@@ -524,9 +544,10 @@ watch(
 
       const stage = autoPilot.nextStage.value;
       const messages: Record<string, string> = {
+        queued: '已加入队列，等待执行',
         running: `开始自动执行${stage ? ` — ${stage}` : ''}`,
         paused: `已暂停`,
-        failed: `执行失败${autoPilot.errorMessage.value ? `：${autoPilot.errorMessage.value}` : ''}`,
+        failed: `执行失败`,
         idle: `自动执行已停止`,
       };
       if (state) {
@@ -546,11 +567,11 @@ watch(
   }
 );
 
-// Start/stop polling based on auto mode
+// Start/stop polling based on auto mode (queued or running)
 watch(
-  () => autoPilot.isRunning.value,
-  (running) => {
-    if (running) {
+  () => autoPilot.isActive.value,
+  (active) => {
+    if (active) {
       autoPilot.startPolling(detail.pollCurrentWorkflow);
     } else {
       autoPilot.stopPolling();
@@ -562,7 +583,7 @@ watch(
 watch(
   () => autoPilot.autoPilotState.value,
   (state) => {
-    if (state === 'idle' || state === 'failed') {
+    if (state === 'idle' || state === 'failed' || state === 'completed') {
       autoPilot.stopPolling();
     }
   }
@@ -768,6 +789,22 @@ const {
   background: rgba(239, 68, 68, 0.03);
 }
 
+.autopilot-bar__dot-queued {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  animation: autopilot-pulse 2s ease-in-out infinite;
+}
+
+.autopilot-bar-queued {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.03);
+}
+
+.autopilot-bar__queue-info {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 .autopilot-bar-idle {
   border-color: rgba(99, 102, 241, 0.2);
   background: rgba(99, 102, 241, 0.03);
@@ -776,6 +813,9 @@ const {
 /* ── Status Log ── */
 
 .autopilot-bar__log {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -803,10 +843,38 @@ const {
   flex-shrink: 0;
   padding: 1px 5px;
   border-radius: 3px;
-  background: var(--accent-indigo);
-  color: #fff;
   font-size: 0.65rem;
   font-weight: 600;
+}
+
+.autopilot-log-entry__stage--running {
+  background: #22c55e;
+  color: #fff;
+}
+
+.autopilot-log-entry__stage--queued {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.autopilot-log-entry__stage--paused {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.autopilot-log-entry__stage--failed {
+  background: #ef4444;
+  color: #fff;
+}
+
+.autopilot-log-entry__stage--idle {
+  background: #9ca3af;
+  color: #fff;
+}
+
+.autopilot-log-entry__stage--completed {
+  background: #22c55e;
+  color: #fff;
 }
 
 .autopilot-log-entry__message {
@@ -816,6 +884,37 @@ const {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── Active log entry shimmer ── */
+.autopilot-log-entry--active {
+  position: relative;
+  overflow: hidden;
+}
+
+.autopilot-log-entry--active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.08) 40%,
+    rgba(99, 102, 241, 0.12) 50%,
+    rgba(99, 102, 241, 0.08) 60%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: autopilot-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes autopilot-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes autopilot-log-slide-up {

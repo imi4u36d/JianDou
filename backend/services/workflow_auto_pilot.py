@@ -10,7 +10,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from backend.domain.enums import AutoPilotState, WorkflowStage
+from backend.domain.enums import AutoPilotState, WorkflowStage, WorkflowStatus
 from backend.domain.json_payloads import read_json_object
 from backend.shared import now_iso, safe_int, trim
 
@@ -43,6 +43,7 @@ class WorkflowAutoPilot:
     def __init__(self, db, workflow_service: WorkflowService) -> None:  # noqa: ANN001
         self._db = db
         self._workflow_service = workflow_service
+        self._current_step: dict[str, Any] | None = None
 
     # -- Public API ---------------------------------------------------------
 
@@ -105,13 +106,20 @@ class WorkflowAutoPilot:
                     result["iterations"] = iteration
                     return result
 
+                self._current_step = step
                 await self._execute_step(step, workflow_id, owner_user_id)
 
             result["status"] = "max_iterations"
             result["iterations"] = iteration
 
         except Exception as exc:
-            logger.exception("Auto-pilot encountered an unexpected error")
+            step_type = self._current_step.get("type", "?") if self._current_step else "?"
+            clip_index = self._current_step.get("clip_index") if self._current_step else None
+            extra = f" clip={clip_index}" if clip_index is not None else ""
+            logger.exception(
+                "Auto-pilot failed: workflow=%s step=%s%s error=%s",
+                workflow_id, step_type, extra, exc,
+            )
             wf = await self._get_workflow_from_db(workflow_id)
             if wf is not None:
                 await self._set_state(
@@ -254,8 +262,25 @@ class WorkflowAutoPilot:
     ) -> None:
         """Execute one step by calling existing WorkflowService methods."""
         step_type = step.get("type")
+        wf = await self._get_workflow_from_db(workflow_id)
+
+        # Map step type to stage name and model for logging
+        _STAGE_MODEL_MAP: dict[str, tuple[str, str]] = {
+            "generate_storyboard": ("分镜脚本", wf.text_analysis_model if wf else "?"),
+            "select_storyboard":   ("选择分镜", wf.text_analysis_model if wf else "?"),
+            "generate_keyframe":   ("关键帧",     wf.image_model if wf else "?"),
+            "generate_video":      ("视频生成",   wf.video_model if wf else "?"),
+            "select_video":        ("选择视频",   wf.video_model if wf else "?"),
+            "finalize":            ("成片拼接",   "—"),
+        }
+
+        stage_label, model_label = _STAGE_MODEL_MAP.get(step_type, (step_type, "?"))
 
         if step_type == "generate_storyboard":
+            logger.info(
+                "Auto-pilot step: workflow=%s stage=%s model=%s",
+                workflow_id, stage_label, model_label,
+            )
             await self._workflow_service.generate_storyboard(
                 workflow_id, owner_user_id=owner_user_id,
             )
@@ -263,18 +288,30 @@ class WorkflowAutoPilot:
         elif step_type == "select_storyboard":
             version_id = step.get("version_id", "")
             if version_id:
+                logger.info(
+                    "Auto-pilot step: workflow=%s stage=%s version=%s",
+                    workflow_id, stage_label, version_id,
+                )
                 await self._workflow_service.select_storyboard(
                     workflow_id, version_id, owner_user_id=owner_user_id,
                 )
 
         elif step_type == "generate_keyframe":
             clip_index = step.get("clip_index", 1)
+            logger.info(
+                "Auto-pilot step: workflow=%s stage=%s model=%s clip=%s",
+                workflow_id, stage_label, model_label, clip_index,
+            )
             await self._workflow_service.generate_keyframe(
                 workflow_id, clip_index, owner_user_id=owner_user_id,
             )
 
         elif step_type == "generate_video":
             clip_index = step.get("clip_index", 1)
+            logger.info(
+                "Auto-pilot step: workflow=%s stage=%s model=%s clip=%s",
+                workflow_id, stage_label, model_label, clip_index,
+            )
             await self._workflow_service.generate_video(
                 workflow_id, clip_index, owner_user_id=owner_user_id,
             )
@@ -283,11 +320,19 @@ class WorkflowAutoPilot:
             clip_index = step.get("clip_index", 1)
             version_id = step.get("version_id", "")
             if version_id:
+                logger.info(
+                    "Auto-pilot step: workflow=%s stage=%s version=%s",
+                    workflow_id, stage_label, version_id,
+                )
                 await self._workflow_service.select_video(
                     workflow_id, clip_index, version_id, owner_user_id=owner_user_id,
                 )
 
         elif step_type == "finalize":
+            logger.info(
+                "Auto-pilot step: workflow=%s stage=%s",
+                workflow_id, stage_label,
+            )
             await self._workflow_service.finalize_workflow(
                 workflow_id, owner_user_id=owner_user_id,
             )
@@ -322,26 +367,40 @@ class WorkflowAutoPilot:
         state: AutoPilotState,
         error_message: str = "",
     ) -> None:
-        """Update the workflow's auto_pilot fields in the database."""
+        """Update the workflow's auto_pilot fields in the database.
+
+        When entering a terminal auto-pilot state (FAILED / COMPLETED), the
+        workflow-level ``status`` column is synced so that the frontend list
+        filter can correctly surface failed or completed workflows.
+        """
         from sqlalchemy import update
 
         from backend.models.workflow import BizStageWorkflow
 
         now = now_iso()
+        values: dict[str, Any] = {
+            "auto_pilot_state": state.value,
+            "update_time": now,
+        }
+
+        if error_message:
+            values["auto_pilot_error_message"] = error_message
+        if state == AutoPilotState.RUNNING and not wf.auto_pilot_started_at:
+            values["auto_pilot_started_at"] = now
+        if state == AutoPilotState.PAUSED:
+            values["auto_pilot_paused_at"] = now
+
+        # Sync workflow-level status for terminal auto-pilot states
+        if state == AutoPilotState.FAILED:
+            values["status"] = WorkflowStatus.FAILED.value
+        elif state == AutoPilotState.COMPLETED:
+            values["status"] = WorkflowStatus.COMPLETED.value
+
         stmt = (
             update(BizStageWorkflow)
             .where(BizStageWorkflow.workflow_id == wf.workflow_id)
-            .values(
-                auto_pilot_state=state.value,
-                update_time=now,
-            )
+            .values(**values)
         )
-        if error_message:
-            stmt = stmt.values(auto_pilot_error_message=error_message)
-        if state == AutoPilotState.RUNNING and not wf.auto_pilot_started_at:
-            stmt = stmt.values(auto_pilot_started_at=now)
-        if state == AutoPilotState.PAUSED:
-            stmt = stmt.values(auto_pilot_paused_at=now)
 
         await self._db.execute(stmt)
         await self._db.commit()

@@ -96,14 +96,13 @@ export function useUnifiedList() {
   function matchesStatusFilter(item: UnifiedListItem): boolean {
     if (statusFilter.value === "all") return true;
     if (statusFilter.value === "active") {
-      const status = item.status.toLowerCase();
-      return !["completed", "failed"].includes(status) || (item.progress > 0 && item.progress < 100);
-    }
-    if (statusFilter.value === "pending") {
       return item.status === "DRAFT" || item.status === "READY" || item.status === "RUNNING" || item.status === "PAUSED";
     }
+    if (statusFilter.value === "pending") {
+      return item.status === "DRAFT" || item.status === "READY";
+    }
     if (statusFilter.value === "completed") {
-      return item.status === "COMPLETED" || item.progress >= 100;
+      return item.status === "COMPLETED";
     }
     if (statusFilter.value === "failed") {
       return item.status === "FAILED";

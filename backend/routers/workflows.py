@@ -84,7 +84,7 @@ async def start_auto_pilot(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Start auto-pilot for a workflow (sets mode to auto, state to running)."""
+    """Start auto-pilot for a workflow (sets mode to auto, state to queued)."""
     user = await require_user(request)
     svc = _service(db, request)
     result = await _run_action(
@@ -92,8 +92,7 @@ async def start_auto_pilot(
             workflow_id,
             owner_user_id=user["id"],
             execution_mode="auto",
-            auto_pilot_state="running",
-            auto_pilot_started_at=now_iso(),
+            auto_pilot_state="queued",
         )
     )
     if result is None:
@@ -102,6 +101,9 @@ async def start_auto_pilot(
     runner = getattr(request.app.state, "auto_pilot_runner", None)
     if runner is not None:
         runner.enqueue(workflow_id, user["id"])
+        if result.get("autoPilotState") == "queued":
+            result["queuePosition"] = runner.queue_position_of(workflow_id)
+            result["queueSize"] = runner.queue_size()
     return result
 
 
@@ -141,7 +143,7 @@ async def resume_auto_pilot(
             workflow_id,
             owner_user_id=user["id"],
             execution_mode="auto",
-            auto_pilot_state="running",
+            auto_pilot_state="queued",
         )
     )
     if result is None:
@@ -150,6 +152,9 @@ async def resume_auto_pilot(
     runner = getattr(request.app.state, "auto_pilot_runner", None)
     if runner is not None:
         runner.enqueue(workflow_id, user["id"])
+        if result.get("autoPilotState") == "queued":
+            result["queuePosition"] = runner.queue_position_of(workflow_id)
+            result["queueSize"] = runner.queue_size()
     return result
 
 
@@ -187,6 +192,12 @@ async def get_workflow(
     result = await svc.get_workflow(workflow_id, owner_user_id=user["id"])
     if result is None:
         raise not_found("workflow")
+    # Enrich with queue info when workflow is queued
+    if result.get("autoPilotState") == "queued":
+        runner = getattr(request.app.state, "auto_pilot_runner", None)
+        if runner is not None:
+            result["queuePosition"] = runner.queue_position_of(workflow_id)
+            result["queueSize"] = runner.queue_size()
     return result
 
 

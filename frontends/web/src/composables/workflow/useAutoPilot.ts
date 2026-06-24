@@ -47,7 +47,7 @@ export function useAutoPilot(getWorkflowId: () => string) {
     busy.value = true
     try {
       await startAutoPilot(getCurrentWorkflowId())
-      autoPilotState.value = 'running'
+      autoPilotState.value = 'queued'
       messageApi.success('自动执行已启动')
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : '启动失败')
@@ -72,7 +72,7 @@ export function useAutoPilot(getWorkflowId: () => string) {
     busy.value = true
     try {
       await resumeAutoPilot(getCurrentWorkflowId())
-      autoPilotState.value = 'running'
+      autoPilotState.value = 'queued'
       messageApi.success('已恢复自动执行')
     } catch (e) {
       messageApi.error(e instanceof Error ? e.message : '恢复失败')
@@ -117,6 +117,8 @@ export function useAutoPilot(getWorkflowId: () => string) {
   const isRunning = computed(() => autoPilotState.value === 'running')
   const isPaused = computed(() => autoPilotState.value === 'paused')
   const isFailed = computed(() => autoPilotState.value === 'failed')
+  const isQueued = computed(() => autoPilotState.value === 'queued')
+  const isActive = computed(() => autoPilotState.value === 'running' || autoPilotState.value === 'queued')
 
   onUnmounted(() => {
     stopPolling()
@@ -131,6 +133,8 @@ export function useAutoPilot(getWorkflowId: () => string) {
     isRunning,
     isPaused,
     isFailed,
+    isQueued,
+    isActive,
     startAutoPilot: startAutoPilotAction,
     pauseAutoPilot: pauseAutoPilotAction,
     resumeAutoPilot: resumeAutoPilotAction,

@@ -50,6 +50,8 @@ class WorkflowSummaryResponse(BaseModel):
     video_version_count: int = 0
     execution_mode: str = "manual"
     auto_pilot_state: str = "idle"
+    queue_position: int | None = None
+    queue_size: int | None = None
 
 
 class UpdateWorkflowSettingsRequest(WorkflowRequestModel):
@@ -113,6 +115,8 @@ class WorkflowDetailResponse(BaseModel):
     auto_pilot_error_message: str = ""
     auto_pilot_started_at: str = ""
     auto_pilot_paused_at: str = ""
+    queue_position: int | None = None
+    queue_size: int | None = None
 
     model_config = ConfigDict(extra="allow")
 

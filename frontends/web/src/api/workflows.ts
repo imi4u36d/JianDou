@@ -119,17 +119,17 @@ export interface WorkflowActionResponse {
 }
 
 export function startAutoPilot(id: string) {
-  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/start`, {})
+  return postJson<WorkflowDetail>(`/workflows/${id}/auto-pilot/start`, {})
 }
 
 export function pauseAutoPilot(id: string) {
-  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/pause`, {})
+  return postJson<WorkflowDetail>(`/workflows/${id}/auto-pilot/pause`, {})
 }
 
 export function resumeAutoPilot(id: string) {
-  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/resume`, {})
+  return postJson<WorkflowDetail>(`/workflows/${id}/auto-pilot/resume`, {})
 }
 
 export function terminateAutoPilot(id: string) {
-  return postJson<WorkflowActionResponse>(`/workflows/${id}/auto-pilot/terminate`, {})
+  return postJson<WorkflowDetail>(`/workflows/${id}/auto-pilot/terminate`, {})
 }

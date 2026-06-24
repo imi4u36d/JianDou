@@ -16,7 +16,7 @@ class BizStageWorkflow(Base):
         CheckConstraint("duration_mode in ('auto', 'manual')", name="ck_biz_stage_workflows_duration_mode"),
         CheckConstraint("execution_mode in ('auto', 'manual')", name="ck_biz_stage_workflows_execution_mode"),
         CheckConstraint(
-            "auto_pilot_state in ('idle', 'running', 'paused', 'failed', 'completed')",
+            "auto_pilot_state in ('idle', 'queued', 'running', 'paused', 'failed', 'completed')",
             name="ck_biz_stage_workflows_auto_pilot_state",
         ),
         CheckConstraint("min_duration_seconds >= 1", name="ck_biz_stage_workflows_min_duration"),
