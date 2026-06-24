@@ -1,0 +1,12 @@
+model:
+  providers:
+    agnes:
+      provider: "agnes"
+      vendor: "agnes-ai"
+      api_key: ""
+      base_url: "https://apihub.agnes-ai.com/v1/videos"
+      extras:
+        task_base_url: "https://apihub.agnes-ai.com/v1/videos"
+        poll_interval_seconds: 10
+        poll_timeout_seconds: 600
+        watermark: false

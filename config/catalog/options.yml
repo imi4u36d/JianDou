@@ -140,9 +140,24 @@ catalog:
       label: "720P · 16:9（1280 x 720）"
       width: 1280
       height: 720
+    # Agnes Video V2.0 推荐尺寸
+    "768*1152":
+      label: "Agnes · 9:16（768 x 1152）"
+      width: 768
+      height: 1152
+    "1152*768":
+      label: "Agnes · 16:9（1152 x 768）"
+      width: 1152
+      height: 768
+    "1024*1024":
+      label: "Agnes · 1:1（1024 x 1024）"
+      width: 1024
+      height: 1024
   video_durations:
     "4":
       label: "4 秒"
+    "5":
+      label: "5 秒"
     "6":
       label: "6 秒"
     "8":

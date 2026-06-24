@@ -248,10 +248,19 @@ class AppContainer:
         return self.__dict__["_image_model_provider"]
 
     @property
-    def video_model_provider(self) -> SeedanceVideoModelProvider:
+    def video_model_provider(self):
         if "_video_model_provider" not in self.__dict__:
-            from backend.services.model_invocation import SeedanceVideoModelProvider, VideoProviderTransport
-            self.__dict__["_video_model_provider"] = SeedanceVideoModelProvider(
-                transport=VideoProviderTransport()
+            from backend.services.model_invocation import (
+                AgnesVideoModelProvider,
+                CompositeVideoModelProvider,
+                SeedanceVideoModelProvider,
+                VideoProviderTransport,
+            )
+            transport = VideoProviderTransport()
+            self.__dict__["_video_model_provider"] = CompositeVideoModelProvider(
+                providers=[
+                    SeedanceVideoModelProvider(transport=transport),
+                    AgnesVideoModelProvider(transport=transport),
+                ]
             )
         return self.__dict__["_video_model_provider"]

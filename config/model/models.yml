@@ -55,3 +55,17 @@ model:
       generation_mode: "i2v"
       supported_sizes: "480*854,854*480,720*1280,1280*720"
       supported_durations: "4,6,8,10,12"
+    "agnes-video-v2.0":
+      provider: "agnes"
+      vendor: "agnes-ai"
+      kind: "video"
+      label: "Agnes Video V2.0"
+      provider_model: "agnes-video-v2.0"
+      family: "agnes-video"
+      supports_seed: true
+      capabilities:
+        - "video_generation"
+      description: "Agnes AI 视频模型，支持文生视频和图生视频。"
+      generation_mode: "ti2vid"
+      supported_sizes: "768*1152,1152*768,1024*1024"
+      supported_durations: "4,5,6,8,10,12"

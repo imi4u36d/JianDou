@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-VIDEO_URL_KEYS = ("video_url", "videoUrl", "url", "file_url", "fileUrl", "media_url", "mediaUrl")
+VIDEO_URL_KEYS = ("video_url", "videoUrl", "url", "file_url", "fileUrl", "media_url", "mediaUrl", "remixed_from_video_id", "remixedFromVideoId")
 TASK_STATUS_KEYS = ("task_status", "taskStatus", "status", "state")
 TASK_MESSAGE_KEYS = ("message", "error")
 
