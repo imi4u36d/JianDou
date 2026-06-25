@@ -10,6 +10,48 @@ This document records the current backend schema contract and the cleanup path. 
 - Several task fields duplicate data now held in request snapshots or material/result tables.
 - JSON text columns are used for both immutable request snapshots and mutable runtime state without clear naming.
 - Most tables have no comments, no documented ownership boundary, and limited indexes.
+- The first migration must be kept in sync with later workflow auto-pilot columns. A fresh
+  `alembic upgrade head` and `alembic check` is the required guard before shipping schema changes.
+
+## Table Inventory
+
+The current schema has 18 tables. Keep table ownership narrow so new fields do not drift into the nearest large table.
+
+| Table | Owner | Purpose | Cleanup direction |
+| --- | --- | --- | --- |
+| `sys_user` | Auth | Login identity, role, account status, user task concurrency. | Keep role/status constrained; later convert timestamps to typed datetime. |
+| `sys_invite_code` | Auth | Invite-code lifecycle and role assignment. | Keep append-like invite history; do not mix with user profile state. |
+| `sys_user_model_credential` | Auth/model config | Per-user encrypted provider credentials. | Keep one row per `user_id + provider_key`; never store platform secrets here. |
+| `sys_credit_account` | Credit | Current credit balance per user. | Keep only current totals; historical changes belong in transactions. |
+| `sys_credit_rule` | Credit | Billable feature cost definitions. | Keep small and admin-managed. |
+| `sys_credit_transaction` | Credit | Append-only credit ledger. | Keep signed deltas and related run/task/workflow references; do not mutate history. |
+| `biz_tasks` | Task aggregate | User-created task lifecycle, request snapshot, coarse execution state. | Remove duplicated source/model/output fields after compatibility reads move to snapshots/material rows. |
+| `biz_task_attempts` | Task execution | Retry, continue, recover, queue ownership, and terminal attempt state. | Make this the source of truth for execution attempts. |
+| `biz_task_stage_runs` | Task execution | Internal stage execution records. | Keep provider statuses out; use model-call rows or output summary JSON. |
+| `biz_task_queue_events` | Task queue | Append-only queue lifecycle events. | Keep diagnostic and immutable; do not use as mutable attempt state. |
+| `biz_worker_instances` | Task queue | Worker registration and heartbeat state. | Use `status + last_heartbeat_at` for stale detection. |
+| `biz_task_status_history` | Task observability | Status transitions plus trace-only events. | Split trace-only rows later before constraining status columns. |
+| `biz_task_model_calls` | Provider audit | Sanitized provider/model invocation records. | Remove duplicate `model_name` and `model_alias` after canonical model fields settle. |
+| `biz_task_results` | Task outputs | Produced media/text outputs linked to materials and model calls. | Avoid adding more location aliases; prefer material links. |
+| `biz_material_assets` | Media inventory | Uploaded/generated media assets across tasks and workflows. | Keep `local_storage_path` and `public_url` canonical; phase out legacy location aliases. |
+| `biz_stage_workflows` | Workflow aggregate | Editable staged generation workflow and auto-pilot state. | Keep workflow-level settings here; stage outputs belong in versions/assets. |
+| `biz_stage_versions` | Workflow outputs | Versioned storyboard, keyframe, video, and joined outputs. | Keep provider-active statuses only because video refresh is asynchronous. |
+| `biz_request_logs` | Audit/logging | Cross-cutting backend/provider request audit. | Keep request metadata for admin/debug views; do not store material snapshots. |
+
+## Field Cleanup Backlog
+
+Do not drop compatibility fields in-place. Move each group through write-canonical, read-canonical, backfill, then remove.
+
+| Priority | Table | Fields | Target |
+| --- | --- | --- | --- |
+| P0 | `biz_stage_workflows` | `execution_mode`, `auto_pilot_*` | Keep migrations and ORM exactly aligned; fresh migrations must pass from an empty database. |
+| P1 | all business tables | `create_time`, `update_time`, `started_at`, `finished_at`, `captured_at`, `rated_at` | Add typed datetime columns, backfill, switch reads, then remove string timestamp columns in a major migration. |
+| P1 | all boolean-like integer columns | `is_deleted`, `success`, `selected`, `selected_for_next`, `has_audio` | Add typed boolean columns or dialect-compatible boolean constraints, then backfill and switch reads. |
+| P1 | `biz_tasks` | `output_count`, `source_primary_asset_id`, `source_asset_ids_json`, `source_file_names_json`, `model_provider`, `plan_json` | Use `request_payload_json`, `context_json`, `biz_material_assets`, and `biz_task_model_calls`. |
+| P2 | `biz_material_assets` | `local_file_path`, `third_party_url`, `remote_url` | Write `local_storage_path` and `public_url` first; keep aliases only for legacy/provider payload compatibility. |
+| P2 | `biz_task_model_calls` | `model_name`, `model_alias` | Use `requested_model`, `provider_model`, and `resolved_model`. |
+| P2 | `biz_task_status_history` | empty `previous_status`, empty `current_status` trace rows | Move traces to a dedicated trace/event table, then constrain status transitions. |
+| P3 | relationship ids | `task_id`, `workflow_id`, `owner_user_id`, material/version references | Add foreign keys only after legacy orphan rows are audited and backfilled. |
 
 ## Naming Rules
 

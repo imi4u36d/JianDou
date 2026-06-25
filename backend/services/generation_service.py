@@ -8,7 +8,7 @@ Translates the Java classes:
 - DefaultGenerationApplicationService
 
 Wired up with real AI model providers:
-- Text (LLM): OpenAiCompatibleTextModelProvider (DeepSeek, OpenAI, etc.)
+- Text (LLM): OpenAiCompatibleTextModelProvider (OpenAI-compatible API)
 - Image: OpenAI GPT Image API
 - Video: SeedanceVideoModelProvider / AgnesVideoModelProvider
 
@@ -179,7 +179,7 @@ class UnsupportedGenerationKindException(Exception):
 # Stub model providers (remote API calls are not the focus)
 # ---------------------------------------------------------------------------
 
-def _stub_text_response(text: str, model_name: str = "gpt-5.4") -> dict[str, Any]:
+def _stub_text_response(text: str, model_name: str = "gpt-5.5") -> dict[str, Any]:
     return {
         "text": text,
         "modelName": model_name,
@@ -1474,7 +1474,7 @@ class GenerationRunFactory:
     @staticmethod
     def _stub_resolve_text_profile(requested_model: str) -> dict[str, Any]:
         return {
-            "modelName": requested_model if requested_model else "gpt-5.4",
+            "modelName": requested_model if requested_model else "gpt-5.5",
             "provider": "openai",
             "endpointHost": "api.stub.openai.com",
             "taskEndpointHost": "",
@@ -1749,8 +1749,7 @@ class DefaultGenerationApplicationService:
         """Return usage statistics (stub)."""
         items: list[dict[str, Any]] = []
         for model in [
-            {"value": "gpt-5.4", "label": "GPT-5.4", "provider": "openai"},
-            {"value": "gpt-4o", "label": "GPT-4o", "provider": "openai"},
+            {"value": "gpt-5.5", "label": "GPT-5.5", "provider": "openai"},
         ]:
             items.append({
                 "model": str(model.get("value", "")).strip(),

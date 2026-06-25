@@ -4,4 +4,7 @@ model:
       provider: "openai"
       vendor: "openai"
       api_key: ""
-      base_url: "https://api.openai.com/v1"
+      base_url: "http://ec2-3-115-6-106.ap-northeast-1.compute.amazonaws.com:3030/v1"
+      extras:
+        timeout_seconds: 300
+        use_responses_api: false

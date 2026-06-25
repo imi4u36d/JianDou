@@ -19,10 +19,10 @@ def test_parse_path_keeps_quoted_model_names_with_dots() -> None:
         "gpt-5.5",
         "provider",
     ]
-    assert parse_path(" model.providers.'openai.video'.extras.task_base_url ") == [
+    assert parse_path(" model.providers.'agnes.video'.extras.task_base_url ") == [
         "model",
         "providers",
-        "openai.video",
+        "agnes.video",
         "extras",
         "task_base_url",
     ]
@@ -69,7 +69,7 @@ def test_merge_maps_overlays_nested_provider_config_without_dropping_siblings() 
             "model": {
                 "providers": {
                     "openai": {
-                        "base_url": "https://api.openai.com/v1",
+                        "base_url": "http://ec2-3-115-6-106.ap-northeast-1.compute.amazonaws.com:3030/v1",
                         "extras": {"timeout_seconds": 120, "use_responses_api": True},
                     }
                 }
@@ -91,7 +91,7 @@ def test_merge_maps_overlays_nested_provider_config_without_dropping_siblings() 
 
     merged = merge_maps(base, override)
 
-    assert merged["model"]["providers"]["openai"]["base_url"] == "https://api.openai.com/v1"
+    assert merged["model"]["providers"]["openai"]["base_url"] == "http://ec2-3-115-6-106.ap-northeast-1.compute.amazonaws.com:3030/v1"
     assert merged["model"]["providers"]["openai"]["api_key"] == "sk-test"
     assert merged["model"]["providers"]["openai"]["extras"] == {
         "timeout_seconds": 30,

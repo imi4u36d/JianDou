@@ -20,7 +20,7 @@ model:
       kind: "image"
       label: "GPT Image 2"
       provider_model: "gpt-image-2"
-      timeout_seconds: 120
+      timeout_seconds: 300
       family: "gpt-image"
       capabilities:
         - "image_generation"

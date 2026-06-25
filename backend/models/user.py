@@ -38,6 +38,9 @@ class SysUserModelCredential(Base):
     user_id = Column(Integer, nullable=False, comment="Owner sys_user.id.")
     provider_key = Column(String(64), nullable=False, comment="Normalized model provider key.")
     encrypted_api_key = Column(String(255), nullable=False, comment="Encrypted or locally protected API key value.")
+    base_url = Column(String(1024), nullable=False, default="", comment="User-scoped provider API base URL.")
+    task_base_url = Column(String(1024), nullable=False, default="", comment="User-scoped async task polling base URL.")
+    extras_json = Column(String(2048), nullable=False, default="{}", comment="User-scoped provider runtime extras JSON.")
     created_at = Column(String(32), nullable=False, comment="ISO timestamp when the credential was created.")
     updated_at = Column(String(32), nullable=False, comment="ISO timestamp when the credential was last updated.")
 

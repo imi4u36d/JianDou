@@ -8,6 +8,7 @@ Provides:
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import time
@@ -375,8 +376,10 @@ class ModelRuntimePropertiesResolver:
         )
         provider_section = f"model.providers.{provider}"
         vendor = _first_non_blank(_string_value(model_values.get("vendor")), current.value(provider_section, "vendor"))
+        user_provider_config = self._resolve_user_provider_config(current, user_id, provider, vendor)
         api_key = self._resolve_api_key(current, user_id, provider, vendor, provider_section)
         base_url = self._normalize_base_url(_first_non_blank(
+            user_provider_config.base_url,
             _env("JIANDOU_MODEL_BASE_URL"),
             _env("JIANDOU_MODEL_ENDPOINT"),
             _provider_property(provider, "BASE_URL"),
@@ -387,6 +390,7 @@ class ModelRuntimePropertiesResolver:
         ))
         timeout_seconds = _int_value(
             _first_non_blank(
+                user_provider_config.extras.get("timeout_seconds"),
                 _env("JIANDOU_MODEL_TIMEOUT"),
                 current.value(model_section, "timeout_seconds"),
                 current.value(f"{provider_section}.extras", "timeout_seconds"),
@@ -417,6 +421,12 @@ class ModelRuntimePropertiesResolver:
             user_scoped, api_key, provider, vendor, current.source,
             bool(_env("JIANDOU_MODEL_PROVIDER")),
         )
+        configured_responses_api = _first_non_blank(user_provider_config.extras.get("use_responses_api"))
+        supports_responses_api = (
+            _bool_value(configured_responses_api)
+            if configured_responses_api
+            else self._resolve_text_supports_responses_api(current, provider_section, provider, base_url)
+        )
         return ModelRuntimeProfile(
             TextProviderConfig(
                 kind, model_name, provider,
@@ -425,7 +435,7 @@ class ModelRuntimePropertiesResolver:
             ),
             TextProviderCapabilities(
                 _bool_value(_string_value(model_values.get("supports_seed"))),
-                self._resolve_text_supports_responses_api(current, provider_section, provider, base_url),
+                supports_responses_api,
             ),
         )
 
@@ -642,6 +652,15 @@ class ModelRuntimePropertiesResolver:
             )
         )
 
+    def _resolve_user_provider_config(
+        self, current: ConfigSnapshot, user_id: int | None, provider: str, vendor: str
+    ) -> RuntimeProviderConfig:
+        if user_id is None or self._credential_provider is None:
+            return RuntimeProviderConfig()
+        return self._credential_provider.find_runtime_provider_config(
+            user_id, self._preferred_api_key_scopes(current, provider, vendor)
+        )
+
     def _preferred_api_key_scopes(
         self, current: ConfigSnapshot, provider: str, vendor: str
     ) -> list[str]:
@@ -786,13 +805,16 @@ class ModelRuntimePropertiesResolver:
         provider_section = f"model.providers.{provider}"
         vendor = _first_non_blank(_string_value(model_values.get("vendor")), current.value(provider_section, "vendor"))
         vendor_section = f"model.providers.{vendor}" if vendor else ""
+        user_provider_config = self._resolve_user_provider_config(current, user_id, provider, vendor)
         base_url = self._normalize_base_url(_first_non_blank(
+            user_provider_config.base_url,
             _provider_property(provider, "BASE_URL"),
             _provider_property(provider, "ENDPOINT"),
             current.value(provider_section, "base_url"),
             current.value(vendor_section, "base_url") if vendor_section else "",
         ))
         task_base_url = self._normalize_base_url(_first_non_blank(
+            user_provider_config.task_base_url,
             _provider_property(provider, "TASK_BASE_URL"),
             current.value(f"{provider_section}.extras", "task_base_url"),
             current.value(f"{vendor_section}.extras", "task_base_url") if vendor_section else "",
@@ -802,6 +824,7 @@ class ModelRuntimePropertiesResolver:
 
         timeout_seconds = _int_value(
             _first_non_blank(
+                user_provider_config.extras.get("timeout_seconds"),
                 _provider_property(provider, "TIMEOUT_SECONDS"),
                 current.value(model_section, "timeout_seconds"),
                 current.value(f"{provider_section}.extras", "timeout_seconds"),
@@ -822,19 +845,23 @@ class ModelRuntimePropertiesResolver:
             MediaProviderCapabilities(
                 supports_seed=_bool_value(_string_value(model_values.get("supports_seed"))),
                 prompt_extend=_bool_value(_first_non_blank(
+                    user_provider_config.extras.get("prompt_extend"),
                     current.value(f"{provider_section}.extras", "prompt_extend"),
                     current.value(f"{vendor_section}.extras", "prompt_extend") if vendor_section else "",
                 )),
                 camera_fixed=_bool_value(_first_non_blank(
+                    user_provider_config.extras.get("camera_fixed"),
                     current.value(f"{provider_section}.extras", "camera_fixed"),
                     current.value(f"{vendor_section}.extras", "camera_fixed") if vendor_section else "",
                 )),
                 watermark=self._resolve_watermark_default(actual_kind, _first_non_blank(
+                    user_provider_config.extras.get("watermark"),
                     current.value(f"{provider_section}.extras", "watermark"),
                     current.value(f"{vendor_section}.extras", "watermark") if vendor_section else "",
                 )),
                 poll_interval_seconds=_int_value(
                     _first_non_blank(
+                        user_provider_config.extras.get("poll_interval_seconds"),
                         current.value(f"{provider_section}.extras", "poll_interval_seconds"),
                         current.value(f"{vendor_section}.extras", "poll_interval_seconds") if vendor_section else "",
                         "8" if is_video else "5",
@@ -843,6 +870,7 @@ class ModelRuntimePropertiesResolver:
                 ),
                 poll_timeout_seconds=_int_value(
                     _first_non_blank(
+                        user_provider_config.extras.get("poll_timeout_seconds"),
                         current.value(f"{provider_section}.extras", "poll_timeout_seconds"),
                         current.value(f"{vendor_section}.extras", "poll_timeout_seconds") if vendor_section else "",
                         "600" if is_video else "120",
@@ -892,6 +920,16 @@ class RuntimeModelCredentialProvider:
 
     def find_runtime_api_key(self, user_id: int, preferred_scopes: list[str]) -> str:
         raise NotImplementedError
+
+    def find_runtime_provider_config(self, user_id: int, preferred_scopes: list[str]) -> RuntimeProviderConfig:
+        return RuntimeProviderConfig()
+
+
+@dataclass
+class RuntimeProviderConfig:
+    base_url: str = ""
+    task_base_url: str = ""
+    extras: dict[str, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -1970,6 +2008,15 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                     return _first_valid_secret(api_key)
         return ""
 
+    def find_runtime_provider_config(self, user_id: int, preferred_scopes: list[str]) -> RuntimeProviderConfig:
+        rows = self.find_provider_configs_by_user_id(user_id)
+        for scope in preferred_scopes:
+            normalized = _normalize(scope)
+            for provider_key, config in rows.items():
+                if _normalize(provider_key) == normalized:
+                    return config
+        return RuntimeProviderConfig()
+
     def find_api_keys_by_user_id(self, user_id: int) -> dict[str, str]:
         self._ensure_table()
         keys: dict[str, str] = OrderedDict()
@@ -1984,6 +2031,29 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
             if key and valid_api_key:
                 keys[key] = valid_api_key
         return keys
+
+    def find_provider_configs_by_user_id(self, user_id: int) -> dict[str, RuntimeProviderConfig]:
+        self._ensure_table()
+        configs: dict[str, RuntimeProviderConfig] = OrderedDict()
+        with sqlite3.connect(self._database_path) as conn:
+            rows = conn.execute(
+                """
+                select provider_key, base_url, task_base_url, extras_json
+                from sys_user_model_credential
+                where user_id = ?
+                """,
+                (user_id,),
+            ).fetchall()
+        for provider_key, base_url, task_base_url, extras_json in rows:
+            key = _normalize(provider_key)
+            if not key:
+                continue
+            configs[key] = RuntimeProviderConfig(
+                base_url=_trim_to_empty(base_url),
+                task_base_url=_trim_to_empty(task_base_url),
+                extras=self._decode_extras_json(extras_json),
+            )
+        return configs
 
     def save_api_keys(self, user_id: int, api_keys: dict[str, str]) -> None:
         normalized_updates = {
@@ -2016,7 +2086,59 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                             (user_id, provider_key, encrypted_api_key, created_at, updated_at)
                         values (?, ?, ?, ?, ?)
                         """,
-                        (user_id, provider_key, protected_api_key, now, now),
+                            (user_id, provider_key, protected_api_key, now, now),
+                        )
+            conn.commit()
+
+    def save_provider_configs(self, user_id: int, configs: dict[str, RuntimeProviderConfig]) -> None:
+        normalized_updates = {
+            _normalize(provider): config
+            for provider, config in (configs or {}).items()
+            if _normalize(provider)
+        }
+        if not normalized_updates:
+            return
+        self._ensure_table()
+        now = datetime.now(UTC).isoformat()
+        with sqlite3.connect(self._database_path) as conn:
+            for provider_key, config in normalized_updates.items():
+                existing = conn.execute(
+                    "select id from sys_user_model_credential where user_id = ? and provider_key = ?",
+                    (user_id, provider_key),
+                ).fetchone()
+                extras_json = json.dumps(config.extras or {}, ensure_ascii=False, sort_keys=True)
+                if existing:
+                    conn.execute(
+                        """
+                        update sys_user_model_credential
+                        set base_url = ?, task_base_url = ?, extras_json = ?, updated_at = ?
+                        where id = ?
+                        """,
+                        (
+                            _trim_to_empty(config.base_url),
+                            _trim_to_empty(config.task_base_url),
+                            extras_json,
+                            now,
+                            existing[0],
+                        ),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        insert into sys_user_model_credential
+                            (user_id, provider_key, encrypted_api_key, base_url, task_base_url, extras_json, created_at, updated_at)
+                        values (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            user_id,
+                            provider_key,
+                            "",
+                            _trim_to_empty(config.base_url),
+                            _trim_to_empty(config.task_base_url),
+                            extras_json,
+                            now,
+                            now,
+                        ),
                     )
             conn.commit()
 
@@ -2029,11 +2151,21 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                     user_id integer not null,
                     provider_key varchar(64) not null,
                     encrypted_api_key text not null,
+                    base_url text not null default '',
+                    task_base_url text not null default '',
+                    extras_json text not null default '{}',
                     created_at varchar(32) not null,
                     updated_at varchar(32) not null
                 )
                 """
             )
+            columns = {row[1] for row in conn.execute("pragma table_info(sys_user_model_credential)").fetchall()}
+            if "base_url" not in columns:
+                conn.execute("alter table sys_user_model_credential add column base_url text not null default ''")
+            if "task_base_url" not in columns:
+                conn.execute("alter table sys_user_model_credential add column task_base_url text not null default ''")
+            if "extras_json" not in columns:
+                conn.execute("alter table sys_user_model_credential add column extras_json text not null default '{}'")
             conn.execute(
                 """
                 create unique index if not exists ux_sys_user_model_credential_user_provider
@@ -2041,6 +2173,22 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                 """
             )
             conn.commit()
+
+    @staticmethod
+    def _decode_extras_json(raw: str | None) -> dict[str, str]:
+        try:
+            parsed = json.loads(raw or "{}")
+        except json.JSONDecodeError:
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        result: dict[str, str] = {}
+        for key, value in parsed.items():
+            normalized_key = _trim_to_empty(str(key))
+            if not normalized_key:
+                continue
+            result[normalized_key] = _string_value(value)
+        return result
 
     @staticmethod
     def _sqlite_path(database_url: str) -> str:

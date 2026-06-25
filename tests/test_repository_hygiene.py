@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 
 import pytest
@@ -76,6 +77,25 @@ def test_release_check_runs_all_release_facing_gates() -> None:
     assert "docs/openapi.json" in script
     assert "Wheel must not include tests/" in script
     assert '"release:check": "sh scripts/release-check.sh"' in package_json
+
+
+def test_alembic_migrations_apply_to_fresh_sqlite(tmp_path) -> None:
+    db_path = tmp_path / "jiandou-migration-test.db"
+    env = os.environ.copy()
+    env["JIANDOU_DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+
+    subprocess.run(
+        ["uv", "run", "alembic", "upgrade", "head"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+    )
+    subprocess.run(
+        ["uv", "run", "alembic", "check"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+    )
 
 
 def test_ci_runs_release_facing_quality_gates() -> None:

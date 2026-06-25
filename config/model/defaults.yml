@@ -1,8 +1,8 @@
 model:
   volcengine_billing_access_key_id: ""
   volcengine_billing_access_key_secret: ""
-  video_model_usage_quota: '{"seedance-1.5-pro":200}'
-  timeout_seconds: 120
+  video_model_usage_quota: '{"seedance-1.5-pro":200,"agnes-video-v2.0":200}'
+  timeout_seconds: 300
   temperature: 0.15
   max_tokens: 2000
   vision_frame_count: 6

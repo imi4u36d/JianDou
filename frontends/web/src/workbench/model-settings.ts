@@ -4,7 +4,7 @@
 export type TextProviderKey = "openai";
 export type VisionProviderKey = "openai-vision";
 export type KeyframeProviderKey = "openai-image";
-export type VideoProviderKey = "seedance" | "runway" | "custom-video";
+export type VideoProviderKey = "seedance" | "agnes" | "custom-video";
 
 export interface TextProviderProfile {
   label: string;
@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
       openai: {
         label: "OpenAI GPT-5.5",
         modelVersion: "gpt-5.5",
-        endpoint: "https://api.openai.com/v1",
+        endpoint: "http://ec2-3-115-6-106.ap-northeast-1.compute.amazonaws.com:3030/v1",
         apiKey: "",
       },
     },
@@ -146,7 +146,7 @@ export function normalizeModelSettings(value: unknown): ModelSettings {
     ),
     video: sanitizeSimpleSection<VideoProviderKey>(
       record.video,
-      ["seedance", "runway", "custom-video"],
+      ["seedance", "agnes", "custom-video"],
       DEFAULT_SETTINGS.video.provider,
       DEFAULT_SETTINGS.video.endpoint,
       DEFAULT_SETTINGS.video.apiKey,

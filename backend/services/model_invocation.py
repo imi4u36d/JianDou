@@ -574,13 +574,6 @@ class TextModelTransportPolicy:
             return profile.supports_responses_api()
         return False
 
-    @staticmethod
-    def supports_temperature(profile: ModelRuntimeProfile) -> bool:
-        model_name = string_value(getattr(profile.config, "provider_model", "")).strip().lower()
-        if not model_name:
-            model_name = string_value(getattr(profile.config, "model", "")).strip().lower()
-        return not model_name.startswith("gpt-5")
-
 
 @runtime_checkable
 class TextModelInvocationStrategy(Protocol):
@@ -615,9 +608,9 @@ class ChatCompletionsInvocationStrategy:
                 {"role": "user", "content": invocation.user_prompt},
             ],
             "max_tokens": invocation.max_tokens,
+            "stream": True,
+            "temperature": invocation.temperature,
         }
-        if TextModelTransportPolicy.supports_temperature(profile):
-            body["temperature"] = invocation.temperature
         return PreparedTextModelRequest(
             endpoint=TextModelTransportPolicy.resolve_endpoint(profile.base_url, False),
             body=body,
@@ -648,9 +641,9 @@ class ResponsesApiInvocationStrategy:
                 },
             ],
             "max_output_tokens": invocation.max_tokens,
+            "stream": True,
+            "temperature": invocation.temperature,
         }
-        if TextModelTransportPolicy.supports_temperature(profile):
-            body["temperature"] = invocation.temperature
         return PreparedTextModelRequest(
             endpoint=TextModelTransportPolicy.resolve_endpoint(profile.base_url, True),
             body=body,
@@ -724,6 +717,70 @@ class TextProviderTransport:
             )
         return response
 
+    async def send_streaming_json(
+        self,
+        endpoint: str,
+        api_key: str,
+        body: dict[str, Any],
+        timeout_seconds: int,
+        error_prefix: str,
+    ) -> tuple[dict[str, Any], int]:
+        """Send a streaming text request and aggregate SSE deltas."""
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream, application/json",
+        }
+        timeout = max(30, timeout_seconds)
+        raw_body = self._encode(body)
+        try:
+            async with self._client.stream(
+                "POST",
+                endpoint,
+                headers=headers,
+                content=raw_body,
+                timeout=timeout,
+            ) as response:
+                try:
+                    raw_bytes = await asyncio.wait_for(response.aread(), timeout=timeout)
+                except TimeoutError:
+                    raise GenerationProviderException(
+                        f"{error_prefix}: stream response timed out after {timeout}s",
+                        provider_request={"method": "POST", "url": endpoint, "body": body},
+                        http_status=response.status_code,
+                    )
+                raw = raw_bytes.decode("utf-8", errors="replace")
+                if response.status_code < 200 or response.status_code >= 300:
+                    raise GenerationProviderException(
+                        f"{error_prefix}: http {response.status_code} {self._truncate(raw, 320)}",
+                        provider_request={"method": "POST", "url": endpoint, "body": body},
+                        provider_response=raw,
+                        http_status=response.status_code,
+                    )
+                payload = self.decode_stream(raw)
+                stream_error = self.stream_error_message(payload)
+                if stream_error:
+                    raise GenerationProviderException(
+                        f"{error_prefix}: {stream_error}",
+                        provider_request={"method": "POST", "url": endpoint, "body": body},
+                        provider_response=payload,
+                        http_status=response.status_code,
+                    )
+                if self.stream_response_empty(payload):
+                    raise GenerationProviderException(
+                        f"{error_prefix}: stream response did not include text or events",
+                        provider_request={"method": "POST", "url": endpoint, "body": body},
+                        provider_response=raw,
+                        http_status=response.status_code,
+                    )
+                return payload, response.status_code
+        except httpx.RequestError as ex:
+            raise GenerationProviderException(
+                f"{error_prefix}: {ex}",
+                provider_request={"method": "POST", "url": endpoint, "body": body},
+                http_status=0,
+            )
+
     async def send(self, request: httpx.Request, error_prefix: str) -> httpx.Response:
         """Send a pre-built HTTP request."""
         request_payload: dict[str, Any] = {"method": request.method, "url": str(request.url)}
@@ -758,6 +815,128 @@ class TextProviderTransport:
             return json.loads(raw)
         except json.JSONDecodeError as ex:
             raise GenerationProviderException(f"text model response decode failed: {ex}")
+
+    def decode_stream(self, raw: str) -> dict[str, Any]:
+        """Decode OpenAI-compatible SSE responses into a JSON-like payload."""
+        stripped = (raw or "").strip()
+        if not stripped:
+            return {}
+        if stripped.startswith("{"):
+            return self.decode(stripped)
+
+        parts: list[str] = []
+        events: list[dict[str, Any]] = []
+        final_response: dict[str, Any] = {}
+        response_id = ""
+
+        for line in stripped.splitlines():
+            line = line.strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[len("data:"):].strip()
+            if not payload or payload == "[DONE]":
+                continue
+            try:
+                event = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            events.append(event)
+            if not response_id:
+                response_id = string_value(event.get("id"))
+            self._append_stream_event_text(parts, event)
+            nested_response = event.get("response")
+            if isinstance(nested_response, dict):
+                final_response = nested_response
+
+        text = "".join(parts).strip()
+        if final_response:
+            final_response = dict(final_response)
+            if text and not string_value(final_response.get("output_text")):
+                final_response["output_text"] = text
+            final_response.setdefault("stream_events", events)
+            return final_response
+        return {
+            "id": response_id,
+            "output_text": text,
+            "stream_events": events,
+        }
+
+    def stream_error_message(self, payload: dict[str, Any]) -> str:
+        error = payload.get("error")
+        if isinstance(error, dict):
+            return self._format_stream_error(error)
+        status = string_value(payload.get("status")).lower()
+        if status == "failed":
+            return self._format_stream_error(payload.get("error")) or "stream response failed"
+        events = payload.get("stream_events")
+        if isinstance(events, list):
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                event_error = event.get("error")
+                if isinstance(event_error, dict):
+                    return self._format_stream_error(event_error)
+                nested_response = event.get("response")
+                if isinstance(nested_response, dict):
+                    nested_status = string_value(nested_response.get("status")).lower()
+                    if nested_status == "failed":
+                        return self._format_stream_error(nested_response.get("error")) or "stream response failed"
+        return ""
+
+    def stream_response_empty(self, payload: dict[str, Any]) -> bool:
+        if string_value(payload.get("output_text")):
+            return False
+        if payload.get("choices") or payload.get("output"):
+            return False
+        events = payload.get("stream_events")
+        return isinstance(events, list) and not events
+
+    @staticmethod
+    def _format_stream_error(error: object) -> str:
+        if isinstance(error, dict):
+            message = string_value(error.get("message"))
+            code = string_value(error.get("code") or error.get("type"))
+            if message and code:
+                return f"{code}: {message}"
+            return message or code
+        return string_value(error)
+
+    def _append_stream_event_text(self, parts: list[str], event: dict[str, Any]) -> None:
+        event_type = string_value(event.get("type"))
+        if event_type in ("response.output_text.delta", "response.refusal.delta"):
+            parts.append(string_value(event.get("delta")))
+            return
+        if event_type in ("response.output_text.done", "response.completed"):
+            return
+
+        choices = event.get("choices")
+        if isinstance(choices, list):
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    continue
+                delta = choice.get("delta")
+                if isinstance(delta, dict):
+                    content = delta.get("content")
+                    if isinstance(content, str):
+                        parts.append(content)
+                    elif isinstance(content, list):
+                        self._append_content_text(parts, content)
+                message = choice.get("message")
+                if isinstance(message, dict):
+                    self._append_content_text(parts, message.get("content"))
+
+    def _append_content_text(self, parts: list[str], raw: object) -> None:
+        if isinstance(raw, str):
+            parts.append(raw)
+            return
+        if isinstance(raw, list):
+            for item in raw:
+                self._append_content_text(parts, item)
+            return
+        if isinstance(raw, dict):
+            self._append_content_text(parts, raw.get("text") or raw.get("content"))
 
     def extract_text(self, response_map: dict[str, Any]) -> str:
         """Extract text content from a text model response, trying multiple formats.
@@ -827,15 +1006,25 @@ class OpenAiCompatibleTextModelProvider:
         prepared = self._prepare(profile, invocation)
         import time
         started_at = time.monotonic_ns()
-        response = await self._transport.send_json(
-            prepared.endpoint,
-            profile.api_key,
-            prepared.body,
-            profile.config.timeout_seconds,
-            "text model request failed",
-        )
+        if prepared.body.get("stream"):
+            response_map, http_status = await self._transport.send_streaming_json(
+                prepared.endpoint,
+                profile.api_key,
+                prepared.body,
+                profile.config.timeout_seconds,
+                "text model request failed",
+            )
+        else:
+            response = await self._transport.send_json(
+                prepared.endpoint,
+                profile.api_key,
+                prepared.body,
+                profile.config.timeout_seconds,
+                "text model request failed",
+            )
+            response_map = self._transport.decode(response.text)
+            http_status = response.status_code
         latency_ms = int((time.monotonic_ns() - started_at) / 1_000_000)
-        response_map = self._transport.decode(response.text)
         provider_request: dict[str, Any] = {
             "method": "POST",
             "endpoint": prepared.endpoint,
@@ -847,7 +1036,7 @@ class OpenAiCompatibleTextModelProvider:
                 "text model response is empty",
                 provider_request=provider_request,
                 provider_response=response_map,
-                http_status=response.status_code,
+                http_status=http_status,
             )
         return TextModelResponse(
             text=text,
@@ -858,7 +1047,7 @@ class OpenAiCompatibleTextModelProvider:
             response_id=self._transport.string_value(response_map.get("id")),
             provider_request=provider_request,
             provider_response=response_map,
-            http_status=response.status_code,
+            http_status=http_status,
         )
 
     def _prepare(
@@ -1343,7 +1532,6 @@ class OpenAiImageModelProvider:
         provider_model: str,
         request: ImageGenerationRequest,
     ) -> RemoteImageGenerationResult:
-        # OpenAI images/generations response: {"data": [{"url": "...", "b64_json": "..."}]}
         data_list = payload.get("data")
         if not data_list or not isinstance(data_list, list) or len(data_list) == 0:
             raise GenerationProviderException(
@@ -1462,7 +1650,6 @@ class OpenAiImageModelProvider:
     @staticmethod
     def _blank_to(primary: str, fallback: str) -> str:
         return fallback if not primary else primary
-
 
 # =============================================================================
 # DTOs for video model invocation
