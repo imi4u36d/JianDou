@@ -44,7 +44,7 @@ async def clear_auth_rate_limiter():
 
 
 @pytest_asyncio.fixture
-async def client(db_session_factory, monkeypatch):
+async def client(db_session_factory, monkeypatch, tmp_path):
     """FastAPI test client with overridden db dependency."""
     import backend.database as database
     import backend.infrastructure.task_repository as task_repository
@@ -52,6 +52,9 @@ async def client(db_session_factory, monkeypatch):
 
     monkeypatch.setattr(database, "async_session_factory", db_session_factory)
     monkeypatch.setattr(task_repository, "async_session_factory", db_session_factory)
+    monkeypatch.setattr(settings, "storage_root", str(tmp_path / "storage"))
+    monkeypatch.setattr(settings, "storage_backend", "local")
+    monkeypatch.setattr(settings, "storage_public_base_url", "")
 
     app = create_app(start_worker=False)
 

@@ -17,8 +17,10 @@ async def test_upload_text(client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "asset_id" in data
-    assert data["file_name"] == "test.txt"
+    assert "assetId" in data
+    assert data["fileName"] == "test.txt"
+    assert data["fileUrl"].startswith("/storage/uploads/texts/")
+    assert data["sizeBytes"] == len(b"Hello, World!")
 
 
 @pytest.mark.asyncio
@@ -29,7 +31,8 @@ async def test_upload_image(client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "asset_id" in data
+    assert "assetId" in data
+    assert data["fileUrl"].startswith("/storage/uploads/images/")
 
 
 @pytest.mark.asyncio
@@ -40,7 +43,8 @@ async def test_upload_video(client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "asset_id" in data
+    assert "assetId" in data
+    assert data["fileUrl"].startswith("/storage/uploads/videos/")
 
 
 @pytest.mark.asyncio

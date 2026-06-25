@@ -11,6 +11,25 @@ from backend.services.generation_artifacts import (
 )
 
 
+class _FakeRemoteStore:
+    def __init__(self) -> None:
+        self.puts: list[tuple[str, bytes, str, str]] = []
+
+    def put_object(
+        self,
+        storage_key: str,
+        content: bytes,
+        content_type: str = "",
+        file_name: str = "",
+    ):
+        self.puts.append((storage_key, content, content_type, file_name))
+
+        class _Stored:
+            public_url = f"https://cdn.example.test/{storage_key}"
+
+        return _Stored()
+
+
 def test_extension_from_mime_or_url_prefers_mime_then_url_then_media_default() -> None:
     assert extension_from_mime_or_url("image/png", "https://example.test/file.jpeg", GenerationModelKinds.IMAGE) == "png"
     assert extension_from_mime_or_url("image/jpeg", "", GenerationModelKinds.IMAGE) == "jpg"
@@ -53,6 +72,7 @@ def test_artifact_store_resolves_storage_overrides_and_writes_files(tmp_path) ->
     assert store.build_externally_accessible_url(binary_artifact["publicUrl"]) == (
         "https://app.example.test/storage/tasks/task_1/running/clip-custom.png"
     )
+    assert store.image_data_uri_from_public_url(binary_artifact["publicUrl"]) == "data:image/png;base64,aW1hZ2UtYnl0ZXM="
 
 
 def test_artifact_store_uses_run_directory_defaults(tmp_path) -> None:
@@ -63,3 +83,14 @@ def test_artifact_store_uses_run_directory_defaults(tmp_path) -> None:
     assert artifact["publicUrl"] == "/storage/gen/_runs/run_default/image.bin"
     assert artifact["mimeType"] == "application/octet-stream"
     assert (tmp_path / "gen/_runs/run_default/image.bin").read_bytes() == b"data"
+
+
+def test_artifact_store_publishes_to_remote_store_and_keeps_local_file(tmp_path) -> None:
+    remote = _FakeRemoteStore()
+    store = GenerationArtifactStore(str(tmp_path), "https://app.example.test", remote)
+
+    artifact = store.write_binary_artifact("run_remote", {}, "image", "png", b"image")
+
+    assert artifact["publicUrl"] == "https://cdn.example.test/gen/_runs/run_remote/image.png"
+    assert remote.puts == [("gen/_runs/run_remote/image.png", b"image", "image/png", "image.png")]
+    assert (tmp_path / "gen/_runs/run_remote/image.png").read_bytes() == b"image"

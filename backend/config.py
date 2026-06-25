@@ -59,10 +59,17 @@ class Settings(BaseSettings):
 
     # Storage
     storage_root: str = "./storage"
+    storage_backend: str = "local"
     uploads_dir: str = "uploads"
     generation_runs_dir: str = "gen/_runs"
     storage_public_base_url: str = ""
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB
+    aliyun_oss_endpoint: str = ""
+    aliyun_oss_bucket: str = ""
+    aliyun_oss_access_key_id: str = ""
+    aliyun_oss_access_key_secret: str = ""
+    aliyun_oss_security_token: str = ""
+    aliyun_oss_key_prefix: str = ""
 
     # Public URL overrides for frontend build
     public_api_base_url: str = "/api/v3"
@@ -94,7 +101,7 @@ class Settings(BaseSettings):
     }
 
     @model_validator(mode="after")
-    def _resolve_relative_paths(self) -> "Settings":
+    def _resolve_relative_paths(self) -> Settings:
         """Resolve CWD-relative paths against PROJECT_ROOT so the app works
         regardless of which directory it is launched from."""
         # --- storage_root ---
@@ -188,6 +195,21 @@ def validate_settings(s: Settings) -> list[_ValidationIssue]:
     # Upload size
     if s.upload_max_size_bytes > 500 * 1024 * 1024:
         _add("upload_max_size_bytes", "upload limit is very high (>500 MB)", "warning")
+
+    storage_backend = (s.storage_backend or "").strip().lower()
+    if storage_backend not in {"local", "aliyun_oss"}:
+        _add("storage_backend", "must be either 'local' or 'aliyun_oss'", "error")
+
+    if storage_backend == "aliyun_oss":
+        required_oss_fields = {
+            "aliyun_oss_endpoint": s.aliyun_oss_endpoint,
+            "aliyun_oss_bucket": s.aliyun_oss_bucket,
+            "aliyun_oss_access_key_id": s.aliyun_oss_access_key_id,
+            "aliyun_oss_access_key_secret": s.aliyun_oss_access_key_secret,
+        }
+        for field, value in required_oss_fields.items():
+            if not value:
+                _add(field, "must be set when storage_backend is 'aliyun_oss'", "error")
 
     return issues
 

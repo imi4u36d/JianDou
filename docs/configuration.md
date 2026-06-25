@@ -55,9 +55,16 @@ The `Settings` class provides two levels of validation:
 ## Storage
 
 - `JIANDOU_STORAGE_ROOT`: local storage root.
+- `JIANDOU_STORAGE_BACKEND`: storage backend for uploads and generated artifacts. Use `local` for filesystem storage or `aliyun_oss` for Alibaba Cloud OSS.
 - `JIANDOU_UPLOADS_DIR`: upload directory below the storage root.
 - `JIANDOU_GENERATION_RUNS_DIR`: generation run directory below the storage root.
 - `JIANDOU_UPLOAD_MAX_SIZE_BYTES`: maximum upload file size in bytes (default: 104857600, i.e. 100 MB).
+- `JIANDOU_ALIYUN_OSS_ENDPOINT`: OSS endpoint, for example `https://oss-cn-hangzhou.aliyuncs.com`.
+- `JIANDOU_ALIYUN_OSS_BUCKET`: OSS bucket name, for example `jiandouai`.
+- `JIANDOU_ALIYUN_OSS_ACCESS_KEY_ID`: AccessKey ID used for OSS uploads.
+- `JIANDOU_ALIYUN_OSS_ACCESS_KEY_SECRET`: AccessKey secret used for OSS uploads.
+- `JIANDOU_ALIYUN_OSS_SECURITY_TOKEN`: optional STS security token for temporary credentials.
+- `JIANDOU_ALIYUN_OSS_KEY_PREFIX`: optional object key prefix, useful for separating environments in one bucket.
 
 ## Worker And Queue
 
@@ -65,6 +72,10 @@ The `Settings` class provides two levels of validation:
 - `JIANDOU_WORKER_CONCURRENCY`: concurrent worker task count.
 - `JIANDOU_WORKER_STALE_TIMEOUT_SECONDS`: stale worker claim timeout.
 - `JIANDOU_WORKER_POLL_INTERVAL_MS`: queue polling interval.
+
+## Logging
+
+- `JIANDOU_LOG_JSON_FORMAT`: set to `true` to emit JSON structured logs.
 
 ## Task Defaults
 

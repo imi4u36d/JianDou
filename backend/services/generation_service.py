@@ -247,9 +247,12 @@ class GenerationRunSupport:
 
     def __init__(self) -> None:
         self._storage_root: str = getattr(settings, "storage_root", "./storage")
+        from backend.services.object_storage import create_remote_object_storage
+
         self._artifact_store = GenerationArtifactStore(
             self._storage_root,
             getattr(settings, "web_origin", "http://127.0.0.1:80"),
+            create_remote_object_storage(settings),
         )
 
     # ── Run envelope ──────────────────────────────────────────────────
@@ -1610,8 +1613,7 @@ class GenerationRunFactory:
                 smallest = d
         return resolved
 
-    @staticmethod
-    def _resolve_video_frame_input(url: str, field_name: str) -> str:
+    def _resolve_video_frame_input(self, url: str, field_name: str) -> str:
         normalized = url.strip() if url else ""
         if not normalized:
             return ""
@@ -1619,6 +1621,13 @@ class GenerationRunFactory:
             return normalized
         if normalized.startswith("data:image/") and ";base64," in normalized:
             return normalized
+        if normalized.startswith("/storage/"):
+            data_uri = self._support.image_data_uri_from_public_url(normalized)
+            if data_uri:
+                return data_uri
+            external_url = self._support.build_externally_accessible_url(normalized)
+            if external_url.startswith("http://") or external_url.startswith("https://"):
+                return external_url
         return ""
 
     def _text_provider_interaction(
