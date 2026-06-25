@@ -64,18 +64,22 @@ class TaskExecutionCoordinator:
 
         trace = self._new_trace_row(stage, event, message, "INFO", {"queue_mode": True})
         status_history = self._new_status_history_row(
-            task, previous_status, "PENDING", stage, event, message,
+            task,
+            previous_status,
+            "PENDING",
+            stage,
+            event,
+            message,
         )
         queue_event = self._new_queue_event_row(
-            task, QueueEventType.ENQUEUED, {"stage": stage, "event": event, "message": message},
+            task,
+            QueueEventType.ENQUEUED,
+            {"stage": stage, "event": event, "message": message},
         )
         task.add_trace(trace)
         task.add_status_history(status_history)
 
-        mutation = (
-            TaskPersistenceMutation()
-            .set_task(task)
-        )
+        mutation = TaskPersistenceMutation().set_task(task)
         mutation = mutation.add_trace(trace)
         mutation = mutation.add_status_history(status_history)
         mutation = mutation.add_queue_event(queue_event)
@@ -100,7 +104,9 @@ class TaskExecutionCoordinator:
         mutation = TaskPersistenceMutation().set_task(task)
         if was_queued:
             queue_event = self._new_queue_event_row(
-                task, QueueEventType.REMOVED, {"queue_mode": True},
+                task,
+                QueueEventType.REMOVED,
+                {"queue_mode": True},
             )
             mutation = mutation.add_queue_event(queue_event)
         else:
@@ -201,12 +207,7 @@ class TaskExecutionCoordinator:
             QueueEventType.CLAIMED,
             {"workerInstanceId": worker_instance_id if worker_instance_id else ""},
         )
-        mutation = (
-            TaskPersistenceMutation()
-            .set_task_id(task.id)
-            .add_attempt(attempt)
-            .add_queue_event(queue_event)
-        )
+        mutation = TaskPersistenceMutation().set_task_id(task.id).add_attempt(attempt).add_queue_event(queue_event)
         return {"mutation": mutation, "attempt": attempt, "queue_event": queue_event}
 
     def mark_active_attempt_finished(
@@ -237,12 +238,7 @@ class TaskExecutionCoordinator:
                 "errorMessage": error_message or "",
             },
         )
-        mutation = (
-            TaskPersistenceMutation()
-            .set_task_id(task.id)
-            .add_attempt(attempt)
-            .add_queue_event(queue_event)
-        )
+        mutation = TaskPersistenceMutation().set_task_id(task.id).add_attempt(attempt).add_queue_event(queue_event)
         return {"mutation": mutation, "attempt": attempt, "queue_event": queue_event}
 
     # ------------------------------------------------------------------
@@ -300,12 +296,7 @@ class TaskExecutionCoordinator:
         task.add_status_history(status_history)
         self._touch(task)
 
-        mutation = (
-            TaskPersistenceMutation()
-            .set_task(task)
-            .add_trace(trace)
-            .add_status_history(status_history)
-        )
+        mutation = TaskPersistenceMutation().set_task(task).add_trace(trace).add_status_history(status_history)
 
         attempt = self._apply_attempt_transition(task, transition)
         if attempt is not None:
@@ -383,10 +374,7 @@ class TaskExecutionCoordinator:
         request_log = self._to_request_log(task, model_call)
         return {
             "mutation": (
-                TaskPersistenceMutation()
-                .set_task(task)
-                .add_model_call(model_call)
-                .add_request_log(request_log)
+                TaskPersistenceMutation().set_task(task).add_model_call(model_call).add_request_log(request_log)
             ),
             "model_call": model_call,
             "request_log": request_log,
@@ -469,15 +457,13 @@ class TaskExecutionCoordinator:
         existing_instance: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         now = now_iso()
-        started_at = (
-            string_value(existing_instance.get("startedAt", now))
-            if existing_instance
-            else now
-        )
+        started_at = string_value(existing_instance.get("startedAt", now)) if existing_instance else now
         row: dict[str, Any] = {
             "workerInstanceId": worker_instance_id,
             "workerType": worker_type,
-            "queueName": string_value(existing_instance.get("queueName", "default")) if existing_instance else "default",
+            "queueName": string_value(existing_instance.get("queueName", "default"))
+            if existing_instance
+            else "default",
             "hostName": string_value(existing_instance.get("hostName", "")) if existing_instance else "",
             "processId": existing_instance.get("processId", 0) if existing_instance else 0,
             "status": status,
@@ -486,7 +472,9 @@ class TaskExecutionCoordinator:
             "stoppedAt": (
                 now
                 if status in (WorkerStatus.STOPPED.value, WorkerStatus.FAILED.value)
-                else string_value(existing_instance.get("stoppedAt", "")) if existing_instance else ""
+                else string_value(existing_instance.get("stoppedAt", ""))
+                if existing_instance
+                else ""
             ),
             "metadata": (
                 metadata
@@ -520,6 +508,18 @@ class TaskExecutionCoordinator:
         stale_claims = task_repository.list_stale_running_claims(stale_before, limit)
         if hasattr(stale_claims, "__await__"):
             stale_claims = await stale_claims
+        if hasattr(task_repository, "list_orphaned_running_claims"):
+            orphaned_claims = task_repository.list_orphaned_running_claims(limit)
+            if hasattr(orphaned_claims, "__await__"):
+                orphaned_claims = await orphaned_claims
+            seen_attempt_ids = {_sv(claim.get("attemptId", "")) for claim in stale_claims}
+            for claim in orphaned_claims:
+                attempt_id = _sv(claim.get("attemptId", ""))
+                if attempt_id and attempt_id in seen_attempt_ids:
+                    continue
+                stale_claims.append(claim)
+                if attempt_id:
+                    seen_attempt_ids.add(attempt_id)
         for claim in stale_claims:
             tid = _sv(claim.get("taskId", ""))
             if not tid:
@@ -742,11 +742,7 @@ class TaskExecutionCoordinator:
         request_log_id = string_value(row.get("requestLogId"))
         if not request_log_id:
             model_call_id = string_value(row.get("modelCallId"))
-            request_log_id = (
-                "reqlog_" + uuid.uuid4().hex
-                if not model_call_id
-                else "reqlog_" + model_call_id
-            )
+            request_log_id = "reqlog_" + uuid.uuid4().hex if not model_call_id else "reqlog_" + model_call_id
         row["requestLogId"] = request_log_id
         row["ownerUserId"] = task.owner_user_id if task else None
         row["ownerRefId"] = task.id if task else ""

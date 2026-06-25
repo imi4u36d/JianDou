@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.service
 from typing import Any
 
 import pytest
@@ -18,6 +15,8 @@ from backend.services.task_worker_status_stage_service import (
     TaskWorkerExecutionContext,
     TaskWorkerStatusStageService,
 )
+
+pytestmark = pytest.mark.service
 
 
 def _task(status: str = TaskStatus.RENDERING.value) -> TaskRecord:
@@ -106,6 +105,30 @@ def test_model_call_lifecycle_preserves_model_metadata_and_provider_errors() -> 
     assert failed["httpStatus"] == 429
     assert failed["responsePayload"]["providerRequest"] == {"prompt": "hello"}
     assert failed["responsePayload"]["providerResponse"] == {"error": "rate limit"}
+
+
+def test_model_call_id_distinguishes_keyframe_frame_roles() -> None:
+    service = TaskWorkerStatusStageService()
+    task = _task()
+
+    first = service.create_pending_model_call(
+        task,
+        TaskStage.PLANNING,
+        "generation.image",
+        {"model": {"providerModel": "image-model"}},
+        1,
+        "image.first",
+    )
+    last = service.create_pending_model_call(
+        task,
+        TaskStage.PLANNING,
+        "generation.image",
+        {"model": {"providerModel": "image-model"}},
+        1,
+        "image.last",
+    )
+
+    assert first["modelCallId"] != last["modelCallId"]
 
 
 def test_update_status_rejects_inactive_task_when_repository_is_present() -> None:

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import pytest
-from fastapi import FastAPI, Response
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
@@ -28,6 +26,7 @@ class MockResponse:
 def _build_test_app() -> FastAPI:
     """Build a minimal app with the real middleware."""
     from fastapi import FastAPI
+
     from backend.middleware import CamelCaseJsonMiddleware
 
     app = FastAPI()
@@ -80,17 +79,12 @@ def test_camel_case_dataclass(client):
     assert resp.status_code == 200, f"Unexpected status: {resp.text}"
     data = resp.json()
 
-    print(f"\nDataclass response keys: {list(data.keys())}")
-    for k, v in data.items():
-        print(f"  {k}: ...")
-
     assert "providers" in data, f"Expected 'providers', got keys: {list(data.keys())}"
     assert "configSource" in data, f"Expected 'configSource', got keys: {list(data.keys())}"
 
     # Check nested provider item
     assert len(data["providers"]) == 1
     provider = data["providers"][0]
-    print(f"\nProvider keys: {list(provider.keys())}")
 
     assert "apiKeyConfigured" in provider, f"Expected 'apiKeyConfigured' in provider, got: {list(provider.keys())}"
     assert "baseUrl" in provider, f"Expected 'baseUrl' in provider, got: {list(provider.keys())}"
@@ -103,13 +97,12 @@ def test_camel_case_nested_deeply(client):
     assert resp.status_code == 200
 
     # Add a deeply nested test endpoint to the app
-    from backend.main import app as main_app
 
     # Verify the middleware is registered in the real app
     from backend.middleware import CamelCaseJsonMiddleware
 
-    # Check that the middleware class is imported correctly
-    assert hasattr(CamelCaseJsonMiddleware, '__call__')
+    # Check that the middleware class is callable as an ASGI middleware.
+    assert callable(CamelCaseJsonMiddleware)
 
 
 def test_camel_case_preserves_non_string_values(client):
@@ -121,5 +114,3 @@ def test_camel_case_preserves_non_string_values(client):
     # Boolean should remain boolean, not become string
     assert isinstance(data["apiKeyConfigured"], bool)
     assert data["apiKeyConfigured"] is True
-
-

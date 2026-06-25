@@ -7,14 +7,14 @@ Mirrors the TaskWorkerRunner pattern but is simplified for the auto-pilot
 use case — no distributed queue, no worker instances, just a single
 async loop.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
 from typing import Any
 
-from backend.domain.enums import AutoPilotState, WorkerStatus
+from backend.domain.enums import AutoPilotState
 from backend.services.workflow_auto_pilot import WorkflowAutoPilot
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+
 
 class AutoPilotOpsConfig:
     """Configuration for the auto-pilot worker runner."""
@@ -147,8 +148,9 @@ class AutoPilotWorkerRunner:
 
         async with lock:
             # Verify the workflow is in a state that allows auto-pilot
-            from backend.models.workflow import BizStageWorkflow
             from sqlalchemy import select
+
+            from backend.models.workflow import BizStageWorkflow
 
             stmt = select(BizStageWorkflow).where(
                 BizStageWorkflow.workflow_id == workflow_id,
@@ -175,12 +177,14 @@ class AutoPilotWorkerRunner:
             ):
                 logger.info(
                     "Workflow %s already in state %s, skipping",
-                    workflow_id, wf.auto_pilot_state,
+                    workflow_id,
+                    wf.auto_pilot_state,
                 )
                 return
 
             # Set state to running
             from sqlalchemy import update
+
             from backend.shared import now_iso
 
             now = now_iso()
@@ -228,9 +232,10 @@ class AutoPilotWorkerRunner:
         Uses a **separate, short-lived session** to avoid interfering with
         the poll loop's transaction on the shared session."""
         try:
+            from sqlalchemy import select, update
+
             from backend.database import async_session_factory
             from backend.models.workflow import BizStageWorkflow
-            from sqlalchemy import select, update
             from backend.shared import now_iso
 
             async with async_session_factory() as session:
@@ -277,7 +282,8 @@ class AutoPilotWorkerRunner:
                 if candidates:
                     logger.info(
                         "Recovered %d orphaned auto-pilot jobs (out of %d in DB)",
-                        len(candidates), len(rows),
+                        len(candidates),
+                        len(rows),
                     )
         except Exception as ex:
             logger.warning("Failed to recover orphaned auto-pilot jobs", exc_info=ex)
@@ -291,7 +297,8 @@ class AutoPilotWorkerRunner:
                 active_jobs = self._job_queue.qsize()
                 logger.debug(
                     "AutoPilotWorkerRunner maintenance: running=%s, queue_size=%s",
-                    self._running, active_jobs,
+                    self._running,
+                    active_jobs,
                 )
                 # Periodically recover any orphaned queued workflows
                 # (defense in depth — catch jobs that were queued after startup too)

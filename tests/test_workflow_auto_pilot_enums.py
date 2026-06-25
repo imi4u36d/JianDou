@@ -1,4 +1,5 @@
 """Tests for new enums and model fields added for auto-pilot."""
+
 from __future__ import annotations
 
 import pytest
@@ -107,51 +108,41 @@ class TestModelFields:
     def test_workflow_has_auto_pilot_index(self):
         from backend.models.workflow import BizStageWorkflow
 
-        index_names = {
-            idx.name for idx in BizStageWorkflow.__table__.indexes
-        }
+        index_names = {idx.name for idx in BizStageWorkflow.__table__.indexes}
         assert "ix_biz_stage_workflows_auto_pilot" in index_names
 
     def test_workflow_has_execution_mode_check_constraint(self):
         from backend.models.workflow import BizStageWorkflow
 
-        constraints = {
-            cn.name for cn in BizStageWorkflow.__table__.constraints
-            if hasattr(cn, "name") and cn.name is not None
-        }
         # The CHECK constraint should exist (name may vary)
         check_constraints = [
-            cn for cn in BizStageWorkflow.__table__.constraints
+            cn
+            for cn in BizStageWorkflow.__table__.constraints
             if hasattr(cn, "name") and cn.name is not None and "ck_" in str(cn.name)
         ]
         # At least one check constraint should reference execution_mode
-        has_exec_mode_check = any(
-            "execution_mode" in str(cn) for cn in check_constraints
-        )
+        has_exec_mode_check = any("execution_mode" in str(cn) for cn in check_constraints)
         assert has_exec_mode_check
 
     def test_workflow_has_auto_pilot_state_check_constraint(self):
         from backend.models.workflow import BizStageWorkflow
 
         check_constraints = [
-            cn for cn in BizStageWorkflow.__table__.constraints
+            cn
+            for cn in BizStageWorkflow.__table__.constraints
             if hasattr(cn, "name") and cn.name is not None and "ck_" in str(cn.name)
         ]
-        has_state_check = any(
-            "auto_pilot_state" in str(cn) for cn in check_constraints
-        )
+        has_state_check = any("auto_pilot_state" in str(cn) for cn in check_constraints)
         assert has_state_check
 
     def test_workflow_has_status_check_constraint_extended(self):
         from backend.models.workflow import BizStageWorkflow
 
         check_constraints = [
-            cn for cn in BizStageWorkflow.__table__.constraints
+            cn
+            for cn in BizStageWorkflow.__table__.constraints
             if hasattr(cn, "name") and cn.name is not None and "ck_" in str(cn.name)
         ]
         # The status check should include PAUSED
-        has_paused = any(
-            "PAUSED" in str(getattr(cn, "sqltext", ""))
-            for cn in check_constraints
-        )
+        has_paused = any("PAUSED" in str(getattr(cn, "sqltext", "")) for cn in check_constraints)
         assert has_paused

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session_factory
@@ -57,6 +57,7 @@ def _stage_run_status(value: Any) -> str:
 # ---------------------------------------------------------------------------
 # Mapping helpers: TaskRecord <-> BizTask
 # ---------------------------------------------------------------------------
+
 
 def _biz_task_from_record(record: TaskRecord) -> BizTask:
     """Convert a TaskRecord into a BizTask ORM instance."""
@@ -201,6 +202,7 @@ def _record_from_biz_task(row: BizTask) -> TaskRecord:
 # Repository
 # ---------------------------------------------------------------------------
 
+
 # =============================================================================
 # TASK REPOSITORY
 # =============================================================================
@@ -302,47 +304,51 @@ class TaskRepository:
 
                 # 3. Status history
                 for row in mutation.status_history_rows:
-                    self.session.add(BizTaskStatusHistory(
-                        task_status_history_id=string_value(row.get("statusHistoryId", row.get("id", ""))),
-                        task_id=task_id,
-                        previous_status=string_value(row.get("previousStatus", "")),
-                        current_status=string_value(row.get("nextStatus", "")),
-                        progress=safe_int(row.get("progress")),
-                        stage=string_value(row.get("stage")),
-                        event=string_value(row.get("event")),
-                        message=string_value(row.get("reason", row.get("message", ""))),
-                        payload_json=write_json_object(row.get("payload", {})),
-                        change_time=string_value(row.get("changedAt", row.get("timestamp", now_iso()))),
-                        operator_type="system",
-                        operator_id="",
-                        timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                        create_time=now_iso(),
-                        update_time=now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    self.session.add(
+                        BizTaskStatusHistory(
+                            task_status_history_id=string_value(row.get("statusHistoryId", row.get("id", ""))),
+                            task_id=task_id,
+                            previous_status=string_value(row.get("previousStatus", "")),
+                            current_status=string_value(row.get("nextStatus", "")),
+                            progress=safe_int(row.get("progress")),
+                            stage=string_value(row.get("stage")),
+                            event=string_value(row.get("event")),
+                            message=string_value(row.get("reason", row.get("message", ""))),
+                            payload_json=write_json_object(row.get("payload", {})),
+                            change_time=string_value(row.get("changedAt", row.get("timestamp", now_iso()))),
+                            operator_type="system",
+                            operator_id="",
+                            timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
+                            create_time=now_iso(),
+                            update_time=now_iso(),
+                            is_deleted=0,
+                            remark="",
+                        )
+                    )
 
                 # 4. Trace rows -> store as BizTaskStatusHistory with special event prefix
                 for row in mutation.trace_rows:
-                    self.session.add(BizTaskStatusHistory(
-                        task_status_history_id=string_value(row.get("traceId", row.get("id", ""))),
-                        task_id=task_id,
-                        previous_status="",
-                        current_status="",
-                        progress=0,
-                        stage=string_value(row.get("stage")),
-                        event=string_value(row.get("event")),
-                        message=string_value(row.get("message")),
-                        payload_json=write_json_object(row.get("payload", {})),
-                        change_time=string_value(row.get("timestamp", now_iso())),
-                        operator_type="trace",
-                        operator_id="",
-                        timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                        create_time=now_iso(),
-                        update_time=now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    self.session.add(
+                        BizTaskStatusHistory(
+                            task_status_history_id=string_value(row.get("traceId", row.get("id", ""))),
+                            task_id=task_id,
+                            previous_status="",
+                            current_status="",
+                            progress=0,
+                            stage=string_value(row.get("stage")),
+                            event=string_value(row.get("event")),
+                            message=string_value(row.get("message")),
+                            payload_json=write_json_object(row.get("payload", {})),
+                            change_time=string_value(row.get("timestamp", now_iso())),
+                            operator_type="trace",
+                            operator_id="",
+                            timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
+                            create_time=now_iso(),
+                            update_time=now_iso(),
+                            is_deleted=0,
+                            remark="",
+                        )
+                    )
 
                 # 5. Stage runs
                 for row in mutation.stage_run_rows:
@@ -358,52 +364,56 @@ class TaskRepository:
 
                 # 8. Results
                 for row in mutation.result_rows:
-                    self.session.add(BizTaskResult(
-                        task_result_id=string_value(row.get("resultId", row.get("id", ""))),
-                        task_id=task_id,
-                        result_type=string_value(row.get("resultType", "")),
-                        clip_index=safe_int(row.get("clipIndex"), 0),
-                        title=string_value(row.get("title", "")),
-                        reason=string_value(row.get("reason", "")),
-                        source_model_call_id=string_value(row.get("sourceModelCallId", "")),
-                        material_asset_id=string_value(row.get("materialAssetId", "")),
-                        start_seconds=float(row.get("startSeconds") or 0),
-                        end_seconds=float(row.get("endSeconds") or 0),
-                        duration_seconds=float(row.get("durationSeconds") or 0),
-                        preview_path=string_value(row.get("previewPath", row.get("previewUrl", ""))),
-                        download_path=string_value(row.get("downloadPath", row.get("downloadUrl", ""))),
-                        width=safe_int(row.get("width"), 0),
-                        height=safe_int(row.get("height"), 0),
-                        mime_type=string_value(row.get("mimeType", "")),
-                        size_bytes=safe_int(row.get("sizeBytes"), 0),
-                        remote_url=string_value(row.get("remoteUrl", "")),
-                        extra_json=write_json_object(row.get("extra", {})),
-                        produced_at=string_value(row.get("producedAt", now_iso())),
-                        timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                        create_time=now_iso(),
-                        update_time=now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    self.session.add(
+                        BizTaskResult(
+                            task_result_id=string_value(row.get("resultId", row.get("id", ""))),
+                            task_id=task_id,
+                            result_type=string_value(row.get("resultType", "")),
+                            clip_index=safe_int(row.get("clipIndex"), 0),
+                            title=string_value(row.get("title", "")),
+                            reason=string_value(row.get("reason", "")),
+                            source_model_call_id=string_value(row.get("sourceModelCallId", "")),
+                            material_asset_id=string_value(row.get("materialAssetId", "")),
+                            start_seconds=float(row.get("startSeconds") or 0),
+                            end_seconds=float(row.get("endSeconds") or 0),
+                            duration_seconds=float(row.get("durationSeconds") or 0),
+                            preview_path=string_value(row.get("previewPath", row.get("previewUrl", ""))),
+                            download_path=string_value(row.get("downloadPath", row.get("downloadUrl", ""))),
+                            width=safe_int(row.get("width"), 0),
+                            height=safe_int(row.get("height"), 0),
+                            mime_type=string_value(row.get("mimeType", "")),
+                            size_bytes=safe_int(row.get("sizeBytes"), 0),
+                            remote_url=string_value(row.get("remoteUrl", "")),
+                            extra_json=write_json_object(row.get("extra", {})),
+                            produced_at=string_value(row.get("producedAt", now_iso())),
+                            timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
+                            create_time=now_iso(),
+                            update_time=now_iso(),
+                            is_deleted=0,
+                            remark="",
+                        )
+                    )
 
                 # 9. Queue events
                 for row in mutation.queue_event_rows:
-                    self.session.add(BizTaskQueueEvent(
-                        task_queue_event_id=string_value(row.get("taskQueueEventId", row.get("id", ""))),
-                        task_id=task_id,
-                        attempt_id=string_value(row.get("attemptId", "")),
-                        queue_name=string_value(row.get("queueName", "default")),
-                        event_type=string_value(row.get("eventType", "")),
-                        worker_instance_id=string_value(row.get("workerInstanceId", "")),
-                        queue_position_hint=safe_int(row.get("queuePositionHint"), 0),
-                        payload_json=write_json_object(row.get("payload", {})),
-                        event_time=string_value(row.get("eventTime", now_iso())),
-                        timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                        create_time=now_iso(),
-                        update_time=now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    self.session.add(
+                        BizTaskQueueEvent(
+                            task_queue_event_id=string_value(row.get("taskQueueEventId", row.get("id", ""))),
+                            task_id=task_id,
+                            attempt_id=string_value(row.get("attemptId", "")),
+                            queue_name=string_value(row.get("queueName", "default")),
+                            event_type=string_value(row.get("eventType", "")),
+                            worker_instance_id=string_value(row.get("workerInstanceId", "")),
+                            queue_position_hint=safe_int(row.get("queuePositionHint"), 0),
+                            payload_json=write_json_object(row.get("payload", {})),
+                            event_time=string_value(row.get("eventTime", now_iso())),
+                            timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
+                            create_time=now_iso(),
+                            update_time=now_iso(),
+                            is_deleted=0,
+                            remark="",
+                        )
+                    )
 
                 # 10. Worker instances (upsert)
                 for row in mutation.worker_instance_rows:
@@ -660,6 +670,36 @@ class TaskRepository:
             for r in rows
         ]
 
+    async def list_orphaned_running_claims(self, limit: int) -> list[dict[str, Any]]:
+        """Find running attempts whose owning worker can no longer continue them."""
+        stmt = (
+            select(BizTaskAttempt)
+            .outerjoin(
+                BizWorkerInstance,
+                BizWorkerInstance.worker_instance_id == BizTaskAttempt.worker_instance_id,
+            )
+            .where(
+                BizTaskAttempt.status == "RUNNING",
+                BizTaskAttempt.is_deleted == 0,
+                or_(
+                    BizTaskAttempt.worker_instance_id == "",
+                    BizWorkerInstance.id.is_(None),
+                    BizWorkerInstance.status != "RUNNING",
+                ),
+            )
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            {
+                "taskId": r.task_id,
+                "attemptId": r.task_attempt_id,
+                "workerInstanceId": r.worker_instance_id or "",
+            }
+            for r in rows
+        ]
+
     async def list_user_queue_stats(self) -> list[dict[str, Any]]:
         """Aggregate queue stats per owner. Simplified implementation."""
         # In a real impl this would be a GROUP BY query.
@@ -685,25 +725,27 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         for a in result.scalars().all():
             payload = read_json_object(a.payload_json)
-            rec.attempts.append({
-                "attemptId": a.task_attempt_id,
-                "taskId": a.task_id,
-                "attemptNo": a.attempt_no,
-                "triggerType": a.trigger_type or "",
-                "status": a.status,
-                "queueName": a.queue_name or "",
-                "workerInstanceId": a.worker_instance_id or "",
-                "queueEnteredAt": a.queue_entered_at,
-                "queueLeftAt": a.queue_left_at,
-                "claimedAt": a.claimed_at,
-                "startedAt": a.started_at,
-                "finishedAt": a.finished_at,
-                "resumeFromStage": a.resume_from_stage or "",
-                "resumeFromClipIndex": a.resume_from_clip_index or 0,
-                "failureCode": a.failure_code or "",
-                "failureMessage": a.failure_message or "",
-                "payload": payload,
-            })
+            rec.attempts.append(
+                {
+                    "attemptId": a.task_attempt_id,
+                    "taskId": a.task_id,
+                    "attemptNo": a.attempt_no,
+                    "triggerType": a.trigger_type or "",
+                    "status": a.status,
+                    "queueName": a.queue_name or "",
+                    "workerInstanceId": a.worker_instance_id or "",
+                    "queueEnteredAt": a.queue_entered_at,
+                    "queueLeftAt": a.queue_left_at,
+                    "claimedAt": a.claimed_at,
+                    "startedAt": a.started_at,
+                    "finishedAt": a.finished_at,
+                    "resumeFromStage": a.resume_from_stage or "",
+                    "resumeFromClipIndex": a.resume_from_clip_index or 0,
+                    "failureCode": a.failure_code or "",
+                    "failureMessage": a.failure_message or "",
+                    "payload": payload,
+                }
+            )
             if a.status in ("RUNNING", "QUEUED", "PENDING"):
                 rec.active_attempt_id = a.task_attempt_id
                 rec.current_attempt_no = a.attempt_no
@@ -724,15 +766,17 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         for r in result.scalars().all():
             payload = read_json_object(r.payload_json)
-            rec.trace.append({
-                "traceId": r.task_status_history_id,
-                "timestamp": r.change_time or "",
-                "level": "",
-                "stage": r.stage or "",
-                "event": r.event or "",
-                "message": r.message or "",
-                "payload": payload,
-            })
+            rec.trace.append(
+                {
+                    "traceId": r.task_status_history_id,
+                    "timestamp": r.change_time or "",
+                    "level": "",
+                    "stage": r.stage or "",
+                    "event": r.event or "",
+                    "message": r.message or "",
+                    "payload": payload,
+                }
+            )
 
         # Load status history (non-trace)
         stmt = (
@@ -747,19 +791,21 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         for r in result.scalars().all():
             payload = read_json_object(r.payload_json)
-            rec.status_history.append({
-                "statusHistoryId": r.task_status_history_id,
-                "taskId": r.task_id,
-                "previousStatus": r.previous_status or "",
-                "nextStatus": r.current_status or "",
-                "progress": r.progress or 0,
-                "stage": r.stage or "",
-                "event": r.event or "",
-                "reason": r.message or "",
-                "operator": r.operator_type or "",
-                "changedAt": r.change_time or "",
-                "payload": payload,
-            })
+            rec.status_history.append(
+                {
+                    "statusHistoryId": r.task_status_history_id,
+                    "taskId": r.task_id,
+                    "previousStatus": r.previous_status or "",
+                    "nextStatus": r.current_status or "",
+                    "progress": r.progress or 0,
+                    "stage": r.stage or "",
+                    "event": r.event or "",
+                    "reason": r.message or "",
+                    "operator": r.operator_type or "",
+                    "changedAt": r.change_time or "",
+                    "payload": payload,
+                }
+            )
 
         # Load model calls
         stmt = (
@@ -771,34 +817,36 @@ class TaskRepository:
         for m in result.scalars().all():
             req_payload = read_json_object(m.request_payload_json)
             resp_payload = read_json_object(m.response_payload_json)
-            rec.model_calls.append({
-                "modelCallId": m.task_model_call_id,
-                "taskId": m.task_id,
-                "callKind": m.call_kind or "",
-                "stage": m.stage or "",
-                "operation": m.operation or "",
-                "provider": m.provider or "",
-                "providerModel": m.provider_model or "",
-                "requestedModel": m.requested_model or "",
-                "resolvedModel": m.resolved_model or "",
-                "modelName": m.model_name or "",
-                "modelAlias": m.model_alias or "",
-                "endpointHost": m.endpoint_host or "",
-                "requestId": m.request_id or "",
-                "requestPayload": req_payload,
-                "responsePayload": resp_payload,
-                "httpStatus": m.http_status or 0,
-                "responseStatusCode": m.response_status_code or 0,
-                "success": m.success or 0,
-                "errorCode": m.error_code or "",
-                "errorMessage": m.error_message or "",
-                "latencyMs": m.latency_ms or 0,
-                "durationMs": m.duration_ms or 0,
-                "inputTokens": m.input_tokens or 0,
-                "outputTokens": m.output_tokens or 0,
-                "startedAt": m.started_at or "",
-                "finishedAt": m.finished_at or "",
-            })
+            rec.model_calls.append(
+                {
+                    "modelCallId": m.task_model_call_id,
+                    "taskId": m.task_id,
+                    "callKind": m.call_kind or "",
+                    "stage": m.stage or "",
+                    "operation": m.operation or "",
+                    "provider": m.provider or "",
+                    "providerModel": m.provider_model or "",
+                    "requestedModel": m.requested_model or "",
+                    "resolvedModel": m.resolved_model or "",
+                    "modelName": m.model_name or "",
+                    "modelAlias": m.model_alias or "",
+                    "endpointHost": m.endpoint_host or "",
+                    "requestId": m.request_id or "",
+                    "requestPayload": req_payload,
+                    "responsePayload": resp_payload,
+                    "httpStatus": m.http_status or 0,
+                    "responseStatusCode": m.response_status_code or 0,
+                    "success": m.success or 0,
+                    "errorCode": m.error_code or "",
+                    "errorMessage": m.error_message or "",
+                    "latencyMs": m.latency_ms or 0,
+                    "durationMs": m.duration_ms or 0,
+                    "inputTokens": m.input_tokens or 0,
+                    "outputTokens": m.output_tokens or 0,
+                    "startedAt": m.started_at or "",
+                    "finishedAt": m.finished_at or "",
+                }
+            )
 
         # Load materials
         stmt = (
@@ -819,28 +867,30 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         for r in result.scalars().all():
             extra = read_json_object(r.extra_json)
-            rec.outputs.append({
-                "resultId": r.task_result_id,
-                "taskId": r.task_id,
-                "resultType": r.result_type,
-                "clipIndex": r.clip_index,
-                "title": r.title or "",
-                "reason": r.reason or "",
-                "sourceModelCallId": r.source_model_call_id or "",
-                "materialAssetId": r.material_asset_id or "",
-                "startSeconds": r.start_seconds,
-                "endSeconds": r.end_seconds,
-                "durationSeconds": r.duration_seconds,
-                "previewPath": r.preview_path or "",
-                "downloadPath": r.download_path or "",
-                "width": r.width or 0,
-                "height": r.height or 0,
-                "mimeType": r.mime_type or "",
-                "sizeBytes": r.size_bytes or 0,
-                "remoteUrl": r.remote_url or "",
-                "extra": extra,
-                "producedAt": r.produced_at or "",
-            })
+            rec.outputs.append(
+                {
+                    "resultId": r.task_result_id,
+                    "taskId": r.task_id,
+                    "resultType": r.result_type,
+                    "clipIndex": r.clip_index,
+                    "title": r.title or "",
+                    "reason": r.reason or "",
+                    "sourceModelCallId": r.source_model_call_id or "",
+                    "materialAssetId": r.material_asset_id or "",
+                    "startSeconds": r.start_seconds,
+                    "endSeconds": r.end_seconds,
+                    "durationSeconds": r.duration_seconds,
+                    "previewPath": r.preview_path or "",
+                    "downloadPath": r.download_path or "",
+                    "width": r.width or 0,
+                    "height": r.height or 0,
+                    "mimeType": r.mime_type or "",
+                    "sizeBytes": r.size_bytes or 0,
+                    "remoteUrl": r.remote_url or "",
+                    "extra": extra,
+                    "producedAt": r.produced_at or "",
+                }
+            )
 
     async def _upsert_attempt(self, task_id: str, row: dict[str, Any]) -> None:
         attempt_id = string_value(row.get("attemptId", ""))
@@ -859,37 +909,43 @@ class TaskRepository:
             existing.started_at = row.get("startedAt", existing.started_at)
             existing.finished_at = row.get("finishedAt", existing.finished_at)
             existing.resume_from_stage = string_value(row.get("resumeFromStage", existing.resume_from_stage))
-            existing.resume_from_clip_index = safe_int(row.get("resumeFromClipIndex"), existing.resume_from_clip_index or 0)
+            existing.resume_from_clip_index = safe_int(
+                row.get("resumeFromClipIndex"), existing.resume_from_clip_index or 0
+            )
             existing.failure_code = string_value(row.get("failureCode", existing.failure_code))
             existing.failure_message = string_value(row.get("failureMessage", existing.failure_message))
             existing.payload_json = write_json_object(safe_payload)
-            existing.timezone_offset_minutes = safe_int(row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0)
+            existing.timezone_offset_minutes = safe_int(
+                row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0
+            )
             existing.update_time = now_iso()
         else:
-            self.session.add(BizTaskAttempt(
-                task_attempt_id=attempt_id,
-                task_id=task_id,
-                attempt_no=max(1, safe_int(row.get("attemptNo"), 1)),
-                trigger_type=string_value(row.get("triggerType", "")),
-                status=string_value(row.get("status", "")),
-                queue_name=string_value(row.get("queueName", "default")),
-                worker_instance_id=string_value(row.get("workerInstanceId", "")),
-                queue_entered_at=row.get("queueEnteredAt"),
-                queue_left_at=row.get("queueLeftAt"),
-                claimed_at=row.get("claimedAt"),
-                started_at=row.get("startedAt"),
-                finished_at=row.get("finishedAt"),
-                resume_from_stage=string_value(row.get("resumeFromStage", "")),
-                resume_from_clip_index=safe_int(row.get("resumeFromClipIndex"), 0),
-                failure_code=string_value(row.get("failureCode", "")),
-                failure_message=string_value(row.get("failureMessage", "")),
-                payload_json=write_json_object(safe_payload),
-                timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                create_time=now_iso(),
-                update_time=now_iso(),
-                is_deleted=0,
-                remark="",
-            ))
+            self.session.add(
+                BizTaskAttempt(
+                    task_attempt_id=attempt_id,
+                    task_id=task_id,
+                    attempt_no=max(1, safe_int(row.get("attemptNo"), 1)),
+                    trigger_type=string_value(row.get("triggerType", "")),
+                    status=string_value(row.get("status", "")),
+                    queue_name=string_value(row.get("queueName", "default")),
+                    worker_instance_id=string_value(row.get("workerInstanceId", "")),
+                    queue_entered_at=row.get("queueEnteredAt"),
+                    queue_left_at=row.get("queueLeftAt"),
+                    claimed_at=row.get("claimedAt"),
+                    started_at=row.get("startedAt"),
+                    finished_at=row.get("finishedAt"),
+                    resume_from_stage=string_value(row.get("resumeFromStage", "")),
+                    resume_from_clip_index=safe_int(row.get("resumeFromClipIndex"), 0),
+                    failure_code=string_value(row.get("failureCode", "")),
+                    failure_message=string_value(row.get("failureMessage", "")),
+                    payload_json=write_json_object(safe_payload),
+                    timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
+                    create_time=now_iso(),
+                    update_time=now_iso(),
+                    is_deleted=0,
+                    remark="",
+                )
+            )
 
     async def _upsert_model_call(self, task_id: str, row: dict[str, Any]) -> None:
         model_call_id = string_value(row.get("modelCallId", row.get("id", "")))
@@ -916,9 +972,7 @@ class TaskRepository:
             "request_payload_json": write_json_object(row.get("requestPayload", {})),
             "response_payload_json": write_json_object(row.get("responsePayload", {})),
             "http_status": safe_int(row.get("httpStatus"), 0),
-            "response_status_code": safe_int(
-                row.get("responseStatusCode", row.get("responseCode")), 0
-            ),
+            "response_status_code": safe_int(row.get("responseStatusCode", row.get("responseCode")), 0),
             "success": 1 if bool(row.get("success")) else 0,
             "error_code": string_value(row.get("errorCode", "")),
             "error_message": string_value(row.get("errorMessage", "")),
@@ -937,11 +991,13 @@ class TaskRepository:
             for key, value in values.items():
                 setattr(existing, key, value)
             return
-        self.session.add(BizTaskModelCall(
-            task_model_call_id=model_call_id,
-            create_time=now,
-            **values,
-        ))
+        self.session.add(
+            BizTaskModelCall(
+                task_model_call_id=model_call_id,
+                create_time=now,
+                **values,
+            )
+        )
 
     async def _upsert_stage_run(self, task_id: str, row: dict[str, Any]) -> None:
         stage_run_id = string_value(row.get("stageRunId", row.get("id", "")))
@@ -976,11 +1032,13 @@ class TaskRepository:
             for key, value in values.items():
                 setattr(existing, key, value)
             return
-        self.session.add(BizTaskStageRun(
-            task_stage_run_id=stage_run_id,
-            create_time=now,
-            **values,
-        ))
+        self.session.add(
+            BizTaskStageRun(
+                task_stage_run_id=stage_run_id,
+                create_time=now,
+                **values,
+            )
+        )
 
     async def _upsert_material_asset(
         self,
@@ -1044,11 +1102,13 @@ class TaskRepository:
             for key, value in values.items():
                 setattr(existing, key, value)
             return
-        self.session.add(BizMaterialAsset(
-            material_asset_id=material_id,
-            create_time=now,
-            **values,
-        ))
+        self.session.add(
+            BizMaterialAsset(
+                material_asset_id=material_id,
+                create_time=now,
+                **values,
+            )
+        )
 
     async def _upsert_worker_instance(self, row: dict[str, Any]) -> None:
         worker_id = string_value(row.get("workerInstanceId", ""))
@@ -1066,23 +1126,27 @@ class TaskRepository:
             existing.last_heartbeat_at = string_value(row.get("lastHeartbeatAt", now))
             existing.stopped_at = string_value(row.get("stoppedAt", existing.stopped_at or ""))
             existing.metadata_json = write_json_object(metadata)
-            existing.timezone_offset_minutes = safe_int(row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0)
+            existing.timezone_offset_minutes = safe_int(
+                row.get("timezoneOffsetMinutes"), existing.timezone_offset_minutes or 0
+            )
             existing.update_time = now
         else:
-            self.session.add(BizWorkerInstance(
-                worker_instance_id=worker_id,
-                worker_type=string_value(row.get("workerType", "")),
-                queue_name=string_value(row.get("queueName", "default")),
-                host_name=string_value(row.get("hostName", "")),
-                process_id=safe_int(row.get("processId"), 0),
-                status=string_value(row.get("status", "")),
-                started_at=string_value(row.get("startedAt", now)),
-                last_heartbeat_at=string_value(row.get("lastHeartbeatAt", now)),
-                stopped_at=string_value(row.get("stoppedAt", "")),
-                metadata_json=write_json_object(metadata),
-                timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                create_time=now,
-                update_time=now,
-                is_deleted=0,
-                remark="",
-            ))
+            self.session.add(
+                BizWorkerInstance(
+                    worker_instance_id=worker_id,
+                    worker_type=string_value(row.get("workerType", "")),
+                    queue_name=string_value(row.get("queueName", "default")),
+                    host_name=string_value(row.get("hostName", "")),
+                    process_id=safe_int(row.get("processId"), 0),
+                    status=string_value(row.get("status", "")),
+                    started_at=string_value(row.get("startedAt", now)),
+                    last_heartbeat_at=string_value(row.get("lastHeartbeatAt", now)),
+                    stopped_at=string_value(row.get("stoppedAt", "")),
+                    metadata_json=write_json_object(metadata),
+                    timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
+                    create_time=now,
+                    update_time=now,
+                    is_deleted=0,
+                    remark="",
+                )
+            )

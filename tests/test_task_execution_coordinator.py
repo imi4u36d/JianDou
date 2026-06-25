@@ -203,20 +203,64 @@ async def test_recover_stale_claims_skips_worker_with_fresh_heartbeat() -> None:
     assert repository.saved_mutations == []
 
 
+@pytest.mark.asyncio
+async def test_recover_stale_claims_requeues_stopped_worker_claim_immediately() -> None:
+    task = _task(status="PLANNING")
+    coordinator = TaskExecutionCoordinator()
+    coordinator.create_attempt(task, AttemptTriggerType.CREATE, {})
+    coordinator.mark_active_attempt_running(task, "worker_stopped")
+    task.execution_context = {"workerInstanceId": "worker_stopped"}
+    repository = _FakeTaskRepository(
+        task=task,
+        claims=[],
+        orphaned_claims=[
+            {
+                "taskId": task.id,
+                "attemptId": task.active_attempt_id,
+                "workerInstanceId": "worker_stopped",
+            }
+        ],
+        workers={
+            "worker_stopped": {
+                "workerInstanceId": "worker_stopped",
+                "status": WorkerStatus.STOPPED.value,
+                "lastHeartbeatAt": "2026-01-01T00:02:00+00:00",
+            }
+        },
+    )
+
+    recovered = await coordinator.recover_stale_claims(
+        datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
+        10,
+        repository,
+    )
+
+    assert recovered == 1
+    assert task.status == "PENDING"
+    assert task.is_queued is True
+    assert task.execution_context["recoveredFromWorkerInstanceId"] == "worker_stopped"
+    assert _active_attempt(task)["status"] == AttemptStatus.QUEUED.value
+
+
 class _FakeTaskRepository:
     def __init__(
         self,
         task: TaskRecord,
         claims: list[dict[str, Any]],
         workers: dict[str, dict[str, Any]],
+        orphaned_claims: list[dict[str, Any]] | None = None,
     ) -> None:
         self.task = task
         self.claims = claims
+        self.orphaned_claims = orphaned_claims or []
         self.workers = workers
         self.saved_mutations: list[TaskPersistenceMutation] = []
 
     def list_stale_running_claims(self, stale_before: datetime, limit: int) -> list[dict[str, Any]]:
         return self.claims[:limit]
+
+    def list_orphaned_running_claims(self, limit: int) -> list[dict[str, Any]]:
+        return self.orphaned_claims[:limit]
 
     def find_by_id(self, task_id: str) -> TaskRecord | None:
         return self.task if task_id == self.task.id else None

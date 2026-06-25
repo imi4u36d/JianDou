@@ -1,12 +1,10 @@
 """Tests for backend/services/auto_pilot_worker_runner.py — AutoPilotWorkerRunner."""
+
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-pytestmark = pytest.mark.service
 
 from backend.domain.enums import AutoPilotState
 from backend.services.auto_pilot_worker_runner import (
@@ -14,6 +12,7 @@ from backend.services.auto_pilot_worker_runner import (
     AutoPilotWorkerRunner,
 )
 
+pytestmark = pytest.mark.service
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -183,9 +182,7 @@ class TestExecuteJob:
         svc_mock.db.commit = AsyncMock()
 
         # Patch WorkflowAutoPilot.run to return immediately
-        with patch(
-            "backend.services.auto_pilot_worker_runner.WorkflowAutoPilot"
-        ) as mock_pilot_class:
+        with patch("backend.services.auto_pilot_worker_runner.WorkflowAutoPilot") as mock_pilot_class:
             mock_pilot = MagicMock()
             mock_pilot.run = AsyncMock(return_value={"status": "completed", "iterations": 5})
             mock_pilot_class.return_value = mock_pilot

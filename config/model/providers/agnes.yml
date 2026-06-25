@@ -7,6 +7,7 @@ model:
       base_url: "https://apihub.agnes-ai.com/v1/videos"
       extras:
         task_base_url: "https://apihub.agnes-ai.com/v1/videos"
+        timeout_seconds: 600
         poll_interval_seconds: 10
         poll_timeout_seconds: 600
         watermark: false

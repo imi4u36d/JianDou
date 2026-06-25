@@ -34,10 +34,15 @@ class _FakeRemoteStore:
 
 
 def test_extension_from_mime_or_url_prefers_mime_then_url_then_media_default() -> None:
-    assert extension_from_mime_or_url("image/png", "https://example.test/file.jpeg", GenerationModelKinds.IMAGE) == "png"
+    assert (
+        extension_from_mime_or_url("image/png", "https://example.test/file.jpeg", GenerationModelKinds.IMAGE) == "png"
+    )
     assert extension_from_mime_or_url("image/jpeg", "", GenerationModelKinds.IMAGE) == "jpg"
     assert extension_from_mime_or_url("video/webm", "", GenerationModelKinds.VIDEO) == "webm"
-    assert extension_from_mime_or_url("", "https://example.test/video.MP4?token=secret", GenerationModelKinds.VIDEO) == "mp4"
+    assert (
+        extension_from_mime_or_url("", "https://example.test/video.MP4?token=secret", GenerationModelKinds.VIDEO)
+        == "mp4"
+    )
     assert extension_from_mime_or_url("", "", GenerationModelKinds.IMAGE) == "png"
     assert extension_from_mime_or_url("", "", GenerationModelKinds.VIDEO) == "mp4"
 
@@ -75,7 +80,9 @@ def test_artifact_store_resolves_storage_overrides_and_writes_files(tmp_path) ->
     assert store.build_externally_accessible_url(binary_artifact["publicUrl"]) == (
         "https://app.example.test/storage/tasks/task_1/running/clip-custom.png"
     )
-    assert store.image_data_uri_from_public_url(binary_artifact["publicUrl"]) == "data:image/png;base64,aW1hZ2UtYnl0ZXM="
+    assert (
+        store.image_data_uri_from_public_url(binary_artifact["publicUrl"]) == "data:image/png;base64,aW1hZ2UtYnl0ZXM="
+    )
 
 
 def test_artifact_store_uses_run_directory_defaults(tmp_path) -> None:
@@ -88,14 +95,14 @@ def test_artifact_store_uses_run_directory_defaults(tmp_path) -> None:
     assert (tmp_path / "tasks/_runs/run_default/image.bin").read_bytes() == b"data"
 
 
-def test_artifact_store_publishes_to_remote_store_and_keeps_local_file(tmp_path) -> None:
+def test_artifact_store_keeps_generated_binary_local_even_with_remote_store(tmp_path) -> None:
     remote = _FakeRemoteStore()
     store = GenerationArtifactStore(str(tmp_path), "https://app.example.test", remote)
 
     artifact = store.write_binary_artifact("run_remote", {}, "image", "png", b"image")
 
-    assert artifact["publicUrl"] == "https://cdn.example.test/tasks/_runs/run_remote/image.png"
-    assert remote.puts == [("tasks/_runs/run_remote/image.png", b"image", "image/png", "image.png")]
+    assert artifact["publicUrl"] == "/storage/tasks/_runs/run_remote/image.png"
+    assert remote.puts == []
     assert (tmp_path / "tasks/_runs/run_remote/image.png").read_bytes() == b"image"
 
 
@@ -118,8 +125,8 @@ def test_artifact_store_resizes_generated_image_to_requested_dimensions(tmp_path
     assert artifact["sourceWidth"] == 1672
     assert artifact["sourceHeight"] == 941
     assert artifact["resizedToRequestedDimensions"] is True
-    assert remote.puts[0][0] == "tasks/task_4k/running/workspace-image.png"
-    assert _image_size(remote.puts[0][1]) == (3840, 2160)
+    assert artifact["publicUrl"] == "/storage/tasks/task_4k/running/workspace-image.png"
+    assert remote.puts == []
     assert _image_size((tmp_path / "tasks/task_4k/running/workspace-image.png").read_bytes()) == (3840, 2160)
 
 

@@ -63,16 +63,10 @@ from backend.shared import first_non_blank, map_value, now_iso, safe_int, string
 # ---------------------------------------------------------------------------
 
 
-
-
-
-
-
 class _GenerationRunKinds:
     SCRIPT = "script"
     IMAGE = "image"
     VIDEO = "video"
-
 
 
 class TaskStoryboardPlannerAdapter:
@@ -81,22 +75,29 @@ class TaskStoryboardPlannerAdapter:
     def __init__(self, planner: TaskStoryboardPlanner | None = None) -> None:
         self._planner = planner or TaskStoryboardPlanner()
 
-    def build_storyboard_shot_plans(self, task: TaskRecord, storyboard_markdown: str) -> list[TaskStoryboardPlannerStub.StoryboardShotPlan]:
+    def build_storyboard_shot_plans(
+        self, task: TaskRecord, storyboard_markdown: str
+    ) -> list[TaskStoryboardPlannerStub.StoryboardShotPlan]:
         plans: list[TaskStoryboardPlannerStub.StoryboardShotPlan] = []
         for plan in self._planner.build_storyboard_shot_plans(task, storyboard_markdown):
-            plans.append(TaskStoryboardPlannerStub.StoryboardShotPlan(
-                sequential_index=safe_int(getattr(plan, "sequential_index", 0), len(plans) + 1),
-                shot_label=string_value(getattr(plan, "shot_label", "")),
-                scene=string_value(getattr(plan, "scene", "")),
-                video_prompt=string_value(getattr(plan, "video_prompt", "")),
-                image_prompt=string_value(getattr(plan, "image_prompt", "")),
-                first_frame_prompt=string_value(getattr(plan, "first_frame_prompt", "")),
-                last_frame_prompt=string_value(getattr(plan, "last_frame_prompt", "")),
-                motion=string_value(getattr(plan, "motion", "")),
-                camera_movement=string_value(getattr(plan, "camera_movement", "")),
-                duration_hint=string_value(getattr(plan, "duration_hint", "")),
-            ))
+            plans.append(
+                TaskStoryboardPlannerStub.StoryboardShotPlan(
+                    sequential_index=safe_int(getattr(plan, "sequential_index", 0), len(plans) + 1),
+                    shot_label=string_value(getattr(plan, "shot_label", "")),
+                    scene=string_value(getattr(plan, "scene", "")),
+                    video_prompt=string_value(getattr(plan, "video_prompt", "")),
+                    image_prompt=string_value(getattr(plan, "image_prompt", "")),
+                    first_frame_prompt=string_value(getattr(plan, "first_frame_prompt", "")),
+                    last_frame_prompt=string_value(getattr(plan, "last_frame_prompt", "")),
+                    motion=string_value(getattr(plan, "motion", "")),
+                    camera_movement=string_value(getattr(plan, "camera_movement", "")),
+                    duration_hint=string_value(getattr(plan, "duration_hint", "")),
+                )
+            )
         return plans
+
+    def extract_character_definitions(self, storyboard_markdown: str) -> list[Any]:
+        return self._planner.extract_character_definitions(storyboard_markdown)
 
     def resolve_requested_output_count(self, task: TaskRecord, storyboard_clip_count: int) -> int:
         return self._planner.resolve_requested_output_count(task, storyboard_clip_count)
@@ -104,7 +105,9 @@ class TaskStoryboardPlannerAdapter:
     def extract_storyboard_shot_duration_ranges(self, storyboard_markdown: str) -> list[list[int]]:
         return self._planner.extract_storyboard_shot_duration_ranges(storyboard_markdown)
 
-    def build_clip_duration_plan(self, task: TaskRecord, duration_seconds: int, clip_count: int, storyboard_markdown: str) -> list[list[int]]:
+    def build_clip_duration_plan(
+        self, task: TaskRecord, duration_seconds: int, clip_count: int, storyboard_markdown: str
+    ) -> list[list[int]]:
         return self._planner.build_clip_duration_plan(task, duration_seconds, clip_count, storyboard_markdown)
 
     def normalize_clip_duration_plan(self, video_model: str, clip_duration_plan: list[list[int]]) -> list[list[int]]:
@@ -113,13 +116,16 @@ class TaskStoryboardPlannerAdapter:
     def request_snapshot_output_count(self, task: TaskRecord) -> Any:
         return self._planner.request_snapshot_output_count(task)
 
-    def build_clip_duration_plan_context(self, clip_duration_plan: list[list[int]], duration_ranges: list[list[int]]) -> list[dict[str, Any]]:
+    def build_clip_duration_plan_context(
+        self, clip_duration_plan: list[list[int]], duration_ranges: list[list[int]]
+    ) -> list[dict[str, Any]]:
         return self._planner.build_clip_duration_plan_context(clip_duration_plan, duration_ranges)
 
 
 # ===================================================================
 # JoinOutputService
 # ===================================================================
+
 
 class JoinOutputService:
     """Service for concatenating video clip outputs into a single joined output."""
@@ -151,6 +157,7 @@ class JoinOutputService:
 # TaskWorkerPipelineHandler
 # ===================================================================
 
+
 class TaskWorkerPipelineHandler:
     """Orchestrates the full task execution pipeline: analysis -> planning -> rendering -> join."""
 
@@ -177,7 +184,8 @@ class TaskWorkerPipelineHandler:
         self._artifact_assembler = artifact_assembler or TaskExecutionArtifactAssembler()
         self._storyboard_planner = storyboard_planner or TaskStoryboardPlannerAdapter()
         self._status_stage_service = status_stage_service or TaskWorkerStatusStageService(
-            task_repository=task_repository, execution_coordinator=self._execution_coordinator,
+            task_repository=task_repository,
+            execution_coordinator=self._execution_coordinator,
         )
         self._render_stage_service = render_stage_service or TaskWorkerRenderStageService(
             task_repository=task_repository,
@@ -186,7 +194,6 @@ class TaskWorkerPipelineHandler:
             runtime_support=self._runtime_support,
             artifact_assembler=self._artifact_assembler,
             status_stage_service=self._status_stage_service,
-            join_stage_service=join_stage_service,
         )
         self._join_stage_service = join_stage_service
 
@@ -261,10 +268,20 @@ class TaskWorkerPipelineHandler:
             self._put_execution_context(task, "attemptResumeFromStage", requested_resume_stage)
             self._put_execution_context(task, "attemptResumeFromClipIndex", requested_resume_clip_index)
 
-            await self._save_result(self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id))
-            await self._save_result(self._status_stage_service.update_status(
-                task, run_context, "ANALYZING", 5, _TaskStage.ANALYSIS, "task.claimed", "任务已被执行节点领取。",
-            ))
+            await self._save_result(
+                self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id)
+            )
+            await self._save_result(
+                self._status_stage_service.update_status(
+                    task,
+                    run_context,
+                    "ANALYZING",
+                    5,
+                    _TaskStage.ANALYSIS,
+                    "task.claimed",
+                    "任务已被执行节点领取。",
+                )
+            )
             self._runtime_support.assert_task_still_active(task)
 
             script_run: dict[str, Any] = {}
@@ -272,30 +289,52 @@ class TaskWorkerPipelineHandler:
 
             if reuse_storyboard and task.storyboard_script and task.storyboard_script.strip():
                 storyboard_markdown = task.storyboard_script
-                await self._save_result(self._execution_coordinator.record_trace(
-                    task, _TaskStage.ANALYSIS, "analysis.reused",
-                    "检测到已有分镜脚本，跳过分析并继续后续镜头。", "INFO",
-                    {
-                        "completedClipCount": completed_clip_count,
-                        "renderStartIndex": render_start_index,
-                        "resumeFromStage": requested_resume_stage,
-                        "resumeFromClipIndex": requested_resume_clip_index,
-                    },
-                ))
+                await self._save_result(
+                    self._execution_coordinator.record_trace(
+                        task,
+                        _TaskStage.ANALYSIS,
+                        "analysis.reused",
+                        "检测到已有分镜脚本，跳过分析并继续后续镜头。",
+                        "INFO",
+                        {
+                            "completedClipCount": completed_clip_count,
+                            "renderStartIndex": render_start_index,
+                            "resumeFromStage": requested_resume_stage,
+                            "resumeFromClipIndex": requested_resume_clip_index,
+                        },
+                    )
+                )
             else:
-                await self._save_result(self._status_stage_service.update_status(
-                    task, run_context, "ANALYZING", 10, _TaskStage.ANALYSIS, "task.analyzing", "任务开始分析文本与镜头约束。",
-                ))
+                await self._save_result(
+                    self._status_stage_service.update_status(
+                        task,
+                        run_context,
+                        "ANALYZING",
+                        10,
+                        _TaskStage.ANALYSIS,
+                        "task.analyzing",
+                        "任务开始分析文本与镜头约束。",
+                    )
+                )
 
                 script_request = self._runtime_support.build_script_run_request(task)
                 pending_model_call = self._status_stage_service.create_pending_model_call(
-                    task, _TaskStage.ANALYSIS, "generation.script", script_request, 1, "script",
+                    task,
+                    _TaskStage.ANALYSIS,
+                    "generation.script",
+                    script_request,
+                    1,
+                    "script",
                 )
                 await self._save_result(self._execution_coordinator.record_model_call(task, pending_model_call))
                 try:
                     script_run = await self._generation_application_service.create_run(script_request)
                 except Exception as ex:
-                    await self._save_result(self._execution_coordinator.record_model_call(task, self._status_stage_service.fail_model_call(pending_model_call, ex)))
+                    await self._save_result(
+                        self._execution_coordinator.record_model_call(
+                            task, self._status_stage_service.fail_model_call(pending_model_call, ex)
+                        )
+                    )
                     raise
 
                 self._runtime_support.assert_task_still_active(task)
@@ -310,12 +349,20 @@ class TaskWorkerPipelineHandler:
                 self._put_execution_context(task, "analysisPrompt", string_value(script_result.get("prompt")))
                 await self._task_repository.save(task)
 
-                await self._save_result(self._status_stage_service.record_stage_run(
-                    task, run_context, 1, _TaskStage.ANALYSIS, 1,
-                    {"title": task.title, "aspectRatio": task.aspect_ratio},
-                    {"summary": "文本分析完成", "scriptRunId": string_value(script_run.get("id"))},
-                ))
-                analysis_model_call = self._status_stage_service.complete_model_call(pending_model_call, script_run, script_result)
+                await self._save_result(
+                    self._status_stage_service.record_stage_run(
+                        task,
+                        run_context,
+                        1,
+                        _TaskStage.ANALYSIS,
+                        1,
+                        {"title": task.title, "aspectRatio": task.aspect_ratio},
+                        {"summary": "文本分析完成", "scriptRunId": string_value(script_run.get("id"))},
+                    )
+                )
+                analysis_model_call = self._status_stage_service.complete_model_call(
+                    pending_model_call, script_run, script_result
+                )
                 await self._save_result(self._execution_coordinator.record_model_call(task, analysis_model_call))
                 self._status_stage_service.record_run_call_chain(task, _TaskStage.ANALYSIS, script_run, script_result)
                 script_material = self._artifact_assembler.create_text_material(task, script_run, script_result)
@@ -324,44 +371,78 @@ class TaskWorkerPipelineHandler:
                 await self._task_repository.save(task)
 
             shot_plans = self._storyboard_planner.build_storyboard_shot_plans(task, storyboard_markdown)
+            character_definitions = self._storyboard_planner.extract_character_definitions(storyboard_markdown)
             storyboard_clip_count = len(shot_plans)
-            requested_output_count = self._storyboard_planner.resolve_requested_output_count(task, storyboard_clip_count)
+            requested_output_count = self._storyboard_planner.resolve_requested_output_count(
+                task, storyboard_clip_count
+            )
             if requested_output_count < len(shot_plans):
                 shot_plans = list(shot_plans[:requested_output_count])
 
             clip_prompts = [sp.video_prompt() for sp in shot_plans]
-            storyboard_duration_ranges = self._storyboard_planner.extract_storyboard_shot_duration_ranges(storyboard_markdown)
-            clip_duration_plan = self._storyboard_planner.build_clip_duration_plan(task, duration_seconds, len(clip_prompts), storyboard_markdown)
+            storyboard_duration_ranges = self._storyboard_planner.extract_storyboard_shot_duration_ranges(
+                storyboard_markdown
+            )
+            clip_duration_plan = self._storyboard_planner.build_clip_duration_plan(
+                task, duration_seconds, len(clip_prompts), storyboard_markdown
+            )
             snapshot = task.request_snapshot or {}
             clip_duration_plan = self._storyboard_planner.normalize_clip_duration_plan(
                 string_value(snapshot.get("videoModel", "")),
                 clip_duration_plan,
             )
             self._put_execution_context(task, "storyboardClipCount", storyboard_clip_count)
-            self._put_execution_context(task, "requestedOutputCount", self._storyboard_planner.request_snapshot_output_count(task))
+            self._put_execution_context(
+                task, "requestedOutputCount", self._storyboard_planner.request_snapshot_output_count(task)
+            )
             self._put_execution_context(task, "plannedClipCount", len(clip_prompts))
+            self._put_execution_context(task, "characterDefinitionCount", len(character_definitions))
+            self._put_execution_context(
+                task, "characterDefinitions", self._build_character_definition_context(character_definitions)
+            )
             self._put_execution_context(task, "clipPrompts", clip_prompts)
-            self._put_execution_context(task, "clipDurationPlan", self._storyboard_planner.build_clip_duration_plan_context(clip_duration_plan, storyboard_duration_ranges))
+            self._put_execution_context(
+                task,
+                "clipDurationPlan",
+                self._storyboard_planner.build_clip_duration_plan_context(
+                    clip_duration_plan, storyboard_duration_ranges
+                ),
+            )
             self._put_execution_context(task, "storyboardFormatVersion", "structured-md-v1")
             self._put_execution_context(task, "storyboardContinuityRule", "current_end_frame_matches_next_start_frame")
-            self._put_execution_context(task, "storyboardClips", self._build_storyboard_clip_context(shot_plans, clip_duration_plan))
+            self._put_execution_context(
+                task, "storyboardClips", self._build_storyboard_clip_context(shot_plans, clip_duration_plan)
+            )
             await self._task_repository.save(task)
 
-            await self._save_result(self._execution_coordinator.record_trace(
-                task, _TaskStage.PLANNING, "planning.shots_resolved",
-                "已完成分镜数量解析，按镜头顺序生成。", "INFO",
-                {
-                    "clipCount": len(clip_prompts),
-                    "storyboardClipCount": storyboard_clip_count,
-                    "requestedOutputCount": self._storyboard_planner.request_snapshot_output_count(task),
-                    "completedClipCount": completed_clip_count,
-                    "renderStartIndex": render_start_index,
-                },
-            ))
+            await self._save_result(
+                self._execution_coordinator.record_trace(
+                    task,
+                    _TaskStage.PLANNING,
+                    "planning.shots_resolved",
+                    "已完成分镜数量解析，按镜头顺序生成。",
+                    "INFO",
+                    {
+                        "clipCount": len(clip_prompts),
+                        "storyboardClipCount": storyboard_clip_count,
+                        "requestedOutputCount": self._storyboard_planner.request_snapshot_output_count(task),
+                        "completedClipCount": completed_clip_count,
+                        "renderStartIndex": render_start_index,
+                    },
+                )
+            )
 
-            await self._save_result(self._status_stage_service.update_status(
-                task, run_context, "PLANNING", 35, _TaskStage.PLANNING, "task.planning", "任务开始按分镜生成关键画面。",
-            ))
+            await self._save_result(
+                self._status_stage_service.update_status(
+                    task,
+                    run_context,
+                    "PLANNING",
+                    35,
+                    _TaskStage.PLANNING,
+                    "task.planning",
+                    "任务开始按分镜生成关键画面。",
+                )
+            )
 
             render_request = RenderStageRequest(
                 reuse_storyboard=reuse_storyboard,
@@ -377,17 +458,22 @@ class TaskWorkerPipelineHandler:
                 duration_seconds=duration_seconds,
                 video_size=video_size,
                 previous_clip_last_frame_url=self._resolve_resume_last_frame_url(task, completed_clip_count),
+                character_definitions=character_definitions,
             )
             render_result = await self._render_stage_service.render(task, run_context, render_request)
 
-            await self._save_result(self._status_stage_service.complete_task(
-                task, run_context, script_run,
-                render_result.image_run_ids,
-                render_result.video_run_ids,
-                render_result.clip_count,
-                render_result.latest_video_output_url,
-            ))
-            if self._join_stage_service:
+            await self._save_result(
+                self._status_stage_service.complete_task(
+                    task,
+                    run_context,
+                    script_run,
+                    render_result.image_run_ids,
+                    render_result.video_run_ids,
+                    render_result.clip_count,
+                    render_result.latest_video_output_url,
+                )
+            )
+            if self._join_stage_service and render_result.video_run_ids:
                 self._join_stage_service.schedule_join(task.id, render_result.clip_count)
 
         except TaskExecutionAbortedException as ex:
@@ -395,20 +481,40 @@ class TaskWorkerPipelineHandler:
         except Exception as ex:
             await self._save_result(self._status_stage_service.fail_task(task, run_context, ex))
 
-    async def _process_workspace_image_task(self, task: TaskRecord, run_context: TaskWorkerExecutionContext, dimensions: list[int]) -> None:
+    async def _process_workspace_image_task(
+        self, task: TaskRecord, run_context: TaskWorkerExecutionContext, dimensions: list[int]
+    ) -> None:
         output_count = self._runtime_support.resolve_workspace_image_output_count(task)
         self._put_execution_context(task, "imageSize", f"{dimensions[0]}x{dimensions[1]}")
         self._put_execution_context(task, "requestedImageOutputCount", output_count)
         self._put_execution_context(task, "workerInstanceId", run_context.worker_instance_id)
-        await self._save_result(self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id))
-        await self._save_result(self._status_stage_service.update_status(
-            task, run_context, "RENDERING", 5, _TaskStage.RENDER, "task.claimed", "任务已被 worker 领取。",
-        ))
+        await self._save_result(
+            self._execution_coordinator.mark_active_attempt_running(task, run_context.worker_instance_id)
+        )
+        await self._save_result(
+            self._status_stage_service.update_status(
+                task,
+                run_context,
+                "RENDERING",
+                5,
+                _TaskStage.RENDER,
+                "task.claimed",
+                "任务已被 worker 领取。",
+            )
+        )
         self._runtime_support.assert_task_still_active(task)
 
-        await self._save_result(self._status_stage_service.update_status(
-            task, run_context, "RENDERING", 40, _TaskStage.RENDER, "task.rendering", "工作台图片任务开始生成。",
-        ))
+        await self._save_result(
+            self._status_stage_service.update_status(
+                task,
+                run_context,
+                "RENDERING",
+                40,
+                _TaskStage.RENDER,
+                "task.rendering",
+                "工作台图片任务开始生成。",
+            )
+        )
 
         image_run_ids: list[str] = []
         output_urls: list[str] = []
@@ -419,15 +525,17 @@ class TaskWorkerPipelineHandler:
         for output_index in range(1, output_count + 1):
             if output_count > 1:
                 progress = min(92, 40 + int((output_index - 1) * 45 / output_count))
-                await self._save_result(self._status_stage_service.update_status(
-                    task,
-                    run_context,
-                    "RENDERING",
-                    progress,
-                    _TaskStage.RENDER,
-                    "task.rendering",
-                    f"工作台图片任务正在生成第 {output_index}/{output_count} 张。",
-                ))
+                await self._save_result(
+                    self._status_stage_service.update_status(
+                        task,
+                        run_context,
+                        "RENDERING",
+                        progress,
+                        _TaskStage.RENDER,
+                        "task.rendering",
+                        f"工作台图片任务正在生成第 {output_index}/{output_count} 张。",
+                    )
+                )
 
             image_request = self._runtime_support.build_workspace_image_run_request(
                 task,
@@ -436,13 +544,22 @@ class TaskWorkerPipelineHandler:
                 output_index=output_index,
             )
             pending_model_call = self._status_stage_service.create_pending_model_call(
-                task, _TaskStage.RENDER, "generation.image", image_request, output_index, "workspace_image",
+                task,
+                _TaskStage.RENDER,
+                "generation.image",
+                image_request,
+                output_index,
+                "workspace_image",
             )
             await self._save_result(self._execution_coordinator.record_model_call(task, pending_model_call))
             try:
                 image_run = await self._generation_application_service.create_run(image_request)
             except Exception as ex:
-                await self._save_result(self._execution_coordinator.record_model_call(task, self._status_stage_service.fail_model_call(pending_model_call, ex)))
+                await self._save_result(
+                    self._execution_coordinator.record_model_call(
+                        task, self._status_stage_service.fail_model_call(pending_model_call, ex)
+                    )
+                )
                 raise
             self._runtime_support.assert_task_still_active(task)
             image_result = self._result_map(image_run)
@@ -455,7 +572,9 @@ class TaskWorkerPipelineHandler:
             if not output_url:
                 raise ValueError("图片生成结果为空，未返回可用输出地址。")
 
-            image_model_call = self._status_stage_service.complete_model_call(pending_model_call, image_run, image_result)
+            image_model_call = self._status_stage_service.complete_model_call(
+                pending_model_call, image_run, image_result
+            )
             await self._save_result(self._execution_coordinator.record_model_call(task, image_model_call))
             self._status_stage_service.record_run_call_chain(task, _TaskStage.RENDER, image_run, image_result)
             image_material = self._artifact_assembler.create_workspace_image_material(
@@ -490,19 +609,38 @@ class TaskWorkerPipelineHandler:
         self._put_execution_context(task, "latestMaterialAssetId", material_asset_ids[-1] if material_asset_ids else "")
         self._put_execution_context(task, "latestMaterialAssetIds", material_asset_ids)
         await self._task_repository.save(task)
-        await self._save_result(self._status_stage_service.record_stage_run(
-            task, run_context, 1, _TaskStage.RENDER, 1,
-            {"title": task.title, "taskType": task.task_type, "width": dimensions[0], "height": dimensions[1], "outputCount": output_count},
-            {"summary": "工作台图片生成完成", "imageRunIds": image_run_ids, "outputUrls": output_urls, "materialAssetIds": material_asset_ids},
-        ))
-        await self._save_result(self._status_stage_service.complete_workspace_image_task(
-            task,
-            run_context,
-            latest_image_run,
-            latest_output_url,
-            output_count=output_count,
-            image_run_ids=image_run_ids,
-        ))
+        await self._save_result(
+            self._status_stage_service.record_stage_run(
+                task,
+                run_context,
+                1,
+                _TaskStage.RENDER,
+                1,
+                {
+                    "title": task.title,
+                    "taskType": task.task_type,
+                    "width": dimensions[0],
+                    "height": dimensions[1],
+                    "outputCount": output_count,
+                },
+                {
+                    "summary": "工作台图片生成完成",
+                    "imageRunIds": image_run_ids,
+                    "outputUrls": output_urls,
+                    "materialAssetIds": material_asset_ids,
+                },
+            )
+        )
+        await self._save_result(
+            self._status_stage_service.complete_workspace_image_task(
+                task,
+                run_context,
+                latest_image_run,
+                latest_output_url,
+                output_count=output_count,
+                image_run_ids=image_run_ids,
+            )
+        )
 
     def _is_video_generation_task(self, task: TaskRecord) -> bool:
         return task.task_type is None or task.task_type == "video_generation"
@@ -516,7 +654,9 @@ class TaskWorkerPipelineHandler:
     def _resolve_resume_last_frame_url(self, task: TaskRecord, completed_clip_count: int) -> str:
         return resolve_resume_last_frame_url(task.outputs, completed_clip_count, task.execution_context)
 
-    def _build_storyboard_clip_context(self, shot_plans: list, clip_duration_plan: list[list[int]]) -> list[dict[str, Any]]:
+    def _build_storyboard_clip_context(
+        self, shot_plans: list, clip_duration_plan: list[list[int]]
+    ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         for index, shot_plan in enumerate(shot_plans):
             duration = clip_duration_plan[index] if index < len(clip_duration_plan) else [0, 0, 0]
@@ -545,6 +685,19 @@ class TaskWorkerPipelineHandler:
                 row["nextClipShotLabel"] = next_shot.shot_label()
                 row["nextClipStartFramePrompt"] = next_shot.first_frame_prompt()
             rows.append(row)
+        return rows
+
+    def _build_character_definition_context(self, character_definitions: list[Any]) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for index, character in enumerate(character_definitions, start=1):
+            rows.append(
+                {
+                    "characterIndex": index,
+                    "name": string_value(getattr(character, "name", "")),
+                    "appearance": string_value(getattr(character, "appearance", "")),
+                    "definition": string_value(getattr(character, "definition", "")),
+                }
+            )
         return rows
 
     def _put_execution_context(self, task: TaskRecord, key: str, value: Any) -> None:

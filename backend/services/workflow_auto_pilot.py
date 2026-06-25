@@ -6,6 +6,7 @@ frame references the previous clip's tail frame for visual continuity) while
 video generation steps execute concurrently (max 5 at a time).  Storyboard and
 selection steps remain serial.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -160,7 +161,10 @@ class WorkflowAutoPilot:
             extra = f" clip={clip_index}" if clip_index is not None else ""
             logger.exception(
                 "Auto-pilot failed: workflow=%s step=%s%s error=%s",
-                workflow_id, step_type, extra, exc,
+                workflow_id,
+                step_type,
+                extra,
+                exc,
             )
             wf = await self._get_workflow_from_db(workflow_id)
             if wf is not None:
@@ -208,9 +212,8 @@ class WorkflowAutoPilot:
 
         # 2. Has storyboard versions but none selected -> select first
         selected_storyboard_id = trim(wf.selected_storyboard_version_id)
-        has_selected = (
-            selected_storyboard_id
-            and any(v.stage_version_id == selected_storyboard_id for v in storyboard_versions)
+        has_selected = selected_storyboard_id and any(
+            v.stage_version_id == selected_storyboard_id for v in storyboard_versions
         )
         if not has_selected:
             first_version = min(
@@ -238,10 +241,7 @@ class WorkflowAutoPilot:
 
         for idx, _char in enumerate(characters, start=1):
             clip_index = CHARACTER_SHEET_CLIP_INDEX_BASE + idx
-            char_keyframes = [
-                v for v in keyframe_versions
-                if v.clip_index == clip_index
-            ]
+            char_keyframes = [v for v in keyframe_versions if v.clip_index == clip_index]
             if not char_keyframes:
                 keyframe_steps.append({"type": "generate_keyframe", "clip_index": clip_index})
 
@@ -249,7 +249,8 @@ class WorkflowAutoPilot:
             if clip_idx == 0:
                 continue
             kf_versions = [
-                v for v in keyframe_versions
+                v
+                for v in keyframe_versions
                 if v.clip_index == clip_idx
                 and trim(read_json_object(v.input_summary_json).get("variantKind", "")) != "character_sheet"
             ]
@@ -270,26 +271,17 @@ class WorkflowAutoPilot:
         for clip_idx in sorted(storyboard_clip_indexes):
             if clip_idx == 0:
                 continue
-            vid_versions = [
-                v for v in video_versions
-                if v.clip_index == clip_idx
-            ]
+            vid_versions = [v for v in video_versions if v.clip_index == clip_idx]
             if not vid_versions:
                 video_steps.append({"type": "generate_video", "clip_index": clip_idx})
                 continue
             # Check if any video has a material_asset_id + preview_url (complete)
-            has_complete_video = any(
-                trim(v.material_asset_id) and trim(v.preview_url)
-                for v in vid_versions
-            )
+            has_complete_video = any(trim(v.material_asset_id) and trim(v.preview_url) for v in vid_versions)
             if has_complete_video:
                 continue
             # Check if any video is still being generated (async / running)
             _PENDING_STATUSES = {"RUNNING", "SUBMITTED", "PENDING", "PROCESSING", ""}
-            if any(
-                trim(v.status).upper() in _PENDING_STATUSES
-                for v in vid_versions
-            ):
+            if any(trim(v.status).upper() in _PENDING_STATUSES for v in vid_versions):
                 pending_clip_indexes.append(clip_idx)
                 continue
             # Neither complete nor pending (e.g. all FAILED) -> re-generate
@@ -302,28 +294,25 @@ class WorkflowAutoPilot:
             return video_steps
 
         # 6. All videos ready -> auto-select, finalize, or complete
-        selected_videos = [
-            v for v in video_versions
-            if v.selected == 1 and trim(v.preview_url)
-        ]
+        selected_videos = [v for v in video_versions if v.selected == 1 and trim(v.preview_url)]
         if not selected_videos:
             # Auto-select first completed video per clip
             for clip_idx in sorted(storyboard_clip_indexes):
                 if clip_idx == 0:
                     continue
-                vid_versions_for_clip = [
-                    v for v in video_versions if v.clip_index == clip_idx
-                ]
+                vid_versions_for_clip = [v for v in video_versions if v.clip_index == clip_idx]
                 if vid_versions_for_clip:
                     first_vid = min(
                         vid_versions_for_clip,
                         key=lambda v: safe_int(v.version_no, 0),
                     )
-                    return [{
-                        "type": "select_video",
-                        "clip_index": clip_idx,
-                        "version_id": first_vid.stage_version_id,
-                    }]
+                    return [
+                        {
+                            "type": "select_video",
+                            "clip_index": clip_idx,
+                            "version_id": first_vid.stage_version_id,
+                        }
+                    ]
             return [{"type": "finalize"}]
 
         # All expected clips have a selected video — now join them
@@ -361,11 +350,11 @@ class WorkflowAutoPilot:
         # Map step type to stage name and model for logging
         _STAGE_MODEL_MAP: dict[str, tuple[str, str]] = {
             "generate_storyboard": ("分镜脚本", wf.text_analysis_model if wf else "?"),
-            "select_storyboard":   ("选择分镜", wf.text_analysis_model if wf else "?"),
-            "generate_keyframe":   ("关键帧",     wf.image_model if wf else "?"),
-            "generate_video":      ("视频生成",   wf.video_model if wf else "?"),
-            "select_video":        ("选择视频",   wf.video_model if wf else "?"),
-            "finalize":            ("成片拼接",   "—"),
+            "select_storyboard": ("选择分镜", wf.text_analysis_model if wf else "?"),
+            "generate_keyframe": ("关键帧", wf.image_model if wf else "?"),
+            "generate_video": ("视频生成", wf.video_model if wf else "?"),
+            "select_video": ("选择视频", wf.video_model if wf else "?"),
+            "finalize": ("成片拼接", "—"),
         }
 
         stage_label, model_label = _STAGE_MODEL_MAP.get(step_type, (step_type, "?"))
@@ -389,10 +378,13 @@ class WorkflowAutoPilot:
         if step_type == "generate_storyboard":
             logger.info(
                 "Auto-pilot step: workflow=%s stage=%s model=%s",
-                workflow_id, stage_label, model_label,
+                workflow_id,
+                stage_label,
+                model_label,
             )
             await self._workflow_service.generate_storyboard(
-                workflow_id, owner_user_id=owner_user_id,
+                workflow_id,
+                owner_user_id=owner_user_id,
             )
 
         elif step_type == "select_storyboard":
@@ -400,30 +392,44 @@ class WorkflowAutoPilot:
             if version_id:
                 logger.info(
                     "Auto-pilot step: workflow=%s stage=%s version=%s",
-                    workflow_id, stage_label, version_id,
+                    workflow_id,
+                    stage_label,
+                    version_id,
                 )
                 await self._workflow_service.select_storyboard(
-                    workflow_id, version_id, owner_user_id=owner_user_id,
+                    workflow_id,
+                    version_id,
+                    owner_user_id=owner_user_id,
                 )
 
         elif step_type == "generate_keyframe":
             clip_index = step.get("clip_index", 1)
             logger.info(
                 "Auto-pilot step: workflow=%s stage=%s model=%s clip=%s",
-                workflow_id, stage_label, model_label, clip_index,
+                workflow_id,
+                stage_label,
+                model_label,
+                clip_index,
             )
             await self._workflow_service.generate_keyframe(
-                workflow_id, clip_index, owner_user_id=owner_user_id,
+                workflow_id,
+                clip_index,
+                owner_user_id=owner_user_id,
             )
 
         elif step_type == "generate_video":
             clip_index = step.get("clip_index", 1)
             logger.info(
                 "Auto-pilot step: workflow=%s stage=%s model=%s clip=%s",
-                workflow_id, stage_label, model_label, clip_index,
+                workflow_id,
+                stage_label,
+                model_label,
+                clip_index,
             )
             await self._workflow_service.generate_video(
-                workflow_id, clip_index, owner_user_id=owner_user_id,
+                workflow_id,
+                clip_index,
+                owner_user_id=owner_user_id,
             )
 
         elif step_type == "select_video":
@@ -432,19 +438,26 @@ class WorkflowAutoPilot:
             if version_id:
                 logger.info(
                     "Auto-pilot step: workflow=%s stage=%s version=%s",
-                    workflow_id, stage_label, version_id,
+                    workflow_id,
+                    stage_label,
+                    version_id,
                 )
                 await self._workflow_service.select_video(
-                    workflow_id, clip_index, version_id, owner_user_id=owner_user_id,
+                    workflow_id,
+                    clip_index,
+                    version_id,
+                    owner_user_id=owner_user_id,
                 )
 
         elif step_type == "finalize":
             logger.info(
                 "Auto-pilot step: workflow=%s stage=%s",
-                workflow_id, stage_label,
+                workflow_id,
+                stage_label,
             )
             await self._workflow_service.finalize_workflow(
-                workflow_id, owner_user_id=owner_user_id,
+                workflow_id,
+                owner_user_id=owner_user_id,
             )
 
         elif step_type == "wait":
@@ -454,7 +467,8 @@ class WorkflowAutoPilot:
                 await self._set_current_task(workflow_id, f"镜头 {clips_str} 视频生成中，等待完成…")
             logger.info(
                 "Auto-pilot step: workflow=%s stage=等待视频完成 clips=%s",
-                workflow_id, clips_str,
+                workflow_id,
+                clips_str,
             )
             wf_for_refresh = await self._get_workflow_from_db(workflow_id)
             if wf_for_refresh is not None:
@@ -502,7 +516,9 @@ class WorkflowAutoPilot:
 
         logger.info(
             "Auto-pilot batch start: workflow=%s type=%s count=%d",
-            workflow_id, step_type, count,
+            workflow_id,
+            step_type,
+            count,
         )
 
         async def run_one(step: dict[str, Any]) -> None:
@@ -522,13 +538,17 @@ class WorkflowAutoPilot:
             if exc is not None:
                 logger.error(
                     "Auto-pilot batch step failed: workflow=%s type=%s error=%s",
-                    workflow_id, step_type, exc,
+                    workflow_id,
+                    step_type,
+                    exc,
                 )
                 raise exc
 
         logger.info(
             "Auto-pilot batch complete: workflow=%s type=%s count=%d",
-            workflow_id, step_type, count,
+            workflow_id,
+            step_type,
+            count,
         )
 
     async def _execute_step_isolated(
@@ -559,27 +579,42 @@ class WorkflowAutoPilot:
                     if step_type == "generate_keyframe":
                         logger.info(
                             "Auto-pilot concurrent: workflow=%s stage=关键帧 clip=%s attempt=%d/%d",
-                            workflow_id, clip_index, attempt, max_attempts,
+                            workflow_id,
+                            clip_index,
+                            attempt,
+                            max_attempts,
                         )
                         await svc.generate_keyframe(
-                            workflow_id, clip_index, owner_user_id=owner_user_id,
+                            workflow_id,
+                            clip_index,
+                            owner_user_id=owner_user_id,
                         )
                     elif step_type == "generate_video":
                         logger.info(
                             "Auto-pilot concurrent: workflow=%s stage=视频生成 clip=%s attempt=%d/%d",
-                            workflow_id, clip_index, attempt, max_attempts,
+                            workflow_id,
+                            clip_index,
+                            attempt,
+                            max_attempts,
                         )
                         await svc.generate_video(
-                            workflow_id, clip_index, owner_user_id=owner_user_id,
+                            workflow_id,
+                            clip_index,
+                            owner_user_id=owner_user_id,
                         )
                     return
                 except Exception as exc:  # noqa: BLE001
                     if not self._is_retryable_provider_error(exc) or attempt == max_attempts:
                         raise
-                    delay = min(2 ** attempt, 5)
+                    delay = min(2**attempt, 5)
                     logger.warning(
                         "Auto-pilot retryable provider error: workflow=%s clip=%s attempt=%d/%d delay=%ds error=%s",
-                        workflow_id, clip_index, attempt, max_attempts, delay, exc,
+                        workflow_id,
+                        clip_index,
+                        attempt,
+                        max_attempts,
+                        delay,
+                        exc,
                     )
                     await asyncio.sleep(delay)
 
@@ -604,6 +639,7 @@ class WorkflowAutoPilot:
     async def _get_workflow_from_db(self, workflow_id: str):
         """Re-read workflow from DB to check for state changes."""
         from sqlalchemy import select
+
         from backend.models.workflow import BizStageWorkflow
 
         stmt = select(BizStageWorkflow).where(
@@ -649,11 +685,7 @@ class WorkflowAutoPilot:
         elif state == AutoPilotState.COMPLETED:
             values["status"] = WorkflowStatus.COMPLETED.value
 
-        stmt = (
-            update(BizStageWorkflow)
-            .where(BizStageWorkflow.workflow_id == wf.workflow_id)
-            .values(**values)
-        )
+        stmt = update(BizStageWorkflow).where(BizStageWorkflow.workflow_id == wf.workflow_id).values(**values)
 
         await self._db.execute(stmt)
         await self._db.commit()
@@ -680,14 +712,19 @@ class WorkflowAutoPilot:
     ) -> bool:
         """Auto-select first completed version for a stage."""
         from sqlalchemy import select
+
         from backend.models.workflow import BizStageVersion
 
-        stmt = select(BizStageVersion).where(
-            BizStageVersion.workflow_id == wf.workflow_id,
-            BizStageVersion.stage_type == stage_type,
-            BizStageVersion.clip_index == clip_index,
-            BizStageVersion.is_deleted == 0,
-        ).order_by(BizStageVersion.version_no)
+        stmt = (
+            select(BizStageVersion)
+            .where(
+                BizStageVersion.workflow_id == wf.workflow_id,
+                BizStageVersion.stage_type == stage_type,
+                BizStageVersion.clip_index == clip_index,
+                BizStageVersion.is_deleted == 0,
+            )
+            .order_by(BizStageVersion.version_no)
+        )
 
         result = await self._db.execute(stmt)
         versions = result.scalars().all()

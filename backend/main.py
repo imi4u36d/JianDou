@@ -1,6 +1,7 @@
 """
 FastAPI application factory.
 """
+
 from __future__ import annotations
 
 import logging
@@ -68,7 +69,6 @@ def create_app(start_worker: bool = True) -> FastAPI:
         lifespan=lifespan,
     )
 
-
     # -- Auth exception handlers --------------------------------------------
     @app.exception_handler(InvalidCredentialsError)
     async def invalid_credentials_handler(request: Request, exc: InvalidCredentialsError):
@@ -122,7 +122,9 @@ def create_app(start_worker: bool = True) -> FastAPI:
         runtime_config,
         tasks,
         uploads,
+        workflows,
     )
+
     app.include_router(health.router)
     app.include_router(runtime_config.router)
     app.include_router(auth.router)
@@ -132,6 +134,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
     app.include_router(uploads.router)
     app.include_router(material_assets.router)
     app.include_router(material_center.router)
+    app.include_router(workflows.router)
     app.include_router(admin.router)
 
     # -- Storage files (must be mounted BEFORE the SPA root mount) -----------

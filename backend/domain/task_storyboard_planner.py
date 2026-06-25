@@ -48,9 +48,7 @@ _PLAIN_DURATION_VALUE_PATTERN = re.compile(
 )
 
 # Matches character definition list items: "- name: definition" or "- name：definition"
-_CHARACTER_DEFINITION_LIST_PATTERN = re.compile(
-    r"^[-*]\s*(?P<name>[^：:|]+)[:：]\s*(?P<definition>.+)$"
-)
+_CHARACTER_DEFINITION_LIST_PATTERN = re.compile(r"^[-*]\s*(?P<name>[^：:|]+)[:：]\s*(?P<definition>.+)$")
 
 # Matches appearance anchor within character definition
 _CHARACTER_APPEARANCE_ANCHOR_PATTERN = re.compile(
@@ -360,12 +358,8 @@ class _StoryboardTableSchema:
         return _StoryboardTableSchema(
             header_cells=list(headers),
             shot_no_index=_resolve_header(headers, "镜号"),
-            first_frame_prompt_index=_resolve_header(
-                headers, "首帧描述startframe", "首帧描述", "startframe"
-            ),
-            last_frame_prompt_index=_resolve_header(
-                headers, "尾帧描述endframe", "尾帧描述", "endframe"
-            ),
+            first_frame_prompt_index=_resolve_header(headers, "首帧描述startframe", "首帧描述", "startframe"),
+            last_frame_prompt_index=_resolve_header(headers, "尾帧描述endframe", "尾帧描述", "endframe"),
             content_description_index=_resolve_header(headers, "分镜内容描述"),
             duration_index=_resolve_header(headers, "时长", "duration"),
         )
@@ -413,14 +407,7 @@ def string_value(value: Any) -> str:
 
 def _normalize_header(text: str) -> str:
     """Normalize a header cell for comparison (stripped, lowercased, no separators)."""
-    return (
-        string_value(text)
-        .lower()
-        .replace("<br>", " ")
-        .replace("<br/>", " ")
-        .replace("<br />", " ")
-        .strip()
-    )
+    return string_value(text).lower().replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ").strip()
 
 
 def _normalize_storyboard_header(text: str) -> str:
@@ -430,22 +417,12 @@ def _normalize_storyboard_header(text: str) -> str:
 
 def _normalize_storyboard_prompt_value(value: str) -> str:
     """Normalize a storyboard prompt cell value."""
-    return (
-        string_value(value)
-        .replace("<br>", " ")
-        .replace("<br/>", " ")
-        .replace("<br />", " ")
-    )
+    return string_value(value).replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
 
 
 def _normalize_prompt_value(value: str) -> str:
     """Normalize a storyboard prompt cell value (replace <br> with space, collapse whitespace)."""
-    result = (
-        string_value(value)
-        .replace("<br>", " ")
-        .replace("<br/>", " ")
-        .replace("<br />", " ")
-    )
+    result = string_value(value).replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
     return re.sub(r"\s+", " ", result).strip()
 
 
@@ -458,12 +435,7 @@ def _trim_static_appearance_definition(value: str) -> str:
     """Static version of trim_appearance_definition."""
     if value is None:
         return ""
-    result = (
-        str(value)
-        .replace("<br>", " ")
-        .replace("<br/>", " ")
-        .replace("<br />", " ")
-    )
+    result = str(value).replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
     result = re.sub(r"\s+", " ", result)
     result = re.sub(r"[。；;，,]+$", "", result)
     return result.strip()
@@ -551,35 +523,23 @@ class TaskStoryboardPlanner:
     # Public API
     # -----------------------------------------------------------------------
 
-    def build_sequential_clip_prompts(
-        self, task: Any, storyboard_markdown: str
-    ) -> list[str]:
+    def build_sequential_clip_prompts(self, task: Any, storyboard_markdown: str) -> list[str]:
         """Build sequential clip prompts from storyboard markdown."""
-        return [
-            plan.video_prompt
-            for plan in self.build_storyboard_shot_plans(task, storyboard_markdown)
-        ]
+        return [plan.video_prompt for plan in self.build_storyboard_shot_plans(task, storyboard_markdown)]
 
-    def build_storyboard_shot_plans(
-        self, task: Any, storyboard_markdown: str
-    ) -> list[ShotPlan]:
+    def build_storyboard_shot_plans(self, task: Any, storyboard_markdown: str) -> list[ShotPlan]:
         """Parse storyboard markdown and build shot plans."""
         return self._extract_storyboard_shot_plans(storyboard_markdown)
 
     def build_storyboard_video_prompts(self, storyboard_markdown: str) -> list[str]:
         """Build video prompts from storyboard markdown only (no task)."""
-        return [
-            plan.video_prompt
-            for plan in self._extract_storyboard_shot_plans(storyboard_markdown)
-        ]
+        return [plan.video_prompt for plan in self._extract_storyboard_shot_plans(storyboard_markdown)]
 
     # -----------------------------------------------------------------------
     # Character definitions
     # -----------------------------------------------------------------------
 
-    def extract_character_definitions(
-        self, storyboard_markdown: str
-    ) -> list[CharacterDefinition]:
+    def extract_character_definitions(self, storyboard_markdown: str) -> list[CharacterDefinition]:
         """Extract character definitions from storyboard markdown."""
         normalized = string_value(storyboard_markdown)
         if not normalized:
@@ -596,9 +556,7 @@ class TaskStoryboardPlanner:
             else normalized[definitions_start:]
         )
 
-        list_definitions = self._extract_character_definitions_from_list(
-            definitions_block
-        )
+        list_definitions = self._extract_character_definitions_from_list(definitions_block)
         if list_definitions:
             return list_definitions
 
@@ -608,9 +566,7 @@ class TaskStoryboardPlanner:
     # Output count
     # -----------------------------------------------------------------------
 
-    def resolve_requested_output_count(
-        self, task: Any, storyboard_clip_count: int
-    ) -> int:
+    def resolve_requested_output_count(self, task: Any, storyboard_clip_count: int) -> int:
         """Determine how many clips to generate.
 
         Reads ``task.request_snapshot`` (a dict) for ``outputCount``.
@@ -746,20 +702,14 @@ class TaskStoryboardPlanner:
         for item in clip_duration_plan:
             if item is None or len(item) < 3:
                 continue
-            normalized.append(
-                self._normalize_clip_duration_range(
-                    supported_durations, item[0], item[1], item[2]
-                )
-            )
+            normalized.append(self._normalize_clip_duration_range(supported_durations, item[0], item[1], item[2]))
         return normalized
 
     # -----------------------------------------------------------------------
     # Duration range extraction
     # -----------------------------------------------------------------------
 
-    def extract_storyboard_shot_duration_ranges(
-        self, storyboard_markdown: str
-    ) -> list[list[int]]:
+    def extract_storyboard_shot_duration_ranges(self, storyboard_markdown: str) -> list[list[int]]:
         """Extract duration ranges from storyboard markdown."""
         normalized = self._storyboard_section(string_value(storyboard_markdown))
         if not normalized:
@@ -791,9 +741,7 @@ class TaskStoryboardPlanner:
     # Internal: storyboard shot plan extraction
     # -----------------------------------------------------------------------
 
-    def _extract_storyboard_shot_plans(
-        self, storyboard_markdown: str
-    ) -> list[ShotPlan]:
+    def _extract_storyboard_shot_plans(self, storyboard_markdown: str) -> list[ShotPlan]:
         """Parse storyboard markdown and extract individual shot plans."""
         normalized = string_value(storyboard_markdown)
         if not normalized:
@@ -820,24 +768,16 @@ class TaskStoryboardPlanner:
 
             shot_index = _normalize_prompt_value(first)
             sequential_index = len(shot_plans) + 1
-            duration_hint = _normalize_prompt_value(
-                schema.cell(cells, schema.duration_index, -1)
-            )
+            duration_hint = _normalize_prompt_value(schema.cell(cells, schema.duration_index, -1))
             parsed_first_frame = self._augment_character_appearance_definitions(
-                _normalize_prompt_value(
-                    schema.cell(cells, schema.first_frame_prompt_index, -1)
-                ),
+                _normalize_prompt_value(schema.cell(cells, schema.first_frame_prompt_index, -1)),
                 character_appearances,
             )
             last_frame = self._augment_character_appearance_definitions(
-                _normalize_prompt_value(
-                    schema.cell(cells, schema.last_frame_prompt_index, -1)
-                ),
+                _normalize_prompt_value(schema.cell(cells, schema.last_frame_prompt_index, -1)),
                 character_appearances,
             )
-            content_description = _normalize_prompt_value(
-                schema.cell(cells, schema.content_description_index, -1)
-            )
+            content_description = _normalize_prompt_value(schema.cell(cells, schema.content_description_index, -1))
             camera_movement = self._extract_camera_movement(content_description)
             if not camera_movement:
                 camera_movement = "static"
@@ -904,9 +844,7 @@ class TaskStoryboardPlanner:
             )
         missing = schema.missing_structured_required_columns()
         if missing:
-            raise ValueError(
-                "分镜解析失败，结构化分镜表缺少必填列：" + "、".join(missing)
-            )
+            raise ValueError("分镜解析失败，结构化分镜表缺少必填列：" + "、".join(missing))
 
     def _assert_structured_storyboard_row(
         self,
@@ -929,17 +867,13 @@ class TaskStoryboardPlanner:
         if not _normalize_prompt_value(duration_hint):
             missing.append("时长")
         if missing:
-            raise ValueError(
-                f"分镜解析失败，镜头 {shot_label} 缺少必填字段：" + "、".join(missing)
-            )
+            raise ValueError(f"分镜解析失败，镜头 {shot_label} 缺少必填字段：" + "、".join(missing))
 
     # -----------------------------------------------------------------------
     # Internal: character definitions
     # -----------------------------------------------------------------------
 
-    def _extract_character_definitions_from_list(
-        self, definitions_block: str
-    ) -> list[CharacterDefinition]:
+    def _extract_character_definitions_from_list(self, definitions_block: str) -> list[CharacterDefinition]:
         """Extract character definitions from a list format."""
         definitions: list[CharacterDefinition] = []
         for raw_line in string_value(definitions_block).splitlines():
@@ -951,11 +885,7 @@ class TaskStoryboardPlanner:
             definition = _normalize_prompt_value(matcher.group("definition"))
             if not name or not definition:
                 continue
-            definitions.append(
-                CharacterDefinition(
-                    name, self._extract_appearance_anchor(definition), definition
-                )
-            )
+            definitions.append(CharacterDefinition(name, self._extract_appearance_anchor(definition), definition))
         return definitions
 
     def _extract_appearance_anchor(self, definition: str) -> str:
@@ -970,9 +900,7 @@ class TaskStoryboardPlanner:
                 return appearance
         return _trim_appearance_definition(normalized)
 
-    def _extract_character_definitions_from_table(
-        self, definitions_block: str
-    ) -> list[CharacterDefinition]:
+    def _extract_character_definitions_from_table(self, definitions_block: str) -> list[CharacterDefinition]:
         """Extract character definitions from a markdown table format."""
         builders: dict[str, _CharacterDefinitionBuilder] = {}
         schema = _CharacterDefinitionTableSchema.empty()
@@ -1013,8 +941,18 @@ class TaskStoryboardPlanner:
                     builders.setdefault(
                         name,
                         _CharacterDefinitionBuilder.from_single_row(
-                            name, gender_age, position, face, hair, body,
-                            clothing, stable_acc, immutable, appearance, behavior, speech,
+                            name,
+                            gender_age,
+                            position,
+                            face,
+                            hair,
+                            body,
+                            clothing,
+                            stable_acc,
+                            immutable,
+                            appearance,
+                            behavior,
+                            speech,
                         ),
                     )
                 continue
@@ -1030,15 +968,9 @@ class TaskStoryboardPlanner:
                 builder.set_age(age)
                 builder.add_part(part, detail)
 
-        return [
-            builder.build()
-            for builder in builders.values()
-            if builder.build().name and builder.build().appearance
-        ]
+        return [builder.build() for builder in builders.values() if builder.build().name and builder.build().appearance]
 
-    def _extract_character_appearance_map(
-        self, storyboard_markdown: str
-    ) -> dict[str, str]:
+    def _extract_character_appearance_map(self, storyboard_markdown: str) -> dict[str, str]:
         """Extract a map of character name -> appearance from storyboard markdown."""
         appearances: dict[str, str] = {}
         for definition in self.extract_character_definitions(storyboard_markdown):
@@ -1046,9 +978,7 @@ class TaskStoryboardPlanner:
                 appearances[definition.name] = definition.appearance
         return appearances
 
-    def _augment_character_appearance_definitions(
-        self, prompt: str, character_appearances: dict[str, str]
-    ) -> str:
+    def _augment_character_appearance_definitions(self, prompt: str, character_appearances: dict[str, str]) -> str:
         """Augment a frame prompt with character appearance definitions.
 
         For each character whose name appears in the prompt, insert their
@@ -1060,9 +990,7 @@ class TaskStoryboardPlanner:
 
         augmented = normalized
         # Sort by name length descending so longer names match first
-        sorted_entries = sorted(
-            character_appearances.items(), key=lambda x: len(x[0]), reverse=True
-        )
+        sorted_entries = sorted(character_appearances.items(), key=lambda x: len(x[0]), reverse=True)
 
         for char_name, appearance in sorted_entries:
             cname = _normalize_prompt_value(char_name)
@@ -1071,21 +999,14 @@ class TaskStoryboardPlanner:
                 continue
             if cname not in augmented:
                 continue
-            if (
-                f"{cname}（{capp}）" in augmented
-                or f"{cname}({capp})" in augmented
-            ):
+            if f"{cname}（{capp}）" in augmented or f"{cname}({capp})" in augmented:
                 continue
 
             # Replace first occurrence of name that is NOT followed by ( or （
             pattern = re.compile(re.escape(cname) + r"(?!\s*[（(])")
             matcher = pattern.search(augmented)
             if matcher:
-                augmented = (
-                    augmented[: matcher.start()]
-                    + f"{cname}（{capp}）"
-                    + augmented[matcher.end() :]
-                )
+                augmented = augmented[: matcher.start()] + f"{cname}（{capp}）" + augmented[matcher.end() :]
 
         return augmented
 
@@ -1161,9 +1082,7 @@ class TaskStoryboardPlanner:
         normalized_min = self._clamp(
             min(min_duration_seconds, max_duration_seconds), CLIP_MIN_SECONDS, CLIP_MAX_SECONDS
         )
-        normalized_max = self._clamp(
-            max(min_duration_seconds, max_duration_seconds), normalized_min, CLIP_MAX_SECONDS
-        )
+        normalized_max = self._clamp(max(min_duration_seconds, max_duration_seconds), normalized_min, CLIP_MAX_SECONDS)
 
         in_range = [d for d in supported_durations if normalized_min <= d <= normalized_max]
         if in_range:
@@ -1188,9 +1107,7 @@ class TaskStoryboardPlanner:
             return []
 
         try:
-            section = self._model_resolver.section(
-                f'model.models."{normalized_model}"'
-            )
+            section = self._model_resolver.section(f'model.models."{normalized_model}"')
         except (AttributeError, TypeError):
             return []
 
@@ -1209,9 +1126,7 @@ class TaskStoryboardPlanner:
         values.sort()
         return values
 
-    def _closest_supported_duration(
-        self, candidates: list[int], requested_duration_seconds: int
-    ) -> int:
+    def _closest_supported_duration(self, candidates: list[int], requested_duration_seconds: int) -> int:
         """Find the closest supported duration to the requested value."""
         resolved = candidates[0]
         smallest_distance = abs(resolved - requested_duration_seconds)
@@ -1243,10 +1158,27 @@ class TaskStoryboardPlanner:
         if not normalized:
             return False
         keywords = [
-            "推", "拉", "摇", "移", "跟", "甩", "升", "降",
-            "环绕", "环拍", "手持",
-            "dolly", "push", "pull", "pan", "tilt", "truck",
-            "track", "orbit", "handheld", "whip",
+            "推",
+            "拉",
+            "摇",
+            "移",
+            "跟",
+            "甩",
+            "升",
+            "降",
+            "环绕",
+            "环拍",
+            "手持",
+            "dolly",
+            "push",
+            "pull",
+            "pan",
+            "tilt",
+            "truck",
+            "track",
+            "orbit",
+            "handheld",
+            "whip",
         ]
         return any(k in normalized for k in keywords)
 
@@ -1295,9 +1227,7 @@ class TaskStoryboardPlanner:
         content = trimmed[1:-1] if trimmed.endswith("|") else trimmed[1:]
         return [part.strip() for part in content.split("|")]
 
-    def _detect_storyboard_table_schema(
-        self, lines: list[str]
-    ) -> _StoryboardTableSchema:
+    def _detect_storyboard_table_schema(self, lines: list[str]) -> _StoryboardTableSchema:
         """Detect the storyboard table schema from markdown lines."""
         for raw_line in lines:
             stripped = raw_line.strip()
@@ -1317,13 +1247,20 @@ class TaskStoryboardPlanner:
             if any(
                 keyword in norm
                 for keyword in [
-                    "shot", "镜号",
-                    "首帧", "尾帧",
-                    "startframe", "endframe",
-                    "分镜内容描述", "剧情画面与声音描述",
-                    "合并长段描述", "画面叙述",
-                    "storydescription", "contentdescription",
-                    "duration", "时长",
+                    "shot",
+                    "镜号",
+                    "首帧",
+                    "尾帧",
+                    "startframe",
+                    "endframe",
+                    "分镜内容描述",
+                    "剧情画面与声音描述",
+                    "合并长段描述",
+                    "画面叙述",
+                    "storydescription",
+                    "contentdescription",
+                    "duration",
+                    "时长",
                 ]
             ):
                 return True
@@ -1331,10 +1268,7 @@ class TaskStoryboardPlanner:
 
     def _is_divider_row(self, cells: list[str]) -> bool:
         """Check if a row is a markdown table divider (e.g., |---|---|---|)."""
-        for cell in cells:
-            if not re.match(r"^[:\\-\\s]*$", cell):
-                return False
-        return True
+        return bool(cells) and all(re.fullmatch(r"\s*:?-{3,}:?\s*", cell or "") is not None for cell in cells)
 
     def _clamp(self, value: int, min_value: int, max_value: int) -> int:
         """Clamp a value between min and max."""

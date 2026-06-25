@@ -87,6 +87,7 @@ def _get_text_model_provider():
     global _text_model_provider
     if _text_model_provider is None:
         from backend.services.model_invocation import OpenAiCompatibleTextModelProvider
+
         _text_model_provider = OpenAiCompatibleTextModelProvider()
     return _text_model_provider
 
@@ -95,6 +96,7 @@ def _get_prompt_resolver():
     global _prompt_resolver
     if _prompt_resolver is None:
         from backend.services.model_invocation import PromptTemplateResolver
+
         _prompt_resolver = PromptTemplateResolver()
     return _prompt_resolver
 
@@ -110,6 +112,7 @@ def _get_image_model_providers():
             ImageProviderTransport,
             OpenAiImageModelProvider,
         )
+
         transport = ImageProviderTransport()
         _image_model_providers = [
             OpenAiImageModelProvider(transport=transport),
@@ -126,6 +129,7 @@ def _get_video_model_provider():
             SeedanceVideoModelProvider,
             VideoProviderTransport,
         )
+
         transport = VideoProviderTransport()
         _video_model_provider = CompositeVideoModelProvider(
             providers=[
@@ -135,9 +139,11 @@ def _get_video_model_provider():
         )
     return _video_model_provider
 
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
+
 
 # =============================================================================
 # EXCEPTIONS
@@ -160,11 +166,13 @@ class GenerationProviderException(Exception):
 
 class GenerationNotImplementedException(Exception):
     """Raised when a generation feature is not yet implemented."""
+
     pass
 
 
 class GenerationRunNotFoundException(Exception):
     """Raised when a run ID is not found."""
+
     pass
 
 
@@ -178,6 +186,7 @@ class UnsupportedGenerationKindException(Exception):
 # ---------------------------------------------------------------------------
 # Stub model providers (remote API calls are not the focus)
 # ---------------------------------------------------------------------------
+
 
 def _stub_text_response(text: str, model_name: str = "gpt-5.5") -> dict[str, Any]:
     return {
@@ -236,6 +245,7 @@ def _stub_video_submission(
 # GenerationRunSupport
 # ---------------------------------------------------------------------------
 
+
 # =============================================================================
 # GENERATION RUN SUPPORT
 # =============================================================================
@@ -289,29 +299,19 @@ class GenerationRunSupport:
 
     # ── Nested value accessors ───────────────────────────────────────
 
-    def nested_value(
-        self, payload: dict[str, Any], parent_key: str, child_key: str, default: str = ""
-    ) -> str:
+    def nested_value(self, payload: dict[str, Any], parent_key: str, child_key: str, default: str = "") -> str:
         return nested_value(payload, parent_key, child_key, default)
 
-    def nested_string_list(
-        self, payload: dict[str, Any], parent_key: str, child_key: str
-    ) -> list[str]:
+    def nested_string_list(self, payload: dict[str, Any], parent_key: str, child_key: str) -> list[str]:
         return nested_string_list(payload, parent_key, child_key)
 
-    def nested_int(
-        self, payload: dict[str, Any], parent_key: str, child_key: str, default: int = 0
-    ) -> int:
+    def nested_int(self, payload: dict[str, Any], parent_key: str, child_key: str, default: int = 0) -> int:
         return nested_int(payload, parent_key, child_key, default)
 
-    def nested_nullable_int(
-        self, payload: dict[str, Any], parent_key: str, child_key: str
-    ) -> int | None:
+    def nested_nullable_int(self, payload: dict[str, Any], parent_key: str, child_key: str) -> int | None:
         return nested_nullable_int(payload, parent_key, child_key)
 
-    def nested_boolean(
-        self, payload: dict[str, Any], parent_key: str, child_key: str, default: bool = False
-    ) -> bool:
+    def nested_boolean(self, payload: dict[str, Any], parent_key: str, child_key: str, default: bool = False) -> bool:
         return nested_boolean(payload, parent_key, child_key, default)
 
     def map_value(self, value: Any) -> dict[str, Any]:
@@ -363,9 +363,7 @@ class GenerationRunSupport:
     def normalize_frame_role(self, frame_role: str) -> str:
         return "last" if self.string_value(frame_role).lower() == "last" else "first"
 
-    def parse_dimensions(
-        self, raw: str, fallback_width: int, fallback_height: int
-    ) -> tuple[int, int]:
+    def parse_dimensions(self, raw: str, fallback_width: int, fallback_height: int) -> tuple[int, int]:
         normalized = raw.strip().lower().replace("x", "*") if raw else ""
         parts = normalized.split("*")
         if len(parts) == 2:
@@ -479,9 +477,7 @@ class GenerationRunSupport:
 
     # ── Artifact helpers (stub — writes to local storage) ────────────
 
-    def write_text_artifact(
-        self, run_id: str, request: dict[str, Any], file_name: str, content: str
-    ) -> dict[str, Any]:
+    def write_text_artifact(self, run_id: str, request: dict[str, Any], file_name: str, content: str) -> dict[str, Any]:
         return self._artifact_store.write_text_artifact(run_id, request, file_name, content)
 
     def write_binary_artifact(
@@ -509,6 +505,7 @@ class GenerationRunSupport:
 # ===========================================================================
 # GenerationRunFactory
 # ===========================================================================
+
 
 # =============================================================================
 # GENERATION RUN FACTORY
@@ -568,7 +565,9 @@ class GenerationRunFactory:
             metadata["latencyMs"] = 0
             metadata["messagePreview"] = "text model config missing"
             call_chain.append(
-                self._support.call_log("probe", "probe.config_missing", "error", "", {"source": profile.get("source", "")})
+                self._support.call_log(
+                    "probe", "probe.config_missing", "error", "", {"source": profile.get("source", "")}
+                )
             )
             result: dict[str, Any] = {
                 "runId": run_id,
@@ -594,10 +593,16 @@ class GenerationRunFactory:
         metadata["providerHttpStatus"] = response["httpStatus"]
         metadata["providerInteraction"] = self._text_provider_interaction("probe", response)
         call_chain.append(
-            self._support.call_log("probe", "probe.completed", "success", "", {
-                "latencyMs": response["latencyMs"],
-                "responsesApi": response["responsesApi"],
-            })
+            self._support.call_log(
+                "probe",
+                "probe.completed",
+                "success",
+                "",
+                {
+                    "latencyMs": response["latencyMs"],
+                    "responsesApi": response["responsesApi"],
+                },
+            )
         )
         result = {
             "runId": run_id,
@@ -615,7 +620,8 @@ class GenerationRunFactory:
         visual_style = self._support.nested_value(request, "options", "visualStyle", "")
         requested_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
-            "textAnalysisModel", "",
+            "textAnalysisModel",
+            "",
         )
         profile = self._resolve_text_profile(requested_model, _user_id)
         if not source_text.strip():
@@ -635,18 +641,30 @@ class GenerationRunFactory:
         draft_script_markdown = self._support.strip_markdown_fence(draft_response["text"])
         provider_interactions.append(self._text_provider_interaction("draft", draft_response))
         call_chain.append(
-            self._support.call_log("script", "script.requested", "success", "", {
-                "provider": profile.get("provider", ""),
-                "modelName": profile.get("modelName", ""),
-                "endpointHost": draft_response["endpointHost"],
-            })
+            self._support.call_log(
+                "script",
+                "script.requested",
+                "success",
+                "",
+                {
+                    "provider": profile.get("provider", ""),
+                    "modelName": profile.get("modelName", ""),
+                    "endpointHost": draft_response["endpointHost"],
+                },
+            )
         )
         call_chain.append(
-            self._support.call_log("script", "script.draft_completed", "success", "", {
-                "latencyMs": draft_response["latencyMs"],
-                "responsesApi": draft_response["responsesApi"],
-                "responseId": draft_response["responseId"],
-            })
+            self._support.call_log(
+                "script",
+                "script.draft_completed",
+                "success",
+                "",
+                {
+                    "latencyMs": draft_response["latencyMs"],
+                    "responsesApi": draft_response["responsesApi"],
+                    "responseId": draft_response["responseId"],
+                },
+            )
         )
 
         script_markdown = draft_script_markdown
@@ -654,7 +672,10 @@ class GenerationRunFactory:
         review_applied = False
 
         call_chain.append(
-            self._support.call_log("script", "script.completed", "success",
+            self._support.call_log(
+                "script",
+                "script.completed",
+                "success",
                 "" if review_applied else "",
                 {
                     "latencyMs": final_response["latencyMs"],
@@ -662,12 +683,14 @@ class GenerationRunFactory:
                     "responseId": final_response["responseId"],
                     "reviewApplied": review_applied,
                     "singlePass": True,
-                }
+                },
             )
         )
 
         artifact = self._support.write_text_artifact(run_id, request, "script.md", script_markdown)
-        model_info = self._support.build_model_info(profile, requested_model, "script", final_response, "spring-text-script")
+        model_info = self._support.build_model_info(
+            profile, requested_model, "script", final_response, "spring-text-script"
+        )
 
         metadata = {
             "visualStyle": visual_style,
@@ -716,7 +739,8 @@ class GenerationRunFactory:
         visual_style = self._support.nested_value(request, "options", "visualStyle", "")
         requested_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
-            "textAnalysisModel", "",
+            "textAnalysisModel",
+            "",
         )
         profile = self._resolve_text_profile(requested_model, self._user_id_from_request(request))
         if not script_markdown.strip():
@@ -735,35 +759,55 @@ class GenerationRunFactory:
         )
         provider_interactions.append(self._text_provider_interaction("adjust", adjust_response))
         call_chain.append(
-            self._support.call_log("script", "script.adjust_requested", "success", "", {
-                "provider": profile.get("provider", ""),
-                "modelName": profile.get("modelName", ""),
-                "endpointHost": adjust_response["endpointHost"],
-            })
+            self._support.call_log(
+                "script",
+                "script.adjust_requested",
+                "success",
+                "",
+                {
+                    "provider": profile.get("provider", ""),
+                    "modelName": profile.get("modelName", ""),
+                    "endpointHost": adjust_response["endpointHost"],
+                },
+            )
         )
 
         adjusted_script = self._support.strip_markdown_fence(adjust_response["text"])
         invalid_reason = self._invalid_storyboard_reason(adjusted_script)
         if invalid_reason:
             call_chain.append(
-                self._support.call_log("script", "script.adjust_invalid", "error", "", {
-                    "reason": invalid_reason,
-                    "responseId": adjust_response["responseId"],
-                })
+                self._support.call_log(
+                    "script",
+                    "script.adjust_invalid",
+                    "error",
+                    "",
+                    {
+                        "reason": invalid_reason,
+                        "responseId": adjust_response["responseId"],
+                    },
+                )
             )
             raise ValueError(f"  {invalid_reason}")
 
         call_chain.append(
-            self._support.call_log("script", "script.adjust_completed", "success", "", {
-                "latencyMs": adjust_response["latencyMs"],
-                "responsesApi": adjust_response["responsesApi"],
-                "responseId": adjust_response["responseId"],
-                "adjustmentMode": "self_review" if not adjustment_prompt.strip() else "user_prompt",
-            })
+            self._support.call_log(
+                "script",
+                "script.adjust_completed",
+                "success",
+                "",
+                {
+                    "latencyMs": adjust_response["latencyMs"],
+                    "responsesApi": adjust_response["responsesApi"],
+                    "responseId": adjust_response["responseId"],
+                    "adjustmentMode": "self_review" if not adjustment_prompt.strip() else "user_prompt",
+                },
+            )
         )
 
         artifact = self._support.write_text_artifact(run_id, request, "script.md", adjusted_script)
-        model_info = self._support.build_model_info(profile, requested_model, "script", adjust_response, "spring-text-script-adjust")
+        model_info = self._support.build_model_info(
+            profile, requested_model, "script", adjust_response, "spring-text-script-adjust"
+        )
 
         adjustment_mode = "self_review" if not adjustment_prompt.strip() else "user_prompt"
         metadata = {
@@ -819,11 +863,13 @@ class GenerationRunFactory:
         _style_preset = self._support.nested_value(request, "options", "stylePreset", "cinematic")
         _text_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
-            "textAnalysisModel", "",
+            "textAnalysisModel",
+            "",
         )
         requested_image_model = self._support.required_model(
             self._support.nested_value(request, "model", "providerModel", ""),
-            "providerModel", "",
+            "providerModel",
+            "",
         )
         _text_profile = self._resolve_text_profile(_text_model, _user_id)
         image_profile = self._resolve_media_profile(requested_image_model, GenerationModelKinds.IMAGE, _user_id)
@@ -835,11 +881,17 @@ class GenerationRunFactory:
 
         # Real image generation
         remote_image = await self._call_image_model(
-            image_profile, shaped_prompt, width, height,
-            reference_image_urls, _applied_image_seed,
+            image_profile,
+            shaped_prompt,
+            width,
+            height,
+            reference_image_urls,
+            _applied_image_seed,
         )
         image_artifact = self._support.write_binary_artifact(
-            run_id, request, GenerationModelKinds.IMAGE,
+            run_id,
+            request,
+            GenerationModelKinds.IMAGE,
             self._support.extension_from_mime_or_url(
                 remote_image["mimeType"], str(remote_image.get("remoteSourceUrl", "")), GenerationModelKinds.IMAGE
             ),
@@ -847,20 +899,27 @@ class GenerationRunFactory:
         )
 
         call_chain.append(
-            self._support.call_log("generation", "image.generated", "success", "", {
-                "provider": remote_image["provider"],
-                "providerModel": remote_image["providerModel"],
-                "endpointHost": remote_image["endpointHost"],
-                "artifactWidth": image_artifact.get("width") or width,
-                "artifactHeight": image_artifact.get("height") or height,
-                "sourceWidth": image_artifact.get("sourceWidth") or 0,
-                "sourceHeight": image_artifact.get("sourceHeight") or 0,
-                "resizedToRequestedDimensions": bool(image_artifact.get("resizedToRequestedDimensions")),
-            })
+            self._support.call_log(
+                "generation",
+                "image.generated",
+                "success",
+                "",
+                {
+                    "provider": remote_image["provider"],
+                    "providerModel": remote_image["providerModel"],
+                    "endpointHost": remote_image["endpointHost"],
+                    "artifactWidth": image_artifact.get("width") or width,
+                    "artifactHeight": image_artifact.get("height") or height,
+                    "sourceWidth": image_artifact.get("sourceWidth") or 0,
+                    "sourceHeight": image_artifact.get("sourceHeight") or 0,
+                    "resizedToRequestedDimensions": bool(image_artifact.get("resizedToRequestedDimensions")),
+                },
+            )
         )
         artifact_width = int(image_artifact.get("width") or width)
         artifact_height = int(image_artifact.get("height") or height)
 
+        artifact_public_url = image_artifact["publicUrl"]
         result: dict[str, Any] = {
             "runId": run_id,
             "kind": GenerationRunKinds.IMAGE,
@@ -869,17 +928,17 @@ class GenerationRunFactory:
             "keyframePrompt": prompt,
             "shapedPrompt": shaped_prompt,
             "negativePrompt": negative_prompt,
-            "outputUrl": image_artifact["publicUrl"],
+            "outputUrl": artifact_public_url,
             "mimeType": remote_image["mimeType"],
             "width": artifact_width,
             "height": artifact_height,
             "metadata": {
                 "stylePreset": _style_preset,
-                "outputUrl": image_artifact["publicUrl"],
-                "fileUrl": image_artifact["publicUrl"],
+                "outputUrl": artifact_public_url,
+                "fileUrl": artifact_public_url,
                 "source": f"remote:{remote_image['providerModel']}",
-                "remoteSourceUrl": remote_image["remoteSourceUrl"],
-                "artifactRemoteSourceUrl": self._support.build_externally_accessible_url(image_artifact["publicUrl"]),
+                "remoteSourceUrl": artifact_public_url,
+                "artifactRemoteSourceUrl": artifact_public_url,
                 "providerRemoteSourceUrl": remote_image["remoteSourceUrl"],
                 "frameRole": frame_role,
                 "keyframePrompt": prompt,
@@ -918,9 +977,17 @@ class GenerationRunFactory:
                 },
             },
             "modelInfo": self._support.build_media_model_info(
-                _text_profile, None, None, image_profile, requested_image_model,
-                GenerationModelKinds.IMAGE, None, None,
-                remote_image["providerModel"], remote_image["endpointHost"], "",
+                _text_profile,
+                None,
+                None,
+                image_profile,
+                requested_image_model,
+                GenerationModelKinds.IMAGE,
+                None,
+                None,
+                remote_image["providerModel"],
+                remote_image["endpointHost"],
+                "",
                 "spring-remote-image",
             ),
             "callChain": call_chain,
@@ -944,14 +1011,18 @@ class GenerationRunFactory:
         _style_preset = self._support.nested_value(request, "options", "stylePreset", "cinematic")
         _text_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
-            "textAnalysisModel", "",
+            "textAnalysisModel",
+            "",
         )
         requested_video_model = self._support.required_model(
             self._support.nested_value(request, "model", "providerModel", ""),
-            "providerModel", "",
+            "providerModel",
+            "",
         )
         video_profile = self._resolve_media_profile(requested_video_model, GenerationModelKinds.VIDEO, _user_id)
-        duration = self._normalize_video_duration(video_profile, _requested_duration, _requested_min_duration, _requested_max_duration)
+        duration = self._normalize_video_duration(
+            video_profile, _requested_duration, _requested_min_duration, _requested_max_duration
+        )
 
         _first_frame_url = self._resolve_video_frame_input(
             self._support.nested_value(request, "input", "firstFrameUrl", ""), "firstFrameUrl"
@@ -974,27 +1045,44 @@ class GenerationRunFactory:
 
         # Real video submission
         submission = await self._call_video_submit(
-            video_profile, shaped_prompt, w, h, duration,
-            _first_frame_url, _last_frame_url, _applied_video_seed,
-            _camera_fixed, _watermark, _return_last_frame, _generate_audio,
+            video_profile,
+            shaped_prompt,
+            w,
+            h,
+            duration,
+            _first_frame_url,
+            _last_frame_url,
+            _applied_video_seed,
+            _camera_fixed,
+            _watermark,
+            _return_last_frame,
+            _generate_audio,
         )
-        provider_interactions.append({
-            "step": "video.submit",
-            "providerRequest": submission["providerRequest"],
-            "providerResponse": submission["providerResponse"],
-            "httpStatus": submission["httpStatus"],
-            "endpointHost": submission["endpointHost"],
-            "success": True,
-        })
+        provider_interactions.append(
+            {
+                "step": "video.submit",
+                "providerRequest": submission["providerRequest"],
+                "providerResponse": submission["providerResponse"],
+                "httpStatus": submission["httpStatus"],
+                "endpointHost": submission["endpointHost"],
+                "success": True,
+            }
+        )
 
         call_chain.append(
-            self._support.call_log("generation", "video.submitted", "running", "", {
-                "provider": submission["provider"],
-                "providerModel": submission["providerModel"],
-                "taskId": submission["taskId"],
-                "endpointHost": submission["endpointHost"],
-                "taskEndpointHost": submission["taskEndpointHost"],
-            })
+            self._support.call_log(
+                "generation",
+                "video.submitted",
+                "running",
+                "",
+                {
+                    "provider": submission["provider"],
+                    "providerModel": submission["providerModel"],
+                    "taskId": submission["taskId"],
+                    "endpointHost": submission["endpointHost"],
+                    "taskEndpointHost": submission["taskEndpointHost"],
+                },
+            )
         )
 
         metadata: dict[str, Any] = {
@@ -1061,15 +1149,25 @@ class GenerationRunFactory:
             "hasAudio": _generate_audio,
             "metadata": metadata,
             "modelInfo": self._support.build_media_model_info(
-                _text_profile, None, None, video_profile, requested_video_model,
-                GenerationModelKinds.VIDEO, None, None,
-                submission["providerModel"], submission["endpointHost"], submission["taskEndpointHost"],
+                _text_profile,
+                None,
+                None,
+                video_profile,
+                requested_video_model,
+                GenerationModelKinds.VIDEO,
+                None,
+                None,
+                submission["providerModel"],
+                submission["endpointHost"],
+                submission["taskEndpointHost"],
                 "spring-remote-video-async",
             ),
             "callChain": call_chain,
         }
 
-        return self._support.run_envelope(run_id, GenerationRunKinds.VIDEO, request, result, "resultVideo", GenerationRunStatuses.RUNNING)
+        return self._support.run_envelope(
+            run_id, GenerationRunKinds.VIDEO, request, result, "resultVideo", GenerationRunStatuses.RUNNING
+        )
 
     async def refresh_video_run(self, run: dict[str, Any]) -> dict[str, Any]:
         kind = self._support.string_value(run.get("kind"))
@@ -1122,6 +1220,7 @@ class GenerationRunFactory:
         # Detect permanent provider errors (quota, billing, auth, etc.) and fail
         # the run immediately instead of continuing to poll.
         from backend.domain.video_run_monitor import is_permanent_provider_error
+
         if is_permanent_provider_error(task_message, provider_response):
             error_msg = self._support.first_non_blank(
                 task_message,
@@ -1134,21 +1233,30 @@ class GenerationRunFactory:
             metadata["error"] = error_msg
             metadata["providerPayload"] = provider_response
             metadata["nextPollAt"] = None
-            self._append_provider_query_history(metadata, {
-                "step": "video.query",
-                "providerRequest": provider_request,
-                "providerResponse": provider_response,
-                "httpStatus": query_http_status,
-                "endpointHost": _profile_dict.get("taskEndpointHost", ""),
-                "success": False,
-            })
+            self._append_provider_query_history(
+                metadata,
+                {
+                    "step": "video.query",
+                    "providerRequest": provider_request,
+                    "providerResponse": provider_response,
+                    "httpStatus": query_http_status,
+                    "endpointHost": _profile_dict.get("taskEndpointHost", ""),
+                    "success": False,
+                },
+            )
             call_chain.append(
-                self._support.call_log("generation", "video.failed", "error", "", {
-                    "taskId": task_id,
-                    "status": "FAILED",
-                    "error": error_msg,
-                    "reason": "permanent_provider_error",
-                })
+                self._support.call_log(
+                    "generation",
+                    "video.failed",
+                    "error",
+                    "",
+                    {
+                        "taskId": task_id,
+                        "status": "FAILED",
+                        "error": error_msg,
+                        "reason": "permanent_provider_error",
+                    },
+                )
             )
             result["callChain"] = call_chain
             result["metadata"] = metadata
@@ -1160,14 +1268,17 @@ class GenerationRunFactory:
         metadata["taskStatus"] = query_status
         metadata["taskMessage"] = task_message
         metadata["providerPayload"] = provider_response
-        self._append_provider_query_history(metadata, {
-            "step": "video.query",
-            "providerRequest": provider_request,
-            "providerResponse": provider_response,
-            "httpStatus": query_http_status,
-            "endpointHost": _profile_dict.get("taskEndpointHost", ""),
-            "success": query_status in self._VIDEO_SUCCESS_STATES,
-        })
+        self._append_provider_query_history(
+            metadata,
+            {
+                "step": "video.query",
+                "providerRequest": provider_request,
+                "providerResponse": provider_response,
+                "httpStatus": query_http_status,
+                "endpointHost": _profile_dict.get("taskEndpointHost", ""),
+                "success": query_status in self._VIDEO_SUCCESS_STATES,
+            },
+        )
 
         if query_status in self._VIDEO_SUCCESS_STATES:
             relative_dir = self._support.first_non_blank(
@@ -1193,11 +1304,17 @@ class GenerationRunFactory:
             metadata["last_frame_url"] = metadata["lastFrameUrl"]
             metadata["nextPollAt"] = None
             call_chain.append(
-                self._support.call_log("generation", "video.completed", "success", "", {
-                    "taskId": task_id,
-                    "status": query_status,
-                    "outputUrl": artifact["publicUrl"],
-                })
+                self._support.call_log(
+                    "generation",
+                    "video.completed",
+                    "success",
+                    "",
+                    {
+                        "taskId": task_id,
+                        "status": query_status,
+                        "outputUrl": artifact["publicUrl"],
+                    },
+                )
             )
             result["callChain"] = call_chain
             result["metadata"] = metadata
@@ -1216,11 +1333,17 @@ class GenerationRunFactory:
             metadata["error"] = error_msg
             metadata["nextPollAt"] = None
             call_chain.append(
-                self._support.call_log("generation", "video.failed", "error", "", {
-                    "taskId": task_id,
-                    "status": query_status,
-                    "error": error_msg,
-                })
+                self._support.call_log(
+                    "generation",
+                    "video.failed",
+                    "error",
+                    "",
+                    {
+                        "taskId": task_id,
+                        "status": query_status,
+                        "error": error_msg,
+                    },
+                )
             )
             result["callChain"] = call_chain
             result["metadata"] = metadata
@@ -1231,10 +1354,16 @@ class GenerationRunFactory:
 
         metadata["nextPollAt"] = now_ms + 5000
         call_chain.append(
-            self._support.call_log("generation", "video.polling", "running", "", {
-                "taskId": task_id,
-                "status": query_status,
-            })
+            self._support.call_log(
+                "generation",
+                "video.polling",
+                "running",
+                "",
+                {
+                    "taskId": task_id,
+                    "status": query_status,
+                },
+            )
         )
         result["callChain"] = call_chain
         result["metadata"] = metadata
@@ -1379,9 +1508,7 @@ class GenerationRunFactory:
                     "requestedSize": result.requested_size,
                 }
 
-        raise GenerationConfigurationException(
-            f"no image provider found for provider={profile.config.provider}"
-        )
+        raise GenerationConfigurationException(f"no image provider found for provider={profile.config.provider}")
 
     async def _call_video_submit(
         self,
@@ -1475,9 +1602,7 @@ class GenerationRunFactory:
         }
 
     @staticmethod
-    def _stub_resolve_media_profile(
-        requested_model: str, media_kind: str
-    ) -> dict[str, Any]:
+    def _stub_resolve_media_profile(requested_model: str, media_kind: str) -> dict[str, Any]:
         return {
             "modelName": requested_model if requested_model else f"stub-{media_kind}",
             "provider": "stub",
@@ -1557,9 +1682,7 @@ class GenerationRunFactory:
 
     @staticmethod
     def _stub_script_output(source_text: str, visual_style: str) -> str:
-        return (
-            "【 】\n-  : \n\n【 】\n|  |  |  |  |  |\n| --- | --- | --- | --- | --- |\n| 1 | ... | ... | ... | 5 |"
-        )
+        return "【 】\n-  : \n\n【 】\n|  |  |  |  |  |\n| --- | --- | --- | --- | --- |\n| 1 | ... | ... | ... | 5 |"
 
     @staticmethod
     def _invalid_storyboard_reason(storyboard: str) -> str:
@@ -1612,9 +1735,7 @@ class GenerationRunFactory:
                 return external_url
         return ""
 
-    def _text_provider_interaction(
-        self, step: str, response: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _text_provider_interaction(self, step: str, response: dict[str, Any]) -> dict[str, Any]:
         interaction = {
             "step": step,
             "providerRequest": response.get("providerRequest", {}),
@@ -1633,9 +1754,7 @@ class GenerationRunFactory:
         return interaction
 
     @staticmethod
-    def _append_provider_query_history(
-        metadata: dict[str, Any], interaction: dict[str, Any]
-    ) -> None:
+    def _append_provider_query_history(metadata: dict[str, Any], interaction: dict[str, Any]) -> None:
         history: list[dict[str, Any]] = []
         raw = metadata.get("providerQueryHistory")
         if isinstance(raw, list):
@@ -1658,6 +1777,7 @@ class GenerationRunFactory:
 # ===========================================================================
 # DefaultGenerationApplicationService
 # ===========================================================================
+
 
 # =============================================================================
 # APPLICATION SERVICE
@@ -1742,16 +1862,18 @@ class DefaultGenerationApplicationService:
         for model in [
             {"value": "gpt-5.5", "label": "GPT-5.5", "provider": "openai"},
         ]:
-            items.append({
-                "model": str(model.get("value", "")).strip(),
-                "label": str(model.get("label", model.get("value", ""))).strip(),
-                "used": 0,
-                "unit": "count",
-                "remaining": 0,
-                "remainingUnit": "count",
-                "provider": str(model.get("provider", "")).strip(),
-                "source": "python-default",
-            })
+            items.append(
+                {
+                    "model": str(model.get("value", "")).strip(),
+                    "label": str(model.get("label", model.get("value", ""))).strip(),
+                    "used": 0,
+                    "unit": "count",
+                    "remaining": 0,
+                    "remainingUnit": "count",
+                    "provider": str(model.get("provider", "")).strip(),
+                    "source": "python-default",
+                }
+            )
         return {
             "items": items,
             "generatedAt": self._support.now_iso(),
@@ -1764,9 +1886,7 @@ class DefaultGenerationApplicationService:
 
     _runs_cache: dict[str, dict[str, Any]] = {}
 
-    async def _create_run_by_kind_and_persist(
-        self, run_id: str, kind: str, request: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _create_run_by_kind_and_persist(self, run_id: str, kind: str, request: dict[str, Any]) -> dict[str, Any]:
         run = await self._create_run_by_kind(run_id, kind, request)
         self._runs_cache[run_id] = run
         await self._store.save(run_id, run)
@@ -1804,15 +1924,11 @@ class DefaultGenerationApplicationService:
         result: dict[str, Any] = {
             "runId": run_id,
             "kind": kind,
-            "callChain": [
-                self._support.call_log("generation", "run.accepted", "running", "", {"kind": kind})
-            ],
+            "callChain": [self._support.call_log("generation", "run.accepted", "running", "", {"kind": kind})],
             "metadata": {"async": True},
         }
         result_key = self._result_key(kind)
-        return self._support.run_envelope(
-            run_id, kind, request, result, result_key, GenerationRunStatuses.ACCEPTED
-        )
+        return self._support.run_envelope(run_id, kind, request, result, result_key, GenerationRunStatuses.ACCEPTED)
 
     @staticmethod
     def _result_key(kind: str) -> str:
@@ -1827,9 +1943,7 @@ class DefaultGenerationApplicationService:
             return "resultVideo"
         return "result"
 
-    async def _execute_async_run(
-        self, run_id: str, kind: str, request: dict[str, Any]
-    ) -> None:
+    async def _execute_async_run(self, run_id: str, kind: str, request: dict[str, Any]) -> None:
         try:
             run = await self._create_run_by_kind(run_id, kind, request)
             self._runs_cache[run_id] = run
@@ -1839,22 +1953,24 @@ class DefaultGenerationApplicationService:
             self._runs_cache[run_id] = failed
             await self._store.save(run_id, failed)
 
-    def _failed_run(
-        self, run_id: str, kind: str, request: dict[str, Any], ex: Exception
-    ) -> dict[str, Any]:
+    def _failed_run(self, run_id: str, kind: str, request: dict[str, Any], ex: Exception) -> dict[str, Any]:
         error_msg = str(ex) if str(ex) else ex.__class__.__name__
         result: dict[str, Any] = {
             "runId": run_id,
             "kind": kind,
             "error": error_msg,
             "callChain": [
-                self._support.call_log("generation", "run.failed", "error", "", {
-                    "error": error_msg,
-                })
+                self._support.call_log(
+                    "generation",
+                    "run.failed",
+                    "error",
+                    "",
+                    {
+                        "error": error_msg,
+                    },
+                )
             ],
             "metadata": {"async": True},
         }
         result_key = self._result_key(kind)
-        return self._support.run_envelope(
-            run_id, kind, request, result, result_key, GenerationRunStatuses.FAILED
-        )
+        return self._support.run_envelope(run_id, kind, request, result, result_key, GenerationRunStatuses.FAILED)

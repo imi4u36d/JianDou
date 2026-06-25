@@ -33,6 +33,7 @@ def _int_value(value: Any, fallback: int = 0) -> int:
             pass
     return fallback
 
+
 def _float_value(value: Any, fallback: float = 0.0) -> float:
     if isinstance(value, (int, float)):
         return float(value)
@@ -43,6 +44,7 @@ def _float_value(value: Any, fallback: float = 0.0) -> float:
             pass
     return fallback
 
+
 def _bool_value(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -50,9 +52,11 @@ def _bool_value(value: Any) -> bool:
         return value != 0
     return string_value(value).lower() in ("true", "1", "yes")
 
+
 def _stable_id(prefix: str, *parts: str) -> str:
     seed = prefix + ":" + ":".join(parts)
     return prefix + "_" + uuid.uuid5(uuid.NAMESPACE_OID, seed).hex
+
 
 class _TaskArtifactNaming:
     @staticmethod
@@ -87,6 +91,7 @@ class _TaskArtifactNaming:
     def join_name(end_clip_index: int) -> str:
         return f"join-{end_clip_index}"
 
+
 class _StoredArtifact:
     def __init__(self, public_url: str = "") -> None:
         self._public_url = public_url
@@ -117,12 +122,22 @@ class TaskExecutionArtifactAssembler:
             "storyboard",
         )
         return self._create_material(
-            task, run, TEXT, f"{task.title} 分镜脚本",
+            task,
+            run,
+            TEXT,
+            f"{task.title} 分镜脚本",
             _artifact_public_url(artifact, file_url),
             _artifact_public_url(artifact, file_url),
             string_value(result.get("mimeType", "text/markdown")),
-            0.0, 0, 0, False, 1, "storyboard",
-            {}, {"taskArtifact": True}, "",
+            0.0,
+            0,
+            0,
+            False,
+            1,
+            "storyboard",
+            {},
+            {"taskArtifact": True},
+            "",
         )
 
     def create_image_material(
@@ -147,18 +162,70 @@ class TaskExecutionArtifactAssembler:
             "keyframe",
         )
         return self._create_material(
-            task, run, IMAGE,
+            task,
+            run,
+            IMAGE,
             f"{task.title} {'尾帧关键画面' if normalized_frame_role == 'last' else '首帧关键画面'}",
             _artifact_public_url(artifact, output_url),
             _artifact_public_url(artifact, output_url),
             string_value(result.get("mimeType", "image/png")),
-            0.0, _int_value(result.get("width"), 0), _int_value(result.get("height"), 0),
-            False, clip_index, f"keyframe-{normalized_frame_role}",
+            0.0,
+            _int_value(result.get("width"), 0),
+            _int_value(result.get("height"), 0),
+            False,
+            clip_index,
+            f"keyframe-{normalized_frame_role}",
             metadata,
             {
                 "taskArtifact": True,
                 "clipIndex": clip_index,
                 "frameRole": normalized_frame_role,
+                "remoteSourceUrl": remote_source_url(metadata),
+            },
+            remote_source_url(metadata),
+        )
+
+    def create_character_sheet_material(
+        self,
+        task: TaskRecord,
+        run: dict[str, Any],
+        result: dict[str, Any],
+        character_index: int,
+        character: Any,
+    ) -> dict[str, Any]:
+        """Persist a generated character sheet as a reusable task material."""
+        output_url = string_value(result.get("outputUrl", ""))
+        metadata = result_metadata(result)
+        normalized_character_index = max(1, character_index)
+        artifact = self._normalize_task_artifact(
+            task,
+            output_url,
+            f"character{normalized_character_index}-sheet.{file_ext_or_default(file_name_from_url(output_url), 'png')}",
+            "keyframe",
+        )
+        character_name = string_value(getattr(character, "name", ""))
+        character_appearance = string_value(getattr(character, "appearance", ""))
+        return self._create_material(
+            task,
+            run,
+            IMAGE,
+            f"{task.title} {character_name or f'角色{normalized_character_index}'} 三视图",
+            _artifact_public_url(artifact, output_url),
+            _artifact_public_url(artifact, output_url),
+            string_value(result.get("mimeType", "image/png")),
+            0.0,
+            _int_value(result.get("width"), 0),
+            _int_value(result.get("height"), 0),
+            False,
+            1000 + normalized_character_index,
+            "character_sheet",
+            metadata,
+            {
+                "taskArtifact": True,
+                "variantKind": "character_sheet",
+                "characterIndex": normalized_character_index,
+                "characterName": character_name,
+                "characterAppearance": character_appearance,
                 "remoteSourceUrl": remote_source_url(metadata),
             },
             remote_source_url(metadata),
@@ -184,12 +251,19 @@ class TaskExecutionArtifactAssembler:
         snapshot = task.request_snapshot or {}
         asset_type = string_value(snapshot.get("assetType", "")) or string_value(task.task_type)
         return self._create_material(
-            task, run, IMAGE, task.title,
+            task,
+            run,
+            IMAGE,
+            task.title,
             _artifact_public_url(artifact, output_url),
             _artifact_public_url(artifact, output_url),
             string_value(result.get("mimeType", "image/png")),
-            0.0, _int_value(result.get("width"), 0), _int_value(result.get("height"), 0),
-            False, normalized_output_index, asset_type if asset_type else "free",
+            0.0,
+            _int_value(result.get("width"), 0),
+            _int_value(result.get("height"), 0),
+            False,
+            normalized_output_index,
+            asset_type if asset_type else "free",
             metadata,
             {
                 "taskArtifact": True,
@@ -221,10 +295,19 @@ class TaskExecutionArtifactAssembler:
         except Exception:  # noqa: S110 — best-effort artifact normalization
             pass
         return self._create_material(
-            task, {}, IMAGE,
+            task,
+            {},
+            IMAGE,
             f"{task.title} {'尾帧关键画面' if normalized_frame_role == 'last' else '首帧关键画面'}",
-            file_url, file_url, image_mime_type(target_file_name),
-            0.0, 0, 0, False, clip_index, f"keyframe-{normalized_frame_role}",
+            file_url,
+            file_url,
+            image_mime_type(target_file_name),
+            0.0,
+            0,
+            0,
+            False,
+            clip_index,
+            f"keyframe-{normalized_frame_role}",
             {},
             {
                 "taskArtifact": file_url.startswith("/storage/"),
@@ -253,7 +336,10 @@ class TaskExecutionArtifactAssembler:
             "clip",
         )
         return self._create_material(
-            task, run, VIDEO, f"{task.title} 片段输出",
+            task,
+            run,
+            VIDEO,
+            f"{task.title} 片段输出",
             _artifact_public_url(artifact, output_url),
             _artifact_public_url(artifact, output_url),
             string_value(result.get("mimeType", "video/mp4")),
@@ -261,7 +347,8 @@ class TaskExecutionArtifactAssembler:
             _int_value(result.get("width"), 0),
             _int_value(result.get("height"), 0),
             _bool_value(result.get("hasAudio")),
-            clip_index, "clip",
+            clip_index,
+            "clip",
             metadata,
             {
                 "taskArtifact": True,
@@ -391,7 +478,9 @@ class TaskExecutionArtifactAssembler:
             return direct
         return self._find_nested_role_url(value, "last_frame")
 
-    def _normalize_task_artifact(self, task: TaskRecord, source_url: str, target_file_name: str, fallback_kind: str) -> Any:
+    def _normalize_task_artifact(
+        self, task: TaskRecord, source_url: str, target_file_name: str, fallback_kind: str
+    ) -> Any:
         resolved = string_value(target_file_name)
         if not resolved:
             if fallback_kind == "storyboard":
@@ -474,12 +563,14 @@ class TaskExecutionArtifactAssembler:
     def _media_thumbnail_url(self, media_type: str, file_url: str, metadata: dict[str, Any]) -> str:
         candidate = thumbnail_candidate(metadata)
         if self._local_media_artifact_service:
-            return string_value(self._local_media_artifact_service.ensure_media_thumbnail(
-                media_type,
-                file_url,
-                [candidate] if candidate else [],
-                480,
-            ))
+            return string_value(
+                self._local_media_artifact_service.ensure_media_thumbnail(
+                    media_type,
+                    file_url,
+                    [candidate] if candidate else [],
+                    480,
+                )
+            )
         return candidate or ""
 
     def _file_size(self, absolute_path: str) -> int:

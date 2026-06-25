@@ -13,7 +13,6 @@ Handles local media file operations using ffmpeg and PIL/Pillow:
 from __future__ import annotations
 
 import hashlib
-import mimetypes
 import os
 import shutil
 import subprocess
@@ -25,11 +24,10 @@ from urllib.parse import urlparse
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-from backend.shared import string_value
-
 # ---------------------------------------------------------------------------
 # Configuration (simplified — replace with your own config as needed)
 # ---------------------------------------------------------------------------
+
 
 class JiandouStorageProperties:
     """Storage properties, mirroring the Java JiandouStorageProperties."""
@@ -51,14 +49,12 @@ class JiandouStorageProperties:
 
     def build_public_url(self, relative_path: str) -> str:
         relative = relative_path.lstrip("/")
-        if self._public_base_url:
-            return f"{self._public_base_url}/{self._prefixed_key(relative)}"
         return f"/storage/{relative}"
 
     def build_externally_accessible_url(self, public_url: str) -> str:
         normalized = (public_url or "").replace("\\", "/").strip()
         if normalized.startswith("/storage/") and self._public_base_url:
-            return f"{self._public_base_url}/{self._prefixed_key(normalized[len('/storage/'):].lstrip('/'))}"
+            return f"{self._public_base_url}/{self._prefixed_key(normalized[len('/storage/') :].lstrip('/'))}"
         if self._externally_accessible_base_url:
             return f"{self._externally_accessible_base_url}{normalized}"
         return normalized
@@ -66,10 +62,13 @@ class JiandouStorageProperties:
     def resolve_public_url(self, public_url: str) -> Path | None:
         """Resolve a public URL (/storage/...) to an absolute filesystem path."""
         normalized = public_url.replace("\\", "/").strip()
+        if normalized.startswith("/storage/"):
+            resolved = self._root_dir / normalized[len("/storage/") :].lstrip("/")
+            return resolved.resolve()
         # If it starts with our public base URL prefix, resolve relative to root
         prefix = self._public_base_url if self._public_base_url else "/storage"
         if normalized.startswith(prefix):
-            relative = normalized[len(prefix):].lstrip("/")
+            relative = normalized[len(prefix) :].lstrip("/")
             local_key = self._local_key_from_public_relative(relative)
             if local_key is None:
                 return None
@@ -101,6 +100,7 @@ class JiandouStorageProperties:
 # ---------------------------------------------------------------------------
 # Artifact DTOs (mirroring Java records)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TextArtifact:
@@ -146,6 +146,7 @@ class StoredArtifact:
 # ---------------------------------------------------------------------------
 # LocalMediaArtifactService
 # ---------------------------------------------------------------------------
+
 
 class LocalMediaArtifactService:
     """Handles local media file operations.
@@ -339,20 +340,33 @@ class LocalMediaArtifactService:
             cmd = [
                 self._ffmpeg_bin,
                 "-y",
-                "-loop", "1",
-                "-i", poster.absolute_path,
-                "-f", "lavfi",
-                "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-                "-t", str(max(1, duration_seconds)),
-                "-vf", f"scale={width}:{height},format=yuv420p",
-                "-r", "24",
+                "-loop",
+                "1",
+                "-i",
+                poster.absolute_path,
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=channel_layout=stereo:sample_rate=48000",
+                "-t",
+                str(max(1, duration_seconds)),
+                "-vf",
+                f"scale={width}:{height},format=yuv420p",
+                "-r",
+                "24",
                 "-shortest",
-                "-c:v", "libx264",
-                "-preset", "veryfast",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
-                "-b:a", "128k",
-                "-movflags", "+faststart",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-movflags",
+                "+faststart",
                 str(output),
             ]
 
@@ -363,9 +377,7 @@ class LocalMediaArtifactService:
                 timeout=300,
             )
             if result.returncode != 0 or not output.exists():
-                raise RuntimeError(
-                    result.stderr.strip() or result.stdout.strip() or "ffmpeg failed"
-                )
+                raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "ffmpeg failed")
 
             return VideoArtifact(
                 file_name=file_name,
@@ -491,6 +503,7 @@ class LocalMediaArtifactService:
             raise RuntimeError("source file is not an image")
 
         import base64
+
         encoded = base64.b64encode(source.read_bytes()).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
 
@@ -617,9 +630,7 @@ class LocalMediaArtifactService:
         output = (output_dir / file_name).resolve()
 
         # Create a temp concat list file
-        tmp_list = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
-        )
+        tmp_list = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8")
         try:
             for sp in source_paths:
                 escaped = str(sp).replace("'", "'\\''")
@@ -630,11 +641,16 @@ class LocalMediaArtifactService:
             copy_cmd = [
                 self._ffmpeg_bin,
                 "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", tmp_list.name,
-                "-c", "copy",
-                "-movflags", "+faststart",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                tmp_list.name,
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
                 str(output),
             ]
 
@@ -648,6 +664,7 @@ class LocalMediaArtifactService:
             if result.returncode != 0 or not output.exists():
                 # Stream-copy failed (likely codec mismatch).  Re-encode.
                 import logging
+
                 logging.getLogger(__name__).info(
                     "concat -c copy failed (%s), retrying with re-encode",
                     result.stderr.strip()[:200],
@@ -658,15 +675,24 @@ class LocalMediaArtifactService:
                 reencode_cmd = [
                     self._ffmpeg_bin,
                     "-y",
-                    "-f", "concat",
-                    "-safe", "0",
-                    "-i", tmp_list.name,
-                    "-c:v", "libx264",
-                    "-preset", "fast",
-                    "-crf", "23",
-                    "-c:a", "aac",
-                    "-b:a", "128k",
-                    "-movflags", "+faststart",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    tmp_list.name,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "fast",
+                    "-crf",
+                    "23",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "128k",
+                    "-movflags",
+                    "+faststart",
                     str(output),
                 ]
                 result = subprocess.run(
@@ -676,9 +702,7 @@ class LocalMediaArtifactService:
                     timeout=600,
                 )
                 if result.returncode != 0 or not output.exists():
-                    raise RuntimeError(
-                        result.stderr.strip() or result.stdout.strip() or "ffmpeg concat failed"
-                    )
+                    raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "ffmpeg concat failed")
 
             return StoredArtifact(
                 file_name=file_name,
@@ -709,18 +733,9 @@ class LocalMediaArtifactService:
         return self._storage_properties.build_public_url(f"{normalized_dir}/{file_name}")
 
     def _publish_path(self, path: Path, relative_dir: str, file_name: str, content_type: str = "") -> str:
+        """Return a stable local URL for generated task artifacts."""
         local_public_url = self._build_public_url(relative_dir, file_name)
-        if not self._remote_object_store:
-            return local_public_url
-
-        normalized_dir = (relative_dir or "").replace("\\", "/").strip("/")
-        storage_key = f"{normalized_dir}/{file_name}".lstrip("/")
-        mime_type = content_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-        try:
-            stored = self._remote_object_store.put_object(storage_key, path.read_bytes(), mime_type, file_name)
-        except Exception as ex:
-            raise RuntimeError(f"artifact publish failed: {ex}") from ex
-        return string_value(getattr(stored, "public_url", "")) or local_public_url
+        return local_public_url
 
     def _resolve_absolute_path(self, public_url: str) -> str:
         resolved = self._storage_properties.resolve_public_url(public_url)
@@ -771,9 +786,7 @@ class LocalMediaArtifactService:
         except Exception:
             return ""
 
-    def _ensure_first_image_thumbnail(
-        self, candidate_urls: list[str], max_width: int
-    ) -> str:
+    def _ensure_first_image_thumbnail(self, candidate_urls: list[str], max_width: int) -> str:
         for url in candidate_urls:
             thumbnail = self._first_non_blank(
                 self._existing_thumbnail_url(url),
@@ -829,16 +842,16 @@ class LocalMediaArtifactService:
         cmd = [
             self._ffmpeg_bin,
             "-y",
-            "-i", str(source),
-            "-frames:v", "1",
+            "-i",
+            str(source),
+            "-frames:v",
+            "1",
             str(frame_path),
         ]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0 or not frame_path.is_file():
-                raise RuntimeError(
-                    result.stderr.strip() or "ffmpeg frame extraction failed"
-                )
+                raise RuntimeError(result.stderr.strip() or "ffmpeg frame extraction failed")
         except subprocess.TimeoutExpired:
             raise RuntimeError("ffmpeg frame extraction timed out")
 

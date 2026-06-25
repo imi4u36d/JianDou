@@ -15,12 +15,15 @@ from backend.shared import first_non_blank, now_iso, string_value
 
 _ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
+
 def map_value(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
 
 def _stable_id(prefix: str, *parts: str) -> str:
     seed = prefix + ":" + ":".join(parts)
     return prefix + "_" + uuid.uuid5(uuid.NAMESPACE_OID, seed).hex
+
 
 def _duration_millis(started_at: str, finished_at: str) -> int:
     try:
@@ -29,6 +32,7 @@ def _duration_millis(started_at: str, finished_at: str) -> int:
         return max(0, int((end - start).total_seconds() * 1000))
     except (ValueError, TypeError):
         return 0
+
 
 class TaskWorkerExecutionContext:
     """Execution context for a single worker run."""
@@ -55,6 +59,7 @@ class TaskWorkerExecutionContext:
     def execution_mode(self) -> str:
         return self._execution_mode
 
+
 class TaskExecutionAbortedException(Exception):
     """Raised when task execution is aborted (paused, cancelled, etc.)."""
 
@@ -66,6 +71,7 @@ class TaskExecutionAbortedException(Exception):
     def task_status(self) -> str:
         return self._task_status
 
+
 class TaskStage:
     ANALYSIS = "analysis"
     PLANNING = "planning"
@@ -73,6 +79,7 @@ class TaskStage:
     PIPELINE = "pipeline"
     DISPATCH = "dispatch"
     PAUSED = "paused"
+
 
 class TaskWorkerStatusStageService:
     """Service for tracking status, model calls, stage runs, and lifecycle events."""
@@ -184,14 +191,20 @@ class TaskWorkerStatusStageService:
             "finishedAt": now,
         }
 
-    def complete_model_call(self, pending_model_call: dict[str, Any], run: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    def complete_model_call(
+        self, pending_model_call: dict[str, Any], run: dict[str, Any], result: dict[str, Any]
+    ) -> dict[str, Any]:
         row = dict(pending_model_call or {})
         model_info = map_value(result.get("modelInfo"))
         started_at = string_value(row.get("startedAt"))
         finished_at = string_value(run.get("updatedAt", now_iso()))
         row["provider"] = string_value(model_info.get("provider", row.get("provider")))
-        row["providerModel"] = first_non_blank(string_value(model_info.get("providerModel")), string_value(row.get("providerModel")))
-        row["requestedModel"] = first_non_blank(string_value(model_info.get("requestedModel")), string_value(row.get("requestedModel")))
+        row["providerModel"] = first_non_blank(
+            string_value(model_info.get("providerModel")), string_value(row.get("providerModel"))
+        )
+        row["requestedModel"] = first_non_blank(
+            string_value(model_info.get("requestedModel")), string_value(row.get("requestedModel"))
+        )
         row["resolvedModel"] = string_value(model_info.get("resolvedModel"))
         row["modelName"] = string_value(model_info.get("modelName", model_info.get("resolvedModel")))
         row["modelAlias"] = string_value(model_info.get("modelName", model_info.get("resolvedModel")))
@@ -233,7 +246,9 @@ class TaskWorkerStatusStageService:
         row["finishedAt"] = finished_at
         return row
 
-    def record_run_call_chain(self, task: TaskRecord, fallback_stage: str, run: dict[str, Any], result: dict[str, Any]) -> None:
+    def record_run_call_chain(
+        self, task: TaskRecord, fallback_stage: str, run: dict[str, Any], result: dict[str, Any]
+    ) -> None:
         raw = result.get("callChain")
         if not isinstance(raw, list):
             return
@@ -272,7 +287,7 @@ class TaskWorkerStatusStageService:
                 100,
                 TaskStage.PIPELINE,
                 "task.completed",
-                "任务已通过生成服务完成所有镜头的视频渲染。",
+                "任务已完成三视图与首尾关键帧生成。",
                 {
                     "scriptRunId": string_value(script_run.get("id")),
                     "imageRunIds": image_run_ids,
@@ -326,7 +341,9 @@ class TaskWorkerStatusStageService:
         )
         return result
 
-    def handle_abort(self, task: TaskRecord, run_context: TaskWorkerExecutionContext, task_status: str) -> dict[str, Any]:
+    def handle_abort(
+        self, task: TaskRecord, run_context: TaskWorkerExecutionContext, task_status: str
+    ) -> dict[str, Any]:
         return self._execution_coordinator.touch_worker_instance(
             run_context.worker_instance_id,
             run_context.worker_type,

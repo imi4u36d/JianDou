@@ -24,6 +24,7 @@ class RenderStageRequest:
         duration_seconds: int = 0,
         video_size: str = "",
         previous_clip_last_frame_url: str = "",
+        character_definitions: list[Any] | None = None,
     ) -> None:
         self._reuse_storyboard = reuse_storyboard
         self._render_start_index = render_start_index
@@ -38,6 +39,7 @@ class RenderStageRequest:
         self._duration_seconds = duration_seconds
         self._video_size = video_size
         self._previous_clip_last_frame_url = previous_clip_last_frame_url
+        self._character_definitions = character_definitions or []
 
     @property
     def reuse_storyboard(self) -> bool:
@@ -91,9 +93,15 @@ class RenderStageRequest:
     def previous_clip_last_frame_url(self) -> str:
         return self._previous_clip_last_frame_url
 
+    @property
+    def character_definitions(self) -> list[Any]:
+        return self._character_definitions
+
 
 class RenderStageResult:
-    def __init__(self, image_run_ids: list[str], video_run_ids: list[str], latest_video_output_url: str, clip_count: int) -> None:
+    def __init__(
+        self, image_run_ids: list[str], video_run_ids: list[str], latest_video_output_url: str, clip_count: int
+    ) -> None:
         self._image_run_ids = image_run_ids
         self._video_run_ids = video_run_ids
         self._latest_video_output_url = latest_video_output_url
@@ -234,7 +242,9 @@ def build_planning_stage_response(
     reused_previous_start: bool,
 ) -> dict[str, Any]:
     return {
-        "summary": "已复用上一镜尾帧作为首帧，并生成当前镜头尾帧关键画面" if reused_previous_start else "当前镜头首尾关键画面已生成",
+        "summary": "已复用上一镜尾帧作为首帧，并生成当前镜头尾帧关键画面"
+        if reused_previous_start
+        else "当前镜头首尾关键画面已生成",
         "imageRunId": first_non_blank(start_frame.run_id(), end_frame.run_id()),
         "imageUrl": start_frame.material_url(),
         "remoteImageUrl": start_frame.video_input_url(),
@@ -355,8 +365,6 @@ def _callable_attr(source: Any, name: str) -> str:
     if callable(value):
         value = value()
     return string_value(value)
-
-
 
 
 def _truncate_text(value: str, max_length: int) -> str:

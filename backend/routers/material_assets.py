@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
@@ -11,6 +13,7 @@ from backend.schemas.material import (
     RateMaterialAssetRequest,
 )
 from backend.services.material_asset_service import MaterialAssetService
+from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v3/material-assets", tags=["material-assets"])
 
@@ -104,9 +107,25 @@ async def rate_material_asset(
 async def reuse_material_asset(
     asset_id: str,
     request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
-    await require_user(request)
-    raise HTTPException(status_code=410, detail="素材复用已统一到任务创建，请创建任务并选择引用素材")
+    """Create a workflow from an existing material instead of cloning it client-side."""
+    user = await require_user(request)
+    payload: dict[str, Any] = {}
+    try:
+        parsed = await request.json()
+    except Exception:
+        parsed = {}
+    if isinstance(parsed, dict):
+        payload = parsed
+    workflow = await WorkflowService(db).create_workflow_from_material(
+        asset_id=asset_id,
+        owner_user_id=user["id"],
+        mode=str(payload.get("mode") or "clone"),
+    )
+    if workflow is None:
+        raise not_found("material_asset")
+    return workflow
 
 
 @router.post("/{asset_id}/upload")

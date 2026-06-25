@@ -26,7 +26,7 @@ class _FakeRemoteStore:
         return _Stored()
 
 
-def test_media_service_publishes_written_binary_to_remote_store(tmp_path) -> None:
+def test_media_service_keeps_written_binary_in_local_storage(tmp_path) -> None:
     remote = _FakeRemoteStore()
     service = LocalMediaArtifactService(
         JiandouStorageProperties(root_dir=tmp_path, public_base_url="/storage"),
@@ -35,11 +35,9 @@ def test_media_service_publishes_written_binary_to_remote_store(tmp_path) -> Non
 
     artifact = service.write_binary("tasks/task_1/running", "clip1-first.png", b"image")
 
-    assert artifact.public_url == "https://cdn.example.test/tasks/task_1/running/clip1-first.png"
+    assert artifact.public_url == "/storage/tasks/task_1/running/clip1-first.png"
     assert artifact.size_bytes == len(b"image")
-    assert remote.puts == [
-        ("tasks/task_1/running/clip1-first.png", b"image", "image/png", "clip1-first.png")
-    ]
+    assert remote.puts == []
     assert (tmp_path / "tasks/task_1/running/clip1-first.png").read_bytes() == b"image"
 
 
@@ -50,11 +48,13 @@ def test_storage_properties_maps_prefixed_oss_urls_to_local_cache(tmp_path) -> N
         storage_key_prefix="dev",
     )
 
-    assert props.build_public_url("tasks/task_1/clip.png") == "https://cdn.example.test/dev/tasks/task_1/clip.png"
+    assert props.build_public_url("tasks/task_1/clip.png") == "/storage/tasks/task_1/clip.png"
     assert props.build_externally_accessible_url("/storage/tasks/task_1/clip.png") == (
         "https://cdn.example.test/dev/tasks/task_1/clip.png"
     )
-    assert props.resolve_public_url("https://cdn.example.test/dev/tasks/task_1/clip.png") == (
-        tmp_path / "tasks/task_1/clip.png"
-    ).resolve()
+    assert (
+        props.resolve_public_url("https://cdn.example.test/dev/tasks/task_1/clip.png")
+        == (tmp_path / "tasks/task_1/clip.png").resolve()
+    )
+    assert props.resolve_public_url("/storage/tasks/task_1/clip.png") == (tmp_path / "tasks/task_1/clip.png").resolve()
     assert props.resolve_public_url("https://cdn.example.test/tasks/task_1/clip.png") is None

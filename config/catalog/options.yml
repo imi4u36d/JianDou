@@ -22,6 +22,30 @@ catalog:
       label: "短剧冲突"
       description: "更强调人物冲突和情绪推进"
   image_sizes:
+    "1280x720":
+      label: "1K 16:9 · 1280x720"
+      width: 1280
+      height: 720
+    "2048x1152":
+      label: "2K 16:9 · 2048x1152"
+      width: 2048
+      height: 1152
+    "3840x2160":
+      label: "4K 16:9 · 3840x2160"
+      width: 3840
+      height: 2160
+    "720x1280":
+      label: "1K 9:16 · 720x1280"
+      width: 720
+      height: 1280
+    "1152x2048":
+      label: "2K 9:16 · 1152x2048"
+      width: 1152
+      height: 2048
+    "2160x3840":
+      label: "4K 9:16 · 2160x3840"
+      width: 2160
+      height: 3840
     "1024x1024":
       label: "1K 1:1 · 1024x1024"
       width: 1024
@@ -34,94 +58,6 @@ catalog:
       label: "4K 1:1 · 2880x2880"
       width: 2880
       height: 2880
-    "1536x1024":
-      label: "1K 3:2 · 1536x1024"
-      width: 1536
-      height: 1024
-    "2048x1360":
-      label: "2K 3:2 · 2048x1360"
-      width: 2048
-      height: 1360
-    "3520x2336":
-      label: "4K 3:2 · 3520x2336"
-      width: 3520
-      height: 2336
-    "1024x1536":
-      label: "1K 2:3 · 1024x1536"
-      width: 1024
-      height: 1536
-    "1360x2048":
-      label: "2K 2:3 · 1360x2048"
-      width: 1360
-      height: 2048
-    "2336x3520":
-      label: "4K 2:3 · 2336x3520"
-      width: 2336
-      height: 3520
-    "1824x1024":
-      label: "1K 16:9 · 1824x1024"
-      width: 1824
-      height: 1024
-    "2048x1152":
-      label: "2K 16:9 · 2048x1152"
-      width: 2048
-      height: 1152
-    "3840x2160":
-      label: "4K 16:9 · 3840x2160"
-      width: 3840
-      height: 2160
-    "1024x1824":
-      label: "1K 9:16 · 1024x1824"
-      width: 1024
-      height: 1824
-    "1152x2048":
-      label: "2K 9:16 · 1152x2048"
-      width: 1152
-      height: 2048
-    "2160x3840":
-      label: "4K 9:16 · 2160x3840"
-      width: 2160
-      height: 3840
-    "2304x1728":
-      label: "2K 4:3 · 2304x1728"
-      width: 2304
-      height: 1728
-    "1728x2304":
-      label: "2K 3:4 · 1728x2304"
-      width: 1728
-      height: 2304
-    "2560x1440":
-      label: "2K 16:9 · 2560x1440"
-      width: 2560
-      height: 1440
-    "1440x2560":
-      label: "2K 9:16 · 1440x2560"
-      width: 1440
-      height: 2560
-    "2496x1664":
-      label: "2K 3:2 · 2496x1664"
-      width: 2496
-      height: 1664
-    "1664x2496":
-      label: "2K 2:3 · 1664x2496"
-      width: 1664
-      height: 2496
-    "3024x1296":
-      label: "2K 21:9 · 3024x1296"
-      width: 3024
-      height: 1296
-    "3072x3072":
-      label: "3K 1:1 · 3072x3072"
-      width: 3072
-      height: 3072
-    "3072x2304":
-      label: "3K 4:3 · 3072x2304"
-      width: 3072
-      height: 2304
-    "2304x3072":
-      label: "3K 3:4 · 2304x3072"
-      width: 2304
-      height: 3072
   video_sizes:
     "480*854":
       label: "480P · 9:16（480 x 854）"

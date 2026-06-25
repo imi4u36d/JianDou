@@ -4,6 +4,7 @@ These provide no-op or minimal implementations of external service
 interfaces so that the worker pipeline can function even when certain
 optional services are not configured.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -63,7 +64,11 @@ class LocalMediaArtifactServiceStub:
         return public_url
 
     def ensure_media_thumbnail(
-        self, media_type: str, public_url: str, candidate_image_urls: list[str], max_width: int,
+        self,
+        media_type: str,
+        public_url: str,
+        candidate_image_urls: list[str],
+        max_width: int,
     ) -> str:  # noqa: ARG002
         return public_url
 
@@ -131,27 +136,44 @@ class TaskStoryboardPlannerStub:
             return self._duration_hint
 
     def build_storyboard_shot_plans(
-        self, task, storyboard_markdown: str,
+        self,
+        task,
+        storyboard_markdown: str,
     ) -> list[StoryboardShotPlan]:  # noqa: ARG002
         return []
 
+    def extract_character_definitions(
+        self,
+        storyboard_markdown: str,
+    ) -> list[Any]:  # noqa: ARG002
+        return []
+
     def resolve_requested_output_count(
-        self, task, storyboard_clip_count: int,
+        self,
+        task,
+        storyboard_clip_count: int,
     ) -> int:
         return storyboard_clip_count
 
     def extract_storyboard_shot_duration_ranges(
-        self, storyboard_markdown: str,
+        self,
+        storyboard_markdown: str,
     ) -> list[list[int]]:  # noqa: ARG002
         return []
 
     def build_clip_duration_plan(
-        self, task, duration_seconds: int, clip_count: int, storyboard_markdown: str,
+        self,
+        task,
+        duration_seconds: int,
+        clip_count: int,
+        storyboard_markdown: str,
     ) -> list[list[int]]:  # noqa: ARG002
         return [[duration_seconds, duration_seconds, duration_seconds]] * clip_count
 
     def normalize_clip_duration_plan(
-        self, video_model: str, clip_duration_plan: list[list[int]],
+        self,
+        video_model: str,
+        clip_duration_plan: list[list[int]],
     ) -> list[list[int]]:  # noqa: ARG002
         return clip_duration_plan
 
@@ -159,6 +181,8 @@ class TaskStoryboardPlannerStub:
         return 0
 
     def build_clip_duration_plan_context(
-        self, clip_duration_plan: list[list[int]], duration_ranges: list[list[int]],
+        self,
+        clip_duration_plan: list[list[int]],
+        duration_ranges: list[list[int]],
     ) -> list[dict[str, Any]]:  # noqa: ARG002
         return []

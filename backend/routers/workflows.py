@@ -1,6 +1,7 @@
 """
 Workflow API router — delegates to WorkflowService.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,7 +25,6 @@ from backend.schemas.workflow import (
     WorkflowDeleteResult,
     WorkflowDetailResponse,
     WorkflowListResponse,
-    WorkflowSummaryResponse,
 )
 from backend.services.workflow_service import WorkflowService, now_iso
 
@@ -345,7 +345,10 @@ async def select_keyframe(
     return result
 
 
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/frames/{frame_role}/select", response_model=WorkflowDetailResponse)
+@router.post(
+    "/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/frames/{frame_role}/select",
+    response_model=WorkflowDetailResponse,
+)
 async def select_keyframe_frame(
     workflow_id: str,
     clip_index: int,

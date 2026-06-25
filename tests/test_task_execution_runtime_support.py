@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.service
 from typing import Any
 
 import pytest
@@ -14,6 +11,8 @@ from backend.services.task_execution_runtime_support import (
     TaskExecutionRuntimeSupport,
 )
 from backend.services.task_worker_status_stage_service import TaskExecutionAbortedException
+
+pytestmark = pytest.mark.service
 
 
 def _task(**overrides: Any) -> TaskRecord:
@@ -62,7 +61,12 @@ def test_resolve_workspace_image_output_count_clamps_to_supported_range() -> Non
     support = TaskExecutionRuntimeSupport()
 
     assert support.resolve_workspace_image_output_count(_task(request_snapshot={"outputCount": {"auto": True}})) == 1
-    assert support.resolve_workspace_image_output_count(_task(request_snapshot={"outputCount": {"auto": False, "count": 3}})) == 3
+    assert (
+        support.resolve_workspace_image_output_count(
+            _task(request_snapshot={"outputCount": {"auto": False, "count": 3}})
+        )
+        == 3
+    )
     assert support.resolve_workspace_image_output_count(_task(request_snapshot={"outputCount": 9})) == 4
 
 
@@ -90,8 +94,10 @@ def test_build_image_request_keeps_single_reference_url_whole() -> None:
     assert request["auth"] == {"userId": "11"}
 
 
-def test_build_workspace_image_request_converts_storage_references_to_public_urls() -> None:
-    media_service = _ReferenceMediaService(public_url="https://cdn.example.test/ref.png")
+def test_build_workspace_image_request_converts_storage_references_to_data_uri() -> None:
+    media_service = _ReferenceMediaService(
+        public_url="https://cdn.example.test/ref.png", data_uri="data:image/png;base64,ref"
+    )
     support = TaskExecutionRuntimeSupport(
         model_resolver=_Resolver(supports_seed=True),
         local_media_artifact_service=media_service,
@@ -110,8 +116,8 @@ def test_build_workspace_image_request_converts_storage_references_to_public_url
     request = support.build_workspace_image_run_request(task, 1024, 1024)
 
     assert request["kind"] == "image"
-    assert request["input"]["referenceImageUrls"] == ["https://cdn.example.test/ref.png"]
-    assert request["input"]["referenceImageUrl"] == "https://cdn.example.test/ref.png"
+    assert request["input"]["referenceImageUrls"] == ["data:image/png;base64,ref"]
+    assert request["input"]["referenceImageUrl"] == "data:image/png;base64,ref"
     assert request["input"]["seed"] == 42
     assert request["metadata"]["referenceImageCount"] == 1
     assert "角色三视图设定图" in request["input"]["prompt"]

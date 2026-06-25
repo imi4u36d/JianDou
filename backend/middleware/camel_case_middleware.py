@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from starlette.types import ASGIApp, Message, Receive, Scope
 
@@ -86,7 +87,9 @@ class CamelCaseJsonMiddleware:
 
         # Send the converted response
         await send({"type": "http.response.start", "status": status_code, "headers": new_headers})
-        await send({
-            "type": "http.response.body",
-            "body": converted_body,
-        })
+        await send(
+            {
+                "type": "http.response.body",
+                "body": converted_body,
+            }
+        )

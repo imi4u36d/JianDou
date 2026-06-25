@@ -1,4 +1,5 @@
 """Task endpoint tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -13,7 +14,7 @@ def generation_task_payload(title: str) -> dict:
         "image_model": "gpt-image-2",
         "video_model": "seedance-1.5-pro",
         "aspect_ratio": "16:9",
-        "image_size": "2560x1440",
+        "image_size": "2048x1152",
         "video_size": "1280*720",
         "video_duration_seconds": 10,
         "output_count": "auto",

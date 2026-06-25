@@ -169,6 +169,7 @@ class TaskExecutionRuntimeSupport:
         reference_image_url: str,
         duration_seconds: int = 0,
         frame_role: str = "first",
+        reference_image_urls: list[str] | None = None,
     ) -> dict[str, Any]:
         normalized_frame_role = self._normalize_frame_role(frame_role)
         input_data: dict[str, Any] = {
@@ -183,11 +184,15 @@ class TaskExecutionRuntimeSupport:
         image_model = self._image_model(task)
         if image_seed is not None and self._model_resolver.supports_seed(image_model):
             input_data["seed"] = image_seed
+        raw_reference_urls: list[str] = []
         if reference_image_url:
-            compatible = self._compatible_single_image_reference_url(reference_image_url, image_model)
-            if compatible:
-                input_data["referenceImageUrl"] = compatible[0]
-                input_data["referenceImageUrls"] = compatible
+            raw_reference_urls.append(reference_image_url)
+        if reference_image_urls:
+            raw_reference_urls.extend(reference_image_urls)
+        compatible = self._compatible_image_reference_url_list(raw_reference_urls, image_model)
+        if compatible:
+            input_data["referenceImageUrl"] = compatible[0]
+            input_data["referenceImageUrls"] = compatible
         request: dict[str, Any] = {
             "kind": GenerationRunKinds.IMAGE,
             "input": input_data,
@@ -204,6 +209,53 @@ class TaskExecutionRuntimeSupport:
                 "relatedTaskId": string_value(task.id),
                 "clipIndex": max(1, clip_index),
                 "frameRole": normalized_frame_role,
+            },
+        }
+        self._put_user_auth(request, task)
+        return dict(request)
+
+    def build_character_sheet_run_request(
+        self,
+        task: TaskRecord,
+        character_index: int,
+        character: Any,
+        width: int,
+        height: int,
+    ) -> dict[str, Any]:
+        """Build the dedicated image-generation request for one character sheet."""
+        name = string_value(getattr(character, "name", ""))
+        appearance = string_value(getattr(character, "appearance", ""))
+        definition = string_value(getattr(character, "definition", ""))
+        prompt = self._build_character_sheet_prompt(name, first_non_blank(definition, appearance))
+        image_model = self._image_model(task)
+        input_data: dict[str, Any] = {
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "frameRole": "sheet",
+        }
+        image_seed = self._image_seed(task, 1000 + max(1, character_index))
+        if image_seed is not None and self._model_resolver.supports_seed(image_model):
+            input_data["seed"] = image_seed
+        request: dict[str, Any] = {
+            "kind": GenerationRunKinds.IMAGE,
+            "input": input_data,
+            "model": {
+                "textAnalysisModel": self._text_analysis_model(task),
+                "providerModel": image_model,
+            },
+            "options": {"stylePreset": self._style_preset(task)},
+            "storage": {
+                "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
+                "fileStem": f"character{max(1, character_index)}-sheet",
+            },
+            "metadata": {
+                "relatedTaskId": string_value(task.id),
+                "clipIndex": 1000 + max(1, character_index),
+                "frameRole": "sheet",
+                "variantKind": "character_sheet",
+                "characterIndex": max(1, character_index),
+                "characterName": name,
             },
         }
         self._put_user_auth(request, task)
@@ -366,31 +418,34 @@ class TaskExecutionRuntimeSupport:
     def _normalize_frame_role(self, frame_role: str) -> str:
         return "last" if frame_role.lower() == "last" else "first"
 
+    def _build_character_sheet_prompt(self, name: str, description: str) -> str:
+        parts: list[str] = [
+            f"角色名称：{first_non_blank(name, '未命名角色')}",
+            f"角色设定：{description}",
+            "生成类型：角色三视图设定图。",
+            "必须输出同一角色的正面、侧面、背面三视图，放在同一张图中。",
+            "三个视图都必须是完整从头到脚全身像，人物整体缩小并居中，头顶、双手、鞋子、脚底四周保留清晰留白，不得裁切或超出图片外。",
+            "禁止半身像、胸像、近景特写、肖像照或过度放大构图；三个视图横向等距排列在同一张画布内。",
+            "使用标准中性站姿，身体直立，双臂自然下垂或微微离身，双手空置，不做动作戏、剧情动作、表演动作或复杂姿势。",
+            "只保留稳定穿戴配饰；禁止手拿、背负、牵引、互动或携带任何道具、武器、包袋、手机、文件、杯子、伞、花束等物体。",
+            "脸、发型、服装、体型、年龄感和配饰保持一致。",
+            "背景使用纯净浅色或纯白背景，不出现文字、箭头、水印、logo、说明标签或复杂场景。",
+        ]
+        return "\n".join([part for part in parts if part.strip()])
+
     def _compatible_single_image_reference_url(self, reference_image_url: str, image_model: str) -> list[str]:
         normalized = string_value(reference_image_url)
         if not normalized:
             return []
         if normalized.startswith("/storage/"):
             if self._local_media_artifact_service:
-                public_url = self._local_media_artifact_service.build_externally_accessible_url(normalized)
-                if self._is_remote_http_url(public_url):
-                    return [public_url]
-                if self._supports_image_data_uri_references(image_model):
-                    try:
-                        data_uri = self._local_media_artifact_service.image_data_uri_from_public_url(normalized)
-                        if data_uri:
-                            return [data_uri]
-                    except RuntimeError:
-                        raise ValueError(
-                            "referenceImageUrl is local storage address; configure "
-                            "JIANDOU_STORAGE_PUBLIC_BASE_URL or use an image model "
-                            "that supports data URI references"
-                        )
-            raise ValueError(
-                "referenceImageUrl is local storage address; configure "
-                "JIANDOU_STORAGE_PUBLIC_BASE_URL or use an image model "
-                "that supports data URI references"
-            )
+                try:
+                    data_uri = self._local_media_artifact_service.image_data_uri_from_public_url(normalized)
+                    if data_uri:
+                        return [data_uri]
+                except RuntimeError:
+                    raise ValueError("referenceImageUrl is local storage address but cannot be converted to data URI")
+            raise ValueError("referenceImageUrl is local storage address; local media artifact service is required")
         return [normalized]
 
     @staticmethod
@@ -436,10 +491,16 @@ class TaskExecutionRuntimeSupport:
         if normalized_asset_type == "character_sheet":
             parts.append("生成类型：角色三视图设定图。")
             parts.append("必须输出同一角色的正面、侧面、背面三视图，放在同一张图中。")
-            parts.append("三个视图都必须是完整从头到脚全身像，人物整体缩小并居中，头顶、双手、鞋子、脚底四周保留清晰留白，不得裁切或超出图片外。")
+            parts.append(
+                "三个视图都必须是完整从头到脚全身像，人物整体缩小并居中，头顶、双手、鞋子、脚底四周保留清晰留白，不得裁切或超出图片外。"
+            )
             parts.append("禁止半身像、胸像、近景特写、肖像照或过度放大构图；三个视图横向等距排列在同一张画布内。")
-            parts.append("使用标准中性站姿，身体直立，双臂自然下垂或微微离身，双手空置，不做动作戏、剧情动作、表演动作或复杂姿势。")
-            parts.append("只保留稳定穿戴配饰；禁止手拿、背负、牵引、互动或携带任何道具、武器、包袋、手机、文件、杯子、伞、花束等物体。")
+            parts.append(
+                "使用标准中性站姿，身体直立，双臂自然下垂或微微离身，双手空置，不做动作戏、剧情动作、表演动作或复杂姿势。"
+            )
+            parts.append(
+                "只保留稳定穿戴配饰；禁止手拿、背负、牵引、互动或携带任何道具、武器、包袋、手机、文件、杯子、伞、花束等物体。"
+            )
             parts.append("脸、发型、服装、体型、年龄感和配饰保持一致。")
             parts.append("背景使用纯净浅色或纯白背景，不出现文字、箭头、水印、logo、说明标签或复杂场景。")
         return "\n".join(parts)

@@ -1,12 +1,12 @@
 """
 jiandou CLI - entry point for `python -m backend` or `jiandou` command.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import sys
 from datetime import UTC
 from pathlib import Path
 
@@ -35,6 +35,7 @@ def serve(host, port, reload):
     configure_logging(level=logging.INFO, json_format=settings.log_json_format)
 
     import uvicorn
+
     uvicorn.run(
         "backend.main:app",
         host=host,
@@ -100,6 +101,7 @@ async def _seed_db():
         admin = result.scalar_one_or_none()
         if not admin:
             from backend.config import settings
+
             now = _now()
             admin = SysUser(
                 username=settings.bootstrap_admin_username,
@@ -113,16 +115,26 @@ async def _seed_db():
             )
             session.add(admin)
             await session.flush()
-            session.add(SysCreditAccount(
-                user_id=admin.id,
-                balance=10000,
-                total_consumed=0,
-                total_adjusted=0,
-                created_at=now,
-                updated_at=now,
-            ))
-            session.add(SysCreditRule(feature_code="IMAGE_GENERATION", display_name="图片生成", cost=10, created_at=now, updated_at=now))
-            session.add(SysCreditRule(feature_code="VIDEO_GENERATION", display_name="视频生成", cost=50, created_at=now, updated_at=now))
+            session.add(
+                SysCreditAccount(
+                    user_id=admin.id,
+                    balance=10000,
+                    total_consumed=0,
+                    total_adjusted=0,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            session.add(
+                SysCreditRule(
+                    feature_code="IMAGE_GENERATION", display_name="图片生成", cost=10, created_at=now, updated_at=now
+                )
+            )
+            session.add(
+                SysCreditRule(
+                    feature_code="VIDEO_GENERATION", display_name="视频生成", cost=50, created_at=now, updated_at=now
+                )
+            )
             await session.commit()
             console.print(f"[green]Admin user created: {admin.username}[/green]")
             console.print("[green]Credit rules initialized: IMAGE_GENERATION=10, VIDEO_GENERATION=50[/green]")
@@ -186,6 +198,7 @@ def _run_migrations() -> None:
 
     # Determine the database path for SQLite stamp detection.
     from backend.config import settings
+
     db_url = settings.database_url
     db_path: str | None = None
     if db_url.startswith("sqlite+aiosqlite:///"):
@@ -197,10 +210,7 @@ def _run_migrations() -> None:
     if db_path and Path(db_path).exists():
         try:
             conn = sqlite3.connect(db_path)
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name='alembic_version'"
-            )
+            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'")
             has_version_table = cursor.fetchone() is not None
             conn.close()
             if not has_version_table:
@@ -209,10 +219,7 @@ def _run_migrations() -> None:
             need_stamp = True
 
     if need_stamp:
-        console.print(
-            "[yellow]Tables exist but alembic_version is missing; "
-            "stamping to current head...[/yellow]"
-        )
+        console.print("[yellow]Tables exist but alembic_version is missing; stamping to current head...[/yellow]")
         command.stamp(cfg, "head")
 
     command.upgrade(cfg, "head")

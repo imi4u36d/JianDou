@@ -89,8 +89,8 @@ class Settings(BaseSettings):
     worker_concurrency: int = Field(
         default=5,
         validation_alias=AliasChoices(
-            "worker_concurrency",
             "JIANDOU_WORKER_CONCURRENCY",
+            "worker_concurrency",
             "JIANDOU_TASK_OPS_WORKER_CONCURRENCY",
         ),
     )
@@ -119,7 +119,7 @@ class Settings(BaseSettings):
         # --- database_url (sqlite path) ---
         for prefix in ("sqlite+aiosqlite:///", "sqlite:///"):
             if self.database_url.startswith(prefix):
-                db_path = self.database_url[len(prefix):]
+                db_path = self.database_url[len(prefix) :]
                 p = Path(db_path)
                 if not p.is_absolute():
                     self.database_url = prefix + str(PROJECT_ROOT / p)
@@ -197,7 +197,11 @@ def validate_settings(s: Settings) -> list[_ValidationIssue]:
 
     # Stale timeout
     if s.worker_stale_timeout_seconds < 120:
-        _add("worker_stale_timeout_seconds", "too short — may cause false-positive stale detection during model calls", "error")
+        _add(
+            "worker_stale_timeout_seconds",
+            "too short — may cause false-positive stale detection during model calls",
+            "error",
+        )
 
     # Upload size
     if s.upload_max_size_bytes > 500 * 1024 * 1024:
