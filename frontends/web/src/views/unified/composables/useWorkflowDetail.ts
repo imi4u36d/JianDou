@@ -599,12 +599,22 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
       busyActionKey.value = "";
     }
   }
+  async function handleGenerateCharacterSheet(sheet: WorkflowCharacterSheet) {
+    const clipIndex = characterSheetClipIndex(sheet);
+    if (!selectedWorkflowId.value || clipIndex === null) return;
+    await runAndRefresh(`character-sheet-${clipIndex}`, () => generateKeyframe(selectedWorkflowId.value, clipIndex));
+  }
   async function handleGenerateKeyframeFrame(clipIndex: number, frameRole: string) {
     if (!selectedWorkflowId.value) return;
     await runAndRefresh(`keyframe-${clipIndex}-${frameRole}`, () => generateKeyframeFrame(selectedWorkflowId.value, clipIndex, frameRole));
   }
   async function handleSelectKeyframe(clipIndex: number, versionId: string) {
     if (!selectedWorkflowId.value) return;
+    await runAndRefresh(versionId, () => selectKeyframe(selectedWorkflowId.value, clipIndex, versionId));
+  }
+  async function handleSelectCharacterSheetVersion(sheet: WorkflowCharacterSheet, versionId: string) {
+    const clipIndex = characterSheetClipIndex(sheet);
+    if (!selectedWorkflowId.value || clipIndex === null) return;
     await runAndRefresh(versionId, () => selectKeyframe(selectedWorkflowId.value, clipIndex, versionId));
   }
   async function handleSelectKeyframeFrame(clipIndex: number, versionId: string, frameRole: string) {
@@ -655,7 +665,7 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     }
   }
   async function handleClearStageVersions(stageType: string) {
-    const stageLabel = stageType === "storyboard" ? "分镜" : stageType === "keyframe" ? "关键帧" : "视频";
+    const stageLabel = stageType === "storyboard" ? "分镜" : stageType === "character" ? "角色三视图" : stageType === "keyframe" ? "关键帧" : "视频";
     const actionKey = `clear-${stageType}-versions`;
 
     const authenticated = await requireAuth({
@@ -672,7 +682,18 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     if (!confirmed) return;
     busyActionKey.value = actionKey;
     try {
-      selectedWorkflow.value = await deleteAllStageVersions(selectedWorkflowId.value, stageType);
+      if (stageType === "character") {
+        const characterVersions = workflowCharacterSheets.value.flatMap((sheet) => characterSheetVersions(sheet));
+        for (const version of characterVersions) {
+          selectedWorkflow.value = await deleteStageVersion(selectedWorkflowId.value, version.id);
+          applyWorkflowDrafts(selectedWorkflow.value);
+        }
+        if (!characterVersions.length) {
+          selectedWorkflow.value = await fetchWorkflow(selectedWorkflowId.value);
+        }
+      } else {
+        selectedWorkflow.value = await deleteAllStageVersions(selectedWorkflowId.value, stageType);
+      }
       applyWorkflowDrafts(selectedWorkflow.value);
       await detailOptions.reloadWorkflows();
     } catch (error) {
@@ -838,8 +859,10 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     handleSelectStoryboard,
     handleGenerateKeyframe,
     handleGenerateMissingCharacterSheets,
+    handleGenerateCharacterSheet,
     handleGenerateKeyframeFrame,
     handleSelectKeyframe,
+    handleSelectCharacterSheetVersion,
     handleSelectKeyframeFrame,
     handleSelectCharacterSheetAsset,
     handleGenerateVideo,

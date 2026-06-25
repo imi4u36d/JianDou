@@ -229,6 +229,17 @@
               <h3>角色三视图</h3>
               <div class="stage-board__meta">
                 <span class="surface-chip">{{ workflowCharacterSheets.length }} 个角色</span>
+                <button
+                  v-if="workflowCharacterSheets.some((sheet) => characterSheetVersions(sheet).length > 0)"
+                  class="btn-secondary btn-sm workflow-menu-danger"
+                  type="button"
+                  :disabled="busyActionKey === 'clear-character-versions'"
+                  @click="handleClearStageVersions('character')"
+                >
+                  <IconLoading v-if="busyActionKey === 'clear-character-versions'" size="xs" />
+                  <IconDelete v-else size="xs" />
+                  <span>{{ busyActionKey === 'clear-character-versions' ? '清空中' : '清空三视图版本' }}</span>
+                </button>
                 <button class="btn-primary btn-sm" type="button" :disabled="!missingCharacterSheets.length || busyActionKey === 'character-missing'" @click="handleGenerateMissingCharacterSheets">
                   <IconLoading v-if="busyActionKey === 'character-missing'" size="xs" />
                   <span>{{ busyActionKey === "character-missing" ? "补齐中" : "补齐" }}</span>
@@ -238,7 +249,42 @@
             <div v-if="!workflowCharacterSheets.length" class="workflow-empty workflow-empty-nested">暂无角色三视图</div>
             <div v-else class="character-strip__list">
               <article v-for="sheet in workflowCharacterSheets" :key="characterSheetKey(sheet)" class="character-mini-card">
-                <div class="character-mini-card__head"><strong>{{ characterSheetTitle(sheet) }}</strong></div>
+                <div class="character-mini-card__head">
+                  <strong>{{ characterSheetTitle(sheet) }}</strong>
+                  <button
+                    class="workflow-icon-action"
+                    type="button"
+                    title="重新生成"
+                    :disabled="characterSheetClipIndex(sheet) === null || busyActionKey === `character-sheet-${characterSheetClipIndex(sheet)}`"
+                    @click="handleGenerateCharacterSheet(sheet)"
+                  >
+                    <IconLoading v-if="busyActionKey === `character-sheet-${characterSheetClipIndex(sheet)}`" size="xs" />
+                    <IconRefresh v-else size="xs" />
+                  </button>
+                </div>
+                <div v-if="characterSheetVersions(sheet).length" class="version-switcher character-version-switcher">
+                  <div class="version-switcher__tabs">
+                    <article
+                      v-for="version in characterSheetVersions(sheet)"
+                      :key="version.id"
+                      class="version-switcher__tab"
+                      :class="{ 'version-switcher__tab-active': previewCharacterSheetVersion(sheet)?.id === version.id }"
+                    >
+                      <button type="button" class="version-switcher__tab-main" @click="setPreviewCharacterSheetVersion(characterSheetKey(sheet), version.id)">
+                        <span class="compact-version-card__badge">V{{ version.versionNo }}</span>
+                        <strong>{{ stageVersionDisplayTitle(version) }}</strong>
+                        <span class="compact-version-card__status">{{ version.selected ? "当前" : stageStatusLabel(version.status) }}</span>
+                      </button>
+                      <div class="workflow-more-menu compact-version-menu">
+                        <button type="button" class="workflow-more-menu__trigger" aria-label="版本操作" :popovertarget="`wfd-char-${version.id}`"><IconMore size="sm" /></button>
+                        <div :id="`wfd-char-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
+                          <button type="button" :disabled="version.selected || busyActionKey === version.id || characterSheetClipIndex(sheet) === null" @click="handleSelectCharacterSheetVersion(sheet, version.id)"><IconCheck size="xs" /><span>{{ version.selected ? "当前" : "设为当前" }}</span></button>
+                          <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)"><IconDelete size="xs" /><span>删除</span></button>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
                 <button type="button" class="character-mini-card__summary" @click="openCharacterSummaryPreview(sheet)">
                   <span class="character-mini-card__summary-label">角色定义</span>
                   <p>{{ characterSheetAppearanceSummary(sheet) }}</p>
@@ -715,8 +761,10 @@ const {
   characterSheetClipIndex,
   characterSheetTitle,
   characterSheetAppearanceSummary,
+  characterSheetVersions,
   characterSheetPreviewFrames,
   setPreviewStoryboardVersion,
+  setPreviewCharacterSheetVersion,
   setPreviewKeyframeVersion,
   setPreviewVideoVersion,
   switchCanvasStage,
@@ -726,8 +774,10 @@ const {
   handleSelectStoryboard,
   handleGenerateKeyframe,
   handleGenerateMissingCharacterSheets,
+  handleGenerateCharacterSheet,
   handleGenerateKeyframeFrame,
   handleSelectKeyframe,
+  handleSelectCharacterSheetVersion,
   handleSelectKeyframeFrame,
   handleSelectCharacterSheetAsset,
   handleGenerateVideo,
@@ -1275,9 +1325,20 @@ const {
   background: var(--bg-softer);
 }
 
+.character-mini-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .character-mini-card__head strong {
+  min-width: 0;
   font-size: 0.9rem;
   color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .character-mini-card__summary {

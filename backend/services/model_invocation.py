@@ -574,6 +574,13 @@ class TextModelTransportPolicy:
             return profile.supports_responses_api()
         return False
 
+    @staticmethod
+    def supports_temperature(profile: ModelRuntimeProfile) -> bool:
+        model_name = string_value(getattr(profile.config, "provider_model", "")).strip().lower()
+        if not model_name:
+            model_name = string_value(getattr(profile.config, "model", "")).strip().lower()
+        return not model_name.startswith("gpt-5")
+
 
 @runtime_checkable
 class TextModelInvocationStrategy(Protocol):
@@ -607,9 +614,10 @@ class ChatCompletionsInvocationStrategy:
                 {"role": "system", "content": invocation.system_prompt},
                 {"role": "user", "content": invocation.user_prompt},
             ],
-            "temperature": invocation.temperature,
             "max_tokens": invocation.max_tokens,
         }
+        if TextModelTransportPolicy.supports_temperature(profile):
+            body["temperature"] = invocation.temperature
         return PreparedTextModelRequest(
             endpoint=TextModelTransportPolicy.resolve_endpoint(profile.base_url, False),
             body=body,
@@ -639,9 +647,10 @@ class ResponsesApiInvocationStrategy:
                     "content": [{"type": "input_text", "text": invocation.user_prompt}],
                 },
             ],
-            "temperature": invocation.temperature,
             "max_output_tokens": invocation.max_tokens,
         }
+        if TextModelTransportPolicy.supports_temperature(profile):
+            body["temperature"] = invocation.temperature
         return PreparedTextModelRequest(
             endpoint=TextModelTransportPolicy.resolve_endpoint(profile.base_url, True),
             body=body,
