@@ -1,4 +1,4 @@
-import { computed, nextTick, ref, type ComputedRef, type Ref } from "vue";
+import { nextTick, ref, type ComputedRef, type Ref } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { uploadText } from "@/features/workflows";
 
@@ -17,7 +17,6 @@ interface SelectedModeLike {
   kind: string;
   label: string;
   value: string;
-  [key: string]: unknown;
 }
 
 export interface UseReferenceImagesOptions {

@@ -381,7 +381,7 @@ onMounted(async () => {
 <style scoped>
 .credit-page {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .credit-page > *,
@@ -410,10 +410,12 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 6px 10px;
+  gap: 10px;
   margin-bottom: 14px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .credit-page__filters-action {
@@ -448,15 +450,15 @@ onMounted(async () => {
 .credit-page__table :deep(.el-button.is-link) {
   min-height: 34px;
   padding: 0 8px;
-  border-radius: 9px;
-  background: #eef2ff;
+  border-radius: 6px;
+  background: var(--jd-surface-muted);
   font-size: 0.78rem;
   font-weight: 760;
 }
 
 .credit-page__actions :deep(.el-button:hover),
 .credit-page__table :deep(.el-button.is-link:hover) {
-  background: #eef2ff;
+  background: var(--jd-accent-soft);
 }
 
 .credit-page__positive {

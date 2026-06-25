@@ -203,7 +203,6 @@ const detail = useTaskDetail({
 });
 
 const {
-  selectedTaskDetail,
   selectedTaskTrace,
   selectedTaskLoading,
   managingTaskId,
@@ -242,8 +241,6 @@ const {
   formatTraceStage,
   formatTraceEvent,
   stageStateClass,
-  startDetailPolling,
-  stopDetailPolling,
   confirmDialog,
   acceptConfirm,
   cancelConfirm,

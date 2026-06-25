@@ -249,7 +249,7 @@ onMounted(async () => {
 <style scoped>
 .invite-page {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .invite-page > *,
@@ -263,16 +263,17 @@ onMounted(async () => {
 .invite-page__summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .invite-page__summary-card {
-  border-radius: 22px;
+  border-radius: var(--jd-radius-card);
 }
 
 .invite-page__summary-card :deep(.el-card__body) {
   display: grid;
   gap: 6px;
+  padding: 16px;
 }
 
 .invite-page__summary-card p {
@@ -282,7 +283,8 @@ onMounted(async () => {
 
 .invite-page__summary-card strong {
   font-family: inherit;
-  font-size: 2rem;
+  font-size: 1.8rem;
+  line-height: 1.05;
 }
 
 .invite-page__summary-card span,
@@ -328,15 +330,15 @@ onMounted(async () => {
 .invite-page__table :deep(.el-button.is-link) {
   min-height: 34px;
   padding: 0 8px;
-  border-radius: 9px;
-  background: #eef2ff;
+  border-radius: 6px;
+  background: var(--jd-surface-muted);
   font-size: 0.78rem;
   font-weight: 760;
 }
 
 .invite-page__code-cell :deep(.el-button:hover),
 .invite-page__table :deep(.el-button.is-link:hover) {
-  background: #eef2ff;
+  background: var(--jd-accent-soft);
 }
 
 @media (max-width: 1200px) {

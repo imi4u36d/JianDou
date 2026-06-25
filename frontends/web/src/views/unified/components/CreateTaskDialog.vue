@@ -1,18 +1,26 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="create-task-dialog-overlay" role="dialog" aria-modal="true">
+    <div
+      v-if="open"
+      class="create-task-dialog-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-task-dialog-title"
+      @click.self="requestClose"
+      @keydown.esc.stop.prevent="requestClose"
+    >
       <div class="create-task-dialog">
         <header class="create-task-dialog__head">
-          <h2>开始新任务</h2>
+          <h2 id="create-task-dialog-title">开始新任务</h2>
         </header>
-        <button type="button" class="create-task-dialog__close" aria-label="关闭" @click="close">
+        <button type="button" class="create-task-dialog__close" aria-label="关闭" @click="requestClose">
           <IconClose size="sm" />
         </button>
 
         <form class="create-task-dialog__body" @submit.prevent="submitWorkflow">
           <label class="create-field">
             <span>标题</span>
-            <input v-model="workflowTitle" required placeholder="标题" />
+            <input ref="titleInputRef" v-model="workflowTitle" required placeholder="标题" />
           </label>
           <label class="create-field">
             <span>灵感创作</span>
@@ -40,7 +48,7 @@
 /**
  * 创建工作流弹窗组件。
  */
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { createWorkflow, fetchGenerationOptions } from "@/features/workflows";
 import { formatApiErrorMessage } from "@/utils/api-error";
@@ -49,7 +57,7 @@ import type { AppSelectOption } from "@/components/common/app-select";
 import { IconClose, IconLoading } from "@/components/icons";
 import type { GenerationOptionsResponse } from "@/types";
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
 }>();
 
@@ -58,8 +66,24 @@ const emit = defineEmits<{
   created: [id: string];
 }>();
 
+const titleInputRef = ref<HTMLInputElement | null>(null);
+let returnFocusTarget: HTMLElement | null = null;
+
 function close() {
   emit("close");
+}
+
+function requestClose() {
+  if (submitting.value) {
+    return;
+  }
+  close();
+}
+
+function restoreFocus() {
+  const target = returnFocusTarget;
+  returnFocusTarget = null;
+  target?.focus({ preventScroll: true });
 }
 
 // ── Shared state ──
@@ -73,6 +97,21 @@ onMounted(async () => {
     // 静默处理
   }
 });
+
+watch(
+  () => props.open,
+  async (open) => {
+    if (open) {
+      returnFocusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      await nextTick();
+      titleInputRef.value?.focus({ preventScroll: true });
+      return;
+    }
+    restoreFocus();
+  },
+);
+
+onBeforeUnmount(restoreFocus);
 
 // ── Workflow form ──
 

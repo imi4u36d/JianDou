@@ -7,8 +7,8 @@
         v-if="searchText"
         class="unified-search-field__clear"
         type="button"
-        @click="searchText = ''"
         aria-label="清除搜索"
+        @click="searchText = ''"
       >
         <IconClose size="xs" />
       </button>
@@ -56,6 +56,7 @@
 /**
  * 统一列表面板组件。
  */
+import { computed } from "vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
 import IconSearch from "@/components/icons/IconSearch.vue";
@@ -65,9 +66,6 @@ import type { UnifiedListItem as UnifiedListItemType } from "@/types/unified-tas
 import type { UnifiedSortMode, UnifiedStatusFilter } from "@/types/unified-task";
 
 defineProps<{
-  searchText: string;
-  statusFilter: UnifiedStatusFilter;
-  sortMode: UnifiedSortMode;
   filteredItems: UnifiedListItemType[];
   loading: boolean;
   selectedId: string;
@@ -78,11 +76,11 @@ defineEmits<{
   delete: [item: UnifiedListItemType];
 }>();
 
-const searchText = defineModel<string>("searchText");
-const statusFilter = defineModel<UnifiedStatusFilter>("statusFilter");
-const sortMode = defineModel<UnifiedSortMode>("sortMode");
+const searchText = defineModel<string>("searchText", { required: true });
+const statusFilter = defineModel<UnifiedStatusFilter>("statusFilter", { required: true });
+const sortMode = defineModel<UnifiedSortMode>("sortMode", { required: true });
 
-const isFilterActive = false; // simplified for now
+const isFilterActive = computed(() => searchText.value.trim().length > 0 || statusFilter.value !== "all");
 
 const statusFilterOptions: Array<{ label: string; value: UnifiedStatusFilter }> = [
   { label: "全部", value: "all" },

@@ -7,6 +7,7 @@
         </div>
         <div>
           <h1>JianDou</h1>
+          <p>管理后台</p>
         </div>
       </div>
 
@@ -57,6 +58,11 @@
       <header class="surface-card admin-layout__header">
         <div>
           <h2>{{ currentTitle }}</h2>
+          <p>运营与系统管理</p>
+        </div>
+        <div class="admin-layout__header-meta">
+          <span>{{ currentUser?.displayName || currentUser?.username }}</span>
+          <el-tag effect="plain" type="success">{{ currentUser?.role || "ADMIN" }}</el-tag>
         </div>
       </header>
 
@@ -108,21 +114,22 @@ async function handleLogout() {
 .admin-layout {
   position: relative;
   display: grid;
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   grid-template-rows: 1fr;
-  gap: 20px;
-  padding: 24px;
+  gap: 16px;
+  padding: 18px;
   height: 100vh;
   overflow: hidden;
+  background: var(--jd-bg);
 }
 
 .admin-layout__aside {
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 22px 14px 16px;
-  border-radius: 22px;
+  gap: 16px;
+  padding: 16px 10px 14px;
+  border-radius: var(--jd-radius-card);
   overflow-y: auto;
 }
 
@@ -130,22 +137,23 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 10px;
+  padding: 4px 10px 10px;
+  border-bottom: 1px solid var(--jd-border);
 }
 
 .admin-layout__brand-mark {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 15px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.16));
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(15, 159, 143, 0.2);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-accent-soft);
 }
 
 .admin-layout__brand-logo {
-  width: 30px;
-  height: 30px;
-  filter: drop-shadow(0 0 12px rgba(98, 136, 255, 0.18));
+  width: 28px;
+  height: 28px;
 }
 
 .admin-layout__eyebrow {
@@ -162,6 +170,19 @@ async function handleLogout() {
   font-family: inherit;
 }
 
+.admin-layout__brand h1 {
+  font-size: 1.03rem;
+  line-height: 1.15;
+}
+
+.admin-layout__brand p,
+.admin-layout__header p {
+  margin: 4px 0 0;
+  color: var(--jd-text-soft);
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
 .admin-layout__menu {
   flex: 1;
   min-height: 240px;
@@ -171,7 +192,7 @@ async function handleLogout() {
   display: grid;
   gap: 10px;
   padding: 14px 10px 8px;
-  border-top: 1px solid rgba(23, 32, 42, 0.08);
+  border-top: 1px solid var(--jd-border);
 }
 
 .admin-layout__profile {
@@ -181,7 +202,7 @@ async function handleLogout() {
 
 .admin-layout__profile span {
   color: var(--jd-text-soft);
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .admin-layout__footer-actions {
@@ -207,8 +228,9 @@ async function handleLogout() {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px;
-  border-radius: 18px;
+  min-height: 72px;
+  padding: 14px 18px;
+  border-radius: var(--jd-radius-card);
 }
 
 .admin-layout__header-meta {
@@ -216,19 +238,19 @@ async function handleLogout() {
   align-items: center;
   gap: 12px;
   color: var(--jd-text-soft);
-  font-size: 0.94rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .admin-layout__content {
   flex: 1;
   min-height: 0;
-  padding: 20px;
-  border-radius: 18px;
+  padding: 16px;
+  border-radius: var(--jd-radius-card);
   overflow-y: auto;
   border: 1px solid var(--jd-border);
-  background: var(--jd-surface);
-  box-shadow: 0 16px 48px rgba(23, 32, 42, 0.08);
-  backdrop-filter: blur(14px);
+  background: #eef2f5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
 }
 
 @media (max-width: 1100px) {
@@ -240,8 +262,8 @@ async function handleLogout() {
     max-width: 100%;
     min-width: 0;
     gap: 12px;
-    padding: 14px;
-    border-radius: 18px;
+    padding: 12px;
+    border-radius: var(--jd-radius-card);
     overflow-y: visible;
   }
 
@@ -250,9 +272,8 @@ async function handleLogout() {
   }
 
   .admin-layout__brand-mark {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
+    width: 40px;
+    height: 40px;
   }
 
   .admin-layout__brand-logo {
@@ -273,7 +294,7 @@ async function handleLogout() {
     min-height: 40px;
     margin: 0 4px;
     padding: 0 12px;
-    border-radius: 999px;
+    border-radius: var(--jd-radius-control);
   }
 
   .admin-layout__aside-footer {
@@ -288,8 +309,10 @@ async function handleLogout() {
   }
 
   .admin-layout__header {
-    padding: 16px;
-    border-radius: 16px;
+    align-items: flex-start;
+    flex-direction: column;
+    min-height: 0;
+    padding: 14px;
   }
 
   .admin-layout__header h2 {
@@ -297,8 +320,12 @@ async function handleLogout() {
   }
 
   .admin-layout__content {
-    padding: 12px;
-    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .admin-layout__header-meta {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

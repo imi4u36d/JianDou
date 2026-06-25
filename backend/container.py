@@ -263,16 +263,19 @@ class AppContainer:
     def image_model_providers(self) -> list:
         if "_image_model_providers" not in self.__dict__:
             from backend.services.model_invocation import (
-                AgnesImageModelProvider,
                 ImageProviderTransport,
-                SeedreamImageModelProvider,
+                OpenAiImageModelProvider,
             )
             transport = ImageProviderTransport()
             self.__dict__["_image_model_providers"] = [
-                SeedreamImageModelProvider(transport=transport),
-                AgnesImageModelProvider(transport=transport),
+                OpenAiImageModelProvider(transport=transport),
             ]
         return self.__dict__["_image_model_providers"]
+
+    @property
+    def image_model_provider(self):
+        providers = self.image_model_providers
+        return providers[0] if providers else None
 
     @property
     def video_model_provider(self):

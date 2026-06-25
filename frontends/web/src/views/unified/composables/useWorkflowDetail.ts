@@ -9,7 +9,6 @@ import {
   adjustStoryboard,
   deleteAllStageVersions,
   deleteStageVersion,
-  deleteWorkflow,
   fetchWorkflow,
   finalizeWorkflow,
   generateKeyframe,
@@ -26,14 +25,12 @@ import {
 } from "@/features/workflows";
 import {
   normalizeWorkflowCanvasStage,
-  normalizeWorkflowDetailStage,
   summaryFrameFailures,
   summaryNumberValue,
   summaryUrlValue,
   workflowCanvasStageFromCurrent as resolveWorkflowCanvasStageFromCurrent,
-  workflowStageLabel,
 } from "@/features/workflows/summary";
-import type { WorkflowCanvasStageKey, WorkflowDetailRouteStageKey } from "@/features/workflows/summary";
+import type { WorkflowCanvasStageKey } from "@/features/workflows/summary";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { messageApi } from "@/composables/useMessage";
 import { renderMarkdownToHtml } from "@/utils/markdown";
@@ -42,9 +39,7 @@ import type {
   UpdateWorkflowSettingsRequest,
   WorkflowCharacterSheet,
   WorkflowClipSlot,
-  WorkflowDeleteResult,
   WorkflowDetail,
-  WorkflowSummary,
 } from "@/types";
 import { useWorkflowOptions } from "@/composables/workflow/useWorkflowOptions";
 import { useImagePreview } from "@/composables/workflow/useImagePreview";
@@ -63,8 +58,6 @@ import {
 import type { AppSelectOption } from "@/components/common/app-select";
 
 type CanvasStageKey = WorkflowCanvasStageKey;
-type DetailRouteStageKey = WorkflowDetailRouteStageKey;
-
 interface PreviewFrame {
   role: string;
   label: string;
@@ -99,9 +92,9 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
   const {
-    loadingOptions, options, aspectRatioOptions, stylePresetOptions,
+    loadingOptions, aspectRatioOptions, stylePresetOptions,
     textModelOptions, imageModelOptions, videoModelOptions, catalogVideoSizeOptions,
-    filterVideoSizeOptions, syncVideoSizeSelection, valueOptionLabel, keyOptionLabel, loadOptions,
+    filterVideoSizeOptions, syncVideoSizeSelection, valueOptionLabel, loadOptions,
   } = workflowOptions;
 
   const {
@@ -413,7 +406,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     if (event.key === "ArrowLeft") { event.preventDefault(); switchImagePreviewFrame(-1); return; }
     if (event.key === "ArrowRight") { event.preventDefault(); switchImagePreviewFrame(1); }
   }
-  function selectedKeyframeVersion(slot: WorkflowClipSlot) { return slot.keyframeVersions.find((v) => v.selected) ?? null; }
   function positionVersionMenu(event: ToggleEvent) {
     if (event.newState !== "open") return;
     const popover = event.target as HTMLElement;

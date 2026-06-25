@@ -1,73 +1,31 @@
 model:
   models:
-    "agnes-2.0-flash":
-      provider: "agnes-text"
-      vendor: "agnes-ai"
+    "gpt-5.5":
+      provider: "openai"
+      vendor: "openai"
       kind: "text"
-      label: "Agnes 2.0 Flash"
-      provider_model: "agnes-2.0-flash"
-      max_tokens: 65536
-      family: "agnes"
-      capabilities:
-        - "text_analysis"
-        - "planner_fusion"
-        - "creative_prompt"
-        - "script_generation"
-      description: "Agnes AI 2.0 Flash 文本模型，256K 上下文，支持流式输出与 Function Calling。"
-    "deepseek-v4-flash":
-      provider: "deepseek"
-      vendor: "deepseek"
-      kind: "text"
-      label: "deepseek-v4-flash"
-      provider_model: "deepseek-v4-flash"
+      label: "GPT-5.5"
+      provider_model: "gpt-5.5"
       max_tokens: 8000
-      family: "deepseek"
+      family: "gpt"
       capabilities:
         - "text_analysis"
         - "planner_fusion"
         - "creative_prompt"
         - "script_generation"
-      description: "DeepSeek 快速文本模型 deepseek-v4-flash。"
-    "deepseek-v4-pro":
-      provider: "deepseek"
-      vendor: "deepseek"
-      kind: "text"
-      label: "deepseek-v4-pro"
-      provider_model: "deepseek-v4-pro"
-      max_tokens: 8000
-      family: "deepseek"
-      capabilities:
-        - "text_analysis"
-        - "planner_fusion"
-        - "creative_prompt"
-        - "script_generation"
-      description: "DeepSeek 专业文本模型 deepseek-v4-pro。"
-    "Agnes-Image-2.1-Flash":
-      provider: "agnes-image"
-      vendor: "agnes-ai"
+      description: "OpenAI 官方 GPT 文本模型，用于脚本、分镜和创意提示词生成。"
+    "gpt-image-2":
+      provider: "openai"
+      vendor: "openai"
       kind: "image"
-      label: "Agnes Image 2.1 Flash"
-      provider_model: "agnes-image-2.1-flash"
+      label: "GPT Image 2"
+      provider_model: "gpt-image-2"
       timeout_seconds: 120
-      family: "agnes-image"
-      supports_image_data_uri_references: true
+      family: "gpt-image"
       capabilities:
         - "image_generation"
-      description: "Agnes Image 2.1 Flash 文生图/图生图模型，支持 1K/2K/4K 分辨率，URL 输出模式，图生图参考图 URL 无效时自动降级为 Data URI 编码输入。"
-      supported_sizes: "1024x1024,2048x2048,2880x2880,1536x1024,2048x1360,1024x1536,1360x2048,1824x1024,2048x1152,1024x1824,1152x2048"
-    "Doubao-Seedream-5.0-Lite":
-      provider: "seedream"
-      vendor: "volcengine"
-      kind: "image"
-      label: "Doubao Seedream 5.0 Lite"
-      provider_model: "doubao-seedream-5-0-260128"
-      timeout_seconds: 300
-      family: "seedream"
-      supports_image_data_uri_references: true
-      capabilities:
-        - "image_generation"
-      description: "Seedream 5.0 Lite 文生图模型，支持 2K/3K 分辨率、联网搜索、PNG 透明背景。"
-      supported_sizes: "2048x2048,2304x1728,1728x2304,2560x1440,1440x2560,2496x1664,1664x2496,3024x1296"
+      description: "OpenAI 官方 GPT Image 模型，支持文生图和参考图编辑。"
+      supported_sizes: "1024x1024,1536x1024,1024x1536,1824x1024,1024x1824"
     "agnes-video-v2.0":
       provider: "agnes"
       vendor: "agnes-ai"

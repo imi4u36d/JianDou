@@ -9,8 +9,8 @@ pytestmark = pytest.mark.api
 def generation_task_payload(title: str) -> dict:
     return {
         "title": title,
-        "text_analysis_model": "deepseek-v4-flash",
-        "image_model": "Doubao-Seedream-5.0-Lite",
+        "text_analysis_model": "gpt-5.5",
+        "image_model": "gpt-image-2",
         "video_model": "seedance-1.5-pro",
         "aspect_ratio": "16:9",
         "image_size": "2560x1440",

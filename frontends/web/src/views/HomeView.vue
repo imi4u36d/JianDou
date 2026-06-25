@@ -1,29 +1,23 @@
 <template>
   <main class="home-page">
     <section class="home-hero">
-      <h1>
-        今天先做一个
-        <button type="button" class="hero-mode-button" @click="toggleMenu('mode')">
-          {{ selectedMode.label }}
-        </button>
-        项目
-      </h1>
+      <h1>用 OpenAI 生成图片</h1>
 
       <form class="home-composer liquid-glass" @submit.prevent="submitComposer">
         <button
           type="button"
           class="home-composer__upload"
           :class="{
-            'home-composer__upload-has-reference': selectedMode.kind === 'image' && referenceImages.length > 0,
-            'home-composer__upload-has-multiple': selectedMode.kind === 'image' && referenceImages.length > 1,
-            'home-composer__upload-expanded': selectedMode.kind === 'image' && referenceImages.length > 0 && referenceExpanded,
+            'home-composer__upload-has-reference': referenceImages.length > 0,
+            'home-composer__upload-has-multiple': referenceImages.length > 1,
+            'home-composer__upload-expanded': referenceImages.length > 0 && referenceExpanded,
           }"
           :disabled="uploadingReference"
           @pointerenter="handleReferenceUploadPointerEnter"
           @pointerleave="handleReferenceUploadPointerLeave"
           @click="handleReferenceEntryClick"
         >
-          <template v-if="selectedMode.kind === 'image' && referenceImages.length">
+          <template v-if="referenceImages.length">
             <span class="home-composer__upload-scene" :style="referenceUploadSceneStyle()" aria-hidden="true">
               <span class="home-composer__upload-preview">
                 <span
@@ -55,18 +49,18 @@
         <input
           ref="textFileInput"
           type="file"
-          :accept="selectedMode.kind === 'image' ? 'image/*' : '.txt,text/plain'"
+          accept="image/*"
           class="home-hidden-input"
-          :multiple="selectedMode.kind === 'image'"
+          multiple
           @change="handleReferenceFileChange"
         />
 
         <div class="home-composer__body">
           <label class="home-composer__prompt">
             <div v-if="showPromptPlaceholder" class="home-composer__placeholder" aria-hidden="true">
-              <span>输入想法、剧本或参考图，</span>
+              <span>描述你想生成的图片，</span>
               <span class="home-composer__placeholder-tag">@</span>
-              <span> 添加主体</span>
+              <span> 引用参考图</span>
             </div>
             <div
               ref="promptEditor"
@@ -91,149 +85,50 @@
         <div class="home-composer__footer">
           <div class="home-composer__toolbar">
             <div class="home-menu">
-              <button type="button" class="home-tool home-tool-accent" :class="{ 'home-tool-active': activeMenu === 'mode' }" @click="toggleMenu('mode')">
-                <span class="home-tool__icon"><IconVideo v-if="selectedMode.iconName === 'video'" /><IconImage v-else-if="selectedMode.iconName === 'image'" /><IconCharacter v-else /></span>
-                {{ selectedMode.label }}
-              </button>
-              <transition name="home-popover-float">
-                <div v-if="activeMenu === 'mode'" class="home-popover home-popover-mode">
-                  <p class="home-popover__label">创作类型</p>
-                  <button
-                    v-for="option in modeOptions"
-                    :key="option.value"
-                    type="button"
-                    class="home-popover__item"
-                    :class="{ 'home-popover__item-active': selectedModeValue === option.value }"
-                    @click="selectMode(option.value)"
-                  >
-                    <span class="home-popover__icon"><IconVideo v-if="option.iconName === 'video'" /><IconImage v-else-if="option.iconName === 'image'" /><IconCharacter v-else /></span>
-                    <span>
-                      <strong>{{ option.label }}</strong>
-                    </span>
-                    <span v-if="selectedModeValue === option.value" class="home-popover__check" aria-hidden="true">
-                      <IconCheck size="sm" />
-                    </span>
-                  </button>
-                </div>
-              </transition>
-            </div>
-
-            <div class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'model' }" @click="toggleMenu('model')">
                 <span class="home-tool__icon"><IconModel /></span>
                 {{ selectedPrimaryModelLabel }}
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'model'" class="home-popover home-popover-model">
-                  <template v-if="selectedMode.kind === 'video'">
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">文本模型</p>
-                      <button
-                        v-for="model in textModelOptions"
-                        :key="model.value"
-                        type="button"
-                        class="home-popover__item"
-                        :class="{ 'home-popover__item-active': form.textAnalysisModel === model.value }"
-                        @click="form.textAnalysisModel = model.value"
-                      >
-                        <span class="home-popover__icon"><IconText size="sm" /></span>
-                        <span>
-                          <strong>{{ model.label }}</strong>
-                        </span>
-                        <span v-if="form.textAnalysisModel === model.value" class="home-popover__check" aria-hidden="true">
-                          <svg viewBox="0 0 20 20" fill="none">
-                            <path d="M4.5 10.5 8.2 14.2 15.5 5.8" />
-                          </svg>
-                        </span>
-                      </button>
-                    </section>
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">关键帧模型</p>
-                      <button
-                        v-for="model in imageModelOptions"
-                        :key="model.value"
-                        type="button"
-                        class="home-popover__item"
-                        :class="{ 'home-popover__item-active': form.imageModel === model.value }"
-                        @click="form.imageModel = model.value"
-                      >
-                        <span class="home-popover__icon"><IconFrame size="sm" /></span>
-                        <span>
-                          <strong>{{ model.label }}</strong>
-                        </span>
-                        <span v-if="form.imageModel === model.value" class="home-popover__check" aria-hidden="true">
-                          <svg viewBox="0 0 20 20" fill="none">
-                            <path d="M4.5 10.5 8.2 14.2 15.5 5.8" />
-                          </svg>
-                        </span>
-                      </button>
-                    </section>
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">视频模型</p>
-                      <button
-                        v-for="model in videoModelOptions"
-                        :key="model.value"
-                        type="button"
-                        class="home-popover__item"
-                        :class="{ 'home-popover__item-active': form.videoModel === model.value }"
-                        @click="form.videoModel = model.value"
-                      >
-                        <span class="home-popover__icon"><IconVideo size="sm" /></span>
-                        <span>
-                          <strong>{{ model.label }}</strong>
-                        </span>
-                        <span v-if="form.videoModel === model.value" class="home-popover__check" aria-hidden="true">
-                          <svg viewBox="0 0 20 20" fill="none">
-                            <path d="M4.5 10.5 8.2 14.2 15.5 5.8" />
-                          </svg>
-                        </span>
-                      </button>
-                    </section>
-                  </template>
-                  <template v-else>
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">文本模型</p>
-                      <button
-                        v-for="model in textModelOptions"
-                        :key="model.value"
-                        type="button"
-                        class="home-popover__item"
-                        :class="{ 'home-popover__item-active': form.textAnalysisModel === model.value }"
-                        @click="form.textAnalysisModel = model.value"
-                      >
-                        <span class="home-popover__icon"><IconText size="sm" /></span>
-                        <span>
-                          <strong>{{ model.label }}</strong>
-                        </span>
-                        <span v-if="form.textAnalysisModel === model.value" class="home-popover__check" aria-hidden="true">
-                          <svg viewBox="0 0 20 20" fill="none">
-                            <path d="M4.5 10.5 8.2 14.2 15.5 5.8" />
-                          </svg>
-                        </span>
-                      </button>
-                    </section>
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">图片模型</p>
-                      <button
-                        v-for="model in imageModelOptions"
-                        :key="model.value"
-                        type="button"
-                        class="home-popover__item"
-                        :class="{ 'home-popover__item-active': form.imageModel === model.value }"
-                        @click="form.imageModel = model.value"
-                      >
-                        <span class="home-popover__icon"><IconImage size="sm" /></span>
-                        <span>
-                          <strong>{{ model.label }}</strong>
-                        </span>
-                        <span v-if="form.imageModel === model.value" class="home-popover__check" aria-hidden="true">
-                          <svg viewBox="0 0 20 20" fill="none">
-                            <path d="M4.5 10.5 8.2 14.2 15.5 5.8" />
-                          </svg>
-                        </span>
-                      </button>
-                    </section>
-                  </template>
+                  <section class="home-popover-section">
+                    <p class="home-popover__label">文本模型</p>
+                    <button
+                      v-for="model in textModelOptions"
+                      :key="model.value"
+                      type="button"
+                      class="home-popover__item"
+                      :class="{ 'home-popover__item-active': form.textAnalysisModel === model.value }"
+                      @click="form.textAnalysisModel = model.value"
+                    >
+                      <span class="home-popover__icon"><IconText size="sm" /></span>
+                      <span>
+                        <strong>{{ model.label }}</strong>
+                      </span>
+                      <span v-if="form.textAnalysisModel === model.value" class="home-popover__check" aria-hidden="true">
+                        <IconCheck size="sm" />
+                      </span>
+                    </button>
+                  </section>
+                  <section class="home-popover-section">
+                    <p class="home-popover__label">图片模型</p>
+                    <button
+                      v-for="model in imageModelOptions"
+                      :key="model.value"
+                      type="button"
+                      class="home-popover__item"
+                      :class="{ 'home-popover__item-active': form.imageModel === model.value }"
+                      @click="form.imageModel = model.value"
+                    >
+                      <span class="home-popover__icon"><IconImage size="sm" /></span>
+                      <span>
+                        <strong>{{ model.label }}</strong>
+                      </span>
+                      <span v-if="form.imageModel === model.value" class="home-popover__check" aria-hidden="true">
+                        <IconCheck size="sm" />
+                      </span>
+                    </button>
+                  </section>
                 </div>
               </transition>
             </div>
@@ -260,116 +155,51 @@
                       </button>
                     </div>
                   </section>
-                  <template v-if="selectedMode.kind === 'image'">
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">分辨率</p>
-                      <div class="home-resolution-list">
-                        <button
-                          v-for="size in imageSizeOptions"
-                          :key="size.value"
-                          type="button"
-                          :class="{ 'home-resolution-active': form.imageSize === size.value }"
-                          @click="form.imageSize = size.value"
-                        >
-                          {{ formatImageSizeOptionLabel(size) }}
-                        </button>
-                      </div>
-                    </section>
-                    <section v-if="selectedImageSizeDimensions" class="home-popover-section">
-                      <p class="home-popover__label">尺寸</p>
-                      <div class="home-dimension-row">
-                        <strong data-label="W">{{ selectedImageSizeDimensions.width }}</strong>
-                        <span class="home-dimension-link">⌁</span>
-                        <strong data-label="H">{{ selectedImageSizeDimensions.height }}</strong>
-                        <span>PX</span>
-                      </div>
-                    </section>
-                  </template>
-                  <template v-else>
-                    <section class="home-popover-section">
-                      <p class="home-popover__label">视频尺寸</p>
-                      <div class="home-resolution-list">
-                        <button
-                          v-for="size in videoSizeOptions"
-                          :key="size.value"
-                          type="button"
-                          :class="{ 'home-resolution-active': form.videoSize === size.value }"
-                          @click="form.videoSize = size.value"
-                        >
-                          {{ formatVideoSizeLabel(size.label || size.value) }}
-                        </button>
-                      </div>
-                    </section>
-                    <section v-if="selectedVideoSizeDimensions" class="home-popover-section">
-                      <p class="home-popover__label">尺寸</p>
-                      <div class="home-dimension-row">
-                        <strong data-label="W">{{ selectedVideoSizeDimensions.width }}</strong>
-                        <span class="home-dimension-link">⌁</span>
-                        <strong data-label="H">{{ selectedVideoSizeDimensions.height }}</strong>
-                        <span>PX</span>
-                      </div>
-                    </section>
-                  </template>
+                  <section class="home-popover-section">
+                    <p class="home-popover__label">分辨率</p>
+                    <div class="home-resolution-list">
+                      <button
+                        v-for="size in imageSizeOptions"
+                        :key="size.value"
+                        type="button"
+                        :class="{ 'home-resolution-active': form.imageSize === size.value }"
+                        @click="form.imageSize = size.value"
+                      >
+                        {{ formatImageSizeOptionLabel(size) }}
+                      </button>
+                    </div>
+                  </section>
+                  <section v-if="selectedImageSizeDimensions" class="home-popover-section">
+                    <p class="home-popover__label">尺寸</p>
+                    <div class="home-dimension-row">
+                      <strong data-label="W">{{ selectedImageSizeDimensions.width }}</strong>
+                      <span class="home-dimension-link">⌁</span>
+                      <strong data-label="H">{{ selectedImageSizeDimensions.height }}</strong>
+                      <span>PX</span>
+                    </div>
+                  </section>
                 </div>
               </transition>
             </div>
 
-            <div v-if="selectedMode.kind === 'video'" class="home-menu">
-              <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'duration' }" @click="toggleMenu('duration')">
-                <span class="home-tool__icon"><IconDuration /></span>
-                {{ durationLabel }}
-              </button>
-              <transition name="home-popover-float">
-                <div v-if="activeMenu === 'duration'" class="home-popover home-popover-compact">
-                  <p class="home-popover__label">时长</p>
-                  <div class="home-segment-grid">
-                    <button type="button" :class="{ 'home-segment-active': durationMode === 'auto' }" @click="durationMode = 'auto'">自动</button>
-                    <button
-                      v-for="duration in durationOptions"
-                      :key="duration.value"
-                      type="button"
-                      :class="{ 'home-segment-active': durationMode === 'manual' && selectedDurationSeconds === duration.value }"
-                      @click="selectDuration(duration.value)"
-                    >
-                      {{ duration.value }}s
-                    </button>
-                  </div>
-                </div>
-              </transition>
-            </div>
-
-            <div v-if="selectedModeValue !== 'character_sheet'" class="home-menu">
+            <div class="home-menu">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'count' }" @click="toggleMenu('count')">
                 <span class="home-tool__icon"><IconFrame /></span>
-                {{ selectedMode.kind === "image" ? `${imageOutputCount} / 张` : outputCountLabel }}
+                {{ `${imageOutputCount} / 张` }}
               </button>
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'count'" class="home-popover home-popover-compact">
-                  <p class="home-popover__label">{{ selectedMode.kind === "image" ? "张数" : "分镜" }}</p>
+                  <p class="home-popover__label">张数</p>
                   <div class="home-segment-grid">
-                    <template v-if="selectedMode.kind === 'image'">
-                      <button
-                        v-for="count in imageOutputCountOptions"
-                        :key="count"
-                        type="button"
-                        :class="{ 'home-segment-active': imageOutputCount === count }"
-                        @click="imageOutputCount = count"
-                      >
-                        {{ count }} 张
-                      </button>
-                    </template>
-                    <template v-else>
-                      <button type="button" :class="{ 'home-segment-active': form.outputCount === 'auto' }" @click="form.outputCount = 'auto'">自动</button>
-                      <button
-                        v-for="count in videoOutputCountOptions"
-                        :key="count"
-                        type="button"
-                        :class="{ 'home-segment-active': form.outputCount === count }"
-                        @click="form.outputCount = count"
-                      >
-                        {{ count }}
-                      </button>
-                    </template>
+                    <button
+                      v-for="count in imageOutputCountOptions"
+                      :key="count"
+                      type="button"
+                      :class="{ 'home-segment-active': imageOutputCount === count }"
+                      @click="imageOutputCount = count"
+                    >
+                      {{ count }} 张
+                    </button>
                   </div>
                 </div>
               </transition>
@@ -389,22 +219,20 @@
                       <strong>创建主体</strong>
                     </span>
                   </button>
-                  <template v-if="selectedMode.kind === 'image'">
-                    <button
-                      v-for="item in referenceImages"
-                      :key="item.id"
-                      type="button"
-                      class="home-popover__item"
-                      @click="insertMention(item.label)"
-                    >
-                      <span class="home-popover__image">
-                        <img :src="item.fileUrl" :alt="item.label" />
-                      </span>
-                      <span>
-                        <strong>{{ item.label }}</strong>
-                      </span>
-                    </button>
-                  </template>
+                  <button
+                    v-for="item in referenceImages"
+                    :key="item.id"
+                    type="button"
+                    class="home-popover__item"
+                    @click="insertMention(item.label)"
+                  >
+                    <span class="home-popover__image">
+                      <img :src="item.fileUrl" :alt="item.label" />
+                    </span>
+                    <span>
+                      <strong>{{ item.label }}</strong>
+                    </span>
+                  </button>
                 </div>
               </transition>
             </div>
@@ -491,23 +319,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComputedRef } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { useAuthSessionState } from "@/auth/session";
 import { createGenerationTask } from "@/features/home";
 import { formatApiErrorMessage } from "@/utils/api-error";
-import { formatVideoSizeLabel } from "@/utils/presentation";
 import { formatTaskStatus } from "@/utils/task";
-import { shouldStopBeforeVideoGeneration } from "@/workbench/developer-settings";
-import type { CreateGenerationTaskRequest } from "@/types";
 
 import { usePromptEditor } from "@/composables/home/usePromptEditor";
 import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
-import { useGenerationForm, type ModeValue, type RatioOptionValue } from "@/composables/home/useGenerationForm";
+import { useGenerationForm, type ModeOption, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
-import { IconCheck, IconClose, IconVideo, IconImage, IconCharacter, IconModel, IconDuration, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
+import { IconCheck, IconClose, IconImage, IconModel, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
 
-type MenuKey = "" | "mode" | "model" | "ratio" | "duration" | "count" | "mention" | "seed";
+type MenuKey = "" | "model" | "ratio" | "count" | "mention" | "seed";
 
 // ---------------------------------------------------------------------------
 // Local state (not extracted to composables)
@@ -551,52 +376,33 @@ const {
 
 const {
   form,
-  selectedModeValue,
   selectedMode,
   seedMode,
   seedInput,
   autoSeed,
-  durationMode,
-  selectedDurationSeconds,
   imageOutputCount,
-  options,
   loadingOptions,
   credits,
   promptLabel,
   textModelOptions,
   imageModelOptions,
-  videoModelOptions,
   selectedImageModelOption,
-  selectedVideoModelOption,
   selectedPrimaryModelLabel,
   creditLabel,
   ratioOptions,
-  availableImageRatios,
   imageSizeOptions,
-  videoSizeOptions,
-  durationOptions,
-  durationLabel,
-  outputCountLabel,
-  selectedImageSizeOption,
   selectedImageSizeDimensions,
-  selectedVideoSizeOption,
-  selectedVideoSizeDimensions,
   selectedMaterialAssetType,
   ratioToolLabel,
   parsedManualSeed,
   seedCapabilityHint,
-  isSeedReady,
   isFormReady,
-  modeOptions,
-  videoOutputCountOptions,
   imageOutputCountOptions,
-  modelOptionDescription,
   refreshAutoSeed,
   formatImageSizeOptionLabel,
   resolvedImageAspectRatioForSubmit,
   loadOptions,
   loadCredits,
-  videoAspectRatio,
 } = useGenerationForm({ promptText });
 
 const {
@@ -614,7 +420,7 @@ const {
   removeReferenceImage,
   insertMention,
 } = useReferenceImages({
-  selectedMode: selectedMode as any,
+  selectedMode: selectedMode as ComputedRef<ModeOption>,
   statusText,
   promptText,
   form,
@@ -644,7 +450,7 @@ const submitLabel = computed(() => {
   if (submitting.value) {
     return "创建中";
   }
-  return selectedMode.value.kind === "video" ? "生成视频" : selectedMode.value.value === "character_sheet" ? "生成三视图" : "生成图片";
+  return "生成图片";
 });
 
 // ---------------------------------------------------------------------------
@@ -660,7 +466,7 @@ function handleDocumentPointerDown(event: PointerEvent) {
     return;
   }
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.closest(".home-menu, .hero-mode-button")) {
+  if (target?.closest(".home-menu")) {
     return;
   }
   activeMenu.value = "";
@@ -672,28 +478,8 @@ function handleDocumentKeydown(event: KeyboardEvent) {
   }
 }
 
-function selectMode(value: ModeValue) {
-  selectedModeValue.value = value;
-  activeMenu.value = "";
-  if (value === "character_sheet" && availableImageRatios.value.includes("1:1")) {
-    form.value.aspectRatio = "1:1";
-  } else if (value === "video" && form.value.aspectRatio !== "16:9" && form.value.aspectRatio !== "9:16") {
-    form.value.aspectRatio = "16:9";
-  }
-  statusText.value = value === "video"
-    ? "视频生成会创建工作台视频任务。"
-    : value === "character_sheet"
-      ? "角色三视图会生成到素材库，可在阶段工作流中选择。"
-      : "图片生成会使用素材中心自由模式。";
-}
-
 function selectRatio(value: RatioOptionValue) {
   form.value.aspectRatio = value;
-}
-
-function selectDuration(value: number) {
-  durationMode.value = "manual";
-  selectedDurationSeconds.value = value;
 }
 
 // ---------------------------------------------------------------------------
@@ -716,11 +502,7 @@ async function submitComposer() {
   submitting.value = true;
   createdTaskId.value = "";
   try {
-    if (selectedMode.value.kind === "image") {
-      await submitImageGeneration();
-    } else {
-      await submitVideoGeneration();
-    }
+    await submitImageGeneration();
   } catch (error) {
     statusText.value = formatApiErrorMessage(error, "创建失败");
   } finally {
@@ -729,14 +511,9 @@ async function submitComposer() {
 }
 
 async function submitImageGeneration() {
-  const isCharacterSheet = selectedMaterialAssetType.value === "character_sheet";
-  const taskType = isCharacterSheet
-    ? "character_sheet"
-    : referenceImages.value.length
-      ? "image_to_image"
-      : "image_generation";
+  const taskType = referenceImages.value.length ? "image_to_image" : "image_generation";
   const task = await createGenerationTask({
-    title: promptText.value.trim().slice(0, 32) || (isCharacterSheet ? "角色三视图" : "图片生成"),
+    title: promptText.value.trim().slice(0, 32) || "OpenAI 图片生成",
     taskType,
     assetType: selectedMaterialAssetType.value,
     creativePrompt: promptText.value.trim(),
@@ -746,7 +523,7 @@ async function submitImageGeneration() {
     imageModel: form.value.imageModel || null,
     videoModel: null,
     videoSize: null,
-    outputCount: 1,
+    outputCount: imageOutputCount.value,
     seed: selectedImageModelOption.value?.supportsSeed
       ? (seedMode.value === "manual" ? parsedManualSeed.value : autoSeed.value)
       : null,
@@ -755,31 +532,6 @@ async function submitImageGeneration() {
     transcriptText: "",
     stopBeforeVideoGeneration: false,
   });
-  createdTaskId.value = task.id;
-  showTaskToast(task.id);
-  statusText.value = "已提交";
-  void loadActiveTasks();
-}
-
-async function submitVideoGeneration() {
-  const duration = durationMode.value === "manual" && selectedDurationSeconds.value ? selectedDurationSeconds.value : null;
-  const payload: CreateGenerationTaskRequest = {
-    title: promptText.value.trim().slice(0, 32) || "工作台视频生成",
-    creativePrompt: "",
-    aspectRatio: videoAspectRatio(form.value.aspectRatio),
-    textAnalysisModel: form.value.textAnalysisModel || null,
-    imageModel: form.value.imageModel || null,
-    videoModel: form.value.videoModel || null,
-    videoSize: form.value.videoSize || null,
-    outputCount: form.value.outputCount ?? "auto",
-    seed: seedMode.value === "manual" ? parsedManualSeed.value : autoSeed.value,
-    videoDurationSeconds: "auto",
-    minDurationSeconds: duration,
-    maxDurationSeconds: duration,
-    transcriptText: promptText.value.trim(),
-    stopBeforeVideoGeneration: shouldStopBeforeVideoGeneration(),
-  };
-  const task = await createGenerationTask(payload);
   createdTaskId.value = task.id;
   showTaskToast(task.id);
   statusText.value = "已提交";

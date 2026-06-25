@@ -36,6 +36,7 @@ const props = withDefaults(
     size: "md",
     disabled: false,
     loading: false,
+    ariaLabel: "",
   },
 );
 

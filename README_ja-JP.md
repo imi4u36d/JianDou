@@ -32,7 +32,7 @@
 
 **マルチモデルパイプライン**
 - 4つの独立して設定可能なステージ：テキストモデル（スクリプト/絵コンテ）→ ビジュアルモデル（参照画像理解）→ キーフレームモデル（最初/最後のフレーム生成）→ ビデオモデル（ビデオ合成）。
-- プロバイダーの自由な組み合わせ：Alibaba Cloud（Qwen/Wanxiang）、Volcengine（Doubao/Seedream/Seedance）、および OpenAI 互換エンドポイント。
+- テキストと画像生成は OpenAI 公式 GPT モデルに統一し、ビデオ生成は既存のビデオプロバイダーを維持します。
 - 出力パラメータ（アスペクト比、解像度、尺、生成数、Seed）は選択したモデルの機能に基づいて自動フィルタリングされ、無効な設定を防止します。
 
 **タスク管理**
@@ -128,16 +128,15 @@ config/model/
 ├── models.yml                    # 利用可能なモデル定義
 ├── providers/                    # プロバイダー基本設定（base_url など）
 │   ├── volcengine.yml
-│   ├── deepseek.yml
+│   ├── agnes.yml
 │   └── openai.yml
 ├── providers.secrets.example.yml # API キーテンプレート（コミット済み）
 └── providers.secrets.yml         # あなたの API キー（ローカル、コミットしない）
 ```
 
-対応プロバイダー：
-- **Alibaba Cloud** — Qwen（通義千問）、Wanxiang（万相）
-- **Volcengine** — Doubao（豆包）、Seedream、Seedance
-- **OpenAI 互換** — OpenAI 互換の任意の API エンドポイント
+対応モデルプロバイダー：
+- **OpenAI** — スクリプト/絵コンテとキーフレーム生成用の GPT テキストモデルと GPT Image
+- **既存ビデオプロバイダー** — Seedance/Agnes のビデオ生成は引き続き利用可能
 
 ## 設定
 

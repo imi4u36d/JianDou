@@ -503,8 +503,8 @@ onMounted(() => {
 .task-page__summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .task-page > *,
@@ -516,13 +516,13 @@ onMounted(() => {
 }
 
 .task-page__summary-card {
-  border-radius: 24px;
+  border-radius: var(--jd-radius-card);
 }
 
 .task-page__summary-card :deep(.el-card__body) {
   display: grid;
   gap: 8px;
-  padding: 22px;
+  padding: 16px;
 }
 
 .task-page__summary-card p {
@@ -533,7 +533,8 @@ onMounted(() => {
 
 .task-page__summary-card strong {
   font-family: inherit;
-  font-size: 1.9rem;
+  font-size: 1.8rem;
+  line-height: 1.05;
 }
 
 .task-page__summary-card span {
@@ -562,10 +563,13 @@ onMounted(() => {
 .task-page__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(23, 32, 42, 0.06);
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .task-page__filters-action {
@@ -630,7 +634,7 @@ onMounted(() => {
   justify-content: flex-end;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(23, 32, 42, 0.06);
+  border-top: 1px solid var(--jd-border);
 }
 
 @media (max-width: 1200px) {

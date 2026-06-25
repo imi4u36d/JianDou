@@ -20,7 +20,7 @@ import { iconSizeMap, type IconSize } from "./types";
 
 const props = withDefaults(
   defineProps<{ size?: IconSize; color?: string }>(),
-  { size: "lg" },
+  { size: "lg", color: "currentColor" },
 );
 
 const sizeNum = computed(() => iconSizeMap[props.size]);

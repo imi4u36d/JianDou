@@ -2,7 +2,7 @@
  * 任务详情组合式逻辑。
  * 从 TasksView 中提取，管理任务详情的加载、展示和操作。
  */
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { usePolling } from "@/composables/usePolling";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";

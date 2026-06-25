@@ -60,8 +60,8 @@ export function usePromptEditor(referenceImages: Ref<ReferenceImageItem[]>) {
       return promptText.value;
     }
     return serializePromptEditorNode(editor)
-      .replace(/ /g, " ")
-      .replace(/​/g, "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\u200b/g, "")
       .replace(/\n$/, "");
   }
 
@@ -174,7 +174,7 @@ export function usePromptEditor(referenceImages: Ref<ReferenceImageItem[]>) {
     probe.setEnd(range.startContainer, range.startOffset);
     const container = document.createElement("div");
     container.appendChild(probe.cloneContents());
-    return serializePromptEditorNode(container).replace(/ /g, " ").replace(/​/g, "").length;
+    return serializePromptEditorNode(container).replace(/\u00a0/g, " ").replace(/\u200b/g, "").length;
   }
 
   function restorePromptSelection(editor: HTMLDivElement, targetOffset: number) {

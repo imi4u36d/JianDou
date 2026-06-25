@@ -22,7 +22,7 @@
     <label class="field">
       <span class="field-label">输入</span>
       <textarea
-        v-model="props.form.prompt"
+        v-model="promptModel"
         rows="7"
         class="field-textarea"
         placeholder="例如：雨夜街头，人物回头，镜头缓慢推进，霓虹反射，电影感。"
@@ -32,7 +32,7 @@
     <div class="field-grid">
       <label class="field">
         <span class="field-label">文本分析模型</span>
-        <AppSelect v-model="props.form.textAnalysisModel" :options="textAnalysisModelOptions" />
+        <AppSelect v-model="textAnalysisModel" :options="textAnalysisModelOptions" />
         <TextModelProbeInline
           ref="textModelProbeRef"
           :model-value="props.form.textAnalysisModel"
@@ -41,14 +41,14 @@
       </label>
       <label class="field">
         <span class="field-label">视频模型</span>
-        <AppSelect v-model="props.form.providerModel" :options="videoModelOptions" />
+        <AppSelect v-model="providerModel" :options="videoModelOptions" />
       </label>
     </div>
 
     <div class="field-grid">
       <label class="field">
         <span class="field-label">清晰度 / 画幅</span>
-        <AppSelect v-model="props.form.videoSize" :options="videoSizeOptions" />
+        <AppSelect v-model="videoSizeModel" :options="videoSizeOptions" />
       </label>
     </div>
 
@@ -56,7 +56,7 @@
       <label class="field">
         <span class="field-label">最小时长</span>
         <input
-          v-model="props.form.minDurationSeconds"
+          v-model="minDurationSeconds"
           class="field-input"
           type="number"
           min="1"
@@ -68,7 +68,7 @@
       <label class="field">
         <span class="field-label">最大时长</span>
         <input
-          v-model="props.form.maxDurationSeconds"
+          v-model="maxDurationSeconds"
           class="field-input"
           type="number"
           min="1"
@@ -108,7 +108,7 @@ import { IconInfo, IconLoading, IconVideo } from "@/components/icons";
 import type { AppSelectOption } from "@/components/common/app-select";
 import TextModelProbeInline from "@/components/TextModelProbeInline.vue";
 import { formatVideoSizeLabel } from "@/utils/presentation";
-import type { GenerateFormCardProps } from "./types";
+import type { GenerateFormCardProps, GenerateFormModel } from "./types";
 
 const props = defineProps<GenerateFormCardProps>();
 const textModelProbeRef = ref<{ ensureReady: (force?: boolean) => Promise<boolean> } | null>(null);
@@ -136,10 +136,29 @@ const durationHint = computed(() => {
   return values.length ? `${values.join(" / ")} 秒` : "默认时长";
 });
 
-defineEmits<{
+const emit = defineEmits<{
   submit: [];
   "open-usage": [];
+  "update:form": [form: GenerateFormModel];
 }>();
+
+function updateForm(patch: Partial<GenerateFormModel>) {
+  emit("update:form", { ...props.form, ...patch });
+}
+
+function createFormFieldModel<K extends keyof GenerateFormModel>(key: K) {
+  return computed({
+    get: () => props.form[key],
+    set: (value) => updateForm({ [key]: value } as Pick<GenerateFormModel, K>),
+  });
+}
+
+const promptModel = createFormFieldModel("prompt");
+const textAnalysisModel = createFormFieldModel("textAnalysisModel");
+const providerModel = createFormFieldModel("providerModel");
+const videoSizeModel = createFormFieldModel("videoSize");
+const minDurationSeconds = createFormFieldModel("minDurationSeconds");
+const maxDurationSeconds = createFormFieldModel("maxDurationSeconds");
 
 defineExpose({
   async ensureTextModelReady() {

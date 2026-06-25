@@ -25,12 +25,13 @@ async function goLogin() {
   min-height: 100vh;
   place-items: center;
   padding: 20px;
+  background: var(--jd-bg);
 }
 
 .forbidden-view__card {
   width: min(430px, 100%);
   padding: 28px;
-  border-radius: 20px;
+  border-radius: var(--jd-radius-card);
   text-align: center;
 }
 

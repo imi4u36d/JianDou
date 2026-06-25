@@ -1215,22 +1215,19 @@ class ImageProviderTransport:
 
 
 # =============================================================================
-# SeedreamImageModelProvider
+# OpenAiImageModelProvider
 # =============================================================================
 
 
-class SeedreamImageModelProvider:
-    """Seedream image generation provider.
-
-    Mirrors Java SeedreamImageModelProvider.
-    """
+class OpenAiImageModelProvider:
+    """OpenAI GPT Image API provider."""
 
     def __init__(self, transport: ImageProviderTransport | None = None):
         self._transport = transport or ImageProviderTransport()
 
     def supports(self, profile: MediaProviderProfile) -> bool:
         provider = profile.config.provider if profile else ""
-        return "seedream" in provider.lower()
+        return provider.strip().lower() == "openai" and getattr(profile.config, "kind", "") == "image"
 
     async def generate(
         self,
@@ -1239,178 +1236,12 @@ class SeedreamImageModelProvider:
     ) -> RemoteImageGenerationResult:
         if not profile.ready:
             raise GenerationConfigurationException("image provider config missing api key or base url")
-        provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
-        size = self._seedream_size(provider_model, request.width, request.height)
         reference_image_urls = self._normalize_reference_image_urls(
             request.reference_image_urls, request.reference_image_url
         )
-        request_body = self._build_seedream_image_request_body(
-            provider_model, request.prompt, size, reference_image_urls, request.seed
-        )
-        response = await self._transport.send_json(
-            profile.base_url,
-            profile.api_key,
-            request_body,
-            profile.config.timeout_seconds,
-            {"X-Api-Key": profile.api_key},
-        )
-        payload = self._transport.decode(response.text)
-        provider_request: dict[str, Any] = {
-            "method": "POST",
-            "endpoint": profile.base_url,
-            "body": request_body,
-        }
-        source_url = self._transport.extract_first_string(
-            payload, "url", "image_url", "imageUrl", "file_url", "fileUrl"
-        )
-        data: bytes
-        mime_type = "image/png"
-        if source_url:
-            binary = await self._transport.download_binary(source_url, profile.config.timeout_seconds)
-            data = binary.data
-            mime_type = binary.mime_type if binary.mime_type else mime_type
-        else:
-            b64 = self._transport.extract_first_string(
-                payload, "b64_json", "base64_data", "base64", "imageBase64"
-            )
-            if not b64:
-                raise GenerationProviderException(
-                    "seedream response did not include usable image data",
-                    provider_request=provider_request,
-                    provider_response=payload,
-                    http_status=response.status_code,
-                )
-            try:
-                data = base64.b64decode(b64)
-            except (ValueError, base64.binascii.Error) as ex:
-                raise GenerationProviderException(
-                    "seedream response returned invalid base64 image data",
-                    provider_request=provider_request,
-                    provider_response=payload,
-                    http_status=response.status_code,
-                )
-        return RemoteImageGenerationResult(
-            data=data,
-            mime_type=mime_type,
-            remote_source_url=source_url,
-            provider=profile.config.provider,
-            provider_model=provider_model,
-            endpoint_host=profile.endpoint_host,
-            width=request.width,
-            height=request.height,
-            requested_size=size,
-            provider_request=provider_request,
-            provider_response=payload,
-            http_status=response.status_code,
-        )
-
-    def _build_seedream_image_request_body(
-        self,
-        provider_model: str,
-        prompt: str,
-        size: str,
-        reference_image_urls: list[str],
-        seed: int | None,
-    ) -> dict[str, Any]:
-        body: dict[str, Any] = {
-            "model": provider_model,
-            "prompt": prompt,
-            "sequential_image_generation": "disabled" if not reference_image_urls else "auto",
-            "response_format": "url",
-            "size": size,
-            "stream": False,
-            "watermark": False,
-        }
-        # Seedream 5.0 Lite supports output_format (png/jpeg) with PNG transparent background
-        if provider_model.strip().lower() == "doubao-seedream-5-0-260128":
-            body["output_format"] = "png"
         if reference_image_urls:
-            body["image"] = reference_image_urls[0] if len(reference_image_urls) == 1 else reference_image_urls
-        if seed is not None:
-            body["seed"] = seed
-        return body
-
-    @staticmethod
-    def _seedream_size(model_name: str, width: int, height: int) -> str:
-        """Compute the size string for Seedream API.
-
-        For Seedream 5.0 Lite, when width and height are both > 0 and the total
-        pixel count meets the minimum (3,686,400), use the exact "WxH" format so
-        the model generates at the precise target resolution. Otherwise fall back
-        to the "2K" preset.
-        """
-        normalized = (model_name or "").strip().lower()
-        if normalized == "doubao-seedream-4-5-251128":
-            return "2K"
-        if normalized == "doubao-seedream-5-0-260128":
-            if width > 0 and height > 0 and (width * height) >= 3_686_400:
-                return f"{width}x{height}"
-            return "2K"
-        return "1K"
-
-    @staticmethod
-    def _blank_to(primary: str, fallback: str) -> str:
-        return fallback if not primary else primary
-
-    @staticmethod
-    def _normalize_reference_image_urls(
-        reference_image_urls: list[str],
-        reference_image_url: str,
-    ) -> list[str]:
-        normalized: list[str] = []
-        if reference_image_urls:
-            for value in reference_image_urls:
-                if value and value.strip():
-                    normalized.append(value.strip())
-        if not normalized and reference_image_url and reference_image_url.strip():
-            normalized.append(reference_image_url.strip())
-        return normalized
-
-
-# =============================================================================
-# AgnesImageModelProvider
-# =============================================================================
-
-
-class AgnesImageModelProvider:
-    """Agnes Image generation provider.
-
-    Supports:
-    - Text-to-image: agnes-image-2.1-flash (OpenAI-compatible images/generations)
-    - Image-to-image: agnes-image-2.1-flash with reference images and data-URI fallback
-
-    Text-to-image uses URL output mode; image-to-image also uses URL output mode
-    for reference images. If the URL-based reference image request fails, it
-    falls back to downloading the images and sending them as data URIs.
-    """
-
-    TEXT_TO_IMAGE_MODEL = "agnes-image-2.1-flash"
-    IMAGE_TO_IMAGE_MODEL = "agnes-image-2.1-flash"
-
-    def __init__(self, transport: ImageProviderTransport | None = None):
-        self._transport = transport or ImageProviderTransport()
-
-    def supports(self, profile: MediaProviderProfile) -> bool:
-        provider = profile.config.provider if profile else ""
-        return "agnes" in provider.lower() and getattr(profile.config, "kind", "") == "image"
-
-    async def generate(
-        self,
-        profile: MediaProviderProfile,
-        request: ImageGenerationRequest,
-    ) -> RemoteImageGenerationResult:
-        if not profile.ready:
-            raise GenerationConfigurationException("image provider config missing api key or base url")
-
-        reference_image_urls = self._normalize_reference_image_urls(
-            request.reference_image_urls, request.reference_image_url
-        )
-        has_references = bool(reference_image_urls)
-
-        if has_references:
             return await self._generate_image_to_image(profile, request, reference_image_urls)
-        else:
-            return await self._generate_text_to_image(profile, request)
+        return await self._generate_text_to_image(profile, request)
 
     # ------------------------------------------------------------------
     # Text-to-image
@@ -1421,18 +1252,17 @@ class AgnesImageModelProvider:
         profile: MediaProviderProfile,
         request: ImageGenerationRequest,
     ) -> RemoteImageGenerationResult:
-        provider_model = self.TEXT_TO_IMAGE_MODEL
+        provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
         size = f"{request.width}x{request.height}"
         request_body: dict[str, Any] = {
             "model": provider_model,
             "prompt": request.prompt,
             "size": size,
+            "output_format": "png",
         }
-        if request.seed is not None:
-            request_body["seed"] = request.seed
 
         response = await self._transport.send_json(
-            profile.base_url,
+            self._image_endpoint(profile.base_url, "generations"),
             profile.api_key,
             request_body,
             profile.config.timeout_seconds,
@@ -1440,7 +1270,7 @@ class AgnesImageModelProvider:
         payload = self._transport.decode(response.text)
         provider_request: dict[str, Any] = {
             "method": "POST",
-            "endpoint": profile.base_url,
+            "endpoint": self._image_endpoint(profile.base_url, "generations"),
             "body": request_body,
         }
         return await self._parse_openai_image_response(
@@ -1458,55 +1288,36 @@ class AgnesImageModelProvider:
         request: ImageGenerationRequest,
         reference_image_urls: list[str],
     ) -> RemoteImageGenerationResult:
-        provider_model = self.IMAGE_TO_IMAGE_MODEL
+        provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
         size = f"{request.width}x{request.height}"
-
-        def _build_body(image_refs: list[str]) -> dict[str, Any]:
-            body: dict[str, Any] = {
-                "model": provider_model,
-                "prompt": request.prompt,
-                "size": size,
-                "extra_body": {
-                    "image": image_refs,
-                    "response_format": "url",
-                },
-            }
-            if request.seed is not None:
-                body["seed"] = request.seed
-            return body
-
-        # First attempt: use URLs directly
-        request_body = _build_body(reference_image_urls)
-        try:
-            response = await self._transport.send_json(
-                profile.base_url,
-                profile.api_key,
-                request_body,
-                profile.config.timeout_seconds,
-            )
-        except GenerationProviderException:
-            # Fallback: convert reference URLs to data URIs and retry
-            data_uris = await self._reference_urls_to_data_uris(
-                reference_image_urls, profile.config.timeout_seconds
-            )
-            if not data_uris:
-                raise
-            request_body = _build_body(data_uris)
-            response = await self._transport.send_json(
-                profile.base_url,
-                profile.api_key,
-                request_body,
-                profile.config.timeout_seconds,
-            )
+        files = await self._reference_urls_to_file_parts(reference_image_urls, profile.config.timeout_seconds)
+        if not files:
+            raise GenerationProviderException("openai image edits require at least one usable reference image")
+        fields = {
+            "model": provider_model,
+            "prompt": request.prompt,
+            "size": size,
+            "output_format": "png",
+        }
+        endpoint = self._image_endpoint(profile.base_url, "edits")
+        request_payload = {
+            "method": "POST",
+            "endpoint": endpoint,
+            "fields": fields,
+            "files": [{"fieldName": f.field_name, "fileName": f.file_name, "contentType": f.content_type} for f in files],
+        }
+        response = await self._transport.send_multipart(
+            endpoint,
+            profile.api_key,
+            fields,
+            files,
+            profile.config.timeout_seconds,
+            request_payload=request_payload,
+        )
 
         payload = self._transport.decode(response.text)
-        provider_request: dict[str, Any] = {
-            "method": "POST",
-            "endpoint": profile.base_url,
-            "body": request_body,
-        }
         return await self._parse_openai_image_response(
-            payload, provider_request, response.status_code,
+            payload, request_payload, response.status_code,
             profile, provider_model, request,
         )
 
@@ -1527,7 +1338,7 @@ class AgnesImageModelProvider:
         data_list = payload.get("data")
         if not data_list or not isinstance(data_list, list) or len(data_list) == 0:
             raise GenerationProviderException(
-                "agnes image response did not include data array",
+                "openai image response did not include data array",
                 provider_request=provider_request,
                 provider_response=payload,
                 http_status=http_status,
@@ -1545,7 +1356,7 @@ class AgnesImageModelProvider:
             b64 = self._transport.extract_first_string(first_item, "b64_json")
             if not b64:
                 raise GenerationProviderException(
-                    "agnes image response did not include usable image data (no url or b64_json)",
+                    "openai image response did not include usable image data (no url or b64_json)",
                     provider_request=provider_request,
                     provider_response=payload,
                     http_status=http_status,
@@ -1554,7 +1365,7 @@ class AgnesImageModelProvider:
                 data = base64.b64decode(b64)
             except (ValueError, base64.binascii.Error) as ex:
                 raise GenerationProviderException(
-                    "agnes image response returned invalid base64 image data",
+                    "openai image response returned invalid base64 image data",
                     provider_request=provider_request,
                     provider_response=payload,
                     http_status=http_status,
@@ -1579,36 +1390,34 @@ class AgnesImageModelProvider:
     # Helpers
     # ------------------------------------------------------------------
 
-    async def _reference_urls_to_data_uris(
+    async def _reference_urls_to_file_parts(
         self,
         urls: list[str],
         timeout_seconds: int,
-    ) -> list[str]:
-        """Download reference images and encode as data URIs for the API.
-
-        When the API cannot access a reference image URL directly, this method
-        downloads the image and encodes it as a base64 data URI that can be
-        sent inline. URLs that are already data URIs are passed through unchanged.
-        """
-        data_uris: list[str] = []
-        for url in urls:
-            if not url or not url.strip():
+    ) -> list[MultipartFilePart]:
+        files: list[MultipartFilePart] = []
+        for idx, url in enumerate(urls, start=1):
+            normalized = (url or "").strip()
+            if not normalized:
                 continue
-            url = url.strip()
-            # Already a data URI — pass through
-            if url.startswith("data:image/") and ";base64," in url:
-                data_uris.append(url)
-                continue
-            # Download and encode
-            try:
-                binary = await self._transport.download_binary(url, timeout_seconds)
+            if normalized.startswith("data:image/") and ";base64," in normalized:
+                header, b64 = normalized.split(";base64,", 1)
+                mime = header[len("data:"):] or "image/png"
+                try:
+                    data = base64.b64decode(b64)
+                except (ValueError, base64.binascii.Error):
+                    continue
+            else:
+                binary = await self._transport.download_binary(normalized, timeout_seconds)
+                data = binary.data
                 mime = binary.mime_type or "image/png"
-                b64 = base64.b64encode(binary.data).decode("ascii")
-                data_uris.append(f"data:{mime};base64,{b64}")
-            except Exception:
-                # If download fails, skip this URL (upstream will fail)
-                continue
-        return data_uris
+            files.append(MultipartFilePart(
+                field_name="image[]",
+                file_name=f"reference-{idx}.{self._extension_for_mime(mime)}",
+                content_type=mime,
+                data=data,
+            ))
+        return files
 
     @staticmethod
     def _normalize_reference_image_urls(
@@ -1623,6 +1432,27 @@ class AgnesImageModelProvider:
         if not normalized and reference_image_url and reference_image_url.strip():
             normalized.append(reference_image_url.strip())
         return normalized
+
+    @staticmethod
+    def _image_endpoint(base_url: str, kind: str) -> str:
+        normalized = (base_url or "").rstrip("/")
+        for suffix in ("/images/generations", "/images/edits"):
+            if normalized.endswith(suffix):
+                normalized = normalized[: -len(suffix)]
+        return f"{normalized}/images/{kind}"
+
+    @staticmethod
+    def _extension_for_mime(mime_type: str) -> str:
+        normalized = (mime_type or "").split(";", 1)[0].strip().lower()
+        if normalized == "image/jpeg":
+            return "jpg"
+        if normalized == "image/webp":
+            return "webp"
+        return "png"
+
+    @staticmethod
+    def _blank_to(primary: str, fallback: str) -> str:
+        return fallback if not primary else primary
 
 
 # =============================================================================

@@ -132,7 +132,15 @@ onMounted(() => {
 .model-status-strip__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
+}
+
+.model-status-strip__grid > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .model-status-strip__section-title {

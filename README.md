@@ -32,7 +32,7 @@ Upload novel chapters, paste text, or enter a prompt — JianDou turns your word
 
 **Multi-Model Pipeline**
 - Four independently configurable stages: Text Model (script/storyboard) → Visual Model (reference image understanding) → Keyframe Model (first/last frame generation) → Video Model (video synthesis).
-- Mix and match providers: Alibaba Cloud (Qwen/Wanxiang), Volcengine (Doubao/Seedream/Seedance), and any OpenAI-compatible endpoint.
+- Text and image generation are standardized on OpenAI GPT models; video generation keeps the existing video providers.
 - Output parameters (aspect ratio, resolution, duration, count, seed) are dynamically filtered by the selected model's capabilities.
 
 **Task Management**
@@ -128,16 +128,15 @@ config/model/
 ├── models.yml                    # Available model definitions
 ├── providers/                    # Provider base configs (base_url, etc.)
 │   ├── volcengine.yml
-│   ├── deepseek.yml
+│   ├── agnes.yml
 │   └── openai.yml
 ├── providers.secrets.example.yml # API key template (committed)
 └── providers.secrets.yml         # Your API keys (local, not committed)
 ```
 
-Supported providers:
-- **Alibaba Cloud** — Qwen (通义千问), Wanxiang (万相)
-- **Volcengine** — Doubao (豆包), Seedream, Seedance
-- **OpenAI-compatible** — Any OpenAI-compatible API endpoint
+Supported model providers:
+- **OpenAI** — GPT text and GPT Image for script/storyboard and keyframe generation
+- **Existing video providers** — Seedance/Agnes video generation remains available
 
 ## Configuration
 

@@ -2,7 +2,7 @@
 import type { StageVersion } from "@/types";
 import { IconCheck, IconDelete, IconMore, IconPlus } from "@/components/icons";
 
-const props = defineProps<{
+defineProps<{
   versions: StageVersion[];
   activeVersionId?: string;
   busyActionKey?: string;

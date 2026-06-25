@@ -269,6 +269,4 @@ class WorkflowStageGenerationStrategyResolver:
         model = _trim(requested_model).lower()
         if "gpt-image" in model:
             return "gpt-image"
-        if "seedream" in model:
-            return "seedream"
         return model if model else "default"

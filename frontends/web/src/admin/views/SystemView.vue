@@ -133,7 +133,7 @@ onMounted(async () => {
 <style scoped>
 .system-page {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .system-page__card {
@@ -162,6 +162,10 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .system-page__field {

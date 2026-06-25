@@ -70,12 +70,22 @@ async function handleSubmit() {
   grid-template-columns: minmax(0, 430px);
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   padding: 24px;
+  background: var(--jd-bg);
 }
 
 .login-view__intro {
   text-align: center;
+}
+
+.login-view__logo {
+  width: 52px;
+  height: 52px;
+  padding: 9px;
+  border: 1px solid rgba(15, 159, 143, 0.2);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-accent-soft);
 }
 
 .login-view__intro h1 {
@@ -86,10 +96,11 @@ async function handleSubmit() {
 .login-view__intro h1 {
   font-size: clamp(1.8rem, 4.8vw, 2.4rem);
   line-height: 1.12;
+  margin-top: 12px;
 }
 
 .login-view__card {
-  border-radius: 20px;
+  border-radius: var(--jd-radius-card);
   padding-top: 4px;
 }
 

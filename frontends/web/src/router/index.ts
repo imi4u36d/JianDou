@@ -18,6 +18,7 @@ const SystemView = () => import("@/admin/views/SystemView.vue");
 import { ensureAuthSession, useAuthSessionState } from "@/auth/session";
 import ActivateInviteView from "@/views/ActivateInviteView.vue";
 import ForbiddenView from "@/views/ForbiddenView.vue";
+import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
 import UnifiedTaskView from "@/views/UnifiedTaskView.vue";
@@ -66,7 +67,11 @@ const router = createRouter({
       children: [
         {
           path: "",
-          redirect: "/tasks"
+          name: "home",
+          component: HomeView,
+          meta: {
+            title: "首页"
+          }
         },
         {
           path: "tasks",

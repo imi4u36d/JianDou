@@ -558,7 +558,7 @@ watch(taskId, () => {
 <style scoped>
 .admin-task-detail-grid {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 @media (min-width: 1280px) {
@@ -577,7 +577,7 @@ watch(taskId, () => {
   display: grid;
   place-items: center;
   min-height: 96px;
-  color: #5c6773;
+  color: var(--jd-text-soft);
   font-size: 0.88rem;
 }
 
@@ -586,13 +586,13 @@ watch(taskId, () => {
 }
 
 .admin-task-detail-muted {
-  color: #5c6773;
+  color: var(--jd-text-soft);
   font-size: 0.78rem;
   line-height: 1.5;
 }
 
 .admin-task-detail-diagnosis {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .admin-task-detail-error {
@@ -610,14 +610,14 @@ watch(taskId, () => {
 .admin-task-detail-diagnosis__head h3,
 .admin-task-detail-finding__head p {
   margin: 0;
-  color: #17202a;
+  color: var(--jd-text);
   font-size: 0.98rem;
   font-weight: 850;
 }
 
 .admin-task-detail-diagnosis__head p {
   margin: 4px 0 0;
-  color: #5c6773;
+  color: var(--jd-text-soft);
   font-size: 0.88rem;
   line-height: 1.6;
 }
@@ -625,7 +625,7 @@ watch(taskId, () => {
 .admin-task-detail-diagnosis__grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .admin-task-detail-finding-list {
@@ -635,9 +635,9 @@ watch(taskId, () => {
 
 .admin-task-detail-finding {
   padding: 12px 14px;
-  border: 1px solid rgba(23, 32, 42, 0.08);
-  border-radius: 14px;
-  background: #eef2ff;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .admin-task-detail-finding__head {
@@ -649,17 +649,17 @@ watch(taskId, () => {
 
 .admin-task-detail-finding__detail {
   margin: 8px 0 0;
-  color: #5c6773;
+  color: var(--jd-text-soft);
   font-size: 0.88rem;
   line-height: 1.65;
 }
 
 .admin-task-detail-card :deep(.el-card__header) {
-  padding: 16px 18px;
+  padding: 14px 16px;
 }
 
 .admin-task-detail-card :deep(.el-card__body) {
-  padding: 18px;
+  padding: 16px;
 }
 
 .admin-task-detail-card__header,
@@ -678,7 +678,7 @@ watch(taskId, () => {
 .admin-detail-section-title h4,
 .admin-detail-section h4 {
   margin: 0;
-  color: #17202a;
+  color: var(--jd-text);
   font-size: 0.98rem;
   font-weight: 850;
 }
@@ -696,15 +696,15 @@ watch(taskId, () => {
 
 .admin-detail-section-compact {
   padding: 12px 14px;
-  border: 1px solid rgba(23, 32, 42, 0.08);
-  border-radius: 14px;
-  background: #eef2ff;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .admin-detail-section p,
 .admin-detail-text-block p {
   margin: 6px 0 0;
-  color: #5c6773;
+  color: var(--jd-text-soft);
   font-size: 0.9rem;
   line-height: 1.65;
 }
@@ -712,14 +712,14 @@ watch(taskId, () => {
 .admin-detail-text-block {
   margin-top: 12px;
   padding: 12px 14px;
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #eef2ff, #eef2ff);
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .admin-detail-text-block strong {
   display: block;
-  color: #17202a;
+  color: var(--jd-text);
   font-size: 0.82rem;
   font-weight: 850;
 }
@@ -732,12 +732,12 @@ watch(taskId, () => {
 
 .admin-task-detail-card :deep(.el-descriptions__label) {
   width: 112px;
-  color: #5c6773;
+  color: var(--jd-text-soft);
   font-weight: 780;
 }
 
 .admin-task-detail-card :deep(.el-descriptions__content) {
-  color: #17202a;
+  color: var(--jd-text);
   overflow-wrap: anywhere;
 }
 
@@ -750,7 +750,7 @@ watch(taskId, () => {
 }
 
 .admin-task-detail-card :deep(.el-table__inner-wrapper) {
-  border-radius: 14px;
+  border-radius: var(--jd-radius-card);
 }
 
 @media (max-width: 720px) {

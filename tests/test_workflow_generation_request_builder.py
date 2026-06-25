@@ -67,7 +67,7 @@ def test_builder_creates_keyframe_request_and_prompt() -> None:
 
     assert request["kind"] == "image"
     assert request["input"]["prompt"] == prompt
-    assert request["input"]["frameRole"] == "keyframe"
+    assert request["input"]["frameRole"] == "first"
     assert request["input"]["seed"] == 11
     assert request["model"]["providerModel"] == "image-model"
     assert request["metadata"] == {
@@ -77,6 +77,34 @@ def test_builder_creates_keyframe_request_and_prompt() -> None:
         "variantKind": "keyframe",
     }
     assert "Scene action: warehouse" in prompt
+
+
+def test_builder_creates_start_keyframe_from_previous_tail_request() -> None:
+    request, prompt = WorkflowGenerationRequestBuilder().build_start_keyframe_from_tail_frame_request(
+        _workflow(),
+        workflow_id="wf_builder",
+        clip_index=2,
+        width=1824,
+        height=1024,
+        clip={
+            "shotLabel": "镜头 2",
+            "startFrame": "light fills room",
+            "endFrame": "door closes",
+            "scene": "warehouse",
+        },
+        previous_tail_frame_remote_url="https://cdn.example/clip-1-last.png",
+        character_sheet_urls=["https://cdn.example/character.png"],
+    )
+
+    assert request["kind"] == "image"
+    assert request["input"]["prompt"] == prompt
+    assert request["input"]["frameRole"] == "first"
+    assert request["input"]["referenceImageUrl"] == "https://cdn.example/clip-1-last.png"
+    assert request["input"]["referenceImageUrls"] == [
+        "https://cdn.example/clip-1-last.png",
+        "https://cdn.example/character.png",
+    ]
+    assert request["storage"]["fileStem"] == "clip2-first"
 
 
 def test_builder_creates_character_sheet_request() -> None:

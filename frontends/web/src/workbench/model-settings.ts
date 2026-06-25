@@ -1,9 +1,9 @@
 /**
  * 模型设置工作台辅助方法。
  */
-export type TextProviderKey = "openai" | "azure" | "custom";
-export type VisionProviderKey = "azure-vision" | "rekognition" | "custom-vision";
-export type KeyframeProviderKey = "openai-image" | "flux" | "custom-keyframe";
+export type TextProviderKey = "openai";
+export type VisionProviderKey = "openai-vision";
+export type KeyframeProviderKey = "openai-image";
 export type VideoProviderKey = "seedance" | "runway" | "custom-video";
 
 export interface TextProviderProfile {
@@ -44,27 +44,15 @@ const DEFAULT_SETTINGS: ModelSettings = {
     activeProvider: "openai",
     profiles: {
       openai: {
-        label: "OpenAI GPT-4",
-        modelVersion: "gpt-4o-mini",
+        label: "OpenAI GPT-5.5",
+        modelVersion: "gpt-5.5",
         endpoint: "https://api.openai.com/v1",
-        apiKey: "",
-      },
-      azure: {
-        label: "Azure OpenAI",
-        modelVersion: "gpt-4.1",
-        endpoint: "",
-        apiKey: "",
-      },
-      custom: {
-        label: "自定义端点",
-        modelVersion: "custom-chat",
-        endpoint: "",
         apiKey: "",
       },
     },
   },
   vision: {
-    provider: "azure-vision",
+    provider: "openai-vision",
     endpoint: "",
     apiKey: "",
   },
@@ -137,23 +125,21 @@ export function normalizeModelSettings(value: unknown): ModelSettings {
 
   return {
     text: {
-      activeProvider: sanitizeProviderKey<TextProviderKey>(text.activeProvider, ["openai", "azure", "custom"], DEFAULT_SETTINGS.text.activeProvider),
+      activeProvider: sanitizeProviderKey<TextProviderKey>(text.activeProvider, ["openai"], DEFAULT_SETTINGS.text.activeProvider),
       profiles: {
         openai: sanitizeTextProfile(profiles.openai, DEFAULT_SETTINGS.text.profiles.openai),
-        azure: sanitizeTextProfile(profiles.azure, DEFAULT_SETTINGS.text.profiles.azure),
-        custom: sanitizeTextProfile(profiles.custom, DEFAULT_SETTINGS.text.profiles.custom),
       },
     },
     vision: sanitizeSimpleSection<VisionProviderKey>(
       record.vision,
-      ["azure-vision", "rekognition", "custom-vision"],
+      ["openai-vision"],
       DEFAULT_SETTINGS.vision.provider,
       DEFAULT_SETTINGS.vision.endpoint,
       DEFAULT_SETTINGS.vision.apiKey,
     ),
     keyframe: sanitizeSimpleSection<KeyframeProviderKey>(
       record.keyframe,
-      ["openai-image", "flux", "custom-keyframe"],
+      ["openai-image"],
       DEFAULT_SETTINGS.keyframe.provider,
       DEFAULT_SETTINGS.keyframe.endpoint,
       DEFAULT_SETTINGS.keyframe.apiKey,

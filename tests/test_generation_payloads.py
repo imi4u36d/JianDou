@@ -11,7 +11,7 @@ from backend.services.generation_payloads import (
     build_negative_prompt,
     build_script_adjust_user_prompt,
     build_script_user_prompt,
-    infer_seedance_camera_fixed,
+    infer_camera_fixed,
 )
 
 
@@ -20,11 +20,11 @@ def test_append_negative_prompt_handles_blank_and_non_blank_prompts() -> None:
     assert append_negative_prompt(" main prompt ", "no blur") == "main prompt\n负面约束：no blur"
 
 
-def test_infer_seedance_camera_fixed_detects_fixed_camera_keywords() -> None:
-    assert infer_seedance_camera_fixed("固定镜头，人物走入画面", fallback=False) is True
-    assert infer_seedance_camera_fixed("鱼眼监控视角，走廊", fallback=False) is True
-    assert infer_seedance_camera_fixed("handheld movement", fallback=True) is True
-    assert infer_seedance_camera_fixed("", fallback=False) is False
+def test_infer_camera_fixed_detects_fixed_camera_keywords() -> None:
+    assert infer_camera_fixed("固定镜头，人物走入画面", fallback=False) is True
+    assert infer_camera_fixed("鱼眼监控视角，走廊", fallback=False) is True
+    assert infer_camera_fixed("handheld movement", fallback=True) is True
+    assert infer_camera_fixed("", fallback=False) is False
 
 
 def test_build_model_info_prefers_response_endpoint_host() -> None:

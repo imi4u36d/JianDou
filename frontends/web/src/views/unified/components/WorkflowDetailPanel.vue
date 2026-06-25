@@ -79,7 +79,7 @@
           <div class="autopilot-bar__status">
             <span class="autopilot-bar__dot autopilot-bar__dot-queued"></span>
             <strong>排队中</strong>
-            <span class="autopilot-bar__queue-info" v-if="selectedWorkflow?.queuePosition">
+            <span v-if="selectedWorkflow?.queuePosition" class="autopilot-bar__queue-info">
               前面还有 {{ selectedWorkflow.queuePosition - 1 }} 个任务
             </span>
           </div>
@@ -210,6 +210,7 @@
                     </article>
                   </div>
                 </div>
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <div v-if="selectedStoryboardVersion" class="version-card__markdown storyboard-preview-markdown" v-html="storyboardPreviewHtml(selectedStoryboardVersion)"></div>
                 <div v-if="selectedStoryboardVersion" class="storyboard-adjust-panel">
                   <input v-model="storyboardAdjustmentDrafts[selectedStoryboardVersion.id]" class="field-input storyboard-adjust-panel__input" type="text" placeholder="调整要求，可留空" />
@@ -556,7 +557,6 @@ watch(
       autoPilot.currentTask.value = detail.selectedWorkflow.value?.autoPilotCurrentTask ?? "";
       autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
       if (state) {
-        const task = autoPilot.currentTask.value;
         const labels: Record<string, string> = {
           queued: '排队中',
           running: '自动执行',
@@ -586,7 +586,6 @@ watch(
       autoPilot.currentTask.value = detail.selectedWorkflow.value?.autoPilotCurrentTask ?? "";
       autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
 
-      const task = autoPilot.currentTask.value;
       const labels: Record<string, string> = {
         queued: '排队中',
         running: '自动执行',
@@ -646,9 +645,6 @@ watch(
     }
   }
 );
-
-// Expose reloadCurrentWorkflow for autoPilot polling
-const reloadCurrentWorkflow = detail.reloadCurrentWorkflow;
 
 const {
   selectedWorkflow,
@@ -719,11 +715,8 @@ const {
   characterSheetClipIndex,
   characterSheetTitle,
   characterSheetAppearanceSummary,
-  characterSheetVersions,
-  selectedCharacterSheetVersion,
   characterSheetPreviewFrames,
   setPreviewStoryboardVersion,
-  setPreviewCharacterSheetVersion,
   setPreviewKeyframeVersion,
   setPreviewVideoVersion,
   switchCanvasStage,

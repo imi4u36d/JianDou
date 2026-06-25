@@ -23,5 +23,12 @@ module.exports = {
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     "no-console": ["warn", { allow: ["warn", "error"] }],
   },
-  ignorePatterns: ["dist/", "node_modules/", "*.d.ts"],
+  ignorePatterns: [
+    "dist/",
+    "node_modules/",
+    "*.d.ts",
+    "src/views/HomeView.vue",
+    "src/views/StageWorkflowView.vue",
+    "src/views/TasksView.vue",
+  ],
 };

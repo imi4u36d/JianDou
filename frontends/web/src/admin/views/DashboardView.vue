@@ -27,8 +27,8 @@
       </div>
     </template>
 
-    <transition v-else name="fade" mode="out-in">
-      <div key="content" class="dashboard-page__content">
+    <transition name="fade" mode="out-in">
+      <div v-if="!initialLoading" key="content" class="dashboard-page__content">
         <div class="dashboard-page__stats">
           <el-card
             v-for="item in summaryCards"
@@ -334,7 +334,7 @@ onMounted(async () => {
 <style scoped>
 .dashboard-page {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .dashboard-page > *,
@@ -356,8 +356,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 16px 18px;
-  border-radius: 18px;
+  padding: 14px 16px;
+  border-radius: var(--jd-radius-card);
 }
 
 .dashboard-page__hero h3,
@@ -391,17 +391,18 @@ onMounted(async () => {
 .dashboard-page__stats {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .dashboard-page__stat-card,
 .dashboard-page__panel {
-  border-radius: 24px;
+  border-radius: var(--jd-radius-card);
 }
 
 .dashboard-page__stat-card :deep(.el-card__body) {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  padding: 16px;
 }
 
 .dashboard-page__stat-card p,
@@ -412,37 +413,44 @@ onMounted(async () => {
 
 .dashboard-page__stat-card strong {
   font-family: inherit;
-  font-size: 2rem;
+  font-size: 1.8rem;
+  line-height: 1.05;
 }
 
 .dashboard-page__stat-card.is-accent {
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.15), rgba(255, 255, 255, 0.8));
+  border-left: 3px solid var(--jd-accent);
+  background: linear-gradient(180deg, var(--jd-accent-soft), #ffffff 72%);
 }
 
 .dashboard-page__stat-card.is-secondary {
-  background: linear-gradient(180deg, rgba(47, 122, 136, 0.14), rgba(255, 255, 255, 0.8));
+  border-left: 3px solid var(--jd-secondary);
+  background: linear-gradient(180deg, var(--jd-secondary-soft), #ffffff 72%);
 }
 
 .dashboard-page__stat-card.is-success {
-  background: linear-gradient(180deg, rgba(103, 194, 58, 0.14), rgba(255, 255, 255, 0.8));
+  border-left: 3px solid var(--jd-success);
+  background: linear-gradient(180deg, var(--jd-success-soft), #ffffff 72%);
 }
 
 .dashboard-page__stat-card.is-danger {
-  background: linear-gradient(180deg, rgba(191, 78, 78, 0.14), rgba(255, 255, 255, 0.8));
+  border-left: 3px solid var(--jd-danger);
+  background: linear-gradient(180deg, var(--jd-danger-soft), #ffffff 72%);
 }
 
 .dashboard-page__stat-card.is-warning {
-  background: linear-gradient(180deg, rgba(230, 162, 60, 0.14), rgba(255, 255, 255, 0.8));
+  border-left: 3px solid var(--jd-warning);
+  background: linear-gradient(180deg, var(--jd-warning-soft), #ffffff 72%);
 }
 
 .dashboard-page__stat-card.is-neutral {
-  background: linear-gradient(180deg, rgba(144, 147, 153, 0.12), rgba(255, 255, 255, 0.8));
+  border-left: 3px solid var(--jd-text-muted);
+  background: linear-gradient(180deg, var(--jd-surface-muted), #ffffff 72%);
 }
 
 .dashboard-page__grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: 20px;
+  gap: 16px;
 }
 
 .dashboard-page__panel-header {
@@ -455,16 +463,16 @@ onMounted(async () => {
 .dashboard-page__pulse {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .dashboard-page__pulse-item {
   display: grid;
   gap: 4px;
-  padding: 16px;
+  padding: 12px;
   border: 1px solid var(--jd-border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.66);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .dashboard-page__pulse-item span,
@@ -476,13 +484,13 @@ onMounted(async () => {
 }
 
 .dashboard-page__pulse-item strong {
-  font-size: 1.3rem;
+  font-size: 1.18rem;
   font-family: inherit;
 }
 
 .dashboard-page__failure-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .dashboard-page__failure-item {
@@ -490,10 +498,10 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid rgba(191, 78, 78, 0.14);
-  border-radius: 18px;
-  background: rgba(191, 78, 78, 0.05);
+  padding: 12px;
+  border: 1px solid rgba(191, 78, 78, 0.16);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-danger-soft);
 }
 
 .dashboard-page__failure-main,

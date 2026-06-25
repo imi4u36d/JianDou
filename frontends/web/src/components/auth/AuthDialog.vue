@@ -1,6 +1,14 @@
 <template>
   <Teleport to="body">
-    <div v-if="modal.open" class="auth-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" @click.self="handleClose">
+    <div
+      v-if="modal.open"
+      class="auth-dialog-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-dialog-title"
+      @click.self="handleClose"
+      @keydown.esc.stop.prevent="handleClose"
+    >
       <section class="auth-dialog">
         <header class="auth-dialog__head">
           <div>
@@ -24,7 +32,7 @@
         <form v-if="modal.mode === 'login'" class="auth-dialog__form" @submit.prevent="handleLogin">
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">用户名</span>
-            <input v-model.trim="loginForm.username" autocomplete="username" placeholder="用户名" type="text" />
+            <input ref="loginUsernameRef" v-model.trim="loginForm.username" autocomplete="username" placeholder="用户名" type="text" />
           </label>
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">密码</span>
@@ -56,7 +64,7 @@
         <form v-else class="auth-dialog__form" @submit.prevent="handleRegister">
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">邀请码</span>
-            <input v-model.trim="registerForm.code" autocomplete="off" placeholder="邀请码" type="text" />
+            <input ref="registerCodeRef" v-model.trim="registerForm.code" autocomplete="off" placeholder="邀请码" type="text" />
           </label>
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">用户名</span>
@@ -101,7 +109,7 @@
 /**
  * 全局登录/邀请码注册弹窗。
  */
-import { reactive, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { activateInviteAndStoreSession, loginAndStoreSession } from "@/auth/session";
 import { messageApi } from "@/composables/useMessage";
 import { closeAuthModal, switchAuthModalMode, useAuthModalState } from "@/auth/modal";
@@ -111,6 +119,9 @@ const modal = useAuthModalState();
 const submitting = ref(false);
 const showLoginPassword = ref(false);
 const showRegisterPassword = ref(false);
+const loginUsernameRef = ref<HTMLInputElement | null>(null);
+const registerCodeRef = ref<HTMLInputElement | null>(null);
+let returnFocusTarget: HTMLElement | null = null;
 
 const loginForm = reactive({
   username: "",
@@ -129,6 +140,12 @@ function handleClose() {
     return;
   }
   closeAuthModal(false);
+}
+
+function restoreFocus() {
+  const target = returnFocusTarget;
+  returnFocusTarget = null;
+  target?.focus({ preventScroll: true });
 }
 
 async function handleLogin() {
@@ -165,11 +182,27 @@ async function handleRegister() {
 
 watch(
   () => [modal.open, modal.mode],
-  () => {
+  async ([open, mode], previous) => {
+    const wasOpen = Boolean(previous?.[0]);
     showLoginPassword.value = false;
     showRegisterPassword.value = false;
+    if (open && !wasOpen) {
+      returnFocusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    if (open) {
+      await nextTick();
+      if (mode === "register") {
+        registerCodeRef.value?.focus({ preventScroll: true });
+        return;
+      }
+      loginUsernameRef.value?.focus({ preventScroll: true });
+      return;
+    }
+    restoreFocus();
   },
 );
+
+onBeforeUnmount(restoreFocus);
 </script>
 
 <style scoped>

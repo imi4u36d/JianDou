@@ -251,7 +251,6 @@ import type {
 
 const initialLoading = ref(true);
 const loading = ref(false);
-const refreshing = ref(false);
 const submittingEditor = ref(false);
 const submittingPassword = ref(false);
 const loadingModelConfig = ref(false);
@@ -543,7 +542,7 @@ onMounted(async () => {
 <style scoped>
 .user-page {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .user-page > *,
@@ -557,16 +556,17 @@ onMounted(async () => {
 .user-page__summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .user-page__summary-card {
-  border-radius: 22px;
+  border-radius: var(--jd-radius-card);
 }
 
 .user-page__summary-card :deep(.el-card__body) {
   display: grid;
   gap: 6px;
+  padding: 16px;
 }
 
 .user-page__summary-card p {
@@ -576,7 +576,8 @@ onMounted(async () => {
 
 .user-page__summary-card strong {
   font-family: inherit;
-  font-size: 2rem;
+  font-size: 1.8rem;
+  line-height: 1.05;
 }
 
 .user-page__summary-card span {
@@ -608,10 +609,12 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 6px 10px;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(15, 20, 25, 0.06);
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .user-page__filters-action {
@@ -631,7 +634,7 @@ onMounted(async () => {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 
 .user-page__table-scroll :deep(.el-table__body-wrapper),
@@ -647,22 +650,22 @@ onMounted(async () => {
 .user-page__actions :deep(.el-button) {
   margin-left: 0;
   min-width: 34px;
-  min-height: 34px;
-  padding: 0 7px;
-  border-radius: 9px;
-  background: #eef2ff;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--jd-surface-muted);
   font-size: 0.78rem;
   font-weight: 760;
 }
 
 .user-page__actions :deep(.el-button:hover) {
-  background: #eef2ff;
+  background: var(--jd-accent-soft);
 }
 
 .user-page__dialog-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .user-page__key-list {
@@ -676,8 +679,12 @@ onMounted(async () => {
 .user-page__key-row {
   display: grid;
   grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
-  gap: 14px;
+  gap: 12px;
   align-items: center;
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
 }
 
 .user-page__key-meta {
@@ -702,7 +709,7 @@ onMounted(async () => {
   justify-content: flex-end;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(15, 20, 25, 0.06);
+  border-top: 1px solid var(--jd-border);
 }
 
 @media (max-width: 1200px) {

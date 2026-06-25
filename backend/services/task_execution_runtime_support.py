@@ -379,7 +379,7 @@ class TaskExecutionRuntimeSupport:
 
     def _supports_image_data_uri_references(self, image_model: str) -> bool:
         lower = string_value(image_model).lower()
-        return "gpt-image" in lower or "seedream" in lower
+        return "gpt-image" in lower
 
     def _build_workspace_image_prompt(self, asset_type: str, title: str, description: str, has_references: bool) -> str:
         normalized_asset_type = string_value(asset_type)

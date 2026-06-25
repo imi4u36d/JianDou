@@ -104,6 +104,7 @@ const authState = useAuthSessionState();
 const adminPortalUrl = getRuntimeConfig().adminBaseUrl;
 
 const navItems: { to: string; label: string; icon: IconName }[] = [
+  { to: "/", label: "首页", icon: "home" },
   { to: "/tasks", label: "任务", icon: "task" },
   { to: "/materials", label: "素材", icon: "material" },
 ];

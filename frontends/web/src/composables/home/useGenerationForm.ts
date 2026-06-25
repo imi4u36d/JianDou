@@ -39,25 +39,11 @@ export interface ModeOption {
 
 const modeOptions: ModeOption[] = [
   {
-    value: "video",
-    kind: "video",
-    label: "视频生成",
-    description: "输入文本，自动拆分脚本、关键帧和视频",
-    iconName: "video",
-  },
-  {
     value: "image",
     kind: "image",
-    label: "图片生成",
-    description: "素材中心自由模式，支持参考图再创作",
+    label: "OpenAI 图片生成",
+    description: "使用 OpenAI 图片模型生成或参考图再创作",
     iconName: "image",
-  },
-  {
-    value: "character_sheet",
-    kind: "image",
-    label: "角色三视图",
-    description: "生成同一角色正面、侧面、背面设定图",
-    iconName: "character",
   },
 ];
 
@@ -211,6 +197,11 @@ function formatCreditBalance(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
+function isOpenAIModel(model: { value?: string | null; label?: string | null; provider?: string | null; family?: string | null; description?: string | null }) {
+  const fields = [model.provider, model.family, model.value, model.label, model.description].map(normalizeModelName);
+  return fields.some((value) => value.includes("openai") || value.startsWith("gpt") || value.includes("gptimage") || value.includes("dalle"));
+}
+
 export function resolveDefaultImageModel(models: GenerationTextAnalysisModelInfo[], current?: string | null) {
   const currentValue = String(current ?? "").trim();
   if (currentValue && models.some((item) => item.value === currentValue)) {
@@ -272,13 +263,13 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
 
   const selectedMode = computed(() => modeOptions.find((item) => item.value === selectedModeValue.value) ?? modeOptions[0]);
 
-  const promptLabel = computed(() => selectedMode.value.kind === "video" ? "文本 / 小说正文" : "图片提示词");
+  const promptLabel = computed(() => "图片提示词");
 
   const showPromptPlaceholder = computed(() => !promptText.value.trim());
 
-  const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.textAnalysisModels ?? []);
+  const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => (options.value?.textAnalysisModels ?? []).filter(isOpenAIModel));
 
-  const imageModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => options.value?.imageModels ?? []);
+  const imageModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => (options.value?.imageModels ?? []).filter(isOpenAIModel));
 
   const videoModelOptions = computed<GenerationVideoModelInfo[]>(() => options.value?.videoModels ?? []);
 
@@ -418,7 +409,7 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
     if (selectedMode.value.kind === "image" && !selectedImageModelOption.value?.supportsSeed) {
       return "当前图片模型未声明支持种子，提交时不会传 seed。";
     }
-    return "当前设置会记录到本次生成任务。";
+    return "当前设置会记录到本次 OpenAI 图片生成任务。";
   });
 
   const isSeedReady = computed(() => seedMode.value === "auto" || parsedManualSeed.value !== null);
@@ -471,12 +462,14 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
       const result = await fetchGenerationOptions();
       options.value = result;
       form.value.aspectRatio = (result.defaultAspectRatio as AspectRatioValue | null) || "16:9";
-      form.value.textAnalysisModel = result.defaultTextAnalysisModel || result.textAnalysisModels?.[0]?.value || null;
-      form.value.imageModel = resolveDefaultImageModel(result.imageModels ?? [], form.value.imageModel);
+      const openAITextModels = (result.textAnalysisModels ?? []).filter(isOpenAIModel);
+      const openAIImageModels = (result.imageModels ?? []).filter(isOpenAIModel);
+      form.value.textAnalysisModel = openAITextModels.some((item) => item.value === result.defaultTextAnalysisModel)
+        ? result.defaultTextAnalysisModel || null
+        : openAITextModels[0]?.value || null;
+      form.value.imageModel = resolveDefaultImageModel(openAIImageModels, form.value.imageModel);
       form.value.videoModel = result.defaultVideoModel || result.videoModels?.[0]?.value || null;
       selectedDurationSeconds.value = result.defaultVideoDurationSeconds ?? result.videoDurations?.[0]?.value ?? null;
-    } catch (error) {
-      throw error;
     } finally {
       loadingOptions.value = false;
     }

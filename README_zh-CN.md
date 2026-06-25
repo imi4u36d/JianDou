@@ -32,7 +32,7 @@
 
 **多模型流水线**
 - 四个独立可配阶段：文本模型（脚本/分镜）→ 视觉模型（参考图理解）→ 关键帧模型（首尾帧生成）→ 视频模型（视频合成）。
-- 厂商自由组合：阿里云（通义千问/万相）、火山引擎（豆包/Seedream/Seedance）以及任意 OpenAI 兼容接口。
+- 文本和图片生成统一使用 OpenAI 官方 GPT 模型；视频生成保留原有视频厂商。
 - 输出参数（画幅、清晰度、时长、数量、Seed）根据所选模型能力自动过滤，避免无效配置。
 
 **任务管理**
@@ -128,16 +128,15 @@ config/model/
 ├── models.yml                    # 可选模型定义
 ├── providers/                    # 厂商基础配置（base_url 等）
 │   ├── volcengine.yml
-│   ├── deepseek.yml
+│   ├── agnes.yml
 │   └── openai.yml
 ├── providers.secrets.example.yml # API Key 模板（提交到仓库）
 └── providers.secrets.yml         # 你的 API Key（本地文件，不提交）
 ```
 
-支持的厂商：
-- **阿里云** — 通义千问、万相
-- **火山引擎** — 豆包、Seedream、Seedance
-- **OpenAI 兼容接口** — 任意 OpenAI 兼容 API 端点
+支持的模型厂商：
+- **OpenAI** — GPT 文本模型与 GPT Image，用于脚本/分镜和关键帧生成
+- **原有视频厂商** — Seedance/Agnes 视频生成保持可用
 
 ## 配置说明
 

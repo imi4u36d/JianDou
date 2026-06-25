@@ -9,8 +9,8 @@ Translates the Java classes:
 
 Wired up with real AI model providers:
 - Text (LLM): OpenAiCompatibleTextModelProvider (DeepSeek, OpenAI, etc.)
-- Image: SeedreamImageModelProvider (Volcengine Seedream)
-- Video: SeedanceVideoModelProvider (Volcengine Seedance)
+- Image: OpenAI GPT Image API
+- Video: SeedanceVideoModelProvider / AgnesVideoModelProvider
 
 Provider config resolved from YAML files in config/model/.
 Stub fallbacks remain for graceful degradation when config is missing.
@@ -42,7 +42,7 @@ from backend.services.generation_payloads import (
     build_negative_prompt,
     build_script_adjust_user_prompt,
     build_script_user_prompt,
-    infer_seedance_camera_fixed,
+    infer_camera_fixed,
 )
 from backend.services.generation_request_values import (
     find_nested_string,
@@ -107,14 +107,12 @@ def _get_image_model_providers():
     global _image_model_providers
     if not _image_model_providers:
         from backend.services.model_invocation import (
-            AgnesImageModelProvider,
             ImageProviderTransport,
-            SeedreamImageModelProvider,
+            OpenAiImageModelProvider,
         )
         transport = ImageProviderTransport()
         _image_model_providers = [
-            SeedreamImageModelProvider(transport=transport),
-            AgnesImageModelProvider(transport=transport),
+            OpenAiImageModelProvider(transport=transport),
         ]
     return _image_model_providers
 
@@ -380,8 +378,8 @@ class GenerationRunSupport:
     def append_negative_prompt(self, prompt: str, negative_prompt: str) -> str:
         return append_negative_prompt(prompt, negative_prompt)
 
-    def infer_seedance_camera_fixed(self, prompt: str, fallback: bool) -> bool:
-        return infer_seedance_camera_fixed(prompt, fallback)
+    def infer_camera_fixed(self, prompt: str, fallback: bool) -> bool:
+        return infer_camera_fixed(prompt, fallback)
 
     def storage_relative_dir(self, request: dict[str, Any], run_id: str) -> str:
         return self._artifact_store.storage_relative_dir(request, run_id)
@@ -986,7 +984,7 @@ class GenerationRunFactory:
         negative_prompt = self._build_negative_prompt("video")
         shaped_prompt = self._support.append_negative_prompt(prompt, negative_prompt)
 
-        _camera_fixed = self._support.infer_seedance_camera_fixed(shaped_prompt, video_profile.get("cameraFixed", False))
+        _camera_fixed = self._support.infer_camera_fixed(shaped_prompt, video_profile.get("cameraFixed", False))
         _watermark = self._support.nested_boolean(request, "input", "watermark", video_profile.get("watermark", False))
 
         # Real video submission

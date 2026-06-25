@@ -1,13 +1,5 @@
 model:
   providers:
-    agnes-text:
-      provider: "agnes-text"
-      vendor: "agnes-ai"
-      api_key: ""
-      base_url: "https://apihub.agnes-ai.com/v1"
-      extras:
-        use_responses_api: false
-        timeout_seconds: 300
     agnes:
       provider: "agnes"
       vendor: "agnes-ai"
@@ -17,12 +9,4 @@ model:
         task_base_url: "https://apihub.agnes-ai.com/v1/videos"
         poll_interval_seconds: 10
         poll_timeout_seconds: 600
-        watermark: false
-    agnes-image:
-      provider: "agnes-image"
-      vendor: "agnes-ai"
-      api_key: ""
-      base_url: "https://apihub.agnes-ai.com/v1/images/generations"
-      extras:
-        timeout_seconds: 120
         watermark: false

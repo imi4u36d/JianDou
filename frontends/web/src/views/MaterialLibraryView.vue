@@ -22,8 +22,8 @@
             v-if="filters.q"
             class="material-search__clear"
             type="button"
-            @click="filters.q = ''; loadAssets()"
             aria-label="清除搜索"
+            @click="filters.q = ''; loadAssets()"
           >
             <IconClose size="xs" />
           </button>
@@ -164,6 +164,7 @@
             type="button"
             @click="openStoryboardPreview(asset)"
           >
+            <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="material-card__text" v-html="storyboardPreviewHtml(asset)"></div>
           </button>
         </div>
@@ -256,6 +257,7 @@
           <IconImage size="lg" />
           <span>{{ previewDialog.title }}</span>
         </div>
+        <!-- eslint-disable-next-line vue/no-v-html -->
         <div v-else class="material-preview-dialog__markdown" v-html="previewDialog.html"></div>
       </div>
     </div>
@@ -430,13 +432,6 @@ function assetSubtitle(asset: MaterialAssetLibraryItem) {
   return parts.join(" · ") || "素材";
 }
 
-function compactUrl(url: string) {
-  if (url.length <= 42) {
-    return url;
-  }
-  return `${url.slice(0, 24)}...${url.slice(-14)}`;
-}
-
 function storyboardText(asset: MaterialAssetLibraryItem) {
   const scriptMarkdown = typeof asset.metadata?.scriptMarkdown === "string" ? asset.metadata.scriptMarkdown : "";
   return scriptMarkdown || asset.title;
@@ -444,10 +439,6 @@ function storyboardText(asset: MaterialAssetLibraryItem) {
 
 function storyboardPreviewHtml(asset: MaterialAssetLibraryItem) {
   return renderMarkdownToHtml(storyboardText(asset));
-}
-
-function assetPreviewUrl(asset: MaterialAssetLibraryItem) {
-  return asset.previewUrl || asset.fileUrl || asset.remoteUrl || "";
 }
 
 function assetListImageUrl(asset: MaterialAssetLibraryItem) {

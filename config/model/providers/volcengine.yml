@@ -1,18 +1,5 @@
 model:
   providers:
-    ark:
-      provider: "ark"
-      vendor: "volcengine"
-      api_key: ""
-      base_url: "https://ark.cn-beijing.volces.com/api/v3"
-      extras:
-        use_responses_api: true
-        timeout_seconds: 180
-    seedream:
-      provider: "seedream"
-      vendor: "volcengine"
-      api_key: ""
-      base_url: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
     seedance:
       provider: "seedance"
       vendor: "volcengine"

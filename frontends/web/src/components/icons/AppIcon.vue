@@ -9,7 +9,7 @@ import { iconComponentMap } from "./index";
 
 const props = withDefaults(
   defineProps<{ name: IconName; size?: IconSize; color?: string }>(),
-  { size: "lg" },
+  { size: "lg", color: "currentColor" },
 );
 
 const iconComponent = computed(() => iconComponentMap[props.name]);

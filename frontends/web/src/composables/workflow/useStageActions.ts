@@ -19,7 +19,7 @@ import {
   updateWorkflowSettings,
 } from "@/features/workflows";
 import type { WorkflowCharacterSheet, WorkflowDetail, WorkflowSummary, WorkflowDeleteResult, UpdateWorkflowSettingsRequest } from "@/types";
-import { characterSheetKey, characterSheetClipIndex } from "./useCharacterSheetUtils";
+import { characterSheetClipIndex } from "./useCharacterSheetUtils";
 
 export function useStageActions(deps: {
   selectedWorkflowId: () => string;

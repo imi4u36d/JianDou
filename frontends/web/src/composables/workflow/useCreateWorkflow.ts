@@ -1,5 +1,4 @@
 import { computed, reactive, ref, watch } from "vue";
-import { useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { createWorkflow, uploadText } from "@/features/workflows";
@@ -22,7 +21,6 @@ interface CreateReviewSection {
 }
 
 export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
-  const router = useRouter();
   const { valueOptionLabel, keyOptionLabel, syncVideoSizeSelection, options } = opts;
 
   const creatingWorkflow = ref(false);

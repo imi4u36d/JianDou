@@ -13,7 +13,7 @@ def append_negative_prompt(prompt: str, negative_prompt: str) -> str:
     return f"{prompt.strip()}\n负面约束：{negative_prompt}"
 
 
-def infer_seedance_camera_fixed(prompt: str, fallback: bool) -> bool:
+def infer_camera_fixed(prompt: str, fallback: bool) -> bool:
     normalized = _string_value(prompt).lower()
     if not normalized:
         return fallback

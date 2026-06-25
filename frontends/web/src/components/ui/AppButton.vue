@@ -53,6 +53,8 @@ const props = withDefaults(
     disabled: false,
     tag: "button",
     type: "button",
+    href: "",
+    to: "",
   },
 );
 
