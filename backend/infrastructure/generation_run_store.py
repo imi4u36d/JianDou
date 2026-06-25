@@ -20,7 +20,7 @@ def _now_iso() -> str:
 
 def _run_file_path(run_id: str) -> str:
     storage_root = getattr(settings, "storage_root", "./storage")
-    run_dir = os.path.join(storage_root, "_run_store")
+    run_dir = os.path.join(storage_root, "tasks", "_run_store")
     os.makedirs(run_dir, exist_ok=True)
     return os.path.join(run_dir, f"{run_id}.json")
 
@@ -31,7 +31,7 @@ class LocalGenerationRunStore:
     Mirrors the Java LocalGenerationRunStore semantics:
     - All runs are kept in memory for fast access.
     - Each run is also persisted to a JSON file on disk under
-      ``<storage_root>/_run_store/<run_id>.json`` so that runs survive restarts.
+      ``<storage_root>/tasks/_run_store/<run_id>.json`` so that runs survive restarts.
     - ``list_runs`` returns runs in reverse-chronological order (newest first).
     """
 

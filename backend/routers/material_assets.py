@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
@@ -11,7 +11,6 @@ from backend.schemas.material import (
     RateMaterialAssetRequest,
 )
 from backend.services.material_asset_service import MaterialAssetService
-from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v3/material-assets", tags=["material-assets"])
 
@@ -105,16 +104,9 @@ async def rate_material_asset(
 async def reuse_material_asset(
     asset_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
 ):
-    user = await require_user(request)
-    workflow = await WorkflowService(db).create_workflow_from_material(
-        asset_id=asset_id,
-        owner_user_id=user["id"],
-    )
-    if workflow is None:
-        raise not_found("material_asset")
-    return workflow
+    await require_user(request)
+    raise HTTPException(status_code=410, detail="素材复用已统一到任务创建，请创建任务并选择引用素材")
 
 
 @router.post("/{asset_id}/upload")

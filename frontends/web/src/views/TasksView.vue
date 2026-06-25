@@ -548,7 +548,7 @@ const selectedTaskResultItems = computed(() => {
     return items;
   }
   for (const output of detail.outputs ?? []) {
-    const url = firstNonBlank(output.previewUrl, output.downloadUrl);
+    const url = firstNonBlank(output.downloadUrl, output.previewUrl);
     if (url) {
       items.push({ title: output.title || `结果 #${output.clipIndex || items.length + 1}`, url });
     }
@@ -571,7 +571,7 @@ const selectedTaskMaterialItems = computed(() => {
   }
   const rows: Array<{ title: string; url: string }> = [];
   for (const material of detail.materials ?? []) {
-    const url = firstNonBlank(material.previewUrl, material.fileUrl);
+    const url = firstNonBlank(material.fileUrl, material.previewUrl);
     if (url) {
       rows.push({ title: material.title || material.id || "任务素材", url });
     }

@@ -6,6 +6,7 @@ model:
       kind: "text"
       label: "GPT-5.5"
       provider_model: "gpt-5.5"
+      timeout_seconds: 600
       max_tokens: 8000
       family: "gpt"
       capabilities:
@@ -25,7 +26,7 @@ model:
       capabilities:
         - "image_generation"
       description: "OpenAI 官方 GPT Image 模型，支持文生图和参考图编辑。"
-      supported_sizes: "1024x1024,1536x1024,1024x1536,1824x1024,1024x1824"
+      supported_sizes: "1024x1024,2048x2048,2880x2880,1536x1024,2048x1360,3520x2336,1024x1536,1360x2048,2336x3520,1824x1024,2048x1152,3840x2160,1024x1824,1152x2048,2160x3840,2304x1728,1728x2304,2560x1440,1440x2560,2496x1664,1664x2496,3024x1296,3072x3072,3072x2304,2304x3072"
     "agnes-video-v2.0":
       provider: "agnes"
       vendor: "agnes-ai"

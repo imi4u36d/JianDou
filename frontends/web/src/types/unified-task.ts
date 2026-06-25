@@ -1,8 +1,8 @@
 /**
- * 统一工作流列表项类型。
- * 所有创作均以工作流形式管理。
+ * 统一任务列表项类型。
+ * 所有创作均以任务形式管理。
  */
-import type { WorkflowSummary } from "@/types";
+import type { TaskListItem } from "@/types";
 
 /**
  * 统一列表项接口定义。
@@ -19,7 +19,7 @@ export interface UnifiedListItem {
   currentStage?: string;
   executionMode?: string;
   autoPilotState?: string;
-  workflow?: WorkflowSummary;
+  task?: TaskListItem;
 }
 
 /**

@@ -64,8 +64,8 @@ class TaskWorkerRenderStageService:
         artifact_assembler: TaskExecutionArtifactAssembler | None = None,
         status_stage_service: TaskWorkerStatusStageService | None = None,
         join_stage_service: JoinStageServiceProtocol | None = None,
-        video_run_poll_interval_ms: int = 1000,
-        video_run_max_polls: int = 240,
+        video_run_poll_interval_ms: int = 8000,
+        video_run_max_polls: int = 120,
     ) -> None:
         self._task_repository = task_repository
         self._execution_coordinator = execution_coordinator or TaskExecutionCoordinator()

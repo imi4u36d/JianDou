@@ -102,7 +102,7 @@ const router = createRouter({
           path: "workflows/:workflowId",
           redirect: (to) => ({
             path: "/tasks",
-            query: { selected: to.params.workflowId, kind: "workflow" }
+            query: { selected: to.params.workflowId, kind: "task" }
           })
         }
       ]

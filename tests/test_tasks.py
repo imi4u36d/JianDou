@@ -16,6 +16,7 @@ def generation_task_payload(title: str) -> dict:
         "image_size": "2560x1440",
         "video_size": "1280*720",
         "video_duration_seconds": 10,
+        "output_count": "auto",
     }
 
 
@@ -58,6 +59,10 @@ async def test_create_and_get_task(auth_client):
     assert response.status_code == 200
     data = response.json()
     assert data.get("title") == "Get this task"
+    assert data.get("requestSnapshot", {}).get("textAnalysisModel") == "gpt-5.5"
+    assert data.get("requestSnapshot", {}).get("imageModel") == "gpt-image-2"
+    assert data.get("requestSnapshot", {}).get("videoModel") == "seedance-1.5-pro"
+    assert data.get("requestSnapshot", {}).get("outputCount") == {"auto": True}
 
 
 @pytest.mark.asyncio

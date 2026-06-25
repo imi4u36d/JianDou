@@ -77,7 +77,7 @@ class WorkflowGenerationRequestBuilder:
                 "stylePreset": wf.style_preset,
             },
             "storage": {
-                "relativeDir": f"gen/_runs/workflows/{workflow_id}",
+                "relativeDir": f"tasks/{workflow_id}/running",
                 "fileStem": f"clip{clip_index}-first",
             },
             "metadata": {
@@ -140,7 +140,7 @@ class WorkflowGenerationRequestBuilder:
                 "stylePreset": wf.style_preset,
             },
             "storage": {
-                "relativeDir": f"gen/_runs/workflows/{workflow_id}",
+                "relativeDir": f"tasks/{workflow_id}/running",
                 "fileStem": f"clip{clip_index}-first",
             },
             "metadata": {
@@ -204,7 +204,7 @@ class WorkflowGenerationRequestBuilder:
                 "stylePreset": wf.style_preset,
             },
             "storage": {
-                "relativeDir": f"gen/_runs/workflows/{workflow_id}",
+                "relativeDir": f"tasks/{workflow_id}/running",
                 "fileStem": f"clip{clip_index}-last",
             },
             "metadata": {

@@ -346,28 +346,7 @@ class TaskRepository:
 
                 # 5. Stage runs
                 for row in mutation.stage_run_rows:
-                    self.session.add(BizTaskStageRun(
-                        task_stage_run_id=string_value(row.get("stageRunId", row.get("id", ""))),
-                        task_id=task_id,
-                        attempt_id=string_value(row.get("attemptId", "")),
-                        stage_name=string_value(row.get("stageName", row.get("stage", ""))),
-                        stage_seq=safe_int(row.get("stageSeq"), 0),
-                        clip_index=safe_int(row.get("clipIndex"), 0),
-                        status=_stage_run_status(row.get("status")),
-                        worker_instance_id=string_value(row.get("workerInstanceId", "")),
-                        started_at=string_value(row.get("startedAt", now_iso())),
-                        finished_at=string_value(row.get("finishedAt", "")) or None,
-                        duration_ms=safe_int(row.get("durationMs"), 0),
-                        input_summary_json=write_json_object(row.get("inputSummary", {})),
-                        output_summary_json=write_json_object(row.get("outputSummary", {})),
-                        error_code=string_value(row.get("errorCode", "")),
-                        error_message=string_value(row.get("errorMessage", "")),
-                        timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                        create_time=now_iso(),
-                        update_time=now_iso(),
-                        is_deleted=0,
-                        remark="",
-                    ))
+                    await self._upsert_stage_run(task_id, row)
 
                 # 6. Model calls
                 for row in mutation.model_call_rows:
@@ -391,8 +370,8 @@ class TaskRepository:
                         start_seconds=float(row.get("startSeconds") or 0),
                         end_seconds=float(row.get("endSeconds") or 0),
                         duration_seconds=float(row.get("durationSeconds") or 0),
-                        preview_path=string_value(row.get("previewPath", "")),
-                        download_path=string_value(row.get("downloadPath", "")),
+                        preview_path=string_value(row.get("previewPath", row.get("previewUrl", ""))),
+                        download_path=string_value(row.get("downloadPath", row.get("downloadUrl", ""))),
                         width=safe_int(row.get("width"), 0),
                         height=safe_int(row.get("height"), 0),
                         mime_type=string_value(row.get("mimeType", "")),
@@ -465,21 +444,35 @@ class TaskRepository:
 
     async def claim_next_queued_task(self, worker_instance_id: str) -> str | None:
         async with self._lock:
-            stmt = (
-                select(BizTaskAttempt.task_id)
-                .join(BizTask, BizTask.task_id == BizTaskAttempt.task_id)
-                .where(
-                    BizTaskAttempt.status.in_(("QUEUED", "PENDING")),
-                    BizTaskAttempt.is_deleted == 0,
-                    BizTask.status == "PENDING",
-                    BizTask.is_deleted == 0,
+            try:
+                stmt = (
+                    select(BizTaskAttempt)
+                    .join(BizTask, BizTask.task_id == BizTaskAttempt.task_id)
+                    .where(
+                        BizTaskAttempt.status.in_(("QUEUED", "PENDING")),
+                        BizTaskAttempt.is_deleted == 0,
+                        BizTask.status == "PENDING",
+                        BizTask.is_deleted == 0,
+                    )
+                    .order_by(BizTaskAttempt.queue_entered_at.asc(), BizTask.create_time.asc())
+                    .limit(1)
                 )
-                .order_by(BizTaskAttempt.queue_entered_at.asc(), BizTask.create_time.asc())
-                .limit(1)
-            )
-            result = await self.session.execute(stmt)
-            row = result.first()
-            return string_value(row[0]) if row else None
+                result = await self.session.execute(stmt)
+                attempt = result.scalars().first()
+                if attempt is None:
+                    return None
+                now = now_iso()
+                attempt.status = "RUNNING"
+                attempt.worker_instance_id = string_value(worker_instance_id)
+                attempt.claimed_at = now
+                attempt.queue_left_at = now
+                attempt.update_time = now
+                await self.session.flush()
+                await self.session.commit()
+                return string_value(attempt.task_id)
+            except Exception:
+                await self.session.rollback()
+                raise
 
     async def remove_queued_task(self, task_id: str) -> None:
         async with self._lock:
@@ -946,6 +939,45 @@ class TaskRepository:
             return
         self.session.add(BizTaskModelCall(
             task_model_call_id=model_call_id,
+            create_time=now,
+            **values,
+        ))
+
+    async def _upsert_stage_run(self, task_id: str, row: dict[str, Any]) -> None:
+        stage_run_id = string_value(row.get("stageRunId", row.get("id", "")))
+        if not stage_run_id:
+            return
+        result = await self.session.execute(
+            select(BizTaskStageRun).where(BizTaskStageRun.task_stage_run_id == stage_run_id)
+        )
+        existing = result.scalars().first()
+        now = now_iso()
+        values = {
+            "task_id": task_id,
+            "attempt_id": string_value(row.get("attemptId", "")),
+            "stage_name": string_value(row.get("stageName", row.get("stage", ""))),
+            "stage_seq": safe_int(row.get("stageSeq"), 0),
+            "clip_index": safe_int(row.get("clipIndex"), 0),
+            "status": _stage_run_status(row.get("status")),
+            "worker_instance_id": string_value(row.get("workerInstanceId", "")),
+            "started_at": string_value(row.get("startedAt", now)),
+            "finished_at": string_value(row.get("finishedAt", "")) or None,
+            "duration_ms": safe_int(row.get("durationMs"), 0),
+            "input_summary_json": write_json_object(row.get("inputSummary", {})),
+            "output_summary_json": write_json_object(row.get("outputSummary", {})),
+            "error_code": string_value(row.get("errorCode", "")),
+            "error_message": string_value(row.get("errorMessage", "")),
+            "timezone_offset_minutes": safe_int(row.get("timezoneOffsetMinutes"), 0),
+            "update_time": now,
+            "is_deleted": 0,
+            "remark": "",
+        }
+        if existing:
+            for key, value in values.items():
+                setattr(existing, key, value)
+            return
+        self.session.add(BizTaskStageRun(
+            task_stage_run_id=stage_run_id,
             create_time=now,
             **values,
         ))

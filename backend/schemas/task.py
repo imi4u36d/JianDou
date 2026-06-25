@@ -4,10 +4,12 @@ from typing import Any
 
 from pydantic import AliasGenerator, BaseModel, ConfigDict
 
-from backend.schemas.common import _to_camel
+from backend.schemas.common import _to_camel, camel_alias
 
 
 class TaskListItemResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=camel_alias, populate_by_name=True)
+
     id: str = ""
     task_type: str = ""
     title: str = ""
@@ -51,6 +53,8 @@ class TaskListItemResponse(BaseModel):
     owner_role: str = ""
 
 class TaskDetailResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=camel_alias, populate_by_name=True)
+
     id: str = ""
     task_type: str = ""
     title: str = ""
@@ -87,6 +91,18 @@ class TaskDetailResponse(BaseModel):
     materials: list = []
     outputs: list = []
     source_assets: list = []
+    creative_prompt: str = ""
+    has_transcript: bool = False
+    has_timed_transcript: bool = False
+    source_asset_count: int = 0
+    transcript_preview: str | None = None
+    transcript_cue_count: int = 0
+    execution_context: dict[str, Any] = {}
+    request_snapshot: dict[str, Any] = {}
+    storyboard_script: str = ""
+    artifact_directories: dict[str, Any] = {}
+    duration_diagnostics: list = []
+    plan: list = []
 
 class CreateGenerationTaskRequest(BaseModel):
     model_config = ConfigDict(

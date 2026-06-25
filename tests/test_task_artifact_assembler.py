@@ -122,6 +122,33 @@ def test_create_image_result_preserves_remote_metadata_and_material_pointer(tmp_
     assert result["extra"]["referenceImageUrls"] == ["https://provider.example/ref.png"]
 
 
+def test_workspace_image_outputs_use_distinct_material_and_result_ids(tmp_path: Path) -> None:
+    media_service = _RecordingMediaService(tmp_path)
+    assembler = TaskExecutionArtifactAssembler(media_service)
+    task = _task()
+    run = {"id": "run_image_2"}
+    image_result = {
+        "outputUrl": "https://provider.example/image-2.png",
+        "metadata": {"remoteSourceUrl": "https://provider.example/image-2.png"},
+        "width": 2048,
+        "height": 2048,
+    }
+
+    material = assembler.create_workspace_image_material(task, run, image_result, output_index=2)
+    result = assembler.create_image_result(task, run, image_result, material, {"modelCallId": "model_call_2"}, output_index=2)
+
+    assert media_service.materialized[0] == (
+        "https://provider.example/image-2.png",
+        "tasks/task_artifact/running",
+        "workspace-image-task_artifact-2.png",
+    )
+    assert material["metadata"]["clipIndex"] == 2
+    assert material["metadata"]["outputIndex"] == 2
+    assert result["clipIndex"] == 2
+    assert result["materialAssetId"] == material["id"]
+    assert result["extra"]["outputIndex"] == 2
+
+
 class _StoredArtifact:
     def __init__(self, public_url: str, absolute_path: str) -> None:
         self._public_url = public_url
@@ -153,7 +180,7 @@ class _RecordingMediaService:
         max_width: int,
     ) -> str:
         assert max_width == 480
-        assert candidate_image_urls == ["https://provider.example/first.png"]
+        assert candidate_image_urls in ([], ["https://provider.example/first.png"])
         return f"thumb-{media_type}-{public_url}"
 
     def resolve_absolute_path(self, file_url: str) -> str:

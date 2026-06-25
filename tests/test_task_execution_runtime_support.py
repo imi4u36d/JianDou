@@ -58,6 +58,14 @@ def test_resolve_dimensions_and_duration_prefers_explicit_snapshot_values() -> N
     assert support.resolve_duration_seconds(task) == 7
 
 
+def test_resolve_workspace_image_output_count_clamps_to_supported_range() -> None:
+    support = TaskExecutionRuntimeSupport()
+
+    assert support.resolve_workspace_image_output_count(_task(request_snapshot={"outputCount": {"auto": True}})) == 1
+    assert support.resolve_workspace_image_output_count(_task(request_snapshot={"outputCount": {"auto": False, "count": 3}})) == 3
+    assert support.resolve_workspace_image_output_count(_task(request_snapshot={"outputCount": 9})) == 4
+
+
 def test_build_image_request_keeps_single_reference_url_whole() -> None:
     support = TaskExecutionRuntimeSupport(model_resolver=_Resolver(supports_seed=True))
     task = _task(request_snapshot={**_task().request_snapshot, "seed": 123})
@@ -109,8 +117,36 @@ def test_build_workspace_image_request_converts_storage_references_to_public_url
     assert "角色三视图设定图" in request["input"]["prompt"]
 
 
+def test_build_workspace_image_request_uses_unique_file_stem_for_additional_outputs() -> None:
+    support = TaskExecutionRuntimeSupport(model_resolver=_Resolver())
+    task = _task(task_type="image_generation")
+
+    request = support.build_workspace_image_run_request(task, 2048, 2048, output_index=2)
+
+    assert request["input"]["width"] == 2048
+    assert request["input"]["height"] == 2048
+    assert request["storage"]["fileStem"] == "workspace-image-2"
+    assert request["metadata"]["outputIndex"] == 2
+
+
 def test_build_workspace_image_request_uses_data_uri_when_public_url_missing() -> None:
     media_service = _ReferenceMediaService(public_url="", data_uri="data:image/png;base64,abc")
+    support = TaskExecutionRuntimeSupport(
+        model_resolver=_Resolver(),
+        local_media_artifact_service=media_service,
+    )
+    task = _task(
+        execution_context={"referenceImageUrls": ["/storage/ref.png"]},
+        request_snapshot={**_task().request_snapshot, "imageModel": "gpt-image-2"},
+    )
+
+    request = support.build_workspace_image_run_request(task, 512, 512)
+
+    assert request["input"]["referenceImageUrls"] == ["data:image/png;base64,abc"]
+
+
+def test_build_workspace_image_request_ignores_local_storage_public_url_fallback() -> None:
+    media_service = _ReferenceMediaService(public_url="/storage/ref.png", data_uri="data:image/png;base64,abc")
     support = TaskExecutionRuntimeSupport(
         model_resolver=_Resolver(),
         local_media_artifact_service=media_service,

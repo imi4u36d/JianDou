@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.service
 from typing import Any
 
 import pytest
 
+from backend.domain.enums import AttemptTriggerType
+from backend.domain.task_record import TaskRecord
+from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_diagnosis_service import TaskQueueCoordinator
+from backend.services.task_execution_coordinator import TaskExecutionCoordinator
+
+pytestmark = pytest.mark.service
 
 
 @pytest.mark.asyncio
@@ -33,6 +36,37 @@ def test_task_queue_coordinator_does_not_expose_silent_enqueue() -> None:
     coordinator = TaskQueueCoordinator(_RecordingTaskRepository())
 
     assert not hasattr(coordinator, "enqueue")
+
+
+@pytest.mark.asyncio
+async def test_repository_claim_next_marks_attempt_running_atomically(db_session) -> None:
+    repository = TaskRepository(db_session)
+    execution = TaskExecutionCoordinator()
+    task = TaskRecord(
+        id="task_claim_once",
+        owner_user_id=7,
+        task_type="image_generation",
+        title="Claim once",
+        status="PENDING",
+        progress=0,
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+
+    await repository.save_mutation(execution.create_attempt(task, AttemptTriggerType.CREATE, {})["mutation"])
+    await repository.save_mutation(execution.enqueue(task, "render", "task.created", "queued")["mutation"])
+
+    assert await repository.claim_next_queued_task("worker_a") == task.id
+    assert await repository.claim_next_queued_task("worker_b") is None
+
+    loaded = await repository.find_by_id(task.id)
+    assert loaded is not None
+    attempt = loaded.attempts[0]
+    assert attempt["status"] == "RUNNING"
+    assert attempt["workerInstanceId"] == "worker_a"
+    assert attempt["claimedAt"]
+    assert attempt["queueLeftAt"]
+    assert loaded.is_queued is False
 
 
 class _RecordingTaskRepository:

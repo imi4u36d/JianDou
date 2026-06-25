@@ -64,6 +64,11 @@ export function formatTaskOutputCount(snapshot: TaskRequestSnapshot | null | und
   if (snapshot?.outputCount === "auto") {
     return "自动";
   }
+  if (snapshot?.outputCount && typeof snapshot.outputCount === "object") {
+    return snapshot.outputCount.auto
+      ? "自动"
+      : `${Math.max(1, Math.trunc(Number(snapshot.outputCount.count) || 1))} 条`;
+  }
   if (typeof snapshot?.outputCount === "number" && Number.isFinite(snapshot.outputCount)) {
     return `${Math.trunc(snapshot.outputCount)} 条`;
   }

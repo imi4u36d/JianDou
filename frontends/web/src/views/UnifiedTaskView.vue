@@ -19,12 +19,13 @@
         </div>
       </div>
 
-      <!-- 统一渲染 WorkflowDetailPanel -->
-      <WorkflowDetailPanel
+      <TaskDetailPanel
         v-else
-        :key="`workflow-${selectedId}`"
-        :selected-workflow-id="selectedId"
-        :reload-workflows="list.load"
+        :key="`task-${selectedId}`"
+        :selected-task-id="selectedId"
+        :tasks="list.tasks.value"
+        :reload-tasks="list.load"
+        @deleted="handleDeleted"
       />
     </section>
 
@@ -50,21 +51,21 @@
 
 <script setup lang="ts">
 /**
- * 统一工作流视图。
- * 所有创作均以工作流形式管理，区分自动执行和手动执行两种模式。
+ * 统一任务视图。
+ * 所有创作均以任务形式管理。
  */
 import { onMounted, onUnmounted, ref } from "vue";
 import { useUnifiedList } from "@/composables/unified/useUnifiedList";
 import { useUnifiedSelection } from "@/composables/unified/useUnifiedSelection";
 import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
-import WorkflowDetailPanel from "./unified/components/WorkflowDetailPanel.vue";
+import TaskDetailPanel from "./unified/components/TaskDetailPanel.vue";
 import CreateTaskDialog from "./unified/components/CreateTaskDialog.vue";
 import { IconPlus } from "@/components/icons";
 import type { UnifiedListItem } from "@/types/unified-task";
 import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { messageApi } from "@/composables/useMessage";
-import { deleteWorkflow } from "@/api/workflows";
+import { deleteTask } from "@/api/tasks";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 
 const list = useUnifiedList();
@@ -82,31 +83,37 @@ function handleSelect(item: UnifiedListItem) {
 async function handleDelete(item: UnifiedListItem) {
   if (managingId.value) return;
   const authenticated = await requireAuth({
-    title: "登录后操作工作流",
+    title: "登录后操作任务",
     message: "删除后无法恢复，请先登录或使用邀请码注册。",
   });
   if (!authenticated) {
-    messageApi.error("登录后可继续操作工作流");
+    messageApi.error("登录后可继续操作任务");
     return;
   }
   const ok = await requestConfirm({
-    title: "删除工作流",
-    message: `删除后无法恢复：${item.title || "未命名工作流"}`,
+    title: "删除任务",
+    message: `删除后无法恢复：${item.title || "未命名任务"}`,
     confirmText: "删除",
   });
   if (!ok) return;
   managingId.value = item.id;
   try {
-    await deleteWorkflow(item.id);
+    await deleteTask(item.id);
     if (selectedId.value === item.id) {
       selection.clearSelection();
     }
     await list.load();
-    messageApi.success("工作流已删除");
+    messageApi.success("任务已删除");
   } catch (error) {
-    messageApi.error(error instanceof Error ? error.message : "删除工作流失败");
+    messageApi.error(error instanceof Error ? error.message : "删除任务失败");
   } finally {
     managingId.value = "";
+  }
+}
+
+function handleDeleted(taskId: string) {
+  if (selectedId.value === taskId) {
+    selection.clearSelection();
   }
 }
 

@@ -77,21 +77,31 @@ class TaskWorkerOpsConfig:
     Maps to JiandouTaskOpsProperties in Java.
     """
 
+    MAX_WORKER_CONCURRENCY = 5
+
     def __init__(
         self,
-        worker_concurrency: int = 2,
+        worker_concurrency: int = MAX_WORKER_CONCURRENCY,
         worker_poll_initial_delay_ms: int = 5_000,
         worker_poll_interval_ms: int = 2_000,
         worker_maintenance_initial_delay_ms: int = 10_000,
         worker_maintenance_interval_ms: int = 30_000,
         worker_stale_timeout_seconds: int = 300,
     ) -> None:
-        self.worker_concurrency = worker_concurrency
+        self.worker_concurrency = self._normalize_worker_concurrency(worker_concurrency)
         self.worker_poll_initial_delay_ms = worker_poll_initial_delay_ms
         self.worker_poll_interval_ms = worker_poll_interval_ms
         self.worker_maintenance_initial_delay_ms = worker_maintenance_initial_delay_ms
         self.worker_maintenance_interval_ms = worker_maintenance_interval_ms
         self.worker_stale_timeout_seconds = worker_stale_timeout_seconds
+
+    @classmethod
+    def _normalize_worker_concurrency(cls, value: int) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = 1
+        return max(1, min(cls.MAX_WORKER_CONCURRENCY, parsed))
 
 
 # ---------------------------------------------------------------------------

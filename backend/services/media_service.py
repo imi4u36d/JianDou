@@ -13,6 +13,7 @@ Handles local media file operations using ffmpeg and PIL/Pillow:
 from __future__ import annotations
 
 import hashlib
+import mimetypes
 import os
 import shutil
 import subprocess
@@ -23,6 +24,8 @@ from urllib.parse import urlparse
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
+
+from backend.shared import string_value
 
 # ---------------------------------------------------------------------------
 # Configuration (simplified — replace with your own config as needed)
@@ -36,23 +39,29 @@ class JiandouStorageProperties:
         root_dir: str | Path = "./storage",
         public_base_url: str = "",
         externally_accessible_base_url: str = "",
+        storage_key_prefix: str = "",
     ):
         self._root_dir = Path(root_dir).resolve()
         self._public_base_url = public_base_url.rstrip("/")
         self._externally_accessible_base_url = externally_accessible_base_url.rstrip("/")
+        self._storage_key_prefix = self._clean_prefix(storage_key_prefix)
 
     def resolve_root_dir(self) -> Path:
         return self._root_dir
 
     def build_public_url(self, relative_path: str) -> str:
+        relative = relative_path.lstrip("/")
         if self._public_base_url:
-            return f"{self._public_base_url}/{relative_path.lstrip('/')}"
-        return f"/storage/{relative_path.lstrip('/')}"
+            return f"{self._public_base_url}/{self._prefixed_key(relative)}"
+        return f"/storage/{relative}"
 
     def build_externally_accessible_url(self, public_url: str) -> str:
+        normalized = (public_url or "").replace("\\", "/").strip()
+        if normalized.startswith("/storage/") and self._public_base_url:
+            return f"{self._public_base_url}/{self._prefixed_key(normalized[len('/storage/'):].lstrip('/'))}"
         if self._externally_accessible_base_url:
-            return f"{self._externally_accessible_base_url}{public_url}"
-        return public_url
+            return f"{self._externally_accessible_base_url}{normalized}"
+        return normalized
 
     def resolve_public_url(self, public_url: str) -> Path | None:
         """Resolve a public URL (/storage/...) to an absolute filesystem path."""
@@ -61,9 +70,32 @@ class JiandouStorageProperties:
         prefix = self._public_base_url if self._public_base_url else "/storage"
         if normalized.startswith(prefix):
             relative = normalized[len(prefix):].lstrip("/")
-            resolved = self._root_dir / relative
+            local_key = self._local_key_from_public_relative(relative)
+            if local_key is None:
+                return None
+            resolved = self._root_dir / local_key
             return resolved.resolve()
         return None
+
+    def _prefixed_key(self, relative_path: str) -> str:
+        key = relative_path.lstrip("/")
+        if not self._storage_key_prefix:
+            return key
+        if key == self._storage_key_prefix or key.startswith(f"{self._storage_key_prefix}/"):
+            return key
+        return f"{self._storage_key_prefix}/{key}" if key else self._storage_key_prefix
+
+    def _local_key_from_public_relative(self, relative_path: str) -> str | None:
+        key = relative_path.lstrip("/")
+        if not self._storage_key_prefix:
+            return key
+        if key.startswith(f"{self._storage_key_prefix}/"):
+            return key[len(self._storage_key_prefix) + 1 :]
+        return None
+
+    @staticmethod
+    def _clean_prefix(value: str) -> str:
+        return "/".join(part for part in (value or "").replace("\\", "/").split("/") if part and part != ".")
 
 
 # ---------------------------------------------------------------------------
@@ -131,10 +163,12 @@ class LocalMediaArtifactService:
         self,
         storage_properties: JiandouStorageProperties,
         ffmpeg_bin: str = "ffmpeg",
+        remote_object_store: object | None = None,
     ):
         self._storage_properties = storage_properties
         self._storage_root = storage_properties.resolve_root_dir()
         self._ffmpeg_bin = ffmpeg_bin.strip() if ffmpeg_bin else "ffmpeg"
+        self._remote_object_store = remote_object_store
         self._http_session = requests.Session()
         self._http_session.max_redirects = 10
 
@@ -158,7 +192,7 @@ class LocalMediaArtifactService:
             return TextArtifact(
                 file_name=file_name,
                 absolute_path=str(output.resolve()),
-                public_url=self._build_public_url(relative_dir, file_name),
+                public_url=self._publish_path(output, relative_dir, file_name, "text/markdown"),
                 size_bytes=output.stat().st_size,
                 mime_type="text/markdown",
             )
@@ -267,7 +301,7 @@ class LocalMediaArtifactService:
             return ImageArtifact(
                 file_name=file_name,
                 absolute_path=str(output.resolve()),
-                public_url=self._build_public_url(relative_dir, file_name),
+                public_url=self._publish_path(output, relative_dir, file_name, "image/png"),
                 size_bytes=output.stat().st_size,
                 width=width,
                 height=height,
@@ -336,7 +370,7 @@ class LocalMediaArtifactService:
             return VideoArtifact(
                 file_name=file_name,
                 absolute_path=str(output.resolve()),
-                public_url=self._build_public_url(relative_dir, file_name),
+                public_url=self._publish_path(output, relative_dir, file_name, "video/mp4"),
                 size_bytes=output.stat().st_size,
                 width=width,
                 height=height,
@@ -487,7 +521,7 @@ class LocalMediaArtifactService:
         return StoredArtifact(
             file_name=file_name,
             absolute_path=str(target),
-            public_url=self._build_public_url(relative_dir, file_name),
+            public_url=self._publish_path(target, relative_dir, file_name),
             size_bytes=target.stat().st_size,
         )
 
@@ -523,7 +557,7 @@ class LocalMediaArtifactService:
             return StoredArtifact(
                 file_name=file_name,
                 absolute_path=str(target),
-                public_url=self._build_public_url(relative_dir, file_name),
+                public_url=self._publish_path(target, relative_dir, file_name),
                 size_bytes=target.stat().st_size,
             )
         except Exception as ex:
@@ -546,7 +580,7 @@ class LocalMediaArtifactService:
         return StoredArtifact(
             file_name=file_name,
             absolute_path=str(target),
-            public_url=self._build_public_url(relative_dir, file_name),
+            public_url=self._publish_path(target, relative_dir, file_name),
             size_bytes=target.stat().st_size,
         )
 
@@ -649,7 +683,7 @@ class LocalMediaArtifactService:
             return StoredArtifact(
                 file_name=file_name,
                 absolute_path=str(output),
-                public_url=self._build_public_url(relative_dir, file_name),
+                public_url=self._publish_path(output, relative_dir, file_name),
                 size_bytes=output.stat().st_size,
             )
         except subprocess.TimeoutExpired:
@@ -659,6 +693,9 @@ class LocalMediaArtifactService:
 
     def build_externally_accessible_url(self, public_url: str) -> str:
         return self._storage_properties.build_externally_accessible_url(public_url)
+
+    def resolve_absolute_path(self, public_url: str) -> str:
+        return self._resolve_absolute_path(public_url)
 
     # ---- Private helpers --------------------------------------------------
 
@@ -671,13 +708,28 @@ class LocalMediaArtifactService:
         normalized_dir = (relative_dir or "").replace("\\", "/")
         return self._storage_properties.build_public_url(f"{normalized_dir}/{file_name}")
 
+    def _publish_path(self, path: Path, relative_dir: str, file_name: str, content_type: str = "") -> str:
+        local_public_url = self._build_public_url(relative_dir, file_name)
+        if not self._remote_object_store:
+            return local_public_url
+
+        normalized_dir = (relative_dir or "").replace("\\", "/").strip("/")
+        storage_key = f"{normalized_dir}/{file_name}".lstrip("/")
+        mime_type = content_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+        try:
+            stored = self._remote_object_store.put_object(storage_key, path.read_bytes(), mime_type, file_name)
+        except Exception as ex:
+            raise RuntimeError(f"artifact publish failed: {ex}") from ex
+        return string_value(getattr(stored, "public_url", "")) or local_public_url
+
     def _resolve_absolute_path(self, public_url: str) -> str:
         resolved = self._storage_properties.resolve_public_url(public_url)
         return str(resolved) if resolved else ""
 
     def _public_url_for_storage_path(self, path: Path) -> str:
         relative = path.resolve().relative_to(self._storage_root.resolve())
-        return self._storage_properties.build_public_url(str(relative).replace("\\", "/"))
+        storage_key = str(relative).replace("\\", "/")
+        return self._publish_path(path, str(Path(storage_key).parent), Path(storage_key).name)
 
     def _ensure_remote_image_thumbnail(self, public_url: str, max_width: int) -> str:
         normalized = (public_url or "").strip()

@@ -6,9 +6,9 @@
     :aria-label="`查看${item.title}`"
     @click="$emit('select', item)"
   >
-    <span class="unified-list-item__badge unified-list-item__badge-workflow" aria-hidden="true">
+    <span class="unified-list-item__badge unified-list-item__badge-task" aria-hidden="true">
       <img v-if="item.thumbnailUrl" :src="item.thumbnailUrl" alt="" class="unified-list-item__thumb" />
-      <AppIcon v-else name="workflow" size="sm" />
+      <AppIcon v-else name="task" size="sm" />
     </span>
     <span class="unified-list-item__body">
       <span class="unified-list-item__title">{{ item.title }}</span>
@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 /**
- * 统一列表行组件（仅工作流）。
+ * 统一任务列表行组件。
  */
 import { computed } from "vue";
 import { AppIcon } from "@/components/icons";
@@ -55,9 +55,10 @@ defineEmits<{
 const statusLabel = computed(() => {
   const s = props.item.status;
   switch (s.toLowerCase()) {
-    case "draft": return "草稿";
-    case "ready": return "准备中";
-    case "running": return "执行中";
+    case "pending": return "排队中";
+    case "analyzing": return "分析中";
+    case "planning": return "编排中";
+    case "rendering": return "生成中";
     case "paused": return "已暂停";
     case "completed": return "已完成";
     case "failed": return "失败";
@@ -67,7 +68,7 @@ const statusLabel = computed(() => {
 
 const statusTone = computed(() => {
   const s = props.item.status;
-  if (["RUNNING", "READY", "DRAFT"].includes(s)) return "active";
+  if (["PENDING", "ANALYZING", "PLANNING", "RENDERING"].includes(s)) return "active";
   if (["COMPLETED"].includes(s)) return "done";
   if (["FAILED"].includes(s)) return "failed";
   if (["PAUSED"].includes(s)) return "paused";
@@ -126,7 +127,7 @@ const compactTime = computed(() => {
   overflow: hidden;
 }
 
-.unified-list-item__badge-workflow { background: rgba(99, 102, 241, 0.08); color: var(--accent-indigo); }
+.unified-list-item__badge-task { background: rgba(99, 102, 241, 0.08); color: var(--accent-indigo); }
 
 .unified-list-item__thumb {
   width: 100%;

@@ -152,7 +152,7 @@ Key variables:
 | `JIANDOU_WEB_ORIGIN` | Frontend origin for CORS | `http://127.0.0.1:8100` |
 | `JIANDOU_TRUSTED_ORIGINS` | Additional trusted origins (comma-separated) | — |
 | `JIANDOU_COOKIE_SECURE` | Enable secure cookies + HSTS | `false` |
-| `JIANDOU_WORKER_CONCURRENCY` | Async worker thread count | `2` |
+| `JIANDOU_WORKER_CONCURRENCY` | Async worker thread count (max 5) | `5` |
 | `JIANDOU_DEFAULT_ASPECT_RATIO` | Default video aspect ratio | `16:9` |
 | `JIANDOU_DEFAULT_DURATION_SECONDS` | Default video duration | `8` |
 

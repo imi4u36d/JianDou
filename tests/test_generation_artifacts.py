@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from io import BytesIO
+
 import pytest
+from PIL import Image
 
 pytestmark = pytest.mark.service
 from backend.domain.generation_run import GenerationModelKinds
@@ -80,9 +83,9 @@ def test_artifact_store_uses_run_directory_defaults(tmp_path) -> None:
     artifact = store.write_binary_artifact("run_default", {}, "image", "", b"data")
 
     assert artifact["fileName"] == "image.bin"
-    assert artifact["publicUrl"] == "/storage/gen/_runs/run_default/image.bin"
+    assert artifact["publicUrl"] == "/storage/tasks/_runs/run_default/image.bin"
     assert artifact["mimeType"] == "application/octet-stream"
-    assert (tmp_path / "gen/_runs/run_default/image.bin").read_bytes() == b"data"
+    assert (tmp_path / "tasks/_runs/run_default/image.bin").read_bytes() == b"data"
 
 
 def test_artifact_store_publishes_to_remote_store_and_keeps_local_file(tmp_path) -> None:
@@ -91,6 +94,41 @@ def test_artifact_store_publishes_to_remote_store_and_keeps_local_file(tmp_path)
 
     artifact = store.write_binary_artifact("run_remote", {}, "image", "png", b"image")
 
-    assert artifact["publicUrl"] == "https://cdn.example.test/gen/_runs/run_remote/image.png"
-    assert remote.puts == [("gen/_runs/run_remote/image.png", b"image", "image/png", "image.png")]
-    assert (tmp_path / "gen/_runs/run_remote/image.png").read_bytes() == b"image"
+    assert artifact["publicUrl"] == "https://cdn.example.test/tasks/_runs/run_remote/image.png"
+    assert remote.puts == [("tasks/_runs/run_remote/image.png", b"image", "image/png", "image.png")]
+    assert (tmp_path / "tasks/_runs/run_remote/image.png").read_bytes() == b"image"
+
+
+def test_artifact_store_resizes_generated_image_to_requested_dimensions(tmp_path) -> None:
+    remote = _FakeRemoteStore()
+    store = GenerationArtifactStore(str(tmp_path), "https://app.example.test", remote)
+    request = {
+        "input": {"width": 3840, "height": 2160},
+        "storage": {
+            "relativeDir": "tasks/task_4k/running",
+            "fileStem": "workspace-image",
+        },
+    }
+    source = _png_bytes(1672, 941)
+
+    artifact = store.write_binary_artifact("run_4k", request, "image", "png", source)
+
+    assert artifact["width"] == 3840
+    assert artifact["height"] == 2160
+    assert artifact["sourceWidth"] == 1672
+    assert artifact["sourceHeight"] == 941
+    assert artifact["resizedToRequestedDimensions"] is True
+    assert remote.puts[0][0] == "tasks/task_4k/running/workspace-image.png"
+    assert _image_size(remote.puts[0][1]) == (3840, 2160)
+    assert _image_size((tmp_path / "tasks/task_4k/running/workspace-image.png").read_bytes()) == (3840, 2160)
+
+
+def _png_bytes(width: int, height: int) -> bytes:
+    output = BytesIO()
+    Image.new("RGB", (width, height), (18, 52, 86)).save(output, "PNG")
+    return output.getvalue()
+
+
+def _image_size(data: bytes) -> tuple[int, int]:
+    with Image.open(BytesIO(data)) as image:
+        return image.size

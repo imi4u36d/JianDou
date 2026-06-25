@@ -19,6 +19,8 @@ async def test_generation_catalog_uses_configured_models(client):
     assert any(model["value"] == "seedance-1.5-pro" for model in data["videoModels"])
     assert all(model["provider"] == "openai" for model in data["textAnalysisModels"])
     assert all(model["provider"] == "openai" for model in data["imageModels"])
+    image_model = next(model for model in data["imageModels"] if model["value"] == "gpt-image-2")
+    assert {"1024x1024", "2048x2048", "3840x2160", "2160x3840"}.issubset(set(image_model["supportedSizes"]))
 
 
 async def test_generation_options_matches_catalog(client):

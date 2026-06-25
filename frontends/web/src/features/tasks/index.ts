@@ -1,4 +1,5 @@
 export {
+  createGenerationTask,
   continueTask,
   deleteTask,
   fetchTask,

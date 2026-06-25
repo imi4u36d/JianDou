@@ -652,37 +652,6 @@ class GenerationRunFactory:
         script_markdown = draft_script_markdown
         final_response = draft_response
         review_applied = False
-        review_fallback_reason = ""
-
-        # Real review call
-        review_system_prompt = system_prompt + "\n\nPlease review and improve the script above for quality and completeness."
-        review_response = await self._call_text_model(
-            profile,
-            system_prompt=review_system_prompt,
-            user_prompt=draft_script_markdown,
-        )
-        provider_interactions.append(self._text_provider_interaction("review", review_response))
-        call_chain.append(
-            self._support.call_log("script", "script.review_requested", "success", "", {
-                "provider": profile.get("provider", ""),
-                "modelName": profile.get("modelName", ""),
-                "endpointHost": review_response["endpointHost"],
-            })
-        )
-        reviewed_script = self._support.strip_markdown_fence(review_response["text"])
-        invalid_reason = self._invalid_storyboard_reason(reviewed_script)
-        if not invalid_reason:
-            script_markdown = reviewed_script
-            final_response = review_response
-            review_applied = True
-        else:
-            review_fallback_reason = invalid_reason
-            call_chain.append(
-                self._support.call_log("script", "script.review_fallback", "warning", "", {
-                    "reason": invalid_reason,
-                    "responseId": review_response["responseId"],
-                })
-            )
 
         call_chain.append(
             self._support.call_log("script", "script.completed", "success",
@@ -692,6 +661,7 @@ class GenerationRunFactory:
                     "responsesApi": final_response["responsesApi"],
                     "responseId": final_response["responseId"],
                     "reviewApplied": review_applied,
+                    "singlePass": True,
                 }
             )
         )
@@ -705,8 +675,10 @@ class GenerationRunFactory:
             "scriptMarkdown": script_markdown,
             "reviewApplied": review_applied,
             "draftResponseId": draft_response["responseId"],
-            "reviewResponseId": review_response["responseId"],
+            "reviewResponseId": "",
             "finalResponseId": final_response["responseId"],
+            "scriptGenerationMode": "single_pass",
+            "reviewSkipped": True,
             "providerInteractions": provider_interactions,
             "providerRequest": final_response["providerRequest"],
             "providerResponse": final_response["providerResponse"],
@@ -715,8 +687,6 @@ class GenerationRunFactory:
             "configSource": profile.get("source", ""),
             **self._request_metadata(request),
         }
-        if review_fallback_reason:
-            metadata["reviewFallbackReason"] = review_fallback_reason
 
         result = {
             "runId": run_id,
@@ -881,8 +851,15 @@ class GenerationRunFactory:
                 "provider": remote_image["provider"],
                 "providerModel": remote_image["providerModel"],
                 "endpointHost": remote_image["endpointHost"],
+                "artifactWidth": image_artifact.get("width") or width,
+                "artifactHeight": image_artifact.get("height") or height,
+                "sourceWidth": image_artifact.get("sourceWidth") or 0,
+                "sourceHeight": image_artifact.get("sourceHeight") or 0,
+                "resizedToRequestedDimensions": bool(image_artifact.get("resizedToRequestedDimensions")),
             })
         )
+        artifact_width = int(image_artifact.get("width") or width)
+        artifact_height = int(image_artifact.get("height") or height)
 
         result: dict[str, Any] = {
             "runId": run_id,
@@ -894,8 +871,8 @@ class GenerationRunFactory:
             "negativePrompt": negative_prompt,
             "outputUrl": image_artifact["publicUrl"],
             "mimeType": remote_image["mimeType"],
-            "width": width,
-            "height": height,
+            "width": artifact_width,
+            "height": artifact_height,
             "metadata": {
                 "stylePreset": _style_preset,
                 "outputUrl": image_artifact["publicUrl"],
@@ -922,6 +899,11 @@ class GenerationRunFactory:
                 "provider": remote_image["provider"],
                 "providerModel": remote_image["providerModel"],
                 "requestedSize": remote_image["requestedSize"],
+                "artifactWidth": artifact_width,
+                "artifactHeight": artifact_height,
+                "sourceWidth": int(image_artifact.get("sourceWidth") or 0),
+                "sourceHeight": int(image_artifact.get("sourceHeight") or 0),
+                "resizedToRequestedDimensions": bool(image_artifact.get("resizedToRequestedDimensions")),
                 "providerRequest": remote_image["providerRequest"],
                 "providerResponse": remote_image["providerResponse"],
                 "providerHttpStatus": remote_image["httpStatus"],
@@ -1190,7 +1172,7 @@ class GenerationRunFactory:
         if query_status in self._VIDEO_SUCCESS_STATES:
             relative_dir = self._support.first_non_blank(
                 self._support.string_value(metadata.get("storageRelativeDir")),
-                f"gen/_runs/{self._support.string_value(run.get('id'))}",
+                f"tasks/_runs/{self._support.string_value(run.get('id'))}",
             )
             file_stem = self._support.first_non_blank(
                 self._support.string_value(metadata.get("storageFileStem")), "video"

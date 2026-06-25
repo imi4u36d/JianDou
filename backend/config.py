@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     storage_root: str = "./storage"
     storage_backend: str = "local"
     uploads_dir: str = "uploads"
-    generation_runs_dir: str = "gen/_runs"
+    generation_runs_dir: str = "tasks/_runs"
     storage_public_base_url: str = ""
     upload_max_size_bytes: int = 100 * 1024 * 1024  # 100 MB
     aliyun_oss_endpoint: str = ""
@@ -86,8 +86,15 @@ class Settings(BaseSettings):
 
     # Worker / Queue
     generation_async_threads: int = 2
-    worker_concurrency: int = 2
-    worker_stale_timeout_seconds: int = 30
+    worker_concurrency: int = Field(
+        default=5,
+        validation_alias=AliasChoices(
+            "worker_concurrency",
+            "JIANDOU_WORKER_CONCURRENCY",
+            "JIANDOU_TASK_OPS_WORKER_CONCURRENCY",
+        ),
+    )
+    worker_stale_timeout_seconds: int = 900
     worker_poll_interval_ms: int = 1000
 
     # Logging
@@ -181,16 +188,16 @@ def validate_settings(s: Settings) -> list[_ValidationIssue]:
     # Worker concurrency
     if s.worker_concurrency < 1:
         _add("worker_concurrency", "must be at least 1", "error")
-    elif s.worker_concurrency > 32:
-        _add("worker_concurrency", "high concurrency value may degrade performance", "warning")
+    elif s.worker_concurrency > 5:
+        _add("worker_concurrency", "must not exceed 5", "error")
 
     # Poll interval
     if s.worker_poll_interval_ms < 100:
         _add("worker_poll_interval_ms", "very low poll interval may cause excessive database load", "warning")
 
     # Stale timeout
-    if s.worker_stale_timeout_seconds < 5:
-        _add("worker_stale_timeout_seconds", "too short — may cause false-positive stale detection", "error")
+    if s.worker_stale_timeout_seconds < 120:
+        _add("worker_stale_timeout_seconds", "too short — may cause false-positive stale detection during model calls", "error")
 
     # Upload size
     if s.upload_max_size_bytes > 500 * 1024 * 1024:

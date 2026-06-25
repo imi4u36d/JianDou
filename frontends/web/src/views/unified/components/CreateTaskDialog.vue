@@ -17,23 +17,23 @@
           <IconClose size="sm" />
         </button>
 
-        <form class="create-task-dialog__body" @submit.prevent="submitWorkflow">
+        <form class="create-task-dialog__body" @submit.prevent="submitTask">
           <label class="create-field">
             <span>标题</span>
-            <input ref="titleInputRef" v-model="workflowTitle" required placeholder="标题" />
+            <input ref="titleInputRef" v-model="taskTitle" required placeholder="任务名称" />
           </label>
           <label class="create-field">
             <span>灵感创作</span>
-            <textarea v-model="workflowTranscript" rows="6" placeholder="灵感创作"></textarea>
+            <textarea v-model="taskPrompt" rows="6" placeholder="描述你要生成的视频内容"></textarea>
           </label>
           <label class="create-field">
             <span>画幅</span>
-            <AppSelect v-model="workflowAspectRatio" :options="aspectRatioOptions" />
+            <AppSelect v-model="taskAspectRatio" :options="aspectRatioOptions" />
           </label>
 
           <div class="create-task-dialog__footer">
-            <span class="create-status-text" :class="{ 'create-status-text--error': isStatusError }">{{ workflowStatusText }}</span>
-            <button class="btn-primary" type="submit" :disabled="submitting || !workflowTitle.trim()">
+            <span class="create-status-text" :class="{ 'create-status-text--error': isStatusError }">{{ taskStatusText }}</span>
+            <button class="btn-primary" type="submit" :disabled="submitting || !taskTitle.trim()">
               <IconLoading v-if="submitting" size="xs" />
               <span>{{ submitting ? "创建中" : "开始" }}</span>
             </button>
@@ -46,11 +46,12 @@
 
 <script setup lang="ts">
 /**
- * 创建工作流弹窗组件。
+ * 创建任务弹窗组件。
  */
 import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
-import { createWorkflow, fetchGenerationOptions } from "@/features/workflows";
+import { fetchGenerationOptions } from "@/api/generation";
+import { createGenerationTask } from "@/features/tasks";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
@@ -113,14 +114,14 @@ watch(
 
 onBeforeUnmount(restoreFocus);
 
-// ── Workflow form ──
+// ── Task form ──
 
-const workflowTitle = ref("");
-const workflowTranscript = ref("");
-const workflowAspectRatio = ref("16:9");
-const workflowStatusText = ref("");
+const taskTitle = ref("");
+const taskPrompt = ref("");
+const taskAspectRatio = ref("16:9");
+const taskStatusText = ref("");
 
-const isStatusError = computed(() => workflowStatusText.value && !workflowStatusText.value.includes("成功"));
+const isStatusError = computed(() => taskStatusText.value && !taskStatusText.value.includes("成功"));
 
 const aspectRatioOptions = computed<AppSelectOption[]>(() => {
   const ratios = options.value?.aspectRatios ?? ["16:9", "9:16"];
@@ -129,28 +130,97 @@ const aspectRatioOptions = computed<AppSelectOption[]>(() => {
   );
 });
 
-async function submitWorkflow() {
-  if (!workflowTitle.value.trim()) return;
-  const authenticated = await requireAuth({ title: "登录后创建画布", message: "阶段工作流会保存到你的账号下，请先登录或使用邀请码注册。" });
+type ModelOption = {
+  value: string;
+  label: string;
+  provider?: string | null;
+  vendor?: string | null;
+  family?: string | null;
+  description?: string | null;
+};
+
+function optionSearchText(item: ModelOption) {
+  return [
+    item.value,
+    item.label,
+    item.provider,
+    item.vendor,
+    item.family,
+    item.description,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function preferredModelValue(models: ModelOption[] | undefined, preferredKeyword: string) {
+  const items = models ?? [];
+  const preferred = preferredKeyword.toLowerCase();
+  return items.find((item) => optionSearchText(item).includes(preferred))?.value ?? items[0]?.value ?? "";
+}
+
+function videoSizeAspectRatio(value?: string | null, width?: number, height?: number) {
+  const resolvedWidth = Number(width ?? 0);
+  const resolvedHeight = Number(height ?? 0);
+  if (resolvedWidth > 0 && resolvedHeight > 0) {
+    return resolvedWidth > resolvedHeight ? "16:9" : "9:16";
+  }
+  const [rawWidth, rawHeight] = String(value ?? "").replace(/\*/g, "x").split("x");
+  const parsedWidth = Number(rawWidth);
+  const parsedHeight = Number(rawHeight);
+  if (parsedWidth > 0 && parsedHeight > 0) {
+    return parsedWidth > parsedHeight ? "16:9" : "9:16";
+  }
+  return "";
+}
+
+function preferredVideoSizeValue(catalog: GenerationOptionsResponse, videoModel: string, aspectRatio: string) {
+  const selectedModel = videoModel.trim().toLowerCase();
+  const sizes = catalog.videoSizes ?? [];
+  const available = sizes.filter((item) => {
+    const itemAspectRatio = videoSizeAspectRatio(item.value, item.width, item.height);
+    if (itemAspectRatio && itemAspectRatio !== aspectRatio) {
+      return false;
+    }
+    const supportedModels = Array.isArray(item.supportedModels) ? item.supportedModels : [];
+    if (!selectedModel || !supportedModels.length) {
+      return true;
+    }
+    return supportedModels.some((model) => model.trim().toLowerCase() === selectedModel);
+  });
+  return available.find((item) => item.value === catalog.defaultVideoSize)?.value ?? available[0]?.value ?? catalog.defaultVideoSize ?? null;
+}
+
+async function submitTask() {
+  if (!taskTitle.value.trim()) return;
+  const authenticated = await requireAuth({ title: "登录后创建任务", message: "生成结果会保存到你的任务和素材库中，请先登录或使用邀请码注册。" });
   if (!authenticated) return;
   submitting.value = true;
-  workflowStatusText.value = "";
+  taskStatusText.value = "";
   try {
-    const workflow = await createWorkflow({
-      title: workflowTitle.value.trim(),
-      transcriptText: workflowTranscript.value.trim() || null,
-      aspectRatio: workflowAspectRatio.value,
-      textAnalysisModel: options.value?.defaultTextAnalysisModel || "",
-      imageModel: options.value?.defaultImageModel || "",
-      videoModel: options.value?.defaultVideoModel || "",
-      videoSize: options.value?.defaultVideoSize || null,
+    const catalog = options.value ?? await fetchGenerationOptions();
+    options.value = catalog;
+    const textAnalysisModel = preferredModelValue(catalog.textAnalysisModels, "openai");
+    const imageModel = preferredModelValue(catalog.imageModels, "openai");
+    const videoModel = preferredModelValue(catalog.videoModels, "agnes");
+    const task = await createGenerationTask({
+      title: taskTitle.value.trim(),
+      taskType: "video_generation",
+      assetType: "free",
+      creativePrompt: taskPrompt.value.trim() || taskTitle.value.trim(),
+      transcriptText: taskPrompt.value.trim() || null,
+      aspectRatio: taskAspectRatio.value,
+      imageSize: catalog.defaultImageSize || catalog.imageSizes?.[0]?.value || null,
+      textAnalysisModel,
+      imageModel,
+      videoModel,
+      videoSize: preferredVideoSizeValue(catalog, videoModel, taskAspectRatio.value),
+      videoDurationSeconds: catalog.defaultVideoDurationSeconds ?? "auto",
+      outputCount: "auto",
     });
-    workflowTitle.value = "";
-    workflowTranscript.value = "";
-    workflowStatusText.value = "创建成功";
-    emit("created", workflow.id);
+    taskTitle.value = "";
+    taskPrompt.value = "";
+    taskStatusText.value = "创建成功";
+    emit("created", task.id);
   } catch (error) {
-    workflowStatusText.value = formatApiErrorMessage(error, "创建工作流失败");
+    taskStatusText.value = formatApiErrorMessage(error, "创建任务失败");
   } finally {
     submitting.value = false;
   }

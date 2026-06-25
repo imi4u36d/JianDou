@@ -296,8 +296,11 @@ class TaskWorkerStatusStageService:
         run_context: TaskWorkerExecutionContext,
         image_run: dict[str, Any],
         output_url: str,
+        output_count: int = 1,
+        image_run_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         self._assert_task_still_active(task)
+        task.completed_output_count = max(1, output_count)
         result = self._execution_coordinator.transition_task(
             task,
             TaskStateTransition.info(
@@ -308,7 +311,9 @@ class TaskWorkerStatusStageService:
                 "图片生成任务已完成。",
                 {
                     "imageRunId": string_value(image_run.get("id")),
+                    "imageRunIds": image_run_ids or [string_value(image_run.get("id"))],
                     "outputUrl": output_url,
+                    "outputCount": output_count,
                     "taskType": task.task_type,
                 },
             ).with_attempt(AttemptStatus.FINISHED.value, ""),

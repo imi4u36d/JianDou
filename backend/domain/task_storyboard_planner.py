@@ -737,6 +737,8 @@ class TaskStoryboardPlanner:
             return []
 
         supported_durations = self._supported_video_durations(requested_video_model)
+        if "agnes" in string_value(requested_video_model).lower():
+            supported_durations = [duration for duration in supported_durations if duration <= 6]
         if not supported_durations:
             return clip_duration_plan
 
@@ -1179,6 +1181,8 @@ class TaskStoryboardPlanner:
         normalized_model = string_value(requested_video_model)
         if not normalized_model:
             return []
+        if "agnes" in normalized_model.lower():
+            return [4, 5, 6]
 
         if self._model_resolver is None:
             return []

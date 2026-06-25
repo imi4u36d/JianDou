@@ -20,6 +20,20 @@ def _truncate_text(value: str, max_length: int) -> str:
     return normalized[:max_length] + "..."
 
 
+def _resolver_int_value(resolver: Any, section: str, key: str, fallback: int) -> int:
+    try:
+        return resolver.int_value(section, key, fallback=fallback)
+    except TypeError:
+        return resolver.int_value(section, key, default=fallback)
+
+
+def _resolver_value(resolver: Any, section: str, key: str, fallback: str) -> str:
+    try:
+        return resolver.value(section, key, fallback=fallback)
+    except TypeError:
+        return resolver.value(section, key, default=fallback)
+
+
 class GenerationRunKinds:
     SCRIPT = "script"
     IMAGE = "image"
@@ -101,8 +115,23 @@ class TaskExecutionRuntimeSupport:
             return task.max_duration_seconds
         if task.min_duration_seconds > 0:
             return task.min_duration_seconds
-        configured_default = self._model_resolver.int_value("catalog.defaults", "video_duration_seconds", default=10)
+        configured_default = _resolver_int_value(self._model_resolver, "catalog.defaults", "video_duration_seconds", 10)
         return max(1, configured_default)
+
+    def resolve_workspace_image_output_count(self, task: TaskRecord, max_count: int = 4) -> int:
+        snapshot = task.request_snapshot or {}
+        raw = snapshot.get("outputCount")
+        if isinstance(raw, dict):
+            if raw.get("auto", True):
+                return 1
+            raw = raw.get("count")
+        elif raw is None or string_value(raw).lower() == "auto":
+            return 1
+        try:
+            count = int(raw)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, min(max_count, count))
 
     def assert_task_still_active(self, task: TaskRecord) -> None:
         if self._task_repository is None:
@@ -180,7 +209,13 @@ class TaskExecutionRuntimeSupport:
         self._put_user_auth(request, task)
         return dict(request)
 
-    def build_workspace_image_run_request(self, task: TaskRecord, width: int, height: int) -> dict[str, Any]:
+    def build_workspace_image_run_request(
+        self,
+        task: TaskRecord,
+        width: int,
+        height: int,
+        output_index: int = 1,
+    ) -> dict[str, Any]:
         snapshot = task.request_snapshot or {}
         asset_type = string_value(snapshot.get("assetType", ""))
         if not asset_type:
@@ -218,13 +253,14 @@ class TaskExecutionRuntimeSupport:
             "options": {"stylePreset": self._style_preset(task)},
             "storage": {
                 "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
-                "fileStem": "workspace-image",
+                "fileStem": "workspace-image" if output_index <= 1 else f"workspace-image-{output_index}",
                 "requireRemoteSourceUrl": False,
             },
             "metadata": {
                 "relatedTaskId": string_value(task.id),
                 "taskType": task.task_type,
                 "assetType": asset_type,
+                "outputIndex": max(1, output_index),
                 "referenceImageCount": len(compatible),
             },
         }
@@ -337,7 +373,7 @@ class TaskExecutionRuntimeSupport:
         if normalized.startswith("/storage/"):
             if self._local_media_artifact_service:
                 public_url = self._local_media_artifact_service.build_externally_accessible_url(normalized)
-                if public_url:
+                if self._is_remote_http_url(public_url):
                     return [public_url]
                 if self._supports_image_data_uri_references(image_model):
                     try:
@@ -356,6 +392,11 @@ class TaskExecutionRuntimeSupport:
                 "that supports data URI references"
             )
         return [normalized]
+
+    @staticmethod
+    def _is_remote_http_url(url: str) -> bool:
+        normalized = string_value(url).lower()
+        return normalized.startswith("http://") or normalized.startswith("https://")
 
     def _compatible_image_reference_url_list(self, urls: list[str], image_model: str) -> list[str]:
         resolved: list[str] = []
@@ -407,7 +448,7 @@ class TaskExecutionRuntimeSupport:
         return _truncate_text(prompt, 2200)
 
     def _default_video_generate_audio(self) -> bool:
-        val = self._model_resolver.value("catalog.defaults", "video_generate_audio", default="true")
+        val = _resolver_value(self._model_resolver, "catalog.defaults", "video_generate_audio", "true")
         return bool(val) and val.lower() in ("true", "1", "yes")
 
     def _put_user_auth(self, request: dict[str, Any], task: TaskRecord) -> None:

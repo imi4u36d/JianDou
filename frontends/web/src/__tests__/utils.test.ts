@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { clampProgress, formatDateTime, formatAspectRatioLabel, formatVideoSizeLabel } from "@/utils/presentation";
+import { formatTaskOutputCount } from "@/utils/task-request";
 
 describe("clampProgress", () => {
   it("clamps values below 0 to 0", () => {
@@ -85,5 +86,15 @@ describe("formatVideoSizeLabel", () => {
 
   it("returns normalized value for unrecognized format", () => {
     expect(formatVideoSizeLabel("4K")).toBe("4K");
+  });
+});
+
+describe("formatTaskOutputCount", () => {
+  it("formats structured auto output counts", () => {
+    expect(formatTaskOutputCount({ outputCount: { auto: true } })).toBe("自动");
+  });
+
+  it("formats structured fixed output counts", () => {
+    expect(formatTaskOutputCount({ outputCount: { auto: false, count: 3 } })).toBe("3 条");
   });
 });

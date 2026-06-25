@@ -152,7 +152,7 @@ config/model/
 | `JIANDOU_WEB_ORIGIN` | フロントエンドオリジン（CORS） | `http://127.0.0.1:8100` |
 | `JIANDOU_TRUSTED_ORIGINS` | 追加の信頼オリジン（カンマ区切り） | — |
 | `JIANDOU_COOKIE_SECURE` | セキュア Cookie + HSTS を有効化 | `false` |
-| `JIANDOU_WORKER_CONCURRENCY` | 非同期ワーカースレッド数 | `2` |
+| `JIANDOU_WORKER_CONCURRENCY` | 非同期ワーカースレッド数（最大 5） | `5` |
 | `JIANDOU_DEFAULT_ASPECT_RATIO` | デフォルトのビデオアスペクト比 | `16:9` |
 | `JIANDOU_DEFAULT_DURATION_SECONDS` | デフォルトのビデオ尺 | `8` |
 

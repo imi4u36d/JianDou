@@ -2,7 +2,7 @@
   <aside class="unified-list-panel">
     <label class="unified-search-field" aria-label="搜索">
       <IconSearch class="unified-search-field__icon" size="sm" aria-hidden="true" />
-      <input v-model="searchText" type="search" placeholder="搜索工作流" />
+      <input v-model="searchText" type="search" placeholder="搜索任务" />
       <button
         v-if="searchText"
         class="unified-search-field__clear"

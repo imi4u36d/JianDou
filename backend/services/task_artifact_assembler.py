@@ -94,6 +94,14 @@ class _StoredArtifact:
     def public_url(self) -> str:
         return self._public_url
 
+
+def _artifact_public_url(artifact: Any, fallback: str = "") -> str:
+    value = getattr(artifact, "public_url", "")
+    if callable(value):
+        return string_value(value())
+    return string_value(value) or fallback
+
+
 class TaskExecutionArtifactAssembler:
     """Assembles execution artifacts, material rows, and result rows from task data."""
 
@@ -110,8 +118,8 @@ class TaskExecutionArtifactAssembler:
         )
         return self._create_material(
             task, run, TEXT, f"{task.title} 分镜脚本",
-            artifact.public_url() if hasattr(artifact, "public_url") else file_url,
-            artifact.public_url() if hasattr(artifact, "public_url") else file_url,
+            _artifact_public_url(artifact, file_url),
+            _artifact_public_url(artifact, file_url),
             string_value(result.get("mimeType", "text/markdown")),
             0.0, 0, 0, False, 1, "storyboard",
             {}, {"taskArtifact": True}, "",
@@ -141,8 +149,8 @@ class TaskExecutionArtifactAssembler:
         return self._create_material(
             task, run, IMAGE,
             f"{task.title} {'尾帧关键画面' if normalized_frame_role == 'last' else '首帧关键画面'}",
-            artifact.public_url() if hasattr(artifact, "public_url") else output_url,
-            artifact.public_url() if hasattr(artifact, "public_url") else output_url,
+            _artifact_public_url(artifact, output_url),
+            _artifact_public_url(artifact, output_url),
             string_value(result.get("mimeType", "image/png")),
             0.0, _int_value(result.get("width"), 0), _int_value(result.get("height"), 0),
             False, clip_index, f"keyframe-{normalized_frame_role}",
@@ -161,29 +169,33 @@ class TaskExecutionArtifactAssembler:
         task: TaskRecord,
         run: dict[str, Any],
         result: dict[str, Any],
+        output_index: int = 1,
     ) -> dict[str, Any]:
         metadata = result_metadata(result)
         output_url = media_output_url(result, metadata)
+        normalized_output_index = max(1, output_index)
+        name_suffix = "" if normalized_output_index <= 1 else f"-{normalized_output_index}"
         artifact = self._normalize_task_artifact(
             task,
             output_url,
-            f"workspace-image-{task.id}.{file_ext_or_default(file_name_from_url(output_url), 'png')}",
+            f"workspace-image-{task.id}{name_suffix}.{file_ext_or_default(file_name_from_url(output_url), 'png')}",
             "keyframe",
         )
         snapshot = task.request_snapshot or {}
         asset_type = string_value(snapshot.get("assetType", "")) or string_value(task.task_type)
         return self._create_material(
             task, run, IMAGE, task.title,
-            artifact.public_url() if hasattr(artifact, "public_url") else output_url,
-            artifact.public_url() if hasattr(artifact, "public_url") else output_url,
+            _artifact_public_url(artifact, output_url),
+            _artifact_public_url(artifact, output_url),
             string_value(result.get("mimeType", "image/png")),
             0.0, _int_value(result.get("width"), 0), _int_value(result.get("height"), 0),
-            False, 1, asset_type if asset_type else "free",
+            False, normalized_output_index, asset_type if asset_type else "free",
             metadata,
             {
                 "taskArtifact": True,
                 "assetType": asset_type,
                 "taskType": task.task_type,
+                "outputIndex": normalized_output_index,
                 "remoteSourceUrl": remote_source_url(metadata),
             },
             remote_source_url(metadata),
@@ -205,7 +217,7 @@ class TaskExecutionArtifactAssembler:
         file_url = string_value(source_url)
         try:
             artifact = self._normalize_task_artifact(task, source_url, target_file_name, "keyframe")
-            file_url = artifact.public_url() if hasattr(artifact, "public_url") else file_url
+            file_url = _artifact_public_url(artifact, file_url)
         except Exception:  # noqa: S110 — best-effort artifact normalization
             pass
         return self._create_material(
@@ -242,8 +254,8 @@ class TaskExecutionArtifactAssembler:
         )
         return self._create_material(
             task, run, VIDEO, f"{task.title} 片段输出",
-            artifact.public_url() if hasattr(artifact, "public_url") else output_url,
-            artifact.public_url() if hasattr(artifact, "public_url") else output_url,
+            _artifact_public_url(artifact, output_url),
+            _artifact_public_url(artifact, output_url),
             string_value(result.get("mimeType", "video/mp4")),
             _float_value(result.get("durationSeconds"), float(fallback_duration_seconds)),
             _int_value(result.get("width"), 0),
@@ -327,14 +339,16 @@ class TaskExecutionArtifactAssembler:
         image_result: dict[str, Any],
         image_material: dict[str, Any],
         model_call: dict[str, Any],
+        output_index: int = 1,
     ) -> dict[str, Any]:
         metadata = result_metadata(image_result)
         snapshot = task.request_snapshot or {}
+        normalized_output_index = max(1, output_index)
         return {
-            "id": _stable_id("result", task.id, IMAGE, "1"),
+            "id": _stable_id("result", task.id, IMAGE, str(normalized_output_index)),
             "resultType": IMAGE,
-            "clipIndex": 1,
-            "title": task.title,
+            "clipIndex": normalized_output_index,
+            "title": task.title if normalized_output_index <= 1 else f"{task.title} #{normalized_output_index}",
             "reason": "工作台图片生成已完成。",
             "sourceModelCallId": string_value(model_call.get("modelCallId")),
             "materialAssetId": image_material.get("id"),
@@ -352,6 +366,7 @@ class TaskExecutionArtifactAssembler:
                 "runId": string_value(image_run.get("id")),
                 "assetType": string_value(snapshot.get("assetType", "")),
                 "taskType": task.task_type,
+                "outputIndex": normalized_output_index,
                 "referenceImageUrls": metadata.get("referenceImageUrls", []),
             },
             "createdAt": now_iso(),

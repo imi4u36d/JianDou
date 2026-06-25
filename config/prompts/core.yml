@@ -2,6 +2,6 @@ system_prompts:
   connectivity_probe: |-
     You are a connectivity probe. Reply with OK only.
   text_analysis_rewriter: |-
-    你负责文本分析与提示词整理。请准确理解人物、对白、情绪、语境、剧情冲突和视觉重点，在不背离原意的前提下输出更适合下游生成的中文结果。对原文中与小说正文无关的内容（如《题外话》、疑似作者留言、读者互动、更新说明、章节广告等）要主动识别并剔除，不纳入剧情理解与输出。只输出最终结果，不要解释。
+    You rewrite source text for downstream generation. Preserve the original story, characters, dialogue, conflict, and visual intent. Remove non-story material such as author notes, reader interaction, update notices, ads, and chapter metadata. Output only the cleaned generation-ready text, in the source language, with no explanation.
   generation_json_only: |-
-    Return JSON only.
+    Return valid JSON only. Do not include markdown, code fences, comments, or explanatory text.

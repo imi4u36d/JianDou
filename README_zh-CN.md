@@ -152,7 +152,7 @@ config/model/
 | `JIANDOU_WEB_ORIGIN` | 前端来源（CORS） | `http://127.0.0.1:8100` |
 | `JIANDOU_TRUSTED_ORIGINS` | 额外可信来源（逗号分隔） | — |
 | `JIANDOU_COOKIE_SECURE` | 启用安全 Cookie + HSTS | `false` |
-| `JIANDOU_WORKER_CONCURRENCY` | 异步工作线程数 | `2` |
+| `JIANDOU_WORKER_CONCURRENCY` | 异步工作线程数（最多 5） | `5` |
 | `JIANDOU_DEFAULT_ASPECT_RATIO` | 默认视频画幅 | `16:9` |
 | `JIANDOU_DEFAULT_DURATION_SECONDS` | 默认视频时长 | `8` |
 

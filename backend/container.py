@@ -151,25 +151,38 @@ class AppContainer:
         """Local media artifact service for file operations (thumbnails, concat, etc.)."""
         if "_media_artifact_service" not in self.__dict__:
             from backend.services.media_service import JiandouStorageProperties, LocalMediaArtifactService
+            from backend.services.object_storage import create_remote_object_storage
             storage_props = JiandouStorageProperties(
                 root_dir=self.config.storage_root,
                 public_base_url=getattr(self.config, "storage_public_base_url", "") or "/storage",
                 externally_accessible_base_url=getattr(self.config, "externally_accessible_base_url", "") or "",
+                storage_key_prefix=getattr(self.config, "aliyun_oss_key_prefix", "") or "",
             )
             self.__dict__["_media_artifact_service"] = LocalMediaArtifactService(
                 storage_properties=storage_props,
+                remote_object_store=create_remote_object_storage(self.config),
             )
         return self.__dict__["_media_artifact_service"]
 
     @property
     def pipeline_handler(self) -> TaskWorkerPipelineHandler:
         if "_pipeline_handler" not in self.__dict__:
+            from backend.services.task_artifact_assembler import TaskExecutionArtifactAssembler
+            from backend.services.task_execution_runtime_support import TaskExecutionRuntimeSupport
             from backend.services.task_worker_service import TaskWorkerPipelineHandler
             self.__dict__["_pipeline_handler"] = TaskWorkerPipelineHandler(
                 task_repository=self.task_repository,
                 task_queue_port=self.task_queue,
                 execution_coordinator=self.execution_coordinator,
                 generation_application_service=self.generation_application_service,
+                runtime_support=TaskExecutionRuntimeSupport(
+                    task_repository=self.task_repository,
+                    model_resolver=self.model_resolver,
+                    local_media_artifact_service=self.media_artifact_service,
+                ),
+                artifact_assembler=TaskExecutionArtifactAssembler(
+                    local_media_artifact_service=self.media_artifact_service,
+                ),
             )
         return self.__dict__["_pipeline_handler"]
 

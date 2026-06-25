@@ -155,7 +155,7 @@ export interface CreateGenerationTaskRequest {
   videoSize?: string | null;
   seed?: number | null;
   videoDurationSeconds?: number | "auto" | null;
-  outputCount?: number | "auto" | null;
+  outputCount?: number | "auto" | { auto?: boolean; count?: number | string | null } | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
   transcriptText?: string | null;
@@ -782,7 +782,7 @@ export interface TaskRequestSnapshot {
   videoSize?: string | null;
   seed?: number | null;
   videoDurationSeconds?: number | "auto" | null;
-  outputCount?: number | "auto" | null;
+  outputCount?: number | "auto" | { auto?: boolean; count?: number | string | null } | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
   transcriptText?: string | null;

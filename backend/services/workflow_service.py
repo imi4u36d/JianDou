@@ -1475,7 +1475,7 @@ class WorkflowService:
                         continue
                     stored = self._media_service.materialize_artifact(
                         source_url,
-                        f"workflows/{workflow_id}/clips",
+                        f"tasks/{workflow_id}/clips",
                         f"clip_{v.clip_index}.mp4",
                     )
                     local_url = (
@@ -1487,7 +1487,7 @@ class WorkflowService:
 
                 if len(local_urls) >= 2:
                     joined = self._media_service.concat_videos(
-                        f"workflows/{workflow_id}/joined",
+                        f"tasks/{workflow_id}/joined",
                         f"joined_{workflow_id}.mp4",
                         local_urls,
                     )
