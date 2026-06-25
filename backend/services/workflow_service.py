@@ -14,7 +14,7 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.domain.enums import WorkflowStage, WorkflowStatus
+from backend.domain.enums import AutoPilotState, WorkflowStage, WorkflowStatus
 from backend.domain.json_payloads import read_json_object, write_json_object
 from backend.domain.workflow_storyboard_plan import parse_workflow_storyboard_markdown
 from backend.models.task import BizMaterialAsset
@@ -126,9 +126,15 @@ def _write_json(data: dict[str, Any]) -> str:
 class WorkflowService:
     """Multi-stage creative workflow service."""
 
-    def __init__(self, db: AsyncSession, generation_service: Any | None = None) -> None:
+    def __init__(
+        self,
+        db: AsyncSession,
+        generation_service: Any | None = None,
+        media_service: Any | None = None,
+    ) -> None:
         self.db = db
         self._generation_service = generation_service
+        self._media_service = media_service
         self._view_mapper = WorkflowViewMapper(self._storyboard_plan)
         self._generation_request_builder = WorkflowGenerationRequestBuilder()
         self._generation_result_parser = WorkflowGenerationResultParser()
@@ -459,6 +465,13 @@ class WorkflowService:
             wf.execution_mode = execution_mode
         if auto_pilot_state is not None:
             wf.auto_pilot_state = auto_pilot_state
+            wf.auto_pilot_current_task = ""  # clear task annotation on state change
+            # When re-queuing (start/resume), sync workflow-level status back
+            # to READY so the workflow is not stuck in FAILED/COMPLETED while
+            # the auto-pilot is queued.  Also clear stale error messages.
+            if auto_pilot_state == "queued":
+                wf.status = WorkflowStatus.READY.value
+                wf.auto_pilot_error_message = ""
         if auto_pilot_next_stage is not None:
             wf.auto_pilot_next_stage = auto_pilot_next_stage
         if auto_pilot_error_message is not None:
@@ -589,6 +602,69 @@ class WorkflowService:
     # Keyframe
     # ------------------------------------------------------------------
 
+    async def _resolve_character_sheet_urls(
+        self,
+        workflow_id: str,
+    ) -> list[str]:
+        """Return remote URLs of all selected character sheet keyframes.
+
+        These are used as reference images so the image model preserves
+        character identity when generating clip keyframes.
+        """
+        result = await self.db.execute(
+            select(BizStageVersion).where(
+                BizStageVersion.workflow_id == workflow_id,
+                BizStageVersion.stage_type == STAGE_KEYFRAME,
+                BizStageVersion.clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE,
+                BizStageVersion.selected == 1,
+                BizStageVersion.is_deleted == 0,
+            )
+        )
+        versions = result.scalars().all()
+        urls: list[str] = []
+        for v in versions:
+            output = read_json_object(v.output_summary_json)
+            url = trim(output.get("remoteSourceUrl"))
+            if not url:
+                url = trim(output.get("sheetUrl"))
+            if not url:
+                url = trim(output.get("fileUrl"))
+            if url:
+                urls.append(url)
+        return urls
+
+    async def _resolve_previous_tail_frame_url(
+        self,
+        workflow_id: str,
+        clip_index: int,
+    ) -> str | None:
+        """Return the selected tail-frame remote URL of (clip_index - 1).
+
+        Returns ``None`` when the previous clip has no selected keyframe or
+        the selected keyframe has no ``endFrameRemoteUrl`` in its output
+        summary.
+        """
+        prev_clip_index = clip_index - 1
+        result = await self.db.execute(
+            select(BizStageVersion).where(
+                BizStageVersion.workflow_id == workflow_id,
+                BizStageVersion.stage_type == STAGE_KEYFRAME,
+                BizStageVersion.clip_index == prev_clip_index,
+                BizStageVersion.selected == 1,
+                BizStageVersion.is_deleted == 0,
+            )
+        )
+        prev_version = result.scalar_one_or_none()
+        if prev_version is None:
+            return None
+        output = read_json_object(prev_version.output_summary_json)
+        url = trim(output.get("endFrameRemoteUrl"))
+        logger.info(
+            "resolve_previous_tail_frame: clip=%d prev_clip=%d url=%s",
+            clip_index, prev_clip_index, (url[:80] + "...") if url and len(url) > 80 else url,
+        )
+        return url or None
+
     async def generate_keyframe(
         self,
         workflow_id: str,
@@ -630,19 +706,55 @@ class WorkflowService:
         )
         version_count = result.scalar() or 0
         width, height = _dimensions_from_aspect_ratio(wf.aspect_ratio)
-        generation_request, prompt = self._generation_request_builder.build_keyframe_request(
-            wf,
-            workflow_id=workflow_id,
-            clip_index=clip_index,
-            width=width,
-            height=height,
-            character=character,
-            clip=clip,
-        )
-        logger.info(
-            "Generating start frame for clip %s (model=%s)...",
-            clip_index, wf.image_model,
-        )
+
+        # Resolve character sheet URLs for reference (skip for character sheets themselves)
+        character_sheet_urls: list[str] = []
+        if not is_character_sheet:
+            character_sheet_urls = await self._resolve_character_sheet_urls(workflow_id)
+
+        # Try to reuse previous clip's tail frame as start frame reference
+        # For clips after the first, require the previous clip's tail frame
+        previous_tail_frame_url: str | None = None
+        if not is_character_sheet and clip_index > 1:
+            previous_tail_frame_url = await self._resolve_previous_tail_frame_url(
+                workflow_id, clip_index,
+            )
+            if not previous_tail_frame_url:
+                raise ValueError(
+                    f"镜头 {clip_index} 的前一个镜头（镜头 {clip_index - 1}）"
+                    f"缺少尾帧远程 URL，请先确保前一个镜头的关键帧已完整生成。"
+                )
+
+        if previous_tail_frame_url:
+            generation_request, prompt = self._generation_request_builder.build_start_keyframe_from_tail_frame_request(
+                wf,
+                workflow_id=workflow_id,
+                clip_index=clip_index,
+                width=width,
+                height=height,
+                clip=clip,
+                previous_tail_frame_remote_url=previous_tail_frame_url,
+                character_sheet_urls=character_sheet_urls or None,
+            )
+            logger.info(
+                "Generating start frame for clip %s from previous tail frame (model=%s, char_sheets=%d)...",
+                clip_index, wf.image_model, len(character_sheet_urls),
+            )
+        else:
+            generation_request, prompt = self._generation_request_builder.build_keyframe_request(
+                wf,
+                workflow_id=workflow_id,
+                clip_index=clip_index,
+                width=width,
+                height=height,
+                character=character,
+                clip=clip,
+                character_sheet_urls=character_sheet_urls or None,
+            )
+            logger.info(
+                "Generating start frame for clip %s (model=%s, char_sheets=%d)...",
+                clip_index, wf.image_model, len(character_sheet_urls),
+            )
         gen_result = await self._get_generation_service().create_run(generation_request)
         image_result = self._generation_result_parser.parse_image_result(
             gen_result,
@@ -655,52 +767,53 @@ class WorkflowService:
         )
 
         # Generate end frame via image-to-image using start frame as reference
-        end_frame_remote_url = image_result.remote_source_url
-        end_frame_output_url = image_result.output_url
-        if not is_character_sheet:
-            ref_url = image_result.remote_source_url
-            if not ref_url:
-                logger.warning("Skipping end frame for clip %s: start frame has no remote URL", clip_index)
-            else:
-                for attempt in range(3):
-                    try:
-                        end_request, _ = self._generation_request_builder.build_end_keyframe_request(
-                            wf,
-                            workflow_id=workflow_id,
-                            clip_index=clip_index,
-                            width=width,
-                            height=height,
-                            clip=clip,
-                            start_frame_remote_url=ref_url,
-                        )
-                        logger.info(
-                            "Generating end frame for clip %s (attempt %d/3) with reference: %s...",
-                            clip_index, attempt + 1, ref_url[:80],
-                        )
-                        end_gen_result = await self._get_generation_service().create_run(end_request)
-                        end_image_result = self._generation_result_parser.parse_image_result(
-                            end_gen_result,
-                            fallback_width=width,
-                            fallback_height=height,
-                        )
-                        end_frame_remote_url = end_image_result.remote_source_url or end_frame_remote_url
-                        end_frame_output_url = end_image_result.output_url or end_frame_output_url
-                        logger.info("End frame generated for clip %s: %s", clip_index, end_frame_output_url[:80])
-                        break
-                    except Exception as e:
-                        if attempt < 2:
-                            delay = 2 ** attempt
-                            logger.warning(
-                                "End frame generation failed for clip %s (attempt %d/3), retrying in %ds: %s",
-                                clip_index, attempt + 1, delay, e,
-                            )
-                            await asyncio.sleep(delay)
-                        else:
-                            logger.error(
-                                "End frame generation failed for clip %s after 3 attempts: %s",
-                                clip_index, e,
-                            )
-                            raise
+        # End frame generation is required - cannot be skipped
+        ref_url = image_result.remote_source_url or image_result.output_url
+        if not ref_url:
+            raise ValueError(f"镜头 {clip_index} 的首帧缺少远程 URL，无法生成尾帧。")
+
+        end_frame_remote_url = ""
+        end_frame_output_url = ""
+        for attempt in range(3):
+            try:
+                end_request, _ = self._generation_request_builder.build_end_keyframe_request(
+                    wf,
+                    workflow_id=workflow_id,
+                    clip_index=clip_index,
+                    width=width,
+                    height=height,
+                    clip=clip,
+                    start_frame_remote_url=ref_url,
+                    character_sheet_urls=character_sheet_urls or None,
+                )
+                logger.info(
+                    "Generating end frame for clip %s (attempt %d/3) with reference: %s...",
+                    clip_index, attempt + 1, ref_url[:80],
+                )
+                end_gen_result = await self._get_generation_service().create_run(end_request)
+                end_image_result = self._generation_result_parser.parse_image_result(
+                    end_gen_result,
+                    fallback_width=width,
+                    fallback_height=height,
+                )
+                end_frame_remote_url = end_image_result.remote_source_url or end_image_result.output_url
+                end_frame_output_url = end_image_result.output_url
+                logger.info("End frame generated for clip %s: %s", clip_index, end_frame_output_url[:80])
+                break
+            except Exception as e:
+                if attempt < 2:
+                    delay = 2 ** attempt
+                    logger.warning(
+                        "End frame generation failed for clip %s (attempt %d/3), retrying in %ds: %s",
+                        clip_index, attempt + 1, delay, e,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "End frame generation failed for clip %s after 3 attempts: %s",
+                        clip_index, e,
+                    )
+                    raise
 
         asset = self._row_factory.create_material_asset(
             wf=wf,
@@ -739,7 +852,7 @@ class WorkflowService:
             "clipIndex": clip_index,
             "prompt": prompt,
         }
-        title = f"关键帧 {clip_index + 1}-{version_count + 1}"
+        title = f"镜头 {clip_index} 关键帧 {version_count + 1}"
         if character is not None:
             output_summary.update({
                 "sheetUrl": image_result.output_url,
@@ -753,11 +866,14 @@ class WorkflowService:
             })
             title = f"{character.get('name')} 三视图 {version_count + 1}"
         else:
+            # Use remote URL if available, otherwise fall back to output URL
+            start_frame_remote = image_result.remote_source_url or image_result.output_url
+            end_frame_remote = end_frame_remote_url or end_frame_output_url
             output_summary.update({
                 "startFrameUrl": image_result.output_url,
                 "endFrameUrl": end_frame_output_url,
-                "startFrameRemoteUrl": image_result.remote_source_url,
-                "endFrameRemoteUrl": end_frame_remote_url,
+                "startFrameRemoteUrl": start_frame_remote,
+                "endFrameRemoteUrl": end_frame_remote,
                 "selectedFirstFrame": True,
                 "selectedLastFrame": True,
             })
@@ -852,25 +968,51 @@ class WorkflowService:
         if not is_first and not is_last:
             raise ValueError(f"不支持的 frame_role: {frame_role}，仅支持 first/last。")
 
-        if is_character_sheet and is_last:
-            raise ValueError("角色三视图仅支持首帧（first），不支持尾帧。")
+        # Resolve character sheet URLs for reference (skip for character sheets themselves)
+        character_sheet_urls: list[str] = []
+        if not is_character_sheet:
+            character_sheet_urls = await self._resolve_character_sheet_urls(workflow_id)
 
         # ---- Generate the image -------------------------------------------------
         prompt: str = ""
         if is_first:
-            logger.info(
-                "Generating start frame for clip %s (model=%s, frame_role=%s)...",
-                clip_index, wf.image_model, frame_role,
-            )
-            generation_request, prompt = self._generation_request_builder.build_keyframe_request(
-                wf,
-                workflow_id=workflow_id,
-                clip_index=clip_index,
-                width=width,
-                height=height,
-                character=character,
-                clip=clip,
-            )
+            # Try to reuse previous clip's tail frame as start frame reference
+            previous_tail_frame_url: str | None = None
+            if not is_character_sheet and clip_index > 1:
+                previous_tail_frame_url = await self._resolve_previous_tail_frame_url(
+                    workflow_id, clip_index,
+                )
+
+            if previous_tail_frame_url:
+                logger.info(
+                    "Generating start frame for clip %s from previous tail frame (model=%s, char_sheets=%d)...",
+                    clip_index, wf.image_model, len(character_sheet_urls),
+                )
+                generation_request, prompt = self._generation_request_builder.build_start_keyframe_from_tail_frame_request(
+                    wf,
+                    workflow_id=workflow_id,
+                    clip_index=clip_index,
+                    width=width,
+                    height=height,
+                    clip=clip,
+                    previous_tail_frame_remote_url=previous_tail_frame_url,
+                    character_sheet_urls=character_sheet_urls or None,
+                )
+            else:
+                logger.info(
+                    "Generating start frame for clip %s (model=%s, frame_role=%s, char_sheets=%d)...",
+                    clip_index, wf.image_model, frame_role, len(character_sheet_urls),
+                )
+                generation_request, prompt = self._generation_request_builder.build_keyframe_request(
+                    wf,
+                    workflow_id=workflow_id,
+                    clip_index=clip_index,
+                    width=width,
+                    height=height,
+                    character=character,
+                    clip=clip,
+                    character_sheet_urls=character_sheet_urls or None,
+                )
         else:
             # Find an existing first-frame remote URL to use as reference
             versions = await self._list_stage_versions(workflow_id)
@@ -879,8 +1021,8 @@ class WorkflowService:
                 raise ValueError("未找到该镜头的首帧远端 URL，请先生成首帧后再生成尾帧。")
 
             logger.info(
-                "Generating end frame for clip %s (model=%s, frame_role=%s, ref=%s)...",
-                clip_index, wf.image_model, frame_role, start_frame_remote_url[:80],
+                "Generating end frame for clip %s (model=%s, frame_role=%s, ref=%s, char_sheets=%d)...",
+                clip_index, wf.image_model, frame_role, start_frame_remote_url[:80], len(character_sheet_urls),
             )
             generation_request, prompt = self._generation_request_builder.build_end_keyframe_request(
                 wf,
@@ -890,6 +1032,7 @@ class WorkflowService:
                 height=height,
                 clip=clip,
                 start_frame_remote_url=start_frame_remote_url,
+                character_sheet_urls=character_sheet_urls or None,
             )
 
         gen_result = await self._get_generation_service().create_run(generation_request)
@@ -957,9 +1100,11 @@ class WorkflowService:
                 "appearance": character.get("appearance", ""),
             })
         elif is_first:
+            # Use remote URL if available, otherwise fall back to output URL
+            start_frame_remote = image_result.remote_source_url or image_result.output_url
             output_summary.update({
                 "startFrameUrl": image_result.output_url,
-                "startFrameRemoteUrl": image_result.remote_source_url,
+                "startFrameRemoteUrl": start_frame_remote,
                 "selectedFirstFrame": True,
             })
             input_summary.update({
@@ -968,9 +1113,11 @@ class WorkflowService:
                 "scene": (clip or {}).get("scene", ""),
             })
         else:
+            # Use remote URL if available, otherwise fall back to output URL
+            end_frame_remote = image_result.remote_source_url or image_result.output_url
             output_summary.update({
                 "endFrameUrl": image_result.output_url,
-                "endFrameRemoteUrl": image_result.remote_source_url,
+                "endFrameRemoteUrl": end_frame_remote,
                 "selectedLastFrame": True,
             })
             input_summary.update({
@@ -986,7 +1133,7 @@ class WorkflowService:
             clip_index=clip_index,
             version_no=version_count + 1,
             title=(f"{character.get('name')} 三视图 {version_count + 1}" if character
-                   else f"关键帧 {clip_index + 1}-{frame_role} {version_count + 1}"),
+                   else f"镜头 {clip_index} 关键帧 {frame_role} {version_count + 1}"),
             status="COMPLETED",
             selected=0,
             material_asset_id=asset.material_asset_id,
@@ -1098,16 +1245,8 @@ class WorkflowService:
         if selected_keyframe is None:
             raise ValueError("请先为该镜头生成并选中关键帧。")
         keyframe_output = _read_json(selected_keyframe.output_summary_json)
-        first_frame_url = first_non_blank(
-            trim(keyframe_output.get("startFrameRemoteUrl")),
-            trim(keyframe_output.get("remoteSourceUrl")),
-            trim(keyframe_output.get("remoteUrl")),
-        )
-        last_frame_url = first_non_blank(
-            trim(keyframe_output.get("endFrameRemoteUrl")),
-            trim(keyframe_output.get("remoteSourceUrl")),
-            trim(keyframe_output.get("remoteUrl")),
-        )
+        first_frame_url = trim(keyframe_output.get("startFrameRemoteUrl"))
+        last_frame_url = trim(keyframe_output.get("endFrameRemoteUrl"))
         if not first_frame_url:
             raise ValueError("关键帧缺少远端首帧图片 URL，无法生成视频。")
         model_first_frame_url = self._video_frame_model_input(first_frame_url)
@@ -1182,7 +1321,7 @@ class WorkflowService:
             stage_type=STAGE_VIDEO,
             clip_index=clip_index,
             version_no=version_count + 1,
-            title=f"视频 {clip_index + 1}-{version_count + 1}",
+            title=f"镜头 {clip_index} 视频 {version_count + 1}",
             status="COMPLETED" if video_result.output_url else video_result.status,
             selected=1 if video_result.output_url else 0,
             parent_version_id=selected_keyframe.stage_version_id,
@@ -1252,7 +1391,13 @@ class WorkflowService:
         workflow_id: str,
         owner_user_id: int | None = None,
     ) -> dict[str, Any] | None:
-        """Mark workflow completed with the selected videos as final output."""
+        """Mark workflow completed with concatenated selected videos as final output.
+
+        When ``self._media_service`` is available and there are multiple
+        selected videos, downloads them and concatenates via ffmpeg.
+        Falls back to using the first selected video as the preview when
+        the media service is unavailable or concatenation fails.
+        """
         wf = await self._require_workflow(workflow_id, owner_user_id)
         if wf is None:
             return None
@@ -1264,7 +1409,71 @@ class WorkflowService:
         if not selected_videos:
             raise ValueError("请先为每个镜头选中视频版本。")
         selected_videos.sort(key=lambda v: v.clip_index)
-        first = selected_videos[0]
+
+        total_duration = sum(
+            safe_float(_read_json(v.output_summary_json).get("durationSeconds"), 0.0)
+            for v in selected_videos
+        )
+
+        joined_url = ""
+        joined_note = ""
+
+        # Attempt real concatenation via the media service
+        if self._media_service is not None and len(selected_videos) > 1:
+            try:
+                local_urls: list[str] = []
+                for v in selected_videos:
+                    source_url = trim(v.download_url) or trim(v.preview_url)
+                    if not source_url:
+                        continue
+                    stored = self._media_service.materialize_artifact(
+                        source_url,
+                        f"workflows/{workflow_id}/clips",
+                        f"clip_{v.clip_index}.mp4",
+                    )
+                    local_url = (
+                        stored.public_url
+                        if hasattr(stored, "public_url")
+                        else source_url
+                    )
+                    local_urls.append(local_url)
+
+                if len(local_urls) >= 2:
+                    joined = self._media_service.concat_videos(
+                        f"workflows/{workflow_id}/joined",
+                        f"joined_{workflow_id}.mp4",
+                        local_urls,
+                    )
+                    joined_url = (
+                        joined.public_url
+                        if hasattr(joined, "public_url")
+                        else ""
+                    )
+                    joined_note = "已完成视频拼接。"
+
+                if joined_url:
+                    logger.info(
+                        "Workflow %s: videos concatenated successfully → %s",
+                        workflow_id, joined_url,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Workflow %s: video concatenation failed, falling back to preview: %s",
+                    workflow_id, exc,
+                )
+
+        if joined_url:
+            public_url = joined_url
+            metadata_note = joined_note or "已拼接所有选中视频片段。"
+        else:
+            first = selected_videos[0]
+            public_url = first.download_url or first.preview_url
+            metadata_note = (
+                "当前环境使用首个已选视频作为成片预览"
+                if len(selected_videos) <= 1
+                else "拼接失败，使用首个已选视频作为成片预览。请检查 ffmpeg 是否可用。"
+            )
+
         asset = self._row_factory.create_material_asset(
             wf=wf,
             stage_type=STAGE_JOINED,
@@ -1272,14 +1481,14 @@ class WorkflowService:
             version_no=1,
             media_type="video",
             title=f"{wf.title} 完整视频",
-            public_url=first.download_url or first.preview_url,
+            public_url=public_url,
             mime_type="video/mp4",
             width=0,
             height=0,
-            duration_seconds=sum(safe_float(_read_json(v.output_summary_json).get("durationSeconds"), 0.0) for v in selected_videos),
+            duration_seconds=total_duration,
             metadata={
                 "sourceVideoVersionIds": [v.stage_version_id for v in selected_videos],
-                "note": "当前环境使用首个已选视频作为成片预览，真实拼接服务接入后会生成完整拼接文件。",
+                "note": metadata_note,
             },
         )
         self.db.add(asset)

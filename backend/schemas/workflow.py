@@ -115,6 +115,7 @@ class WorkflowDetailResponse(BaseModel):
     auto_pilot_error_message: str = ""
     auto_pilot_started_at: str = ""
     auto_pilot_paused_at: str = ""
+    auto_pilot_current_task: str = ""
     queue_position: int | None = None
     queue_size: int | None = None
 

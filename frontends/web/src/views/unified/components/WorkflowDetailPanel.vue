@@ -52,7 +52,7 @@
         <div v-if="autoPilot.isRunning.value" class="autopilot-bar autopilot-bar-running surface-panel">
           <div class="autopilot-bar__status">
             <span class="autopilot-bar__dot autopilot-bar__dot-running"></span>
-            <strong>自动执行中</strong>
+            <strong>{{ autoPilot.currentTask.value || '自动执行中' }}</strong>
           </div>
           <div class="autopilot-bar__log">
             <div
@@ -60,8 +60,7 @@
               :key="entry.id"
               class="autopilot-log-entry autopilot-log-entry--active"
             >
-              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', entry.stateKey ? `autopilot-log-entry__stage--${entry.stateKey}` : '']">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -86,8 +85,7 @@
           </div>
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry autopilot-log-entry--active">
-              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', entry.stateKey ? `autopilot-log-entry__stage--${entry.stateKey}` : '']">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -106,8 +104,7 @@
           </div>
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
-              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', entry.stateKey ? `autopilot-log-entry__stage--${entry.stateKey}` : '']">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -129,8 +126,7 @@
           </div>
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
-              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', entry.stateKey ? `autopilot-log-entry__stage--${entry.stateKey}` : '']">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -149,8 +145,7 @@
           </div>
           <div class="autopilot-bar__log">
             <div v-for="(entry) in recentLog" :key="entry.id" class="autopilot-log-entry">
-              <span class="autopilot-log-entry__time">{{ entry.timestamp }}</span>
-              <span :class="['autopilot-log-entry__stage', `autopilot-log-entry__stage--${entry.stage}`]">{{ entry.stage }}</span>
+              <span :class="['autopilot-log-entry__stage', entry.stateKey ? `autopilot-log-entry__stage--${entry.stateKey}` : '']">{{ entry.stage }}</span>
               <span class="autopilot-log-entry__message">{{ entry.message }}</span>
             </div>
           </div>
@@ -558,17 +553,28 @@ watch(
       _autoPilotInitialized.value = true;
       autoPilot.autoPilotState.value = state || 'idle';
       autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
+      autoPilot.currentTask.value = detail.selectedWorkflow.value?.autoPilotCurrentTask ?? "";
       autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
       if (state) {
-        const stage = autoPilot.nextStage.value;
+        const task = autoPilot.currentTask.value;
+        const labels: Record<string, string> = {
+          queued: '排队中',
+          running: '自动执行',
+          paused: '已暂停',
+          failed: '执行失败',
+          completed: '已完成',
+          idle: '已停止',
+        };
         const messages: Record<string, string> = {
           queued: '已加入队列，等待执行',
-          running: `开始自动执行${stage ? ` — ${stage}` : ''}`,
-          paused: `已暂停`,
-          failed: `执行失败`,
-          idle: `自动执行已停止`,
+          running: '',
+          paused: '已暂停',
+          failed: '执行失败',
+          completed: '已完成',
+          idle: '已停止',
         };
-        autoPilot.pushStatusLog(state, messages[state] ?? state);
+        const msg = messages[state] ?? state;
+        if (msg) autoPilot.pushStatusLog(labels[state] ?? state, msg, state);
       }
       return;
     }
@@ -577,30 +583,45 @@ watch(
     if (state !== prevState) {
       autoPilot.autoPilotState.value = state || 'idle';
       autoPilot.nextStage.value = detail.selectedWorkflow.value?.autoPilotNextStage ?? detail.selectedWorkflow.value?.currentStage ?? "";
+      autoPilot.currentTask.value = detail.selectedWorkflow.value?.autoPilotCurrentTask ?? "";
       autoPilot.errorMessage.value = detail.selectedWorkflow.value?.autoPilotErrorMessage ?? "";
 
-      const stage = autoPilot.nextStage.value;
+      const task = autoPilot.currentTask.value;
+      const labels: Record<string, string> = {
+        queued: '排队中',
+        running: '自动执行',
+        paused: '已暂停',
+        failed: '执行失败',
+        completed: '已完成',
+        idle: '已停止',
+      };
       const messages: Record<string, string> = {
         queued: '已加入队列，等待执行',
-        running: `开始自动执行${stage ? ` — ${stage}` : ''}`,
-        paused: `已暂停`,
-        failed: `执行失败`,
-        idle: `自动执行已停止`,
+        running: '',
+        paused: '已暂停',
+        failed: '执行失败',
+        completed: '已完成',
+        idle: '已停止',
       };
       if (state) {
-        autoPilot.pushStatusLog(state, messages[state] ?? state);
+        const msg = messages[state] ?? state;
+        if (msg) autoPilot.pushStatusLog(labels[state] ?? state, msg, state);
       }
     }
   }
 );
 
-// Push log entry when next stage changes during polling (skip first load, handled by state watch).
+// Sync currentTask from polling data and push to log when it changes.
+let _lastTask = '';
 watch(
-  () => autoPilot.nextStage.value,
-  (stage, prevStage) => {
-    if (prevStage !== undefined && stage !== prevStage && autoPilot.isRunning.value && stage) {
-      autoPilot.pushStatusLog(stage, `执行中`);
+  () => detail.selectedWorkflow.value?.autoPilotCurrentTask,
+  (task) => {
+    const t = task ?? '';
+    autoPilot.currentTask.value = t;
+    if (t && t !== _lastTask && autoPilot.isRunning.value) {
+      autoPilot.pushStatusLog('自动执行', t, 'running');
     }
+    _lastTask = t;
   }
 );
 

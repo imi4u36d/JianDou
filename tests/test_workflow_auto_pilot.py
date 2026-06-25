@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from backend.domain.enums import AutoPilotState, WorkflowStage
 from backend.services.workflow_auto_pilot import (
     CHARACTER_SHEET_CLIP_INDEX_BASE,
+    MAX_CONCURRENT_STEPS,
     MAX_ITERATIONS,
     TIMEOUT_SECONDS,
     WorkflowAutoPilot,
@@ -81,15 +82,19 @@ def _mock_storyboard_version(
 
 
 # ---------------------------------------------------------------------------
-# _compute_next_step — pure function tests (mocking _get_storyboard_plan)
+# _compute_next_steps — pure function tests (mocking _get_storyboard_plan)
 # ---------------------------------------------------------------------------
 
 
-class TestComputeNextStep:
+class TestComputeNextSteps:
     """Tests for the pure-function step computation logic.
 
     _get_storyboard_plan is mocked to return predictable (characters, clips)
     tuples so we can test the actual step-selection algorithm in isolation.
+
+    Note: _compute_next_steps returns a **list** of steps.  Single-phase
+    results (storyboard, select, wait, finalize, complete) are single-element
+    lists; batch phases (keyframes, videos) may return multiple elements.
     """
 
     def _make_pilot(self) -> WorkflowAutoPilot:
@@ -99,26 +104,25 @@ class TestComputeNextStep:
     def test_no_storyboard_generates_storyboard(self):
         pilot = self._make_pilot()
         wf = _mock_workflow()
-        result = pilot._compute_next_step(wf, [])
-        assert result["type"] == "generate_storyboard"
+        result = pilot._compute_next_steps(wf, [])
+        assert result == [{"type": "generate_storyboard"}]
 
     def test_has_storyboard_no_selected_selects_first(self):
         pilot = self._make_pilot()
         wf = _mock_workflow()
         sb = _mock_storyboard_version(version_no=1)
-        result = pilot._compute_next_step(wf, [sb])
-        assert result["type"] == "select_storyboard"
-        assert result["version_id"] == "sv_1"
+        result = pilot._compute_next_steps(wf, [sb])
+        assert result == [{"type": "select_storyboard", "version_id": "sv_1"}]
 
     def test_storyboard_selected_empty_script_finalizes(self):
-        """Empty storyboard script → no clips/chars → finalize."""
+        """Empty storyboard script -> no clips/chars -> finalize."""
         pilot = self._make_pilot()
         wf = _mock_workflow(selected_storyboard_version_id="sv_1")
         sb = _mock_storyboard_version(version_no=1, selected=1)
         # Mock _get_storyboard_plan to return empty lists
         pilot._get_storyboard_plan = MagicMock(return_value=([], []))
-        result = pilot._compute_next_step(wf, [sb])
-        assert result["type"] == "finalize"
+        result = pilot._compute_next_steps(wf, [sb])
+        assert result == [{"type": "finalize"}]
 
     def test_missing_character_sheet_generates_keyframe(self):
         pilot = self._make_pilot()
@@ -130,9 +134,10 @@ class TestComputeNextStep:
                 [{"clipIndex": 1}],  # 1 clip
             )
         )
-        result = pilot._compute_next_step(wf, [sb])
-        assert result["type"] == "generate_keyframe"
-        assert result["clip_index"] == CHARACTER_SHEET_CLIP_INDEX_BASE + 1
+        result = pilot._compute_next_steps(wf, [sb])
+        assert len(result) >= 1
+        assert any(s["type"] == "generate_keyframe" and s["clip_index"] == CHARACTER_SHEET_CLIP_INDEX_BASE + 1
+                   for s in result)
 
     def test_missing_clip_keyframe_generates_keyframe(self):
         """Character sheet exists but clip keyframe is missing."""
@@ -150,12 +155,13 @@ class TestComputeNextStep:
             stage_type=WorkflowStage.KEYFRAME.value,
             clip_index=CHARACTER_SHEET_CLIP_INDEX_BASE + 1,
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf])
-        assert result["type"] == "generate_keyframe"
-        assert result["clip_index"] == 1
+        result = pilot._compute_next_steps(wf, [sb, char_kf])
+        assert len(result) >= 1
+        assert any(s["type"] == "generate_keyframe" and s["clip_index"] == 1
+                   for s in result)
 
     def test_keyframe_no_selection_generates_keyframe(self):
-        """Keyframe exists but none selected → generate more."""
+        """Keyframe exists but none selected -> generate more."""
         pilot = self._make_pilot()
         wf = _mock_workflow(selected_storyboard_version_id="sv_1")
         sb = _mock_storyboard_version(version_no=1, selected=1)
@@ -175,9 +181,10 @@ class TestComputeNextStep:
             clip_index=1,
             selected=0,  # not selected
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf, clip_kf])
-        assert result["type"] == "generate_keyframe"
-        assert result["clip_index"] == 1
+        result = pilot._compute_next_steps(wf, [sb, char_kf, clip_kf])
+        assert len(result) >= 1
+        assert any(s["type"] == "generate_keyframe" and s["clip_index"] == 1
+                   for s in result)
 
     def test_keyframes_ready_missing_video_generates_video(self):
         pilot = self._make_pilot()
@@ -199,9 +206,10 @@ class TestComputeNextStep:
             clip_index=1,
             selected=1,
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf, clip_kf])
-        assert result["type"] == "generate_video"
-        assert result["clip_index"] == 1
+        result = pilot._compute_next_steps(wf, [sb, char_kf, clip_kf])
+        assert len(result) >= 1
+        assert any(s["type"] == "generate_video" and s["clip_index"] == 1
+                   for s in result)
 
     def test_all_videos_ready_selects_first_video(self):
         pilot = self._make_pilot()
@@ -230,10 +238,10 @@ class TestComputeNextStep:
             material_asset_id="asset_1",
             preview_url="http://example.com/video.mp4",
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf, clip_kf, vid])
-        assert result["type"] == "select_video"
-        assert result["clip_index"] == 1
-        assert result["version_id"] == "sv_1"
+        result = pilot._compute_next_steps(wf, [sb, char_kf, clip_kf, vid])
+        assert len(result) >= 1
+        assert any(s["type"] == "select_video" and s["clip_index"] == 1
+                   for s in result)
 
     def test_all_stages_complete_returns_complete(self):
         pilot = self._make_pilot()
@@ -263,11 +271,41 @@ class TestComputeNextStep:
             preview_url="http://example.com/video.mp4",
             selected=1,
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf, clip_kf, vid])
-        assert result["type"] == "complete"
+        result = pilot._compute_next_steps(wf, [sb, char_kf, clip_kf, vid])
+        assert result == [{"type": "complete"}]
 
-    def test_multiple_clips_processes_in_order(self):
-        """Should generate video for clip 1 before clip 2."""
+    def test_multiple_clips_batches_videos(self):
+        """Should return ALL missing video steps at once."""
+        pilot = self._make_pilot()
+        wf = _mock_workflow(selected_storyboard_version_id="sv_1")
+        sb = _mock_storyboard_version(version_no=1, selected=1)
+        pilot._get_storyboard_plan = MagicMock(
+            return_value=(
+                [{"name": "Hero"}],
+                [{"clipIndex": 1}, {"clipIndex": 2}],
+            )
+        )
+        char_kf = _mock_version(
+            stage_type=WorkflowStage.KEYFRAME.value,
+            clip_index=CHARACTER_SHEET_CLIP_INDEX_BASE + 1,
+            selected=1,
+        )
+        kf1 = _mock_version(
+            stage_type=WorkflowStage.KEYFRAME.value,
+            clip_index=1, selected=1,
+        )
+        kf2 = _mock_version(
+            stage_type=WorkflowStage.KEYFRAME.value,
+            clip_index=2, selected=1,
+        )
+        # Both videos missing
+        result = pilot._compute_next_steps(wf, [sb, char_kf, kf1, kf2])
+        assert len(result) == 2
+        assert all(s["type"] == "generate_video" for s in result)
+        assert {s["clip_index"] for s in result} == {1, 2}
+
+    def test_multiple_clips_one_video_done_batches_remaining(self):
+        """Clip 1 video complete, clip 2 video missing -> batch should have only clip 2."""
         pilot = self._make_pilot()
         wf = _mock_workflow(selected_storyboard_version_id="sv_1")
         sb = _mock_storyboard_version(version_no=1, selected=1)
@@ -296,12 +334,14 @@ class TestComputeNextStep:
             material_asset_id="asset_1",
             preview_url="http://example.com/v1.mp4",
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf, kf1, kf2, vid1])
-        assert result["type"] == "generate_video"
-        assert result["clip_index"] == 2
+        result = pilot._compute_next_steps(wf, [sb, char_kf, kf1, kf2, vid1])
+        assert len(result) == 1
+        assert result[0]["type"] == "generate_video"
+        assert result[0]["clip_index"] == 2
 
-    def test_multiple_characters_in_order(self):
-        """Should generate character sheets in order."""
+    def test_multiple_characters_batched(self):
+        """All missing character sheets should be batched together with any
+        missing regular keyframes."""
         pilot = self._make_pilot()
         wf = _mock_workflow(selected_storyboard_version_id="sv_1")
         sb = _mock_storyboard_version(version_no=1, selected=1)
@@ -311,15 +351,60 @@ class TestComputeNextStep:
                 [{"clipIndex": 1}],
             )
         )
-        # Only first character sheet exists
-        char_kf1 = _mock_version(
-            stage_type=WorkflowStage.KEYFRAME.value,
-            clip_index=CHARACTER_SHEET_CLIP_INDEX_BASE + 1,
-            selected=1,
+        result = pilot._compute_next_steps(wf, [sb])
+        # Both character sheets + 1 regular keyframe = 3
+        assert len(result) == 3
+        assert all(s["type"] == "generate_keyframe" for s in result)
+        assert {s["clip_index"] for s in result} == {
+            CHARACTER_SHEET_CLIP_INDEX_BASE + 1,
+            CHARACTER_SHEET_CLIP_INDEX_BASE + 2,
+            1,
+        }
+
+    def test_characters_and_clips_batched_together(self):
+        """Character sheets and regular keyframes should be batched together."""
+        pilot = self._make_pilot()
+        wf = _mock_workflow(selected_storyboard_version_id="sv_1")
+        sb = _mock_storyboard_version(version_no=1, selected=1)
+        pilot._get_storyboard_plan = MagicMock(
+            return_value=(
+                [{"name": "Hero"}, {"name": "Villain"}],
+                [{"clipIndex": 1}, {"clipIndex": 2}],
+            )
         )
-        result = pilot._compute_next_step(wf, [sb, char_kf1])
-        assert result["type"] == "generate_keyframe"
-        assert result["clip_index"] == CHARACTER_SHEET_CLIP_INDEX_BASE + 2
+        # No keyframe versions at all
+        result = pilot._compute_next_steps(wf, [sb])
+        # Should include 2 character sheets + 2 regular keyframes = 4
+        assert len(result) == 4
+        assert all(s["type"] == "generate_keyframe" for s in result)
+        clip_indexes = {s["clip_index"] for s in result}
+        assert clip_indexes == {
+            CHARACTER_SHEET_CLIP_INDEX_BASE + 1,
+            CHARACTER_SHEET_CLIP_INDEX_BASE + 2,
+            1,
+            2,
+        }
+
+    def test_keyframe_selected_but_unselected_still_generated(self):
+        """Keyframe exists with selected=0 -> should still be in the batch."""
+        pilot = self._make_pilot()
+        wf = _mock_workflow(selected_storyboard_version_id="sv_1")
+        sb = _mock_storyboard_version(version_no=1, selected=1)
+        pilot._get_storyboard_plan = MagicMock(
+            return_value=(
+                [],
+                [{"clipIndex": 1}],
+            )
+        )
+        clip_kf = _mock_version(
+            stage_type=WorkflowStage.KEYFRAME.value,
+            clip_index=1,
+            selected=0,  # exists but not selected
+        )
+        result = pilot._compute_next_steps(wf, [sb, clip_kf])
+        assert len(result) == 1
+        assert result[0]["type"] == "generate_keyframe"
+        assert result[0]["clip_index"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -340,27 +425,45 @@ class TestGetStoryboardPlan:
         assert clips == []
 
     def test_characters_and_clips_from_json(self):
-        """Test that the parser extracts at least 1 character and 1 clip."""
+        """Test that the parser extracts at least 1 character and 1 clip from
+        the standard markdown table format used by the storyboard generator."""
         pilot = self._make_pilot()
-        # Use a format the parser can handle: character name, then --- separator
-        script = "Hero\n---\nShot 1"
+        script = (
+            "## 角色定义\n"
+            "| 名称 | 外观 |\n"
+            "|------|------|\n"
+            "| Hero | 勇敢的年轻战士，身穿铠甲 |\n"
+            "\n"
+            "## 分镜脚本\n"
+            "| 序号 | 首帧 | 尾帧 | 场景 | 时长 |\n"
+            "|------|------|------|------|------|\n"
+            "| 1 | 英雄站在山顶 | 英雄拔出剑 | 山顶全景 | 5s |\n"
+            "| 2 | 英雄冲向敌人 | 英雄挥剑 | 战场 | 8s |\n"
+        )
         sb = _mock_storyboard_version()
         sb.output_summary_json = json.dumps({"scriptMarkdown": script})
         chars, clips = pilot._get_storyboard_plan(sb)
-        # Parser returns characters from before --- and clips after
         assert len(chars) >= 1
-        # The parser has a bug where it creates chars from clip lines too,
-        # so we just verify at least one character was found
         assert chars[0]["name"] == "Hero"
+        assert len(clips) >= 2
+        assert clips[0]["clipIndex"] == 1
 
     def test_multiple_characters_no_clips(self):
-        """Multiple characters separated by ## lines."""
+        """Multiple characters in the character table without any clips."""
         pilot = self._make_pilot()
-        script = "Hero\n##\nVillain"
+        script = (
+            "## 角色定义\n"
+            "| 名称 | 外观 |\n"
+            "|------|------|\n"
+            "| Hero | 勇敢的年轻战士 |\n"
+            "| Villain | 邪恶的黑暗法师 |\n"
+        )
         sb = _mock_storyboard_version()
         sb.output_summary_json = json.dumps({"scriptMarkdown": script})
         chars, clips = pilot._get_storyboard_plan(sb)
         assert len(chars) >= 1
+        assert chars[0]["name"] == "Hero"
+        assert len(clips) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -424,8 +527,8 @@ class TestRun:
             setattr(svc, method_name, AsyncMock())
 
         pilot = WorkflowAutoPilot(db=db, workflow_service=svc)
-        # Make _compute_next_step keep returning generate_storyboard
-        pilot._compute_next_step = lambda wf, versions: {"type": "generate_storyboard"}
+        # Make _compute_next_steps keep returning generate_storyboard
+        pilot._compute_next_steps = lambda wf, versions: [{"type": "generate_storyboard"}]
 
         result = await pilot.run("wf_1", owner_user_id=1)
         assert result["status"] == "max_iterations"

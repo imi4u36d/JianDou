@@ -228,6 +228,7 @@ class WorkflowViewMapper:
             "autoPilotErrorMessage": wf.auto_pilot_error_message,
             "autoPilotStartedAt": wf.auto_pilot_started_at,
             "autoPilotPausedAt": wf.auto_pilot_paused_at,
+            "autoPilotCurrentTask": wf.auto_pilot_current_task,
             "storyboardVersions": [
                 self.to_stage_version_row(v, asset_map.get(v.material_asset_id))
                 for v in storyboard_versions

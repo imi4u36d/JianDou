@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -972,7 +973,11 @@ class ImageProviderTransport:
         timeout_seconds: int,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
-        """Send a JSON POST request to the image provider."""
+        """Send a JSON POST request to the image provider.
+
+        Retries transient server errors (500+) and network errors up to 3 times
+        with exponential backoff, matching the retry behaviour of
+        :meth:`download_binary`."""
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -983,46 +988,74 @@ class ImageProviderTransport:
         timeout = max(30, timeout_seconds)
         raw_body = self._encode(body)
         request_payload: dict[str, Any] = {"method": "POST", "url": endpoint, "body": body}
-        try:
-            response = await self._client.post(
-                endpoint,
-                headers=headers,
-                content=raw_body,
-                timeout=timeout,
-            )
-        except httpx.RequestError as ex:
-            message = str(ex) or ex.__class__.__name__
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = await self._client.post(
+                    endpoint,
+                    headers=headers,
+                    content=raw_body,
+                    timeout=timeout,
+                )
+            except httpx.RequestError as ex:
+                last_error = ex
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                continue
+            if response.status_code < 200 or response.status_code >= 300:
+                # Retry transient server errors (500, 502, 503, 504)
+                if attempt < 2 and response.status_code >= 500:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise GenerationProviderException(
+                    f"provider request failed: {ImageProviderTransport._error_summary(response.status_code, response.text)}",
+                    provider_request=request_payload,
+                    provider_response=response.text,
+                    http_status=response.status_code,
+                )
+            return response
+        # All retries exhausted – surface the last error
+        if last_error is not None:
+            message = str(last_error) or last_error.__class__.__name__
             raise GenerationProviderException(
                 f"provider request failed: {message}",
                 provider_request=request_payload,
                 http_status=0,
             )
-        if response.status_code < 200 or response.status_code >= 300:
-            raise GenerationProviderException(
-                f"provider request failed: {ImageProviderTransport._error_summary(response.status_code, response.text)}",
-                provider_request=request_payload,
-                provider_response=response.text,
-                http_status=response.status_code,
-            )
-        return response
+        # Should not reach here, but satisfy the type checker
+        raise GenerationProviderException(
+            "provider request failed: all retries exhausted",
+            provider_request=request_payload,
+        )
 
     async def download_binary(self, url: str, timeout_seconds: int) -> DownloadedBinary:
-        """Download binary data from a URL (e.g., generated image)."""
+        """Download binary data from a URL (e.g., generated image).
+
+        Retries transient network errors up to 3 times with exponential backoff."""
         headers = {
             "User-Agent": "jiandou-python/0.1",
             "Accept": "*/*",
         }
         timeout = max(15, timeout_seconds)
-        try:
-            response = await self._client.get(url, headers=headers, timeout=timeout)
-        except httpx.RequestError as ex:
-            raise GenerationProviderException(f"remote media download failed: {ex}")
-        if response.status_code < 200 or response.status_code >= 300:
-            raise GenerationProviderException(
-                f"remote media download failed: http {response.status_code}"
-            )
-        mime_type = response.headers.get("content-type", "")
-        return DownloadedBinary(data=response.content, mime_type=mime_type or "")
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = await self._client.get(url, headers=headers, timeout=timeout)
+            except httpx.RequestError as ex:
+                last_error = ex
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)  # 1s, 2s
+                continue
+            if response.status_code < 200 or response.status_code >= 300:
+                if attempt < 2 and response.status_code >= 500:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise GenerationProviderException(
+                    f"remote media download failed: http {response.status_code}"
+                )
+            mime_type = response.headers.get("content-type", "")
+            return DownloadedBinary(data=response.content, mime_type=mime_type or "")
+        raise GenerationProviderException(f"remote media download failed: {last_error}")
 
     async def send_multipart(
         self,
@@ -1043,27 +1076,41 @@ class ImageProviderTransport:
         }
         timeout = max(30, timeout_seconds)
         payload = request_payload if request_payload is not None else {"method": "POST", "url": endpoint}
-        try:
-            response = await self._client.post(
-                endpoint,
-                headers=headers,
-                content=body_bytes,
-                timeout=timeout,
-            )
-        except httpx.RequestError as ex:
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = await self._client.post(
+                    endpoint,
+                    headers=headers,
+                    content=body_bytes,
+                    timeout=timeout,
+                )
+            except httpx.RequestError as ex:
+                last_error = ex
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                continue
+            if response.status_code < 200 or response.status_code >= 300:
+                if attempt < 2 and response.status_code >= 500:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise GenerationProviderException(
+                    f"provider multipart request failed: http {response.status_code} {self._truncate(response.text, 320)}",
+                    provider_request=payload,
+                    provider_response=response.text,
+                    http_status=response.status_code,
+                )
+            return response
+        if last_error is not None:
             raise GenerationProviderException(
-                f"provider multipart request failed: {ex}",
+                f"provider multipart request failed: {last_error}",
                 provider_request=payload,
                 http_status=0,
             )
-        if response.status_code < 200 or response.status_code >= 300:
-            raise GenerationProviderException(
-                f"provider multipart request failed: http {response.status_code} {self._truncate(response.text, 320)}",
-                provider_request=payload,
-                provider_response=response.text,
-                http_status=response.status_code,
-            )
-        return response
+        raise GenerationProviderException(
+            "provider multipart request failed: all retries exhausted",
+            provider_request=payload,
+        )
 
     async def send(self, request: httpx.Request, error_prefix: str) -> httpx.Response:
         """Send a pre-built HTTP request."""
@@ -1330,7 +1377,7 @@ class AgnesImageModelProvider:
 
     Supports:
     - Text-to-image: agnes-image-2.1-flash (OpenAI-compatible images/generations)
-    - Image-to-image: agnes-image-2.0-flash with reference images and data-URI fallback
+    - Image-to-image: agnes-image-2.1-flash with reference images and data-URI fallback
 
     Text-to-image uses URL output mode; image-to-image also uses URL output mode
     for reference images. If the URL-based reference image request fails, it
@@ -1338,7 +1385,7 @@ class AgnesImageModelProvider:
     """
 
     TEXT_TO_IMAGE_MODEL = "agnes-image-2.1-flash"
-    IMAGE_TO_IMAGE_MODEL = "agnes-image-2.0-flash"
+    IMAGE_TO_IMAGE_MODEL = "agnes-image-2.1-flash"
 
     def __init__(self, transport: ImageProviderTransport | None = None):
         self._transport = transport or ImageProviderTransport()
@@ -1419,8 +1466,10 @@ class AgnesImageModelProvider:
                 "model": provider_model,
                 "prompt": request.prompt,
                 "size": size,
-                "tags": ["img2img"],
-                "image": image_refs,
+                "extra_body": {
+                    "image": image_refs,
+                    "response_format": "url",
+                },
             }
             if request.seed is not None:
                 body["seed"] = request.seed

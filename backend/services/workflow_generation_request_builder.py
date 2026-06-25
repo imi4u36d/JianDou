@@ -49,6 +49,7 @@ class WorkflowGenerationRequestBuilder:
         height: int,
         character: dict[str, Any] | None,
         clip: dict[str, Any] | None,
+        character_sheet_urls: list[str] | None = None,
     ) -> tuple[dict[str, Any], str]:
         is_character_sheet = character is not None
         prompt = (
@@ -56,15 +57,18 @@ class WorkflowGenerationRequestBuilder:
             if is_character_sheet
             else self.keyframe_prompt(wf, clip or {})
         )
+        input_payload: dict[str, Any] = {
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "frameRole": "sheet" if is_character_sheet else "first",
+            "seed": wf.keyframe_seed,
+        }
+        if character_sheet_urls:
+            input_payload["referenceImageUrls"] = character_sheet_urls
         request = {
             "kind": "image",
-            "input": {
-                "prompt": prompt,
-                "width": width,
-                "height": height,
-                "frameRole": "sheet" if is_character_sheet else "first",
-                "seed": wf.keyframe_seed,
-            },
+            "input": input_payload,
             "model": {
                 "textAnalysisModel": wf.text_analysis_model,
                 "providerModel": wf.image_model,
@@ -88,6 +92,69 @@ class WorkflowGenerationRequestBuilder:
         }
         return request, prompt
 
+    def build_start_keyframe_from_tail_frame_request(
+        self,
+        wf: BizStageWorkflow,
+        *,
+        workflow_id: str,
+        clip_index: int,
+        width: int,
+        height: int,
+        clip: dict[str, Any] | None,
+        previous_tail_frame_remote_url: str,
+        character_sheet_urls: list[str] | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        """Build an image-to-image request for the start frame using the
+        previous clip's tail frame as reference.
+
+        This preserves visual continuity between consecutive clips by
+        generating the next clip's start frame from the previous clip's end.
+        """
+        base_prompt = self.keyframe_prompt(wf, clip or {})
+        prompt = (
+            f"{base_prompt} "
+            "This is the opening frame of a new shot that continues from the "
+            "previous shot's final frame. Preserve the same character identity, "
+            "scene lighting, and visual style from the reference image while "
+            "advancing to the new composition described above."
+        )
+        # Combine tail frame + character sheets into a single reference list.
+        all_refs = [previous_tail_frame_remote_url] + (character_sheet_urls or [])
+        input_payload: dict[str, Any] = {
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "frameRole": "first",
+            "referenceImageUrl": previous_tail_frame_remote_url,
+            "referenceImageUrls": all_refs,
+            "seed": wf.keyframe_seed,
+        }
+        request = {
+            "kind": "image",
+            "input": input_payload,
+            "model": {
+                "textAnalysisModel": wf.text_analysis_model,
+                "providerModel": wf.image_model,
+            },
+            "options": {
+                "stylePreset": wf.style_preset,
+            },
+            "storage": {
+                "relativeDir": f"gen/_runs/workflows/{workflow_id}",
+                "fileStem": f"clip{clip_index}-first",
+            },
+            "metadata": {
+                "workflowId": workflow_id,
+                "stage": STAGE_KEYFRAME,
+                "clipIndex": clip_index,
+                "variantKind": "keyframe",
+            },
+            "auth": {
+                "userId": wf.owner_user_id,
+            },
+        }
+        return request, prompt
+
     def build_end_keyframe_request(
         self,
         wf: BizStageWorkflow,
@@ -98,6 +165,7 @@ class WorkflowGenerationRequestBuilder:
         height: int,
         clip: dict[str, Any] | None,
         start_frame_remote_url: str,
+        character_sheet_urls: list[str] | None = None,
     ) -> tuple[dict[str, Any], str]:
         """Build an image-to-image request for the end frame keyframe.
 
@@ -112,16 +180,22 @@ class WorkflowGenerationRequestBuilder:
             "the same scene, lighting, and character identity. "
             "Do NOT reproduce the reference image exactly."
         )
+        # Combine start frame + character sheets into a single reference list.
+        # The generation service passes referenceImageUrls to the model;
+        # referenceImageUrl alone would be dropped when referenceImageUrls is set.
+        all_refs = [start_frame_remote_url] + (character_sheet_urls or [])
+        input_payload: dict[str, Any] = {
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "frameRole": "last",
+            "referenceImageUrl": start_frame_remote_url,
+            "referenceImageUrls": all_refs,
+            "seed": wf.keyframe_seed,
+        }
         request = {
             "kind": "image",
-            "input": {
-                "prompt": prompt,
-                "width": width,
-                "height": height,
-                "frameRole": "last",
-                "referenceImageUrl": start_frame_remote_url,
-                "seed": wf.keyframe_seed,
-            },
+            "input": input_payload,
             "model": {
                 "textAnalysisModel": wf.text_analysis_model,
                 "providerModel": wf.image_model,

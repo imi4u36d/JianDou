@@ -35,7 +35,8 @@ router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
 
 def _service(db: AsyncSession, request: Request | None = None) -> WorkflowService:
     generation_service = getattr(request.app.state, "generation_application_service", None) if request else None
-    return WorkflowService(db, generation_service=generation_service)
+    media_service = getattr(request.app.state, "media_artifact_service", None) if request else None
+    return WorkflowService(db, generation_service=generation_service, media_service=media_service)
 
 
 async def _run_action(action):

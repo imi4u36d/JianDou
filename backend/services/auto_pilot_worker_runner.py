@@ -63,6 +63,7 @@ class AutoPilotWorkerRunner:
         self._maintenance_task: asyncio.Task | None = None
         self._job_queue: asyncio.Queue[tuple[str, int]] = asyncio.Queue()
         self._job_locks: dict[str, asyncio.Lock] = {}  # workflow_id -> Lock
+        self._active_workflow_ids: set[str] = set()  # workflows currently being executed
 
     @property
     def is_running(self) -> bool:
@@ -100,6 +101,8 @@ class AutoPilotWorkerRunner:
         self._running = True
         self._poll_task = asyncio.create_task(self._poll_loop())
         self._maintenance_task = asyncio.create_task(self._maintenance_loop())
+        # Recover workflows orphaned in "queued" state after a restart
+        asyncio.create_task(self._recover_orphaned_jobs())
         logger.info("AutoPilotWorkerRunner started")
 
     async def stop(self) -> None:
@@ -186,6 +189,7 @@ class AutoPilotWorkerRunner:
                 .where(BizStageWorkflow.workflow_id == workflow_id)
                 .values(
                     auto_pilot_state=AutoPilotState.RUNNING.value,
+                    auto_pilot_current_task="",
                     auto_pilot_started_at=now,
                     update_time=now,
                 )
@@ -194,21 +198,92 @@ class AutoPilotWorkerRunner:
             await self._workflow_service.db.commit()
 
             # Run the auto-pilot
-            auto_pilot = WorkflowAutoPilot(
-                db=self._workflow_service.db,
-                workflow_service=self._workflow_service,
-            )
-            result = await auto_pilot.run(workflow_id, owner_user_id)
+            self._active_workflow_ids.add(workflow_id)
+            try:
+                auto_pilot = WorkflowAutoPilot(
+                    db=self._workflow_service.db,
+                    workflow_service=self._workflow_service,
+                )
+                result = await auto_pilot.run(workflow_id, owner_user_id)
 
-            logger.info(
-                "Auto-pilot completed for %s: status=%s iterations=%s",
-                workflow_id,
-                result.get("status"),
-                result.get("iterations"),
-            )
+                logger.info(
+                    "Auto-pilot completed for %s: status=%s iterations=%s",
+                    workflow_id,
+                    result.get("status"),
+                    result.get("iterations"),
+                )
+            finally:
+                self._active_workflow_ids.discard(workflow_id)
+
+    async def _recover_orphaned_jobs(self) -> None:
+        """Scan the database for workflows stuck in stale auto-pilot states
+        after a server restart and re-enqueue them.
+
+        Two cases are handled:
+
+        1. ``queued`` — the in-memory queue was lost on restart.
+        2. ``running`` — the workflow was being processed when the server
+           stopped; there is no actual worker processing it now.
+
+        Uses a **separate, short-lived session** to avoid interfering with
+        the poll loop's transaction on the shared session."""
+        try:
+            from backend.database import async_session_factory
+            from backend.models.workflow import BizStageWorkflow
+            from sqlalchemy import select, update
+            from backend.shared import now_iso
+
+            async with async_session_factory() as session:
+                # Find workflows stuck in queued or running state
+                stmt = select(
+                    BizStageWorkflow.workflow_id,
+                    BizStageWorkflow.owner_user_id,
+                    BizStageWorkflow.auto_pilot_state,
+                ).where(
+                    BizStageWorkflow.auto_pilot_state.in_(["queued", "running"]),
+                    BizStageWorkflow.execution_mode == "auto",
+                    BizStageWorkflow.is_deleted == 0,
+                )
+                result = await session.execute(stmt)
+                rows = result.all()
+                # First pass: reset running → queued in DB, commit
+                candidates: list[tuple[str, int]] = []
+                for workflow_id, owner_user_id, state in rows:
+                    if self.is_queued(workflow_id):
+                        continue
+                    # Skip workflows that are currently being executed — they are
+                    # not orphaned, just mid-flight. Without this guard the
+                    # periodic maintenance loop would reset actively-running
+                    # workflows from "running" back to "queued".
+                    if workflow_id in self._active_workflow_ids:
+                        continue
+                    if state == "running":
+                        now = now_iso()
+                        stmt2 = (
+                            update(BizStageWorkflow)
+                            .where(BizStageWorkflow.workflow_id == workflow_id)
+                            .values(
+                                auto_pilot_state="queued",
+                                update_time=now,
+                            )
+                        )
+                        await session.execute(stmt2)
+                    candidates.append((workflow_id, owner_user_id))
+                if candidates:
+                    await session.commit()
+                # Second pass: enqueue after DB is committed
+                for workflow_id, owner_user_id in candidates:
+                    self.enqueue(workflow_id, owner_user_id)
+                if candidates:
+                    logger.info(
+                        "Recovered %d orphaned auto-pilot jobs (out of %d in DB)",
+                        len(candidates), len(rows),
+                    )
+        except Exception as ex:
+            logger.warning("Failed to recover orphaned auto-pilot jobs", exc_info=ex)
 
     async def _maintenance_loop(self) -> None:
-        """Periodic maintenance: log worker status."""
+        """Periodic maintenance: log worker status and recover orphaned jobs."""
         await asyncio.sleep(self._ops_config.maintenance_interval_ms / 1000.0)
 
         while self._running:
@@ -218,6 +293,9 @@ class AutoPilotWorkerRunner:
                     "AutoPilotWorkerRunner maintenance: running=%s, queue_size=%s",
                     self._running, active_jobs,
                 )
+                # Periodically recover any orphaned queued workflows
+                # (defense in depth — catch jobs that were queued after startup too)
+                await self._recover_orphaned_jobs()
             except Exception as ex:
                 logger.warning("Auto-pilot maintenance failed", exc_info=ex)
             await asyncio.sleep(self._ops_config.maintenance_interval_ms / 1000.0)

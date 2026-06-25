@@ -553,6 +553,11 @@ class LocalMediaArtifactService:
     def concat_videos(self, relative_dir: str, file_name: str, source_public_urls: list[str]) -> StoredArtifact:
         """Concatenate multiple local video files using ffmpeg.
 
+        Tries ``-c copy`` (fast, stream-copy) first.  If that fails — typically
+        because source videos have incompatible codecs / resolutions — falls
+        back to re-encoding every input to H.264 + AAC before concatenation so
+        the result is always playable.
+
         Args:
             relative_dir: Output directory relative to storage root.
             file_name: Output file name.
@@ -587,7 +592,8 @@ class LocalMediaArtifactService:
                 tmp_list.write(f"file '{escaped}'\n")
             tmp_list.close()
 
-            cmd = [
+            # --- Fast path: stream copy (no re-encode) ---
+            copy_cmd = [
                 self._ffmpeg_bin,
                 "-y",
                 "-f", "concat",
@@ -599,15 +605,46 @@ class LocalMediaArtifactService:
             ]
 
             result = subprocess.run(
-                cmd,
+                copy_cmd,
                 capture_output=True,
                 text=True,
                 timeout=600,
             )
+
             if result.returncode != 0 or not output.exists():
-                raise RuntimeError(
-                    result.stderr.strip() or result.stdout.strip() or "ffmpeg concat failed"
+                # Stream-copy failed (likely codec mismatch).  Re-encode.
+                import logging
+                logging.getLogger(__name__).info(
+                    "concat -c copy failed (%s), retrying with re-encode",
+                    result.stderr.strip()[:200],
                 )
+                if output.exists():
+                    output.unlink()
+
+                reencode_cmd = [
+                    self._ffmpeg_bin,
+                    "-y",
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", tmp_list.name,
+                    "-c:v", "libx264",
+                    "-preset", "fast",
+                    "-crf", "23",
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    "-movflags", "+faststart",
+                    str(output),
+                ]
+                result = subprocess.run(
+                    reencode_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+                if result.returncode != 0 or not output.exists():
+                    raise RuntimeError(
+                        result.stderr.strip() or result.stdout.strip() or "ffmpeg concat failed"
+                    )
 
             return StoredArtifact(
                 file_name=file_name,

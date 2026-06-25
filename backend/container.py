@@ -147,6 +147,21 @@ class AppContainer:
         return self.__dict__["_user_model_config_service"]
 
     @property
+    def media_artifact_service(self):
+        """Local media artifact service for file operations (thumbnails, concat, etc.)."""
+        if "_media_artifact_service" not in self.__dict__:
+            from backend.services.media_service import JiandouStorageProperties, LocalMediaArtifactService
+            storage_props = JiandouStorageProperties(
+                root_dir=self.config.storage_root,
+                public_base_url=getattr(self.config, "storage_public_base_url", "") or "/storage",
+                externally_accessible_base_url=getattr(self.config, "externally_accessible_base_url", "") or "",
+            )
+            self.__dict__["_media_artifact_service"] = LocalMediaArtifactService(
+                storage_properties=storage_props,
+            )
+        return self.__dict__["_media_artifact_service"]
+
+    @property
     def pipeline_handler(self) -> TaskWorkerPipelineHandler:
         if "_pipeline_handler" not in self.__dict__:
             from backend.services.task_worker_service import TaskWorkerPipelineHandler
@@ -195,11 +210,16 @@ class AppContainer:
         """Create a WorkflowService for the auto-pilot runner.
 
         The auto-pilot runner needs the generation service to drive workflow
-        stages (storyboard, keyframe, video generation).
+        stages (storyboard, keyframe, video generation) and the media service
+        for final video concatenation.
         """
         from backend.services.workflow_service import WorkflowService
         task_repo = self.task_repository
-        return WorkflowService(task_repo.session, generation_service=self.generation_application_service)
+        return WorkflowService(
+            task_repo.session,
+            generation_service=self.generation_application_service,
+            media_service=self.media_artifact_service,
+        )
 
     # -- App binding -------------------------------------------------------
 
@@ -215,6 +235,7 @@ class AppContainer:
         app.state.structured_logger = StructuredApplicationLogger
         app.state.generation_application_service = self.generation_application_service
         app.state.generation_catalog_service = self.generation_catalog_service
+        app.state.media_artifact_service = self.media_artifact_service
         app.state.task_worker_runner = self.worker_runner
         app.state.auto_pilot_runner = self.auto_pilot_runner
         app.state.task_repository = self.task_repository

@@ -52,6 +52,7 @@ class BizStageWorkflow(Base):
     auto_pilot_error_message = Column(Text, nullable=False, comment="Error message when auto-pilot entered failed state.", default="")
     auto_pilot_started_at = Column(String(32), nullable=False, comment="ISO timestamp when auto-pilot started execution.", default="")
     auto_pilot_paused_at = Column(String(32), nullable=False, comment="ISO timestamp when auto-pilot was paused.", default="")
+    auto_pilot_current_task = Column(String(128), nullable=False, comment="Human-readable label of the task currently executing, e.g. '正在生成分镜脚本'.", default="")
     status = Column(String(32), nullable=False, comment="WorkflowStatus enum value.")
     current_stage = Column(String(64), nullable=False, comment="WorkflowStage enum value representing the active stage.")
     selected_storyboard_version_id = Column(String(64), nullable=False, comment="Selected storyboard stage_version_id.")

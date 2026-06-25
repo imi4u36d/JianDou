@@ -39,7 +39,7 @@ class TestAutoPilotState:
 
     def test_all_states(self):
         states = [e.value for e in AutoPilotState]
-        assert states == ["idle", "running", "paused", "failed", "completed"]
+        assert states == ["idle", "queued", "running", "paused", "failed", "completed"]
 
     def test_missing_fallback(self):
         """StrEnum._missing_ should map unknown strings to IDLE."""

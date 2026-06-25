@@ -1308,6 +1308,7 @@ export interface WorkflowDetail {
   autoPilotErrorMessage?: string | null;
   autoPilotStartedAt?: string | null;
   autoPilotPausedAt?: string | null;
+  autoPilotCurrentTask?: string | null;
   queuePosition?: number | null;
   queueSize?: number | null;
 }
