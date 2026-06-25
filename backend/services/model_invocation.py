@@ -1421,7 +1421,6 @@ class AgnesImageModelProvider:
                 "size": size,
                 "tags": ["img2img"],
                 "image": image_refs,
-                "response_format": "url",
             }
             if request.seed is not None:
                 body["seed"] = request.seed

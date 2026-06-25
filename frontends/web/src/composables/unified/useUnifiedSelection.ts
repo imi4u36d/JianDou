@@ -39,6 +39,10 @@ export function useUnifiedSelection() {
     querySyncTimer = window.setTimeout(() => {
       querySyncTimer = null;
       const query: Record<string, string> = {};
+      // Preserve existing stage param so stage selection survives navigation
+      if (route.query.stage) {
+        query.stage = String(route.query.stage);
+      }
       if (selectedId.value) {
         query.selected = selectedId.value;
       }

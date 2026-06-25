@@ -6,6 +6,7 @@ Handles the multi-stage creative workflow lifecycle:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -638,12 +639,69 @@ class WorkflowService:
             character=character,
             clip=clip,
         )
+        logger.info(
+            "Generating start frame for clip %s (model=%s)...",
+            clip_index, wf.image_model,
+        )
         gen_result = await self._get_generation_service().create_run(generation_request)
         image_result = self._generation_result_parser.parse_image_result(
             gen_result,
             fallback_width=width,
             fallback_height=height,
         )
+        logger.info(
+            "Start frame generated for clip %s: %s",
+            clip_index, image_result.output_url[:80],
+        )
+
+        # Generate end frame via image-to-image using start frame as reference
+        end_frame_remote_url = image_result.remote_source_url
+        end_frame_output_url = image_result.output_url
+        if not is_character_sheet:
+            ref_url = image_result.remote_source_url
+            if not ref_url:
+                logger.warning("Skipping end frame for clip %s: start frame has no remote URL", clip_index)
+            else:
+                for attempt in range(3):
+                    try:
+                        end_request, _ = self._generation_request_builder.build_end_keyframe_request(
+                            wf,
+                            workflow_id=workflow_id,
+                            clip_index=clip_index,
+                            width=width,
+                            height=height,
+                            clip=clip,
+                            start_frame_remote_url=ref_url,
+                        )
+                        logger.info(
+                            "Generating end frame for clip %s (attempt %d/3) with reference: %s...",
+                            clip_index, attempt + 1, ref_url[:80],
+                        )
+                        end_gen_result = await self._get_generation_service().create_run(end_request)
+                        end_image_result = self._generation_result_parser.parse_image_result(
+                            end_gen_result,
+                            fallback_width=width,
+                            fallback_height=height,
+                        )
+                        end_frame_remote_url = end_image_result.remote_source_url or end_frame_remote_url
+                        end_frame_output_url = end_image_result.output_url or end_frame_output_url
+                        logger.info("End frame generated for clip %s: %s", clip_index, end_frame_output_url[:80])
+                        break
+                    except Exception as e:
+                        if attempt < 2:
+                            delay = 2 ** attempt
+                            logger.warning(
+                                "End frame generation failed for clip %s (attempt %d/3), retrying in %ds: %s",
+                                clip_index, attempt + 1, delay, e,
+                            )
+                            await asyncio.sleep(delay)
+                        else:
+                            logger.error(
+                                "End frame generation failed for clip %s after 3 attempts: %s",
+                                clip_index, e,
+                            )
+                            raise
+
         asset = self._row_factory.create_material_asset(
             wf=wf,
             stage_type=STAGE_KEYFRAME,
@@ -697,9 +755,9 @@ class WorkflowService:
         else:
             output_summary.update({
                 "startFrameUrl": image_result.output_url,
-                "endFrameUrl": image_result.output_url,
+                "endFrameUrl": end_frame_output_url,
                 "startFrameRemoteUrl": image_result.remote_source_url,
-                "endFrameRemoteUrl": image_result.remote_source_url,
+                "endFrameRemoteUrl": end_frame_remote_url,
                 "selectedFirstFrame": True,
                 "selectedLastFrame": True,
             })
@@ -745,15 +803,37 @@ class WorkflowService:
         frame_role: str,
         owner_user_id: int | None = None,
     ) -> dict[str, Any] | None:
-        """Generate single keyframe frame."""
+        """Generate a single keyframe frame (first or last).
+
+        - frame_role="first": text-to-image, generates the start frame.
+        - frame_role="last":  image-to-image using the existing first frame
+          as reference, generates the end frame.
+        """
         wf = await self._require_workflow(workflow_id, owner_user_id)
         if wf is None:
             return None
 
-        # Create a placeholder frame version
-        version_id = f"fv_{random_id()[:12]}"
+        storyboard_version = await self._selected_storyboard_version(wf)
+        if storyboard_version is None:
+            raise ValueError("请先选中一个分镜版本。")
+        characters, clips = self._storyboard_plan(storyboard_version)
+        is_character_sheet = clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE
+        character: dict[str, Any] | None = None
+        clip: dict[str, Any] | None = None
+        if is_character_sheet:
+            char_index = clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE - 1
+            if char_index < 0 or char_index >= len(characters):
+                raise ValueError("角色不存在，请重新选择分镜版本。")
+            character = characters[char_index]
+        else:
+            clip = next((item for item in clips if safe_int(item.get("clipIndex"), 0) == clip_index), None)
+            if clip is None:
+                raise ValueError("镜头不存在，请重新选择分镜版本。")
 
-        # Count existing versions for this clip and frame role
+        version_id = f"fv_{random_id()[:12]}"
+        now = now_iso()
+
+        # Count existing keyframe versions for this clip
         result = await self.db.execute(
             select(func.count()).where(
                 BizStageVersion.workflow_id == workflow_id,
@@ -763,6 +843,141 @@ class WorkflowService:
             )
         )
         version_count = result.scalar() or 0
+        width, height = _dimensions_from_aspect_ratio(wf.aspect_ratio)
+
+        normalized_role = trim(frame_role).lower()
+        is_first = normalized_role in ("first", "start", "首帧")
+        is_last = normalized_role in ("last", "end", "尾帧")
+
+        if not is_first and not is_last:
+            raise ValueError(f"不支持的 frame_role: {frame_role}，仅支持 first/last。")
+
+        if is_character_sheet and is_last:
+            raise ValueError("角色三视图仅支持首帧（first），不支持尾帧。")
+
+        # ---- Generate the image -------------------------------------------------
+        prompt: str = ""
+        if is_first:
+            logger.info(
+                "Generating start frame for clip %s (model=%s, frame_role=%s)...",
+                clip_index, wf.image_model, frame_role,
+            )
+            generation_request, prompt = self._generation_request_builder.build_keyframe_request(
+                wf,
+                workflow_id=workflow_id,
+                clip_index=clip_index,
+                width=width,
+                height=height,
+                character=character,
+                clip=clip,
+            )
+        else:
+            # Find an existing first-frame remote URL to use as reference
+            versions = await self._list_stage_versions(workflow_id)
+            start_frame_remote_url = self._find_first_frame_remote_url(versions, clip_index)
+            if not start_frame_remote_url:
+                raise ValueError("未找到该镜头的首帧远端 URL，请先生成首帧后再生成尾帧。")
+
+            logger.info(
+                "Generating end frame for clip %s (model=%s, frame_role=%s, ref=%s)...",
+                clip_index, wf.image_model, frame_role, start_frame_remote_url[:80],
+            )
+            generation_request, prompt = self._generation_request_builder.build_end_keyframe_request(
+                wf,
+                workflow_id=workflow_id,
+                clip_index=clip_index,
+                width=width,
+                height=height,
+                clip=clip,
+                start_frame_remote_url=start_frame_remote_url,
+            )
+
+        gen_result = await self._get_generation_service().create_run(generation_request)
+        image_result = self._generation_result_parser.parse_image_result(
+            gen_result,
+            fallback_width=width,
+            fallback_height=height,
+        )
+        logger.info(
+            "%s frame generated for clip %s: %s",
+            "Start" if is_first else "End", clip_index, image_result.output_url[:80],
+        )
+
+        # ---- Persist ------------------------------------------------------------
+        asset = self._row_factory.create_material_asset(
+            wf=wf,
+            stage_type=STAGE_KEYFRAME,
+            clip_index=clip_index,
+            version_no=version_count + 1,
+            media_type="image",
+            title=(f"{character.get('name')} 三视图" if character else f"镜头 {clip_index} 关键帧-{frame_role}"),
+            public_url=image_result.output_url,
+            mime_type=image_result.mime_type,
+            width=image_result.width,
+            height=image_result.height,
+            duration_seconds=0,
+            origin_provider=trim(image_result.metadata.get("provider")),
+            origin_model=trim(image_result.metadata.get("providerModel")),
+            remote_url=image_result.remote_source_url,
+            metadata={
+                "runId": gen_result.get("id") or image_result.run_id,
+                "prompt": prompt,
+                "remoteSourceUrl": image_result.remote_source_url,
+                "characterName": character.get("name") if character else "",
+                "clip": clip or {},
+                "frameRole": frame_role,
+            },
+        )
+        self.db.add(asset)
+
+        output_summary: dict[str, Any] = {
+            "fileUrl": image_result.output_url,
+            "previewUrl": image_result.output_url,
+            "width": image_result.width,
+            "height": image_result.height,
+            "prompt": prompt,
+            "runId": image_result.run_id,
+            "remoteSourceUrl": image_result.remote_source_url,
+            "frameRole": frame_role,
+        }
+        input_summary: dict[str, Any] = {
+            "clipIndex": clip_index,
+            "prompt": prompt,
+            "frameRole": frame_role,
+        }
+        if character is not None:
+            output_summary.update({
+                "sheetUrl": image_result.output_url,
+                "characterName": character.get("name", ""),
+                "characterAppearance": character.get("appearance", ""),
+            })
+            input_summary.update({
+                "variantKind": VARIANT_KIND_CHARACTER_SHEET,
+                "characterName": character.get("name", ""),
+                "appearance": character.get("appearance", ""),
+            })
+        elif is_first:
+            output_summary.update({
+                "startFrameUrl": image_result.output_url,
+                "startFrameRemoteUrl": image_result.remote_source_url,
+                "selectedFirstFrame": True,
+            })
+            input_summary.update({
+                "variantKind": "keyframe",
+                "shotLabel": (clip or {}).get("shotLabel", ""),
+                "scene": (clip or {}).get("scene", ""),
+            })
+        else:
+            output_summary.update({
+                "endFrameUrl": image_result.output_url,
+                "endFrameRemoteUrl": image_result.remote_source_url,
+                "selectedLastFrame": True,
+            })
+            input_summary.update({
+                "variantKind": "keyframe_end",
+                "shotLabel": (clip or {}).get("shotLabel", ""),
+                "scene": (clip or {}).get("scene", ""),
+            })
 
         frame_version = self._row_factory.create_stage_version(
             wf=wf,
@@ -770,14 +985,22 @@ class WorkflowService:
             stage_type=STAGE_KEYFRAME,
             clip_index=clip_index,
             version_no=version_count + 1,
-            title=f"关键帧 {clip_index + 1}-{frame_role}",
+            title=(f"{character.get('name')} 三视图 {version_count + 1}" if character
+                   else f"关键帧 {clip_index + 1}-{frame_role} {version_count + 1}"),
             status="COMPLETED",
             selected=0,
-            input_summary={"clipIndex": clip_index, "frameRole": frame_role},
-            output_summary={"message": "关键帧帧生成中，请稍后刷新查看结果。"},
+            material_asset_id=asset.material_asset_id,
+            preview_url=image_result.output_url,
+            download_url=image_result.output_url,
+            input_summary=input_summary,
+            output_summary=output_summary,
+            model_call_summary={
+                "runId": image_result.run_id,
+                "modelInfo": image_result.model_info,
+            },
         )
-
         self.db.add(frame_version)
+        wf.update_time = now
         await self.db.commit()
 
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
@@ -1142,6 +1365,35 @@ class WorkflowService:
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
+    async def delete_all_stage_versions(
+        self,
+        workflow_id: str,
+        owner_user_id: int | None = None,
+        stage_type: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Delete all non-deleted stage versions for a workflow, optionally filtered by stage type."""
+        wf = await self._require_workflow(workflow_id, owner_user_id)
+        if wf is None:
+            return None
+        versions = await self._list_stage_versions(workflow_id)
+        if stage_type:
+            versions = [v for v in versions if v.stage_type == stage_type]
+        if not versions:
+            return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
+        now = now_iso()
+        for v in versions:
+            v.selected = 0
+            v.is_deleted = 1
+            v.update_time = now
+            if v.material_asset_id:
+                await self._mark_asset_deleted(v.material_asset_id)
+        wf.update_time = now
+        # Recompute current_stage from remaining versions so the workflow
+        # state stays consistent for auto-pilot and UI stage detection.
+        wf.current_stage = await self._compute_current_stage(workflow_id)
+        await self.db.commit()
+        return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -1187,6 +1439,65 @@ class WorkflowService:
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def _compute_current_stage(self, workflow_id: str) -> str:
+        """Derive current_stage from remaining non-deleted versions.
+
+        The stage represents the next step to work on, following the
+        same progression as the auto-pilot: storyboard → keyframe → video → joined.
+        """
+        remaining = await self._list_stage_versions(workflow_id)
+        if not remaining:
+            return STAGE_STORYBOARD
+
+        has_storyboard = any(v.stage_type == STAGE_STORYBOARD for v in remaining)
+        has_selected_storyboard = any(
+            v.stage_type == STAGE_STORYBOARD and v.selected for v in remaining
+        )
+        has_keyframe = any(v.stage_type == STAGE_KEYFRAME for v in remaining)
+        has_selected_keyframe = any(
+            v.stage_type == STAGE_KEYFRAME and v.selected for v in remaining
+        )
+        has_video = any(v.stage_type == STAGE_VIDEO for v in remaining)
+        has_selected_video = any(
+            v.stage_type == STAGE_VIDEO and v.selected for v in remaining
+        )
+
+        if has_selected_video:
+            return STAGE_JOINED
+        if has_video or has_selected_keyframe:
+            return STAGE_VIDEO
+        if has_keyframe or has_selected_storyboard:
+            return STAGE_KEYFRAME
+        if has_storyboard:
+            return STAGE_STORYBOARD
+        return STAGE_STORYBOARD
+
+    @staticmethod
+    def _find_first_frame_remote_url(
+        versions: list[BizStageVersion],
+        clip_index: int,
+    ) -> str:
+        """Find the first-frame remote URL from selected keyframe versions for a clip.
+
+        Checks selected keyframe versions first (those with startFrameRemoteUrl
+        or remoteSourceUrl), then falls back to any keyframe version for the clip.
+        """
+        keyframe_versions = [
+            v for v in versions
+            if v.stage_type == STAGE_KEYFRAME
+            and v.clip_index == clip_index
+        ]
+        # Prefer selected versions
+        for v in sorted(keyframe_versions, key=lambda x: 0 if x.selected else 1):
+            output = _read_json(v.output_summary_json)
+            url = first_non_blank(
+                trim(output.get("startFrameRemoteUrl")),
+                trim(output.get("remoteSourceUrl")),
+            )
+            if url:
+                return url
+        return ""
 
     async def _mark_asset_deleted(self, asset_id: str) -> None:
         if not asset_id:

@@ -222,8 +222,13 @@ async function handleLogout() {
 .admin-layout__content {
   flex: 1;
   min-height: 0;
-  padding: 20px 0;
+  padding: 20px;
+  border-radius: 18px;
   overflow-y: auto;
+  border: 1px solid var(--jd-border);
+  background: var(--jd-surface);
+  box-shadow: 0 16px 48px rgba(23, 32, 42, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 @media (max-width: 1100px) {
@@ -292,7 +297,8 @@ async function handleLogout() {
   }
 
   .admin-layout__content {
-    padding-top: 12px;
+    padding: 12px;
+    border-radius: 16px;
   }
 }
 </style>

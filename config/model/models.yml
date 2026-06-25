@@ -1,5 +1,19 @@
 model:
   models:
+    "agnes-2.0-flash":
+      provider: "agnes-text"
+      vendor: "agnes-ai"
+      kind: "text"
+      label: "Agnes 2.0 Flash"
+      provider_model: "agnes-2.0-flash"
+      max_tokens: 65536
+      family: "agnes"
+      capabilities:
+        - "text_analysis"
+        - "planner_fusion"
+        - "creative_prompt"
+        - "script_generation"
+      description: "Agnes AI 2.0 Flash 文本模型，256K 上下文，支持流式输出与 Function Calling。"
     "deepseek-v4-flash":
       provider: "deepseek"
       vendor: "deepseek"
@@ -28,6 +42,19 @@ model:
         - "creative_prompt"
         - "script_generation"
       description: "DeepSeek 专业文本模型 deepseek-v4-pro。"
+    "Agnes-Image-2.1-Flash":
+      provider: "agnes-image"
+      vendor: "agnes-ai"
+      kind: "image"
+      label: "Agnes Image 2.1 Flash"
+      provider_model: "agnes-image-2.1-flash"
+      timeout_seconds: 120
+      family: "agnes-image"
+      supports_image_data_uri_references: true
+      capabilities:
+        - "image_generation"
+      description: "Agnes Image 2.1 Flash 文生图/图生图模型，支持 1K/2K/4K 分辨率，URL 输出模式，图生图参考图 URL 无效时自动降级为 Data URI 编码输入。"
+      supported_sizes: "1024x1024,2048x2048,2880x2880,1536x1024,2048x1360,1024x1536,1360x2048,1824x1024,2048x1152,1024x1824,1152x2048"
     "Doubao-Seedream-5.0-Lite":
       provider: "seedream"
       vendor: "volcengine"
@@ -41,20 +68,6 @@ model:
         - "image_generation"
       description: "Seedream 5.0 Lite 文生图模型，支持 2K/3K 分辨率、联网搜索、PNG 透明背景。"
       supported_sizes: "2048x2048,2304x1728,1728x2304,2560x1440,1440x2560,2496x1664,1664x2496,3024x1296"
-    "seedance-1.5-pro":
-      provider: "seedance"
-      vendor: "volcengine"
-      kind: "video"
-      label: "Seedance 1.5 Pro"
-      provider_model: "doubao-seedance-1-5-pro-251215"
-      family: "seedance"
-      supports_seed: true
-      capabilities:
-        - "video_generation"
-      description: "火山引擎 Seedance 视频模型。"
-      generation_mode: "i2v"
-      supported_sizes: "480*854,854*480,720*1280,1280*720"
-      supported_durations: "4,6,8,10,12"
     "agnes-video-v2.0":
       provider: "agnes"
       vendor: "agnes-ai"
@@ -69,3 +82,17 @@ model:
       generation_mode: "ti2vid"
       supported_sizes: "768*1152,1152*768,1024*1024"
       supported_durations: "4,5,6,8,10,12"
+    "seedance-1.5-pro":
+      provider: "seedance"
+      vendor: "volcengine"
+      kind: "video"
+      label: "Seedance 1.5 Pro"
+      provider_model: "doubao-seedance-1-5-pro-251215"
+      family: "seedance"
+      supports_seed: true
+      capabilities:
+        - "video_generation"
+      description: "火山引擎 Seedance 视频模型。"
+      generation_mode: "i2v"
+      supported_sizes: "480*854,854*480,720*1280,1280*720"
+      supported_durations: "4,6,8,10,12"

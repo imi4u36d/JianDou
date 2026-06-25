@@ -149,7 +149,7 @@ onUnmounted(() => {
   padding: 18px 22px 18px 18px;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
   align-content: stretch;
   gap: 22px;
   position: relative;

@@ -62,7 +62,7 @@ class WorkflowGenerationRequestBuilder:
                 "prompt": prompt,
                 "width": width,
                 "height": height,
-                "frameRole": "sheet" if is_character_sheet else "keyframe",
+                "frameRole": "sheet" if is_character_sheet else "first",
                 "seed": wf.keyframe_seed,
             },
             "model": {
@@ -72,11 +72,72 @@ class WorkflowGenerationRequestBuilder:
             "options": {
                 "stylePreset": wf.style_preset,
             },
+            "storage": {
+                "relativeDir": f"gen/_runs/workflows/{workflow_id}",
+                "fileStem": f"clip{clip_index}-first",
+            },
             "metadata": {
                 "workflowId": workflow_id,
                 "stage": STAGE_KEYFRAME,
                 "clipIndex": clip_index,
                 "variantKind": VARIANT_KIND_CHARACTER_SHEET if is_character_sheet else "keyframe",
+            },
+            "auth": {
+                "userId": wf.owner_user_id,
+            },
+        }
+        return request, prompt
+
+    def build_end_keyframe_request(
+        self,
+        wf: BizStageWorkflow,
+        *,
+        workflow_id: str,
+        clip_index: int,
+        width: int,
+        height: int,
+        clip: dict[str, Any] | None,
+        start_frame_remote_url: str,
+    ) -> tuple[dict[str, Any], str]:
+        """Build an image-to-image request for the end frame keyframe.
+
+        Uses the start frame as reference image so the model produces a
+        distinct end frame that preserves scene/character continuity.
+        """
+        base_prompt = self.keyframe_prompt(wf, clip or {})
+        prompt = (
+            f"{base_prompt} "
+            "Focus on the end frame — advance character action, posture, "
+            "or camera position from the reference image while preserving "
+            "the same scene, lighting, and character identity. "
+            "Do NOT reproduce the reference image exactly."
+        )
+        request = {
+            "kind": "image",
+            "input": {
+                "prompt": prompt,
+                "width": width,
+                "height": height,
+                "frameRole": "last",
+                "referenceImageUrl": start_frame_remote_url,
+                "seed": wf.keyframe_seed,
+            },
+            "model": {
+                "textAnalysisModel": wf.text_analysis_model,
+                "providerModel": wf.image_model,
+            },
+            "options": {
+                "stylePreset": wf.style_preset,
+            },
+            "storage": {
+                "relativeDir": f"gen/_runs/workflows/{workflow_id}",
+                "fileStem": f"clip{clip_index}-last",
+            },
+            "metadata": {
+                "workflowId": workflow_id,
+                "stage": STAGE_KEYFRAME,
+                "clipIndex": clip_index,
+                "variantKind": "keyframe_end",
             },
             "auth": {
                 "userId": wf.owner_user_id,

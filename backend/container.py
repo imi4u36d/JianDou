@@ -83,7 +83,7 @@ class AppContainer:
                 config_resolver=self.model_resolver,
                 text_provider=self.text_model_provider,
                 prompt_resolver=self.prompt_template_resolver,
-                image_provider=self.image_model_provider,
+                image_providers=self.image_model_providers,
                 video_provider=self.video_model_provider,
             )
             self.__dict__["_generation_application_service"] = DefaultGenerationApplicationService(
@@ -239,13 +239,19 @@ class AppContainer:
         return self.__dict__["_prompt_template_resolver"]
 
     @property
-    def image_model_provider(self) -> SeedreamImageModelProvider:
-        if "_image_model_provider" not in self.__dict__:
-            from backend.services.model_invocation import ImageProviderTransport, SeedreamImageModelProvider
-            self.__dict__["_image_model_provider"] = SeedreamImageModelProvider(
-                transport=ImageProviderTransport()
+    def image_model_providers(self) -> list:
+        if "_image_model_providers" not in self.__dict__:
+            from backend.services.model_invocation import (
+                AgnesImageModelProvider,
+                ImageProviderTransport,
+                SeedreamImageModelProvider,
             )
-        return self.__dict__["_image_model_provider"]
+            transport = ImageProviderTransport()
+            self.__dict__["_image_model_providers"] = [
+                SeedreamImageModelProvider(transport=transport),
+                AgnesImageModelProvider(transport=transport),
+            ]
+        return self.__dict__["_image_model_providers"]
 
     @property
     def video_model_provider(self):

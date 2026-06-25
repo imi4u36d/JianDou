@@ -113,6 +113,11 @@ export function deleteStageVersion(workflowId: string, versionId: string) {
   return deleteJson<WorkflowDetail>(`/workflows/${encodeURIComponent(workflowId)}/versions/${encodeURIComponent(versionId)}`);
 }
 
+export function deleteAllStageVersions(workflowId: string, stageType?: string) {
+  const query = stageType ? `?stage_type=${encodeURIComponent(stageType)}` : "";
+  return deleteJson<WorkflowDetail>(`/workflows/${encodeURIComponent(workflowId)}/versions${query}`);
+}
+
 export interface WorkflowActionResponse {
   success: boolean;
   message?: string;

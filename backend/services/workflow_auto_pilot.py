@@ -216,13 +216,28 @@ class WorkflowAutoPilot:
                 v for v in video_versions
                 if v.clip_index == clip_idx
             ]
-            # Check if any video has a material_asset_id (meaning it's complete)
+            # No video versions at all → generate
+            if not vid_versions:
+                return {"type": "generate_video", "clip_index": clip_idx}
+            # Check if any video has a material_asset_id + preview_url (complete)
             has_complete_video = any(
                 trim(v.material_asset_id) and trim(v.preview_url)
                 for v in vid_versions
             )
-            if not has_complete_video:
-                return {"type": "generate_video", "clip_index": clip_idx}
+            if has_complete_video:
+                continue
+            # Check if any video is still being generated (async / running)
+            _PENDING_STATUSES = {"RUNNING", "SUBMITTED", "PENDING", "PROCESSING", ""}
+            has_pending = any(
+                trim(v.status).upper() in _PENDING_STATUSES
+                for v in vid_versions
+            )
+            if has_pending:
+                # Videos are still being generated externally; wait instead of
+                # re-submitting, which would create duplicate versions.
+                return {"type": "wait"}
+            # Neither complete nor pending (e.g. all FAILED) → re-generate
+            return {"type": "generate_video", "clip_index": clip_idx}
 
         # 6. All videos ready -> finalize
         selected_videos = [
@@ -336,6 +351,24 @@ class WorkflowAutoPilot:
             await self._workflow_service.finalize_workflow(
                 workflow_id, owner_user_id=owner_user_id,
             )
+
+        elif step_type == "wait":
+            logger.info(
+                "Auto-pilot step: workflow=%s stage=等待异步视频完成",
+                workflow_id,
+            )
+            wf_for_refresh = await self._get_workflow_from_db(workflow_id)
+            if wf_for_refresh is not None:
+                try:
+                    versions_for_refresh = await self._workflow_service._list_stage_versions(workflow_id)
+                    await self._workflow_service._refresh_video_versions(wf_for_refresh, versions_for_refresh)
+                except Exception:
+                    logger.exception(
+                        "Auto-pilot: refresh video versions failed workflow=%s",
+                        workflow_id,
+                    )
+            # Wait before next poll to avoid tight loops while async videos run
+            await asyncio.sleep(5)
 
         # Small delay between steps to avoid tight DB loops
         await asyncio.sleep(0.1)

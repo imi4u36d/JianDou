@@ -99,16 +99,24 @@ def _get_prompt_resolver():
     return _prompt_resolver
 
 
-_image_model_provider = None
+_image_model_providers: list = []
 _video_model_provider = None
 
 
-def _get_image_model_provider():
-    global _image_model_provider
-    if _image_model_provider is None:
-        from backend.services.model_invocation import ImageProviderTransport, SeedreamImageModelProvider
-        _image_model_provider = SeedreamImageModelProvider(transport=ImageProviderTransport())
-    return _image_model_provider
+def _get_image_model_providers():
+    global _image_model_providers
+    if not _image_model_providers:
+        from backend.services.model_invocation import (
+            AgnesImageModelProvider,
+            ImageProviderTransport,
+            SeedreamImageModelProvider,
+        )
+        transport = ImageProviderTransport()
+        _image_model_providers = [
+            SeedreamImageModelProvider(transport=transport),
+            AgnesImageModelProvider(transport=transport),
+        ]
+    return _image_model_providers
 
 
 def _get_video_model_provider():
@@ -521,14 +529,14 @@ class GenerationRunFactory:
         config_resolver: ModelRuntimePropertiesResolver | None = None,
         text_provider: Any | None = None,
         prompt_resolver: Any | None = None,
-        image_provider: Any | None = None,
+        image_providers: list | None = None,
         video_provider: Any | None = None,
     ) -> None:
         self._support = support or GenerationRunSupport()
         self._config_resolver = config_resolver or _model_config_resolver
         self._text_provider = text_provider or _get_text_model_provider()
         self._prompt_resolver = prompt_resolver or _get_prompt_resolver()
-        self._image_provider = image_provider or _get_image_model_provider()
+        self._image_providers = image_providers or _get_image_model_providers()
         self._video_provider = video_provider or _get_video_model_provider()
 
     # ------------------------------------------------------------------
@@ -1352,8 +1360,11 @@ class GenerationRunFactory:
         reference_image_urls: list[str],
         seed: int | None,
     ) -> dict[str, Any]:
-        """Call the real image model provider."""
-        from backend.services.model_invocation import ImageGenerationRequest
+        """Call the real image model provider via the first matching provider."""
+        from backend.services.model_invocation import (
+            GenerationConfigurationException,
+            ImageGenerationRequest,
+        )
 
         profile = self._config_resolver.resolve_image_profile(
             profile_dict.get("requestedModel", "") or profile_dict.get("modelName", ""),
@@ -1367,19 +1378,27 @@ class GenerationRunFactory:
             reference_image_urls=reference_image_urls,
             seed=seed,
         )
-        result = await self._image_provider.generate(profile, request)
-        return {
-            "provider": result.provider,
-            "providerModel": result.provider_model,
-            "mimeType": result.mime_type,
-            "data": result.data,
-            "remoteSourceUrl": result.remote_source_url,
-            "endpointHost": result.endpoint_host,
-            "providerRequest": result.provider_request,
-            "providerResponse": result.provider_response,
-            "httpStatus": result.http_status,
-            "requestedSize": result.requested_size,
-        }
+
+        # Find the provider that supports this profile
+        for provider in self._image_providers:
+            if provider.supports(profile):
+                result = await provider.generate(profile, request)
+                return {
+                    "provider": result.provider,
+                    "providerModel": result.provider_model,
+                    "mimeType": result.mime_type,
+                    "data": result.data,
+                    "remoteSourceUrl": result.remote_source_url,
+                    "endpointHost": result.endpoint_host,
+                    "providerRequest": result.provider_request,
+                    "providerResponse": result.provider_response,
+                    "httpStatus": result.http_status,
+                    "requestedSize": result.requested_size,
+                }
+
+        raise GenerationConfigurationException(
+            f"no image provider found for provider={profile.config.provider}"
+        )
 
     async def _call_video_submit(
         self,

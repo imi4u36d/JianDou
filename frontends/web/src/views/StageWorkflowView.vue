@@ -337,10 +337,23 @@
             <section v-if="activeCanvasStage === 'storyboard'" class="workflow-stage-board storyboard-board">
               <div class="stage-board__head">
                 <h3>分镜脚本</h3>
-                <button class="btn-primary btn-sm" type="button" :disabled="busyActionKey === 'storyboard'" @click="handleGenerateStoryboard">
-                  <IconLoading v-if="busyActionKey === 'storyboard'" size="xs" />
-                  <span>{{ busyActionKey === "storyboard" ? "生成中" : "生成" }}</span>
-                </button>
+                <div class="stage-board__head-actions">
+                  <button
+                    v-if="(selectedWorkflow.storyboardVersions ?? []).length"
+                    class="btn-secondary btn-sm workflow-menu-danger"
+                    type="button"
+                    :disabled="busyActionKey === 'clear-storyboard-versions'"
+                    @click="handleClearStageVersions('storyboard')"
+                  >
+                    <IconLoading v-if="busyActionKey === 'clear-storyboard-versions'" size="xs" />
+                    <IconDelete v-else size="xs" />
+                    <span>{{ busyActionKey === 'clear-storyboard-versions' ? '清空中' : '清空分镜版本' }}</span>
+                  </button>
+                  <button class="btn-primary btn-sm" type="button" :disabled="busyActionKey === 'storyboard'" @click="handleGenerateStoryboard">
+                    <IconLoading v-if="busyActionKey === 'storyboard'" size="xs" />
+                    <span>{{ busyActionKey === "storyboard" ? "生成中" : "生成" }}</span>
+                  </button>
+                </div>
               </div>
 
               <div v-if="!(selectedWorkflow.storyboardVersions ?? []).length" class="workflow-empty workflow-empty-large">
@@ -531,10 +544,23 @@
             <section v-else-if="activeCanvasStage === 'keyframe'" class="workflow-stage-board keyframe-board">
               <div class="stage-board__head">
                 <h3>关键帧</h3>
-                <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateKeyframe(selectedCanvasClip.clipIndex)">
-                  <IconLoading v-if="selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" size="xs" />
-                  <span>{{ selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
-                </button>
+                <div class="stage-board__head-actions">
+                  <button
+                    v-if="(selectedWorkflow.clipSlots ?? []).some(s => s.keyframeVersions.length > 0)"
+                    class="btn-secondary btn-sm workflow-menu-danger"
+                    type="button"
+                    :disabled="busyActionKey === 'clear-keyframe-versions'"
+                    @click="handleClearStageVersions('keyframe')"
+                  >
+                    <IconLoading v-if="busyActionKey === 'clear-keyframe-versions'" size="xs" />
+                    <IconDelete v-else size="xs" />
+                    <span>{{ busyActionKey === 'clear-keyframe-versions' ? '清空中' : '清空关键帧版本' }}</span>
+                  </button>
+                  <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateKeyframe(selectedCanvasClip.clipIndex)">
+                    <IconLoading v-if="selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" size="xs" />
+                    <span>{{ selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
+                  </button>
+                </div>
               </div>
 
               <section class="clip-workbench">
@@ -657,6 +683,17 @@
                     <span>{{ videoReadiness.selected }} 已选</span>
                     <span>{{ canFinalize ? "可拼接" : `差 ${videoReadiness.missing.length}` }}</span>
                   </div>
+                  <button
+                    v-if="videoReadiness.generated > 0"
+                    class="btn-secondary btn-sm workflow-menu-danger"
+                    type="button"
+                    :disabled="busyActionKey === 'clear-video-versions'"
+                    @click="handleClearStageVersions('video')"
+                  >
+                    <IconLoading v-if="busyActionKey === 'clear-video-versions'" size="xs" />
+                    <IconDelete v-else size="xs" />
+                    <span>{{ busyActionKey === 'clear-video-versions' ? '清空中' : '清空视频版本' }}</span>
+                  </button>
                   <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || !selectedKeyframeVersion(selectedCanvasClip) || busyActionKey === `video-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateVideo(selectedCanvasClip.clipIndex)">
                     <IconLoading v-if="selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}`" size="xs" />
                     <span>{{ selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
@@ -907,6 +944,7 @@ import { requireAuth } from "@/auth/modal";
 import {
   adjustStoryboard,
   createWorkflow,
+  deleteAllStageVersions,
   deleteStageVersion,
   deleteWorkflow,
   fetchWorkflow,
@@ -2207,6 +2245,36 @@ async function handleDeleteStageVersion(version: StageVersion) {
     await loadWorkflows();
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "版本删除失败");
+  } finally {
+    busyActionKey.value = "";
+  }
+}
+
+async function handleClearStageVersions(stageType: string) {
+  const stageLabel = stageType === "storyboard" ? "分镜" : stageType === "keyframe" ? "关键帧" : "视频";
+  const actionKey = `clear-${stageType}-versions`;
+
+  const authenticated = await requireAuth({
+    title: `登录后清空${stageLabel}版本`,
+    message: `清空${stageLabel}版本会修改你的工作流数据，请先登录或使用邀请码注册。`,
+  });
+  if (!authenticated) { messageApi.warning("登录后可继续操作。"); return; }
+  if (!selectedWorkflowId.value) return;
+
+  const confirmed = await requestConfirm({
+    title: `清空${stageLabel}版本`,
+    message: `删除后不可恢复，该工作流下的全部${stageLabel}版本都会被清空。确认继续吗？`,
+    confirmText: "清空",
+  });
+  if (!confirmed) return;
+
+  busyActionKey.value = actionKey;
+  try {
+    selectedWorkflow.value = await deleteAllStageVersions(selectedWorkflowId.value, stageType);
+    applyWorkflowDrafts(selectedWorkflow.value);
+    await loadWorkflows();
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "版本清空失败");
   } finally {
     busyActionKey.value = "";
   }

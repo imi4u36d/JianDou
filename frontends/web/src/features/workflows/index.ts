@@ -4,6 +4,7 @@ export { uploadText } from "@/api/tasks";
 export {
   adjustStoryboard,
   createWorkflow,
+  deleteAllStageVersions,
   deleteStageVersion,
   deleteWorkflow,
   fetchWorkflow,

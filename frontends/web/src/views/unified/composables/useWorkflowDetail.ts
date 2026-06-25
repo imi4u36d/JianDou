@@ -3,9 +3,11 @@
  * 从 StageWorkflowView 提取，管理工作流画布的全部状态和操作。
  */
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import {
   adjustStoryboard,
+  deleteAllStageVersions,
   deleteStageVersion,
   deleteWorkflow,
   fetchWorkflow,
@@ -89,6 +91,8 @@ export interface UseWorkflowDetailOptions {
 
 export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   // ── Composables ──
+  const route = useRoute();
+  const router = useRouter();
   const workflowOptions = useWorkflowOptions();
   const imagePreview = useImagePreview();
   const characterAssetPickerState = useCharacterAssetPicker();
@@ -495,8 +499,13 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     if (!quiet) loadingDetail.value = true;
     try {
       selectedWorkflow.value = await fetchWorkflow(workflowId);
-      const resolvedStage = resolveWorkflowCanvasStageFromCurrent(selectedWorkflow.value, hasMissingCharacterSheets);
+      const routeStage = normalizeWorkflowCanvasStage(route.query.stage);
+      const resolvedStage = routeStage ?? resolveWorkflowCanvasStageFromCurrent(selectedWorkflow.value, hasMissingCharacterSheets);
       activeCanvasStage.value = resolvedStage;
+      // Ensure URL reflects the resolved stage for future refreshes
+      if (resolvedStage !== "final" && routeStage !== resolvedStage) {
+        router.replace({ query: { ...route.query, stage: resolvedStage } }).catch(() => {});
+      }
       applyWorkflowDrafts(selectedWorkflow.value);
       if ((selectedWorkflow.value.clipSlots ?? []).length) {
         const clipSlots = selectedWorkflow.value.clipSlots ?? [];
@@ -653,6 +662,33 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
       busyActionKey.value = "";
     }
   }
+  async function handleClearStageVersions(stageType: string) {
+    const stageLabel = stageType === "storyboard" ? "分镜" : stageType === "keyframe" ? "关键帧" : "视频";
+    const actionKey = `clear-${stageType}-versions`;
+
+    const authenticated = await requireAuth({
+      title: `登录后清空${stageLabel}版本`,
+      message: `清空${stageLabel}版本会修改你的工作流数据，请先登录或使用邀请码注册。`,
+    });
+    if (!authenticated) { messageApi.warning("登录后可继续操作。"); return; }
+    if (!selectedWorkflowId.value) return;
+    const confirmed = await requestConfirm({
+      title: `清空${stageLabel}版本`,
+      message: `删除后不可恢复，该工作流下的全部${stageLabel}版本都会被清空。确认继续吗？`,
+      confirmText: "清空",
+    });
+    if (!confirmed) return;
+    busyActionKey.value = actionKey;
+    try {
+      selectedWorkflow.value = await deleteAllStageVersions(selectedWorkflowId.value, stageType);
+      applyWorkflowDrafts(selectedWorkflow.value);
+      await detailOptions.reloadWorkflows();
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "版本清空失败");
+    } finally {
+      busyActionKey.value = "";
+    }
+  }
   async function handleReuseAsset(assetId: string, versionId: string) {
     if (!assetId) return;
     const authenticated = await requireAuth({ title: "登录后复用素材", message: "复用素材会创建你的阶段工作流，请先登录或使用邀请码注册。" });
@@ -671,6 +707,10 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   function switchCanvasStage(stage: string) {
     const normalizedStage = normalizeWorkflowCanvasStage(stage) ?? "storyboard";
     activeCanvasStage.value = normalizedStage;
+    // Sync stage to URL so it survives page refresh
+    if (normalizedStage !== "final") {
+      router.replace({ query: { ...route.query, stage: normalizedStage } }).catch(() => {});
+    }
   }
 
   function setPreviewStoryboardVersion(versionId: string) { previewStoryboardVersionId.value = versionId; }
@@ -814,6 +854,7 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     handleSelectVideo,
     handleFinalize,
     handleDeleteStageVersion,
+    handleClearStageVersions,
     handleReuseAsset,
   };
 }

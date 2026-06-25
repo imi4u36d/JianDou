@@ -25,7 +25,7 @@ class SpaFallbackMiddleware(BaseHTTPMiddleware):
             return response
 
         path = request.url.path
-        if path.startswith("/api/") or path.startswith("/docs") or path.startswith("/openapi"):
+        if path.startswith("/api/") or path.startswith("/docs") or path.startswith("/openapi") or path.startswith("/storage"):
             return response
 
         if not self._index_path.is_file():

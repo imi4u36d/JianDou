@@ -511,3 +511,19 @@ async def delete_stage_version(
     if result is None:
         raise not_found("workflow_or_version")
     return result
+
+
+@router.delete("/{workflow_id}/versions", response_model=WorkflowActionResponse)
+async def delete_all_stage_versions(
+    workflow_id: str,
+    request: Request,
+    stage_type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Delete all non-deleted stage versions for a workflow, optionally filtered by stage type."""
+    user = await require_user(request)
+    svc = _service(db, request)
+    result = await svc.delete_all_stage_versions(workflow_id, owner_user_id=user["id"], stage_type=stage_type)
+    if result is None:
+        raise not_found("workflow")
+    return result

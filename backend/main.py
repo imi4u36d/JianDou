@@ -138,6 +138,11 @@ def create_app(start_worker: bool = True) -> FastAPI:
     app.include_router(material_center.router)
     app.include_router(admin.router)
 
+    # -- Storage files (must be mounted BEFORE the SPA root mount) -----------
+    storage_dir = Path(settings.storage_root)
+    if storage_dir.is_dir():
+        app.mount("/storage", StaticFiles(directory=str(storage_dir)), name="storage")
+
     # -- Static files -------------------------------------------------------
     web_static = Path("static/web")
     if web_static.is_dir():
