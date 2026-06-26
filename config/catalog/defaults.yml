@@ -1,7 +1,8 @@
 catalog:
   defaults:
+    aspect_ratio: "9:16"
     style_preset: "cinematic"
-    image_size: "2048x1152"
+    image_size: "2160x3840"
     video_size: "1280*720"
     video_duration_seconds: 10
     video_generate_audio: true

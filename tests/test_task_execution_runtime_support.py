@@ -57,10 +57,24 @@ def test_resolve_dimensions_and_duration_prefers_explicit_snapshot_values() -> N
     assert support.resolve_duration_seconds(task) == 7
 
 
-def test_resolve_workspace_image_dimensions_uses_auto_when_size_omitted() -> None:
+def test_resolve_workspace_image_dimensions_uses_highest_ratio_size_when_size_omitted() -> None:
     support = TaskExecutionRuntimeSupport()
 
-    assert support.resolve_workspace_image_dimensions(_task(task_type="image_generation")) == [0, 0]
+    expected_dimensions = {
+        "16:9": [3840, 2160],
+        "9:16": [2160, 3840],
+        "9:20": [1728, 3840],
+        "21:9": [3808, 1632],
+        "3:2": [3504, 2336],
+        "2:3": [2336, 3504],
+        "4:3": [3264, 2448],
+        "3:4": [2448, 3264],
+        "1:1": [2880, 2880],
+    }
+    for aspect_ratio, dimensions in expected_dimensions.items():
+        assert support.resolve_workspace_image_dimensions(
+            _task(task_type="image_generation", aspect_ratio=aspect_ratio)
+        ) == dimensions
 
 
 def test_resolve_workspace_image_output_count_clamps_to_supported_range() -> None:
@@ -141,14 +155,14 @@ def test_build_workspace_image_request_uses_unique_file_stem_for_additional_outp
     assert request["metadata"]["outputIndex"] == 2
 
 
-def test_build_workspace_image_request_preserves_zero_dimensions_for_auto_size() -> None:
+def test_build_workspace_image_request_uses_resolved_high_resolution_dimensions() -> None:
     support = TaskExecutionRuntimeSupport(model_resolver=_Resolver())
     task = _task(task_type="image_generation", aspect_ratio="16:9")
 
-    request = support.build_workspace_image_run_request(task, 0, 0)
+    request = support.build_workspace_image_run_request(task, 3840, 2160)
 
-    assert request["input"]["width"] == 0
-    assert request["input"]["height"] == 0
+    assert request["input"]["width"] == 3840
+    assert request["input"]["height"] == 2160
     assert "画面比例：16:9" in request["input"]["prompt"]
     assert "3840x2160" in request["input"]["prompt"]
     assert "4K 分辨率" in request["input"]["prompt"]

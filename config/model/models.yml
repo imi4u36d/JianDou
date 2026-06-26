@@ -26,7 +26,7 @@ model:
       capabilities:
         - "image_generation"
       description: "OpenAI 官方 GPT Image 模型，支持文生图和参考图编辑。"
-      supported_sizes: "1280x720,2048x1152,3840x2160,720x1280,1152x2048,2160x3840,1024x1024,2048x2048,2880x2880"
+      supported_sizes: "1280x720,2048x1152,3840x2160,720x1280,1152x2048,2160x3840,864x1920,1296x2880,1728x3840,3808x1632,3504x2336,2336x3504,3264x2448,768x1024,1536x2048,2448x3264,1024x1024,2048x2048,2880x2880"
     "agnes-video-v2.0":
       provider: "agnes"
       vendor: "agnes-ai"

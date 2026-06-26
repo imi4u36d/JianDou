@@ -47,6 +47,35 @@ class MaterialAssetDeleteResult(BaseModel):
     asset_id: str = ""
 
 
+class MaterialFavoriteFolder(MaterialRequestModel):
+    id: str = ""
+    name: str = ""
+    asset_ids: list[str] = Field(default_factory=list, alias="assetIds")
+    created_at: str = Field(default="", alias="createdAt")
+
+
+class MaterialFavoriteFolderList(MaterialRequestModel):
+    folders: list[MaterialFavoriteFolder] = Field(default_factory=list)
+
+
+class CreateMaterialFavoriteFolderRequest(MaterialRequestModel):
+    name: str
+    asset_ids: list[str] = Field(default_factory=list, alias="assetIds")
+
+
+class RenameMaterialFavoriteFolderRequest(MaterialRequestModel):
+    name: str
+
+
+class MaterialFavoriteAssetIdsRequest(MaterialRequestModel):
+    asset_ids: list[str] = Field(default_factory=list, alias="assetIds")
+
+
+class MaterialFavoriteFolderDeleteResult(MaterialRequestModel):
+    deleted: bool = False
+    folder_id: str = Field(default="", alias="folderId")
+
+
 class MaterialAssetResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=AliasGenerator(validation_alias=_to_camel, serialization_alias=_to_camel),

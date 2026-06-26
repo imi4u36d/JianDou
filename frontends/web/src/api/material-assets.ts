@@ -4,12 +4,18 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client";
 import type {
   CreateMaterialGenerationRequest,
+  CreateMaterialFavoriteFolderRequest,
   ImageUploadResponse,
   MaterialAssetDeleteResult,
   MaterialAssetLibraryItem,
   MaterialAssetPage,
+  MaterialFavoriteAssetIdsRequest,
+  MaterialFavoriteFolder,
+  MaterialFavoriteFolderDeleteResult,
+  MaterialFavoriteFolderList,
   MaterialGenerationResponse,
   MaterialAssetQuery,
+  RenameMaterialFavoriteFolderRequest,
   ReuseMaterialRequest,
   UpdateMaterialAssetRatingRequest,
   WorkflowDetail,
@@ -79,6 +85,32 @@ export function uploadMaterialAsset(assetId: string) {
 
 export function deleteMaterialAsset(assetId: string) {
   return deleteJson<MaterialAssetDeleteResult>(`/material-assets/${encodeURIComponent(assetId)}`);
+}
+
+export function fetchMaterialFavoriteFolders() {
+  return getJson<MaterialFavoriteFolderList>("/material-assets/favorite-folders");
+}
+
+export function createMaterialFavoriteFolder(payload: CreateMaterialFavoriteFolderRequest) {
+  return postJson<MaterialFavoriteFolder>("/material-assets/favorite-folders", payload);
+}
+
+export function renameMaterialFavoriteFolder(folderId: string, payload: RenameMaterialFavoriteFolderRequest) {
+  return patchJson<MaterialFavoriteFolder>(`/material-assets/favorite-folders/${encodeURIComponent(folderId)}`, payload);
+}
+
+export function deleteMaterialFavoriteFolder(folderId: string) {
+  return deleteJson<MaterialFavoriteFolderDeleteResult>(`/material-assets/favorite-folders/${encodeURIComponent(folderId)}`);
+}
+
+export function addMaterialFavoriteAssets(folderId: string, payload: MaterialFavoriteAssetIdsRequest) {
+  return postJson<MaterialFavoriteFolder>(`/material-assets/favorite-folders/${encodeURIComponent(folderId)}/assets`, payload);
+}
+
+export function removeMaterialFavoriteAsset(folderId: string, assetId: string) {
+  return deleteJson<MaterialFavoriteFolder>(
+    `/material-assets/favorite-folders/${encodeURIComponent(folderId)}/assets/${encodeURIComponent(assetId)}`,
+  );
 }
 
 export function createMaterialGeneration(payload: CreateMaterialGenerationRequest) {

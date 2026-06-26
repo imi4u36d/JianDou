@@ -45,17 +45,6 @@
           <IconSettings size="sm" />
           <span v-if="activeFilterCount > 0" class="material-toolbar-badge">{{ activeFilterCount }}</span>
         </button>
-        <button
-          class="material-toolbar-link"
-          type="button"
-          :class="{ 'material-toolbar-link-active': batchMode }"
-          :disabled="!canUseBatchMode"
-          aria-label="批量选择"
-          title="批量"
-          @click="toggleBatchMode"
-        >
-          <IconCheck size="sm" />
-        </button>
         <RouterLink class="material-toolbar-primary" to="/tasks">
           <IconPlus size="sm" />
           新建
@@ -65,9 +54,9 @@
 
     <section class="material-favorite-folders" aria-label="收藏夹">
       <div class="material-favorite-folders__head">
-        <span>收藏夹</span>
-        <button type="button" aria-label="新增收藏夹" title="新增收藏夹" @click="openFavoriteDialog()">
+        <button class="jd-button jd-button--primary jd-button--xs material-favorite-folders__add" type="button" @click="openFavoriteDialog()">
           <IconPlus size="xs" />
+          新建收藏夹
         </button>
       </div>
       <div class="material-favorite-folders__list">
@@ -83,7 +72,30 @@
           <span>{{ folder.name }}</span>
           <small>{{ folder.assetIds.length }}</small>
         </button>
-        <span v-if="!favoriteFolders.length" class="material-favorite-folders__empty">暂无收藏夹</span>
+      </div>
+      <div class="material-favorite-folders__actions">
+        <button
+          class="jd-button jd-button--ghost jd-button--xs material-favorite-folders__batch"
+          type="button"
+          :class="{ 'material-favorite-folders__batch-active': batchMode }"
+          :disabled="!canUseBatchMode"
+          @click="toggleBatchMode"
+        >
+          <IconCheck size="xs" />
+          批量操作
+        </button>
+        <template v-if="batchMode">
+          <button class="jd-button jd-button--secondary jd-button--xs" type="button" :disabled="!selectedAssetIds.length" @click="openBatchFavoriteDialog">
+            <IconHeart size="xs" />
+            添加到收藏
+          </button>
+          <button class="jd-button jd-button--danger jd-button--xs" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
+            <IconLoading v-if="busyActionKey === 'batch-delete'" size="xs" />
+            <IconDelete v-else size="xs" />
+            删除
+          </button>
+          <small class="material-favorite-folders__selected">已选 {{ selectedAssetIds.length }}</small>
+        </template>
       </div>
     </section>
 
@@ -110,27 +122,20 @@
       </div>
     </section>
 
-    <section v-if="batchMode && displayedAssets.length" class="material-batch-bar">
-      <span>已选 {{ selectedAssetIds.length }}</span>
-      <button class="jd-button jd-button--secondary jd-button--sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchUpload">
-        <IconLoading v-if="busyActionKey === 'batch-upload'" size="xs" />
-        <IconUpload v-else size="xs" />
-        {{ busyActionKey === "batch-upload" ? "上传中" : "上传" }}
-      </button>
-      <button class="jd-button jd-button--danger jd-button--sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
-        <IconLoading v-if="busyActionKey === 'batch-delete'" size="xs" />
-        <IconDelete v-else size="xs" />
-        {{ busyActionKey === "batch-delete" ? "删除中" : "删除" }}
-      </button>
-    </section>
-
     <section v-if="loading && !assets.length" class="material-empty">
       <IconLoading size="lg" />
     </section>
 
     <section v-else class="material-asset-grid">
-      <article v-for="asset in displayedAssets" :key="asset.id" class="material-card" :class="{ 'material-card-selected': isAssetChecked(asset.id) }">
-        <label v-if="batchMode" class="material-card__check">
+      <article
+        v-for="asset in displayedAssets"
+        :key="asset.id"
+        class="material-card"
+        :class="{ 'material-card-selected': isAssetChecked(asset.id), 'material-card-batchable': batchMode }"
+        :aria-selected="batchMode ? isAssetChecked(asset.id) : undefined"
+        @click="handleMaterialCardClick(asset)"
+      >
+        <label v-if="batchMode" class="material-card__check" @click.stop>
           <input type="checkbox" :checked="isAssetChecked(asset.id)" @change="toggleAssetSelection(asset.id)" />
           <span></span>
         </label>
@@ -140,7 +145,7 @@
             v-if="asset.mediaType === 'video' && assetVideoPosterUrl(asset)"
             class="material-preview-trigger material-preview-trigger-video"
             type="button"
-            @click="openVideoPreview(asset)"
+            @click.stop="handleAssetPreviewClick(asset, openVideoPreview)"
           >
             <img
               v-if="!isAssetPreviewImageFailed(assetVideoPosterUrl(asset))"
@@ -158,7 +163,7 @@
             v-else-if="asset.mediaType === 'video'"
             class="material-preview-trigger material-preview-trigger-placeholder"
             type="button"
-            @click="openVideoPreview(asset)"
+            @click.stop="handleAssetPreviewClick(asset, openVideoPreview)"
           >
             <span><IconVideo size="sm" /></span>
           </button>
@@ -166,7 +171,7 @@
             v-else-if="asset.mediaType === 'image' && assetListImageUrl(asset)"
             class="material-preview-trigger material-preview-trigger-image"
             type="button"
-            @click="openImagePreview(asset)"
+            @click.stop="handleAssetPreviewClick(asset, openImagePreview)"
           >
             <img
               v-if="!isAssetPreviewImageFailed(assetListImageUrl(asset))"
@@ -183,7 +188,7 @@
             v-else-if="asset.mediaType === 'image'"
             class="material-preview-trigger material-preview-trigger-placeholder"
             type="button"
-            @click="openImagePreview(asset)"
+            @click.stop="handleAssetPreviewClick(asset, openImagePreview)"
           >
             <span><IconImage size="sm" /></span>
           </button>
@@ -191,7 +196,7 @@
             v-else
             class="material-preview-trigger material-preview-trigger-text"
             type="button"
-            @click="openStoryboardPreview(asset)"
+            @click.stop="handleAssetPreviewClick(asset, openStoryboardPreview)"
           >
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="material-card__text" v-html="storyboardPreviewHtml(asset)"></div>
@@ -204,7 +209,7 @@
           :class="{ 'material-card__favorite-active': isAssetFavorited(asset.id) }"
           :aria-label="isAssetFavorited(asset.id) ? '已收藏，管理收藏夹' : '收藏素材'"
           :title="isAssetFavorited(asset.id) ? '已收藏' : '收藏'"
-          @click.stop="openFavoriteDialog(asset)"
+          @click.stop="batchMode ? toggleAssetSelection(asset.id) : openFavoriteDialog(asset)"
         >
           <IconHeart size="sm" :filled="isAssetFavorited(asset.id)" />
         </button>
@@ -258,7 +263,7 @@
           </div>
           <div class="material-card__chips">
             <span>{{ assetDisplayTypeLabel(asset) }}</span>
-            <button v-if="asset.remoteUrl" type="button" :title="`复制远程地址：${asset.remoteUrl}`" aria-label="复制远程地址" @click="copyRemoteUrl(asset.remoteUrl)">
+            <button v-if="asset.remoteUrl" type="button" :title="`复制远程地址：${asset.remoteUrl}`" aria-label="复制远程地址" @click.stop="copyRemoteUrl(asset.remoteUrl)">
               <IconUpload size="xs" />
             </button>
             <span v-else>本地</span>
@@ -283,8 +288,13 @@
       :html="previewDialog.html"
       :url="previewDialog.url"
       :image-load-failed="previewImageLoadFailed"
+      show-navigation
+      :can-previous="canPreviewPrevious"
+      :can-next="canPreviewNext"
       @close="closePreviewDialog"
       @image-error="previewImageLoadFailed = true"
+      @previous="navigatePreview(-1)"
+      @next="navigatePreview(1)"
     >
       <template v-if="previewAsset" #actions>
         <button
@@ -324,8 +334,9 @@
         <div class="material-favorite-dialog__panel">
           <div class="material-favorite-dialog__head">
             <div>
-              <h3 id="material-favorite-dialog-title">{{ favoriteDialog.asset ? "添加到收藏夹" : "管理收藏夹" }}</h3>
+              <h3 id="material-favorite-dialog-title">{{ favoriteDialog.batchAssets.length ? "批量添加到收藏夹" : (favoriteDialog.asset ? "添加到收藏夹" : "管理收藏夹") }}</h3>
               <p v-if="favoriteDialog.asset">{{ favoriteDialog.asset.title }}</p>
+              <p v-else-if="favoriteDialog.batchAssets.length">已选择 {{ favoriteDialog.batchAssets.length }} 个素材</p>
             </div>
             <button type="button" aria-label="关闭收藏夹弹窗" @click="closeFavoriteDialog">
               <IconClose size="sm" />
@@ -337,7 +348,7 @@
               v-for="folder in favoriteFolders"
               :key="folder.id"
               class="material-favorite-dialog__folder"
-              :class="{ 'material-favorite-dialog__folder-active': favoriteDialog.asset && folderContainsAsset(folder.id, favoriteDialog.asset.id) }"
+              :class="{ 'material-favorite-dialog__folder-active': isFavoriteDialogFolderActive(folder.id) }"
             >
               <form
                 v-if="favoriteDialog.editingFolderId === folder.id"
@@ -358,14 +369,14 @@
                 <button
                   type="button"
                   class="material-favorite-dialog__folder-main"
-                  :disabled="!favoriteDialog.asset"
-                  @click="favoriteDialog.asset && toggleFavoriteFolderMembership(folder.id, favoriteDialog.asset)"
+                  :disabled="!favoriteDialog.asset && !favoriteDialog.batchAssets.length"
+                  @click="handleFavoriteDialogFolderClick(folder.id)"
                 >
-                  <IconHeart size="sm" :filled="Boolean(favoriteDialog.asset && folderContainsAsset(folder.id, favoriteDialog.asset.id))" />
+                  <IconHeart size="sm" :filled="isFavoriteDialogFolderActive(folder.id)" />
                   <span>{{ folder.name }}</span>
                   <small>{{ folder.assetIds.length }}</small>
                 </button>
-                <div v-if="!favoriteDialog.asset" class="material-favorite-dialog__folder-actions">
+                <div v-if="!favoriteDialog.asset && !favoriteDialog.batchAssets.length" class="material-favorite-dialog__folder-actions">
                   <button type="button" @click="beginFavoriteFolderRename(folder)">
                     <IconEdit size="xs" />
                     修改
@@ -400,7 +411,15 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { deleteMaterialAsset, fetchMaterialAssetPage, reuseMaterialAsset, uploadMaterialAsset } from "@/features/materials";
-import { fetchMaterialAsset } from "@/api/material-assets";
+import {
+  addMaterialFavoriteAssets,
+  createMaterialFavoriteFolder,
+  deleteMaterialFavoriteFolder,
+  fetchMaterialAsset,
+  fetchMaterialFavoriteFolders,
+  removeMaterialFavoriteAsset,
+  renameMaterialFavoriteFolder,
+} from "@/api/material-assets";
 import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { createPublicShare, deletePublicShare } from "@/api/public-shares";
@@ -408,20 +427,11 @@ import AppSelect from "@/components/common/AppSelect.vue";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import AppPreviewDialog from "@/components/common/AppPreviewDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
-import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
+import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType, MaterialFavoriteFolder } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
 import { downloadMedia, inferMediaDownloadKind, type DownloadMediaKind } from "@/utils/download";
 import { IconCheck, IconClose, IconDelete, IconDownload, IconEdit, IconHeart, IconImage, IconLoading, IconMore, IconPlus, IconSearch, IconSettings, IconShare, IconUpload, IconVideo, IconWorkflow } from "@/components/icons";
-
-interface MaterialFavoriteFolder {
-  id: string;
-  name: string;
-  assetIds: string[];
-  createdAt: string;
-}
-
-const FAVORITE_FOLDERS_STORAGE_KEY = "jiandou.materialFavoriteFolders.v1";
 
 const route = useRoute();
 const router = useRouter();
@@ -443,6 +453,7 @@ const favoriteAssetCache = ref<Record<string, MaterialAssetLibraryItem>>({});
 const favoriteDialog = reactive({
   open: false,
   asset: null as MaterialAssetLibraryItem | null,
+  batchAssets: [] as MaterialAssetLibraryItem[],
   newFolderName: "",
   editingFolderId: "",
   editingFolderName: "",
@@ -540,6 +551,16 @@ const displayedAssets = computed(() => {
 });
 
 const canUseBatchMode = computed(() => displayedAssets.value.length > 0);
+const previewAssetIndex = computed(() => {
+  const asset = previewAsset.value;
+  if (!asset) return -1;
+  return displayedAssets.value.findIndex((item) => item.id === asset.id);
+});
+const canPreviewPrevious = computed(() => previewAssetIndex.value > 0);
+const canPreviewNext = computed(() => {
+  const index = previewAssetIndex.value;
+  return index >= 0 && (index < displayedAssets.value.length - 1 || (!activeFavoriteFolderId.value && hasMoreAssets.value));
+});
 const activeFilterCount = computed(() => {
   return [filters.assetType, filters.showWorkflowArtifacts, filters.model.trim(), filters.aspectRatio, filters.clipIndex].filter(Boolean).length;
 });
@@ -555,41 +576,22 @@ function selectLibraryTab(tabKey: string) {
   activeLibraryTab.value = tabKey;
 }
 
-function loadFavoriteFolders() {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = window.localStorage.getItem(FAVORITE_FOLDERS_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) {
-      favoriteFolders.value = [];
-      return;
-    }
-    favoriteFolders.value = parsed
-      .map((folder): MaterialFavoriteFolder | null => {
-        if (!folder || typeof folder !== "object") return null;
-        const id = typeof folder.id === "string" ? folder.id : "";
-        const name = typeof folder.name === "string" ? folder.name.trim() : "";
-        const rawAssetIds: unknown[] = Array.isArray(folder.assetIds) ? folder.assetIds : [];
-        const assetIds: string[] = Array.from(new Set(rawAssetIds.filter((assetId): assetId is string => typeof assetId === "string")));
-        const createdAt = typeof folder.createdAt === "string" ? folder.createdAt : new Date().toISOString();
-        return id && name ? { id, name, assetIds, createdAt } : null;
-      })
-      .filter((folder): folder is MaterialFavoriteFolder => Boolean(folder));
-  } catch {
+async function loadFavoriteFolders() {
+  const authenticated = await requireAuth({
+    title: "登录后查看收藏夹",
+    message: "收藏夹保存在你的账号下，请先登录或使用邀请码注册。",
+  });
+  if (!authenticated) {
     favoriteFolders.value = [];
+    return;
   }
-}
-
-function persistFavoriteFolders() {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(FAVORITE_FOLDERS_STORAGE_KEY, JSON.stringify(favoriteFolders.value));
-}
-
-function favoriteFolderId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+  try {
+    const result = await fetchMaterialFavoriteFolders();
+    favoriteFolders.value = result.folders ?? [];
+  } catch (error) {
+    favoriteFolders.value = [];
+    messageApi.error(error instanceof Error ? error.message : "收藏夹加载失败");
   }
-  return `favorite-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function cacheMaterialAssets(items: MaterialAssetLibraryItem[]) {
@@ -611,6 +613,7 @@ function folderContainsAsset(folderId: string, assetId: string) {
 
 function openFavoriteDialog(asset?: MaterialAssetLibraryItem) {
   favoriteDialog.asset = asset ?? null;
+  favoriteDialog.batchAssets = [];
   favoriteDialog.newFolderName = "";
   favoriteDialog.editingFolderId = "";
   favoriteDialog.editingFolderName = "";
@@ -620,38 +623,63 @@ function openFavoriteDialog(asset?: MaterialAssetLibraryItem) {
   }
 }
 
+function openBatchFavoriteDialog() {
+  const selectedIds = new Set(selectedAssetIds.value);
+  const selectedAssets = displayedAssets.value.filter((asset) => selectedIds.has(asset.id));
+  if (!selectedAssets.length) {
+    messageApi.warning("请先选择素材");
+    return;
+  }
+  favoriteDialog.asset = null;
+  favoriteDialog.batchAssets = selectedAssets;
+  favoriteDialog.newFolderName = "";
+  favoriteDialog.editingFolderId = "";
+  favoriteDialog.editingFolderName = "";
+  favoriteDialog.open = true;
+  cacheMaterialAssets(selectedAssets);
+}
+
 function closeFavoriteDialog() {
   favoriteDialog.open = false;
   favoriteDialog.asset = null;
+  favoriteDialog.batchAssets = [];
   favoriteDialog.newFolderName = "";
   favoriteDialog.editingFolderId = "";
   favoriteDialog.editingFolderName = "";
 }
 
-function createFavoriteFolder() {
+function upsertFavoriteFolderState(folder: MaterialFavoriteFolder) {
+  const exists = favoriteFolders.value.some((item) => item.id === folder.id);
+  favoriteFolders.value = exists
+    ? favoriteFolders.value.map((item) => item.id === folder.id ? folder : item)
+    : [...favoriteFolders.value, folder];
+}
+
+function favoriteDialogAssetIds() {
+  if (favoriteDialog.asset) {
+    return [favoriteDialog.asset.id];
+  }
+  return favoriteDialog.batchAssets.map((asset) => asset.id);
+}
+
+async function createFavoriteFolder() {
   const name = favoriteDialog.newFolderName.trim();
   if (!name) return;
-  if (favoriteFolders.value.some((folder) => folder.name === name)) {
-    messageApi.warning("收藏夹名称已存在");
-    return;
-  }
-  const asset = favoriteDialog.asset;
-  const folder: MaterialFavoriteFolder = {
-    id: favoriteFolderId(),
-    name,
-    assetIds: asset ? [asset.id] : [],
-    createdAt: new Date().toISOString(),
-  };
-  favoriteFolders.value = [...favoriteFolders.value, folder];
-  if (asset) {
-    cacheMaterialAssets([asset]);
-  }
-  if (asset) {
+  const assetIds = favoriteDialogAssetIds();
+  try {
+    const folder = await createMaterialFavoriteFolder({ name, assetIds });
+    upsertFavoriteFolderState(folder);
+    if (favoriteDialog.asset) {
+      cacheMaterialAssets([favoriteDialog.asset]);
+    } else {
+      cacheMaterialAssets(favoriteDialog.batchAssets);
+    }
     activeFavoriteFolderId.value = folder.id;
+    favoriteDialog.newFolderName = "";
+    messageApi.success(assetIds.length ? "已加入收藏夹" : "已创建收藏夹");
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "收藏夹创建失败");
   }
-  favoriteDialog.newFolderName = "";
-  persistFavoriteFolders();
-  messageApi.success(asset ? "已加入收藏夹" : "已创建收藏夹");
 }
 
 function beginFavoriteFolderRename(folder: MaterialFavoriteFolder) {
@@ -664,17 +692,17 @@ function cancelFavoriteFolderRename() {
   favoriteDialog.editingFolderName = "";
 }
 
-function commitFavoriteFolderRename(folderId: string) {
+async function commitFavoriteFolderRename(folderId: string) {
   const name = favoriteDialog.editingFolderName.trim();
   if (!name) return;
-  if (favoriteFolders.value.some((folder) => folder.id !== folderId && folder.name === name)) {
-    messageApi.warning("收藏夹名称已存在");
-    return;
+  try {
+    const folder = await renameMaterialFavoriteFolder(folderId, { name });
+    upsertFavoriteFolderState(folder);
+    cancelFavoriteFolderRename();
+    messageApi.success("已重命名收藏夹");
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "收藏夹重命名失败");
   }
-  favoriteFolders.value = favoriteFolders.value.map((folder) => folder.id === folderId ? { ...folder, name } : folder);
-  persistFavoriteFolders();
-  cancelFavoriteFolderRename();
-  messageApi.success("已重命名收藏夹");
 }
 
 async function confirmDeleteFavoriteFolder(folder: MaterialFavoriteFolder) {
@@ -684,30 +712,64 @@ async function confirmDeleteFavoriteFolder(folder: MaterialFavoriteFolder) {
     confirmText: "删除",
   });
   if (!confirmed) return;
-  favoriteFolders.value = favoriteFolders.value.filter((item) => item.id !== folder.id);
-  if (activeFavoriteFolderId.value === folder.id) {
-    activeFavoriteFolderId.value = "";
+  try {
+    await deleteMaterialFavoriteFolder(folder.id);
+    favoriteFolders.value = favoriteFolders.value.filter((item) => item.id !== folder.id);
+    if (activeFavoriteFolderId.value === folder.id) {
+      activeFavoriteFolderId.value = "";
+    }
+    if (favoriteDialog.editingFolderId === folder.id) {
+      cancelFavoriteFolderRename();
+    }
+    messageApi.success("已删除收藏夹");
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "收藏夹删除失败");
   }
-  if (favoriteDialog.editingFolderId === folder.id) {
-    cancelFavoriteFolderRename();
-  }
-  persistFavoriteFolders();
-  messageApi.success("已删除收藏夹");
 }
 
-function toggleFavoriteFolderMembership(folderId: string, asset: MaterialAssetLibraryItem) {
+async function toggleFavoriteFolderMembership(folderId: string, asset: MaterialAssetLibraryItem) {
   cacheMaterialAssets([asset]);
-  let added = false;
-  favoriteFolders.value = favoriteFolders.value.map((folder) => {
-    if (folder.id !== folderId) return folder;
-    if (folder.assetIds.includes(asset.id)) {
-      return { ...folder, assetIds: folder.assetIds.filter((assetId) => assetId !== asset.id) };
-    }
-    added = true;
-    return { ...folder, assetIds: [asset.id, ...folder.assetIds] };
-  });
-  persistFavoriteFolders();
-  messageApi.success(added ? "已加入收藏夹" : "已移出收藏夹");
+  const removing = folderContainsAsset(folderId, asset.id);
+  try {
+    const folder = removing
+      ? await removeMaterialFavoriteAsset(folderId, asset.id)
+      : await addMaterialFavoriteAssets(folderId, { assetIds: [asset.id] });
+    upsertFavoriteFolderState(folder);
+    messageApi.success(removing ? "已移出收藏夹" : "已加入收藏夹");
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "收藏夹更新失败");
+  }
+}
+
+async function addBatchAssetsToFavoriteFolder(folderId: string) {
+  const assetIds = favoriteDialog.batchAssets.map((asset) => asset.id);
+  if (!assetIds.length) return;
+  try {
+    const folder = await addMaterialFavoriteAssets(folderId, { assetIds });
+    upsertFavoriteFolderState(folder);
+    cacheMaterialAssets(favoriteDialog.batchAssets);
+    messageApi.success(`已加入 ${assetIds.length} 个素材`);
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "批量收藏失败");
+  }
+}
+
+function isFavoriteDialogFolderActive(folderId: string) {
+  if (favoriteDialog.asset) {
+    return folderContainsAsset(folderId, favoriteDialog.asset.id);
+  }
+  const assetIds = favoriteDialog.batchAssets.map((asset) => asset.id);
+  return assetIds.length > 0 && assetIds.every((assetId) => folderContainsAsset(folderId, assetId));
+}
+
+function handleFavoriteDialogFolderClick(folderId: string) {
+  if (favoriteDialog.asset) {
+    void toggleFavoriteFolderMembership(folderId, favoriteDialog.asset);
+    return;
+  }
+  if (favoriteDialog.batchAssets.length) {
+    void addBatchAssetsToFavoriteFolder(folderId);
+  }
 }
 
 async function selectFavoriteFolder(folderId: string) {
@@ -857,14 +919,28 @@ function materialShareSource(asset: MaterialAssetLibraryItem): { sourceType: "ta
   return { sourceType: "material", sourceId: asset.id };
 }
 
-function openVideoPreview(asset: MaterialAssetLibraryItem) {
+function openAssetPreview(asset: MaterialAssetLibraryItem) {
   previewAsset.value = asset;
   previewImageLoadFailed.value = false;
-  previewDialog.kind = "video";
   previewDialog.title = asset.title;
-  previewDialog.html = "";
-  previewDialog.url = assetVideoPreviewUrl(asset);
+  if (asset.mediaType === "video") {
+    previewDialog.kind = "video";
+    previewDialog.html = "";
+    previewDialog.url = assetVideoPreviewUrl(asset);
+  } else if (asset.mediaType === "image") {
+    previewDialog.kind = "image";
+    previewDialog.html = "";
+    previewDialog.url = assetOriginalImageUrl(asset);
+  } else {
+    previewDialog.kind = "storyboard";
+    previewDialog.html = storyboardPreviewHtml(asset);
+    previewDialog.url = "";
+  }
   previewDialog.open = true;
+}
+
+function openVideoPreview(asset: MaterialAssetLibraryItem) {
+  openAssetPreview(asset);
 }
 
 function closePreviewDialog() {
@@ -876,23 +952,33 @@ function closePreviewDialog() {
 }
 
 function openStoryboardPreview(asset: MaterialAssetLibraryItem) {
-  previewAsset.value = asset;
-  previewImageLoadFailed.value = false;
-  previewDialog.kind = "storyboard";
-  previewDialog.title = asset.title;
-  previewDialog.html = storyboardPreviewHtml(asset);
-  previewDialog.url = "";
-  previewDialog.open = true;
+  openAssetPreview(asset);
 }
 
 function openImagePreview(asset: MaterialAssetLibraryItem) {
-  previewAsset.value = asset;
-  previewImageLoadFailed.value = false;
-  previewDialog.kind = "image";
-  previewDialog.title = asset.title;
-  previewDialog.html = "";
-  previewDialog.url = assetOriginalImageUrl(asset);
-  previewDialog.open = true;
+  openAssetPreview(asset);
+}
+
+async function navigatePreview(direction: -1 | 1) {
+  if (!previewDialog.open || !previewAsset.value) {
+    return;
+  }
+  const currentIndex = previewAssetIndex.value;
+  if (currentIndex < 0) {
+    return;
+  }
+  let nextIndex = currentIndex + direction;
+  let nextAsset = displayedAssets.value[nextIndex];
+  let loadAttempts = 0;
+  while (!nextAsset && direction > 0 && !activeFavoriteFolderId.value && hasMoreAssets.value && loadAttempts < 5) {
+    loadAttempts += 1;
+    await loadMoreAssets();
+    nextAsset = displayedAssets.value[nextIndex];
+  }
+  if (!nextAsset) {
+    return;
+  }
+  openAssetPreview(nextAsset);
 }
 
 function isAssetChecked(assetId: string) {
@@ -903,6 +989,21 @@ function toggleAssetSelection(assetId: string) {
   selectedAssetIds.value = isAssetChecked(assetId)
     ? selectedAssetIds.value.filter((id) => id !== assetId)
     : [...selectedAssetIds.value, assetId];
+}
+
+function handleMaterialCardClick(asset: MaterialAssetLibraryItem) {
+  if (!batchMode.value) {
+    return;
+  }
+  toggleAssetSelection(asset.id);
+}
+
+function handleAssetPreviewClick(asset: MaterialAssetLibraryItem, preview: (asset: MaterialAssetLibraryItem) => void) {
+  if (batchMode.value) {
+    toggleAssetSelection(asset.id);
+    return;
+  }
+  preview(asset);
 }
 
 async function loadAssets() {
@@ -984,36 +1085,6 @@ function resetFilters() {
   void loadAssets();
 }
 
-async function handleBatchUpload() {
-  if (!selectedAssetIds.value.length) {
-    return;
-  }
-  const authenticated = await requireAuth({
-    title: "登录后批量上传素材",
-    message: "批量上传会更新你的素材记录，请先登录或使用邀请码注册。",
-  });
-  if (!authenticated) {
-    messageApi.warning("登录后可继续批量上传。");
-    return;
-  }
-  const ids = [...selectedAssetIds.value];
-  busyActionKey.value = "batch-upload";
-  try {
-    for (const assetId of ids) {
-      const asset = assets.value.find((item) => item.id === assetId);
-      if (!asset?.remoteUrl) {
-        await uploadMaterialAsset(assetId);
-      }
-    }
-    selectedAssetIds.value = [];
-    await loadAssets();
-  } catch (error) {
-    messageApi.error(error instanceof Error ? error.message : "批量上传失败");
-  } finally {
-    busyActionKey.value = "";
-  }
-}
-
 async function handleBatchDelete() {
   if (!selectedAssetIds.value.length) {
     return;
@@ -1042,6 +1113,7 @@ async function handleBatchDelete() {
     }
     selectedAssetIds.value = [];
     await loadAssets();
+    await loadFavoriteFolders();
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "批量删除失败");
   } finally {
@@ -1112,7 +1184,10 @@ async function handleDeleteAsset(asset: MaterialAssetLibraryItem) {
   if (!confirmed) {
     return;
   }
-  await refreshAfterMutation(() => deleteMaterialAsset(asset.id), `delete-${asset.id}`);
+  await refreshAfterMutation(async () => {
+    await deleteMaterialAsset(asset.id);
+    await loadFavoriteFolders();
+  }, `delete-${asset.id}`);
 }
 
 async function handleReuseAsset(assetId: string) {
@@ -1217,7 +1292,7 @@ function positionMaterialMenu(event: ToggleEvent) {
 }
 
 onMounted(async () => {
-  loadFavoriteFolders();
+  await loadFavoriteFolders();
   const queryAssetType = typeof route.query.assetType === "string" ? route.query.assetType : "";
   if (typeFilterOptions.some((option) => option.value === queryAssetType)) {
     filters.assetType = queryAssetType;
@@ -1327,9 +1402,11 @@ watch(
 }
 
 .material-favorite-folders {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
+  width: 100%;
   min-width: 0;
   margin-top: -8px;
 }
@@ -1337,28 +1414,37 @@ watch(
 .material-favorite-folders__head {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   flex: 0 0 auto;
   color: var(--text-muted);
   font-size: 0.76rem;
   font-weight: 850;
 }
 
-.material-favorite-folders__head button {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: rgba(99, 102, 241, 0.1);
-  color: var(--accent-blue);
-  cursor: pointer;
+.material-favorite-folders__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
-.material-favorite-folders__head button:hover {
-  background: rgba(99, 102, 241, 0.16);
+.material-favorite-folders__add {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+}
+
+.material-favorite-folders__batch-active {
+  color: var(--accent-blue);
+}
+
+.material-favorite-folders__selected {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .material-favorite-folders__list {
@@ -1817,6 +1903,22 @@ watch(
   border-color: rgba(99, 102, 241, 0.2);
   box-shadow: 0 14px 32px rgba(99, 102, 241, 0.085);
   transform: translateY(-1px);
+}
+
+.material-card-batchable {
+  cursor: pointer;
+  transform: scale(0.96);
+}
+
+.material-card-batchable:hover {
+  transform: translateY(-1px) scale(0.96);
+}
+
+.material-card-batchable.material-card-selected {
+  border-color: rgba(99, 102, 241, 0.44);
+  background: rgba(238, 242, 255, 0.86);
+  box-shadow: 0 14px 34px rgba(99, 102, 241, 0.14);
+  transform: translateY(-1px) scale(0.98);
 }
 
 .material-card__check {
@@ -2437,12 +2539,6 @@ watch(
     flex-direction: column;
   }
 
-  .material-favorite-folders {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
-
   .material-topbar__tools {
     min-width: 0;
     width: 100%;
@@ -2467,7 +2563,7 @@ watch(
 
   .material-topbar__tools {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     gap: 6px;
     align-items: center;
     min-width: 0;

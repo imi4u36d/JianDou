@@ -18,7 +18,7 @@ import type {
 
 export type ModeValue = "video" | "image" | "character_sheet";
 export type AspectRatioValue = "16:9" | "9:16";
-export type RatioOptionValue = "智能" | "1:1" | "21:9" | "16:9" | "3:2" | "4:3" | "3:4" | "2:3" | "9:16";
+export type RatioOptionValue = "智能" | "1:1" | "21:9" | "16:9" | "3:2" | "4:3" | "3:4" | "2:3" | "9:16" | "9:20";
 
 export type WorkbenchForm = Omit<CreateGenerationTaskRequest, "aspectRatio"> & {
   aspectRatio: RatioOptionValue;
@@ -47,8 +47,8 @@ const modeOptions: ModeOption[] = [
   },
 ];
 
-const ratioDisplayOrder: RatioOptionValue[] = ["智能", "21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"];
-const sizeRatioCandidates: RatioOptionValue[] = ["21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"];
+const ratioDisplayOrder: RatioOptionValue[] = ["智能", "21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:20"];
+const sizeRatioCandidates: RatioOptionValue[] = ["21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:20"];
 
 const videoOutputCountOptions = [1, 2, 3, 4, 6, 8, 10, 12];
 const imageOutputCountOptions = [1, 2, 3, 4];
@@ -454,7 +454,7 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
     try {
       const result = await fetchGenerationOptions();
       options.value = result;
-      form.value.aspectRatio = (result.defaultAspectRatio as AspectRatioValue | null) || "16:9";
+      form.value.aspectRatio = (result.defaultAspectRatio as RatioOptionValue | null) || "16:9";
       const openAITextModels = (result.textAnalysisModels ?? []).filter(isOpenAIModel);
       const openAIImageModels = (result.imageModels ?? []).filter(isOpenAIModel);
       form.value.textAnalysisModel = openAITextModels.some((item) => item.value === result.defaultTextAnalysisModel)

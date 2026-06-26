@@ -218,7 +218,7 @@
             </div>
 
             <div class="home-menu">
-              <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'ratio' }" @click="toggleMenu('ratio')">
+              <button type="button" class="home-tool home-tool-plain" :class="{ 'home-tool-active': activeMenu === 'ratio' }" @click="toggleMenu('ratio')">
                 <span class="home-tool__shape"></span>
                 {{ ratioToolLabel }}
               </button>
@@ -1229,6 +1229,8 @@ onBeforeUnmount(() => {
 
 .home-composer {
   --home-composer-border-angle: 0deg;
+  --home-footer-control-height: 36px;
+  --home-footer-row-height: 40px;
   position: relative;
   z-index: 30;
   isolation: isolate;
@@ -1256,22 +1258,25 @@ onBeforeUnmount(() => {
   border-radius: 20px;
   background: conic-gradient(
     from var(--home-composer-border-angle),
-    rgba(139, 92, 246, 0.9),
-    rgba(59, 130, 246, 0.9),
-    rgba(6, 182, 212, 0.82),
-    rgba(34, 197, 94, 0.74),
-    rgba(250, 204, 21, 0.82),
-    rgba(236, 72, 153, 0.9),
-    rgba(139, 92, 246, 0.9)
+    rgba(139, 92, 246, 0.78),
+    rgba(59, 130, 246, 0.78),
+    rgba(6, 182, 212, 0.68),
+    rgba(34, 197, 94, 0.58),
+    rgba(250, 204, 21, 0.66),
+    rgba(236, 72, 153, 0.78),
+    rgba(139, 92, 246, 0.78)
   );
-  opacity: 0;
-  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.16));
+  opacity: 0.16;
+  filter: drop-shadow(0 0 0 rgba(99, 102, 241, 0));
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  transition: opacity 180ms ease;
+  animation: home-composer-focus-border 14s linear infinite;
+  transition:
+    opacity 2400ms cubic-bezier(0.22, 0.62, 0.28, 1),
+    filter 2400ms cubic-bezier(0.22, 0.62, 0.28, 1);
   pointer-events: none;
 }
 
@@ -1283,8 +1288,16 @@ onBeforeUnmount(() => {
 }
 
 .home-composer-linked::before {
-  opacity: 1;
-  animation: home-composer-focus-border 2.8s linear infinite;
+  opacity: 0.98;
+  filter:
+    drop-shadow(0 0 11px rgba(99, 102, 241, 0.2))
+    drop-shadow(0 0 22px rgba(59, 130, 246, 0.13));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-composer::before {
+    animation: none;
+  }
 }
 
 .home-composer-submitting {
@@ -1305,7 +1318,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   width: 68px;
   height: 98px;
-  border: 0;
+  border: 1px solid rgba(17, 24, 39, 0.12);
   border-radius: 8px;
   background: transparent;
   color: var(--accent-blue);
@@ -1322,7 +1335,7 @@ onBeforeUnmount(() => {
 
 .home-composer__upload-has-reference {
   background: transparent;
-  border-color: transparent;
+  border-color: rgba(17, 24, 39, 0.12);
   box-shadow: none;
   transform: none;
 }
@@ -1700,9 +1713,10 @@ onBeforeUnmount(() => {
 
 .home-composer__footer {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
+  min-height: var(--home-footer-row-height);
   margin-top: 10px;
 }
 
@@ -1719,7 +1733,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: var(--home-footer-control-height);
   padding: 0 13px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 10px;
@@ -1759,19 +1773,28 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+.home-tool.home-tool-plain,
+.home-tool.home-tool-plain:hover,
+.home-tool.home-tool-plain:focus-visible,
+.home-tool.home-tool-plain.home-tool-active,
 .home-tool-mention,
 .home-tool-mention:hover,
 .home-tool-mention:focus-visible,
 .home-tool-mention.home-tool-active {
-  min-height: auto;
-  padding: 0 2px;
+  min-height: var(--home-footer-control-height);
+  padding: 0 8px;
   border: 0;
   background: transparent;
   box-shadow: none;
   color: var(--text-strong);
+  font-size: 0.8rem;
+  line-height: 1;
   transform: none;
 }
 
+.home-tool.home-tool-plain:hover,
+.home-tool.home-tool-plain:focus-visible,
+.home-tool.home-tool-plain.home-tool-active,
 .home-tool-mention:hover,
 .home-tool-mention:focus-visible,
 .home-tool-mention.home-tool-active {
@@ -1827,7 +1850,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 34px;
+  min-height: var(--home-footer-control-height);
   max-width: 210px;
   padding: 0 12px 0 10px;
   border: 1px solid rgba(236, 72, 153, 0.18);
@@ -2337,7 +2360,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  min-height: 38px;
+  min-height: var(--home-footer-row-height);
   max-width: 320px;
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -2346,20 +2369,26 @@ onBeforeUnmount(() => {
 }
 
 .home-composer__meta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--home-footer-control-height);
   color: var(--accent-blue);
+  font-size: 0.8rem;
   font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
 }
 
 .home-credit-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
+  min-height: var(--home-footer-control-height);
+  padding: 0 14px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--text-strong);
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   font-weight: 800;
   font-family: inherit;
   white-space: nowrap;
@@ -2389,7 +2418,7 @@ onBeforeUnmount(() => {
 .home-composer__submit {
   position: absolute;
   right: 18px;
-  bottom: 20px;
+  bottom: calc(22px + (var(--home-footer-row-height) - 40px) / 2);
   width: 40px;
   height: 40px;
   min-height: 40px;
@@ -2635,11 +2664,12 @@ onBeforeUnmount(() => {
   .home-composer__editor {
     min-height: 104px;
     padding-right: 0;
+    font-size: 16px;
   }
 
   .home-composer__placeholder {
     max-width: 100%;
-    font-size: 1rem;
+    font-size: 16px;
     line-height: 1.6;
   }
 

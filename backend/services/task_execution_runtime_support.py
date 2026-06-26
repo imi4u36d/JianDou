@@ -94,6 +94,7 @@ class TaskExecutionRuntimeSupport:
         aspect_map = {
             "16:9": [2560, 1440],
             "9:16": [1440, 2560],
+            "9:20": [1728, 3840],
             "1:1": [3072, 3072],
             "21:9": [3024, 1296],
             "3:2": [2496, 1664],
@@ -110,7 +111,18 @@ class TaskExecutionRuntimeSupport:
             parsed = self._parse_dimensions(image_size)
             if parsed:
                 return parsed
-        return [0, 0]
+        aspect_map = {
+            "16:9": [3840, 2160],
+            "9:16": [2160, 3840],
+            "9:20": [1728, 3840],
+            "1:1": [2880, 2880],
+            "21:9": [3808, 1632],
+            "3:2": [3504, 2336],
+            "2:3": [2336, 3504],
+            "4:3": [3264, 2448],
+            "3:4": [2448, 3264],
+        }
+        return aspect_map.get(task.aspect_ratio, [2160, 3840])
 
     def resolve_duration_seconds(self, task: TaskRecord) -> int:
         snapshot = task.request_snapshot or {}
@@ -536,12 +548,13 @@ class TaskExecutionRuntimeSupport:
         return {
             "16:9": "3840x2160",
             "9:16": "2160x3840",
-            "1:1": "4096x4096",
-            "21:9": "4096x1755",
-            "3:2": "3840x2560",
-            "2:3": "2560x3840",
-            "4:3": "3840x2880",
-            "3:4": "2880x3840",
+            "9:20": "1728x3840",
+            "1:1": "2880x2880",
+            "21:9": "3808x1632",
+            "3:2": "3504x2336",
+            "2:3": "2336x3504",
+            "4:3": "3264x2448",
+            "3:4": "2448x3264",
         }.get(string_value(aspect_ratio), "")
 
     def _build_video_clip_execution_prompt(self, prompt: str) -> str:

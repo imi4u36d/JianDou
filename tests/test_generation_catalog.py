@@ -16,6 +16,16 @@ GPT_IMAGE_2_SUPPORTED_SIZES = [
     "720x1280",
     "1152x2048",
     "2160x3840",
+    "864x1920",
+    "1296x2880",
+    "1728x3840",
+    "3808x1632",
+    "3504x2336",
+    "2336x3504",
+    "3264x2448",
+    "768x1024",
+    "1536x2048",
+    "2448x3264",
     "1024x1024",
     "2048x2048",
     "2880x2880",
@@ -27,8 +37,8 @@ async def test_generation_catalog_uses_configured_models(client):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["defaultAspectRatio"] == "16:9"
-    assert data["defaultImageSize"] == "2048x1152"
+    assert data["defaultAspectRatio"] == "9:16"
+    assert data["defaultImageSize"] == "2160x3840"
     assert data["defaultVideoSize"] == "1280*720"
     assert data["defaultVideoDurationSeconds"] == 10
     assert any(model["value"] == "gpt-5.5" for model in data["textAnalysisModels"])
@@ -60,7 +70,18 @@ async def test_gpt_image_2_sizes_match_openai_constraints(client):
         assert width * height <= 8_294_400
         assert long_edge / short_edge <= 3
         divisor = gcd(width, height)
-        assert f"{width // divisor}:{height // divisor}" in {"16:9", "9:16", "1:1"}
+        assert f"{width // divisor}:{height // divisor}" in {
+            "16:9",
+            "9:16",
+            "9:20",
+            "21:9",
+            "7:3",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "1:1",
+        }
 
 
 async def test_generation_options_matches_catalog(client):
