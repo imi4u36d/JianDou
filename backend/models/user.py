@@ -17,7 +17,6 @@ class SysUser(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="Internal numeric primary key.")
     username = Column(String(64), nullable=False, unique=True, comment="Unique normalized login name.")
-    display_name = Column(String(128), nullable=False, default="", comment="User-facing display name.")
     password_hash = Column(String(255), nullable=False, comment="Password hash; never stores raw passwords.")
     role = Column(String(16), nullable=False, default="USER", comment="UserRole enum value: USER or ADMIN.")
     status = Column(String(16), nullable=False, default="ACTIVE", comment="UserStatus enum value: ACTIVE or DISABLED.")

@@ -4,7 +4,7 @@ import json
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,24 @@ DEFAULT_INITIAL_BALANCE = 50
 # 功能编码常量
 IMAGE_GENERATION = "IMAGE_GENERATION"
 VIDEO_GENERATION = "VIDEO_GENERATION"
+DEFAULT_CREDIT_RULES = {
+    IMAGE_GENERATION: ("图片生成", 10),
+    VIDEO_GENERATION: ("视频生成", 50),
+}
+
+
+class InsufficientCreditsError(ValueError):
+    """Raised when a user does not have enough credits for a billable action."""
+
+    def __init__(self, user_id: int, feature_code: str, cost: int, balance: int) -> None:
+        super().__init__(
+            f"Insufficient credits: user={user_id}, feature={feature_code}, "
+            f"cost={cost}, balance={balance}"
+        )
+        self.user_id = user_id
+        self.feature_code = feature_code
+        self.cost = cost
+        self.balance = balance
 
 
 def normalize_feature_code(code: str) -> str:
@@ -37,6 +55,10 @@ def _trim(value: str | None) -> str:
 
 def _is_admin_username(username: str) -> bool:
     return username.strip().lower() == "admin" if username else False
+
+
+def _is_admin_user(user: SysUser) -> bool:
+    return _is_admin_username(user.username) or str(user.role or "").strip().upper() == "ADMIN"
 
 
 class CreditService:
@@ -58,7 +80,7 @@ class CreditService:
         if not user:
             raise ValueError("user_not_found")
 
-        if _is_admin_username(user.username):
+        if _is_admin_user(user):
             return {"created": False, "reason": "admin_skipped"}
 
         # 检查账户是否已存在
@@ -104,6 +126,7 @@ class CreditService:
 
     async def list_rules(self) -> list[dict]:
         """列出所有积分规则。"""
+        await self._ensure_default_rules()
         result = await self.db.execute(
             select(SysCreditRule).order_by(SysCreditRule.feature_code.asc())
         )
@@ -159,11 +182,36 @@ class CreditService:
         )
         return [self._transaction_to_dict(t) for t in result.scalars().all()]
 
+    async def list_transactions_page(self, user_id: int, offset: int = 0, limit: int = 20) -> dict:
+        """分页列出用户积分交易记录。"""
+        normalized_offset = max(0, offset)
+        normalized_limit = min(max(1, limit), 50)
+        total_result = await self.db.execute(
+            select(func.count())
+            .select_from(SysCreditTransaction)
+            .where(SysCreditTransaction.user_id == user_id)
+        )
+        total = int(total_result.scalar_one() or 0)
+        result = await self.db.execute(
+            select(SysCreditTransaction)
+            .where(SysCreditTransaction.user_id == user_id)
+            .order_by(SysCreditTransaction.created_at.desc(), SysCreditTransaction.id.desc())
+            .offset(normalized_offset)
+            .limit(normalized_limit)
+        )
+        return {
+            "items": [self._transaction_to_dict(t) for t in result.scalars().all()],
+            "total": total,
+            "offset": normalized_offset,
+            "limit": normalized_limit,
+        }
+
     # ── 扣费 / 退款 / 调整 ───────────────────────────────────────
 
     async def charge(
         self, user_id: int, feature_code: str, run_id: str = "",
         task_id: str = "", workflow_id: str = "", reason: str = "",
+        commit: bool = True,
     ) -> dict:
         """
         扣除用户积分。如果余额不足，抛出 ValueError。
@@ -177,7 +225,7 @@ class CreditService:
         user = result.scalar_one_or_none()
         if not user:
             raise ValueError("user_not_found")
-        if _is_admin_username(user.username):
+        if _is_admin_user(user):
             return {
                 "charged": False,
                 "userId": user_id,
@@ -211,10 +259,7 @@ class CreditService:
             # 余额不足
             account = await self._get_account(user_id)
             balance_before = account.balance if account else 0
-            raise ValueError(
-                f"Insufficient credits: user={user_id}, feature={_code}, "
-                f"cost={normalized_cost}, balance={balance_before}"
-            )
+            raise InsufficientCreditsError(user_id, _code, normalized_cost, balance_before)
 
         # 获取更新后的账户
         account_after = await self._get_account(user_id)
@@ -235,7 +280,10 @@ class CreditService:
             workflow_id=workflow_id,
             reason=reason,
         )
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
+        else:
+            await self.db.flush()
 
         return {
             "charged": True,
@@ -342,10 +390,7 @@ class CreditService:
 
         keyword = q.strip().lower() if q else ""
         if keyword:
-            stmt = stmt.where(
-                SysUser.username.like(f"%{keyword}%")
-                | SysUser.display_name.like(f"%{keyword}%")
-            )
+            stmt = stmt.where(SysUser.username.like(f"%{keyword}%"))
 
         if only_ids:
             stmt = stmt.where(SysUser.id.in_(only_ids))
@@ -399,7 +444,32 @@ class CreditService:
             select(SysCreditRule).where(SysCreditRule.feature_code == _code).limit(1)
         )
         rule = result.scalar_one_or_none()
-        return max(0, rule.cost) if rule and rule.cost else 0
+        if rule:
+            return max(0, rule.cost or 0)
+        default = DEFAULT_CREDIT_RULES.get(_code)
+        return default[1] if default else 0
+
+    async def _ensure_default_rules(self) -> None:
+        result = await self.db.execute(
+            select(SysCreditRule).where(SysCreditRule.feature_code.in_(DEFAULT_CREDIT_RULES.keys()))
+        )
+        existing_codes = {normalize_feature_code(rule.feature_code) for rule in result.scalars().all()}
+        missing_codes = set(DEFAULT_CREDIT_RULES.keys()) - existing_codes
+        if not missing_codes:
+            return
+        now = _now_str()
+        for code in sorted(missing_codes):
+            display_name, cost = DEFAULT_CREDIT_RULES[code]
+            self.db.add(
+                SysCreditRule(
+                    feature_code=code,
+                    display_name=display_name,
+                    cost=cost,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        await self.db.commit()
 
     async def _ensure_account_balance(self, user_id: int, initial_balance: int):
         """如果账户不存在则创建。"""
@@ -495,8 +565,7 @@ class CreditService:
     @staticmethod
     def _default_rule_name(feature_code: str) -> str:
         return {
-            IMAGE_GENERATION: "图片生成",
-            VIDEO_GENERATION: "视频生成",
+            code: display_name for code, (display_name, _cost) in DEFAULT_CREDIT_RULES.items()
         }.get(normalize_feature_code(feature_code), feature_code)
 
     @staticmethod
@@ -551,7 +620,6 @@ class CreditService:
         return {
             "id": user.id,
             "username": user.username,
-            "displayName": user.display_name,
             "role": user.role,
             "status": user.status,
             "balance": account.balance if account else 0,

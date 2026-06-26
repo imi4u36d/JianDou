@@ -38,6 +38,9 @@ function buildQuery(filters?: MaterialAssetQuery) {
   if (typeof filters?.clipIndex === "number") {
     params.set("clipIndex", String(filters.clipIndex));
   }
+  if (typeof filters?.includeWorkflowArtifacts === "boolean") {
+    params.set("includeWorkflowArtifacts", String(filters.includeWorkflowArtifacts));
+  }
   if (typeof filters?.offset === "number") {
     params.set("offset", String(filters.offset));
   }

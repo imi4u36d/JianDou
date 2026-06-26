@@ -32,8 +32,7 @@
             <el-table-column label="用户" min-width="180">
               <template #default="{ row }">
                 <div class="credit-page__primary-cell">
-                  <strong>{{ row.displayName || row.username }}</strong>
-                  <span>{{ row.username }}</span>
+                  <strong>{{ row.username }}</strong>
                 </div>
               </template>
             </el-table-column>
@@ -200,14 +199,14 @@ const transactionDialogTitle = computed(() => {
   if (!selectedUser.value) {
     return "积分流水";
   }
-  return `积分流水 - ${selectedUser.value.displayName || selectedUser.value.username}`;
+  return `积分流水 - ${selectedUser.value.username}`;
 });
 
 const adjustDialogTitle = computed(() => {
   if (!selectedUser.value) {
     return "调整积分";
   }
-  return `调整积分 - ${selectedUser.value.displayName || selectedUser.value.username}`;
+  return `调整积分 - ${selectedUser.value.username}`;
 });
 
 const ruleDialogTitle = computed(() => {

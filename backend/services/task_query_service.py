@@ -414,7 +414,6 @@ class TaskQueryService:
             "thumbnailUrl": "",
             "ownerUserId": task.owner_user_id,
             "ownerUsername": "",
-            "ownerDisplayName": "",
             "ownerRole": "",
         }
 
@@ -454,7 +453,6 @@ class TaskQueryService:
             "activeWorkerInstanceId": active_worker,
             "ownerUserId": task.owner_user_id,
             "ownerUsername": "",
-            "ownerDisplayName": "",
             "errorMessage": task.error_message or "",
             "editingMode": task.editing_mode,
             "creativePrompt": task.creative_prompt,

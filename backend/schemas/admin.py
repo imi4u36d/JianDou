@@ -45,7 +45,6 @@ class AdminModelConfigKeysRequest(AdminRequestModel):
 
 class AdminCreateUserRequest(AdminRequestModel):
     username: str
-    display_name: str = ""
     password: str
     role: str = "USER"
     status: str = "ACTIVE"
@@ -53,7 +52,6 @@ class AdminCreateUserRequest(AdminRequestModel):
 
 
 class AdminUpdateUserRequest(AdminRequestModel):
-    display_name: str | None = None
     role: str | None = None
     status: str | None = None
     task_concurrency_limit: int | None = None

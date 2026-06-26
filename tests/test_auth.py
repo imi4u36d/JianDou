@@ -7,6 +7,7 @@ pytestmark = pytest.mark.api
 from sqlalchemy import select
 from sqlalchemy import update as sa_update
 
+from backend.auth import hash_password
 from backend.config import settings
 from backend.domain.enums import UserRole, UserStatus
 from backend.models.user import SysUser
@@ -49,6 +50,29 @@ async def test_login_incorrect_password(client):
         "password": "wrongpassword",
     })
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_login_rejects_bootstrap_password_after_database_password_changes(client, db_session):
+    new_password = "database-only-password"
+    await db_session.execute(
+        sa_update(SysUser)
+        .where(SysUser.username == settings.bootstrap_admin_username)
+        .values(password_hash=hash_password(new_password))
+    )
+    await db_session.commit()
+
+    old_password_response = await client.post("/api/v3/auth/login", json={
+        "username": settings.bootstrap_admin_username,
+        "password": settings.bootstrap_admin_password,
+    })
+    assert old_password_response.status_code == 401
+
+    new_password_response = await client.post("/api/v3/auth/login", json={
+        "username": settings.bootstrap_admin_username,
+        "password": new_password,
+    })
+    assert new_password_response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -117,7 +141,6 @@ async def test_invite_activation_rate_limit_returns_429(client, monkeypatch):
     response = await client.post("/api/v3/auth/activate-invite", json={
         "code": "missing",
         "username": "invite-user",
-        "displayName": "Invite User",
         "password": "invite123",
     })
     assert response.status_code == 400
@@ -125,7 +148,6 @@ async def test_invite_activation_rate_limit_returns_429(client, monkeypatch):
     limited = await client.post("/api/v3/auth/activate-invite", json={
         "code": "missing",
         "username": "invite-user",
-        "displayName": "Invite User",
         "password": "invite123",
     })
 

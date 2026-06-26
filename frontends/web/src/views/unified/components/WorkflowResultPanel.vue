@@ -21,26 +21,38 @@
       <section class="workflow-result-preview detail-section-card">
         <div class="workflow-result-preview__head">
           <h3>结果预览</h3>
-          <a
+          <button
             v-if="finalFileUrl"
             class="workflow-result-download"
-            :href="finalFileUrl"
-            target="_blank"
-            rel="noreferrer"
-            download
+            type="button"
+            @click="handleDownloadFinal"
           >
             <IconDownload size="xs" />
             下载
-          </a>
+          </button>
         </div>
-        <video
-          v-if="finalPreviewUrl"
-          class="workflow-result-video"
-          :src="finalPreviewUrl"
-          controls
-          playsinline
-          preload="metadata"
-        ></video>
+        <div v-if="finalPreviewUrl" class="workflow-result-media">
+          <video
+            class="workflow-result-video"
+            :src="finalPreviewUrl"
+            controls
+            playsinline
+            preload="metadata"
+            @loadstart="markFinalPreviewLoading"
+            @loadedmetadata="markFinalPreviewReady"
+            @loadeddata="markFinalPreviewReady"
+            @canplay="markFinalPreviewReady"
+            @error="markFinalPreviewFailed"
+          ></video>
+          <div v-if="finalPreviewLoading" class="workflow-result-media__loading" role="status" aria-live="polite">
+            <IconLoading size="md" />
+            <span>加载预览中</span>
+          </div>
+          <div v-else-if="finalPreviewLoadState === 'failed'" class="workflow-result-media__loading workflow-result-media__loading-error">
+            <IconDownload size="sm" />
+            <span>预览加载失败，可尝试下载查看</span>
+          </div>
+        </div>
         <div v-else class="workflow-result-placeholder">暂无可预览结果</div>
       </section>
 
@@ -60,8 +72,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { fetchWorkflow } from "@/features/workflows";
-import { IconDownload, IconWorkflow } from "@/components/icons";
+import { IconDownload, IconLoading, IconWorkflow } from "@/components/icons";
 import { messageApi } from "@/composables/useMessage";
+import { downloadMedia } from "@/utils/download";
 import type { WorkflowDetail } from "@/types";
 
 const props = defineProps<{
@@ -77,6 +90,8 @@ const loading = ref(false);
 
 const finalPreviewUrl = computed(() => workflow.value?.finalResult?.previewUrl || workflow.value?.finalResult?.fileUrl || "");
 const finalFileUrl = computed(() => workflow.value?.finalResult?.fileUrl || workflow.value?.finalResult?.previewUrl || "");
+const finalPreviewLoadState = ref<"idle" | "loading" | "ready" | "failed">("idle");
+const finalPreviewLoading = computed(() => Boolean(finalPreviewUrl.value) && finalPreviewLoadState.value === "loading");
 
 const statusLabel = computed(() => {
   const status = String(workflow.value?.status ?? "").toUpperCase();
@@ -113,7 +128,42 @@ async function loadWorkflow() {
   }
 }
 
+function markFinalPreviewLoading() {
+  if (finalPreviewUrl.value) {
+    finalPreviewLoadState.value = "loading";
+  }
+}
+
+function markFinalPreviewReady() {
+  if (finalPreviewUrl.value) {
+    finalPreviewLoadState.value = "ready";
+  }
+}
+
+function markFinalPreviewFailed() {
+  if (finalPreviewUrl.value) {
+    finalPreviewLoadState.value = "failed";
+  }
+}
+
+async function handleDownloadFinal() {
+  try {
+    const result = await downloadMedia({ url: finalFileUrl.value, title: workflow.value?.finalResult?.title || workflow.value?.title || "成片", mediaType: "video" });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
+  }
+}
+
 watch(() => props.selectedWorkflowId, () => void loadWorkflow(), { immediate: true });
+
+watch(finalPreviewUrl, (url) => {
+  finalPreviewLoadState.value = url ? "loading" : "idle";
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -215,11 +265,41 @@ watch(() => props.selectedWorkflowId, () => void loadWorkflow(), { immediate: tr
   font-weight: 700;
 }
 
+.workflow-result-media {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #111827;
+}
+
 .workflow-result-video {
   width: 100%;
   max-height: min(58vh, 520px);
-  border-radius: 10px;
   background: #111827;
+}
+
+.workflow-result-media__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 220px;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.68);
+  color: #fff;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.workflow-result-media__loading span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.workflow-result-media__loading-error {
+  color: #fecaca;
 }
 
 .workflow-result-placeholder {

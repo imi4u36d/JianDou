@@ -13,6 +13,67 @@ from backend.services.model_config_service import (
 )
 
 
+def _create_user_table_with_admin(db_path, admin_id: int = 1) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            create table sys_user (
+                id integer primary key autoincrement,
+                username varchar(64) not null unique,
+                password_hash varchar(255) not null,
+                role varchar(16) not null,
+                status varchar(16) not null,
+                last_login_at varchar(32),
+                task_concurrency_limit integer not null,
+                created_at varchar(32) not null,
+                updated_at varchar(32) not null
+            )
+            """
+        )
+        conn.execute(
+            """
+            insert into sys_user
+                (id, username, password_hash, role, status,
+                 task_concurrency_limit, created_at, updated_at)
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                admin_id,
+                "admin",
+                "hash",
+                "ADMIN",
+                "ACTIVE",
+                1,
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-01T00:00:00+00:00",
+            ),
+        )
+        conn.commit()
+
+
+def _create_regular_user(db_path, user_id: int) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            insert into sys_user
+                (id, username, password_hash, role, status,
+                 task_concurrency_limit, created_at, updated_at)
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                f"user-{user_id}",
+                "hash",
+                "USER",
+                "ACTIVE",
+                1,
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-01T00:00:00+00:00",
+            ),
+        )
+        conn.commit()
+
+
 def test_user_model_credentials_are_encrypted_at_rest(tmp_path):
     db_path = tmp_path / "credentials.db"
     repo = SqlAlchemyUserModelCredentialRepository(f"sqlite+aiosqlite:///{db_path}")
@@ -95,6 +156,7 @@ def test_user_model_credentials_insert_runtime_columns_without_server_defaults(t
 
 def test_user_model_runtime_config_overrides_yaml_provider_values(tmp_path):
     db_path = tmp_path / "runtime-config.db"
+    _create_user_table_with_admin(db_path, admin_id=7)
     config_dir = tmp_path / "config"
     model_dir = config_dir / "model" / "providers"
     model_dir.mkdir(parents=True)
@@ -139,3 +201,93 @@ model:
     assert profile.base_url == "http://db.example/v1"
     assert profile.config.timeout_seconds == 300
     assert profile.supports_responses_api() is False
+
+
+def test_user_model_runtime_config_falls_back_to_admin_default_key(tmp_path):
+    db_path = tmp_path / "admin-default-runtime-config.db"
+    _create_user_table_with_admin(db_path, admin_id=1)
+    config_dir = tmp_path / "config"
+    model_dir = config_dir / "model" / "providers"
+    model_dir.mkdir(parents=True)
+    (config_dir / "model" / "models.yml").write_text(
+        """
+model:
+  models:
+    "gpt-5.5":
+      provider: "openai"
+      vendor: "openai"
+      kind: "text"
+      provider_model: "gpt-5.5"
+""",
+        encoding="utf-8",
+    )
+    (model_dir / "openai.yml").write_text(
+        """
+model:
+  providers:
+    openai:
+      provider: "openai"
+      vendor: "openai"
+      api_key: ""
+      base_url: "https://yaml.example/v1"
+""",
+        encoding="utf-8",
+    )
+    repo = SqlAlchemyUserModelCredentialRepository(f"sqlite+aiosqlite:///{db_path}")
+    repo.save_api_keys(1, {"openai": "sk-admin-default"})
+    repo.save_provider_configs(1, {
+        "openai": RuntimeProviderConfig(
+            base_url="https://admin.example/v1",
+            extras={"timeout_seconds": "300"},
+        )
+    })
+
+    profile = ModelRuntimePropertiesResolver(config_dir=config_dir, credential_provider=repo).resolve_text_profile(
+        "gpt-5.5", 7
+    )
+
+    assert profile.api_key == "sk-admin-default"
+    assert profile.base_url == "https://admin.example/v1"
+    assert profile.config.timeout_seconds == 300
+
+
+def test_user_model_runtime_config_ignores_regular_user_key_before_admin_default(tmp_path):
+    db_path = tmp_path / "regular-user-ignored-runtime-config.db"
+    _create_user_table_with_admin(db_path, admin_id=1)
+    _create_regular_user(db_path, user_id=7)
+    config_dir = tmp_path / "config"
+    model_dir = config_dir / "model" / "providers"
+    model_dir.mkdir(parents=True)
+    (config_dir / "model" / "models.yml").write_text(
+        """
+model:
+  models:
+    "gpt-5.5":
+      provider: "openai"
+      vendor: "openai"
+      kind: "text"
+      provider_model: "gpt-5.5"
+""",
+        encoding="utf-8",
+    )
+    (model_dir / "openai.yml").write_text(
+        """
+model:
+  providers:
+    openai:
+      provider: "openai"
+      vendor: "openai"
+      api_key: ""
+      base_url: "https://yaml.example/v1"
+""",
+        encoding="utf-8",
+    )
+    repo = SqlAlchemyUserModelCredentialRepository(f"sqlite+aiosqlite:///{db_path}")
+    repo.save_api_keys(1, {"openai": "sk-admin-default"})
+    repo.save_api_keys(7, {"openai": "sk-user-override"})
+
+    profile = ModelRuntimePropertiesResolver(config_dir=config_dir, credential_provider=repo).resolve_text_profile(
+        "gpt-5.5", 7
+    )
+
+    assert profile.api_key == "sk-admin-default"

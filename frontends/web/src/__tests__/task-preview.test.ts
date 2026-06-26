@@ -59,6 +59,31 @@ describe("resolveTaskPreviewMedia", () => {
     expect(preview).toMatchObject({ type: "image", url: "/storage/workspace-image.png" });
   });
 
+  it("treats workspace image result types as image previews even without an image extension", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      taskType: "image_to_image",
+      requestSnapshot: { taskType: "image_to_image" },
+      outputs: [
+        output({ resultType: "image_to_image", downloadPath: "/storage/tasks/task_1/result" }),
+      ],
+    }));
+
+    expect(preview).toMatchObject({ type: "image", url: "/storage/tasks/task_1/result" });
+  });
+
+  it("uses delayed workspace image urls from execution context", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      taskType: "image_generation",
+      requestSnapshot: { taskType: "image_generation" },
+      outputs: [],
+      executionContext: {
+        latestImageOutputUrl: "/storage/tasks/task_1/workspace-image.png",
+      },
+    }));
+
+    expect(preview).toMatchObject({ type: "image", url: "/storage/tasks/task_1/workspace-image.png" });
+  });
+
   it("does not let source materials replace a generated output", () => {
     const preview = resolveTaskPreviewMedia(task({
       outputs: [

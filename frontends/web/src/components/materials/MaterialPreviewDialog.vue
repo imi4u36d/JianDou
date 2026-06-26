@@ -11,29 +11,56 @@
           <div>
             <h3>{{ title }}</h3>
           </div>
-          <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="emit('close')">
-            <IconClose size="sm" />
-          </button>
+          <div class="material-preview-dialog__actions">
+            <button
+              v-if="downloadUrl"
+              type="button"
+              class="material-preview-dialog__download"
+              aria-label="下载预览素材"
+              @click="handleDownload"
+            >
+              <IconDownload size="xs" />
+              <span>下载</span>
+            </button>
+            <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="emit('close')">
+              <IconClose size="sm" />
+            </button>
+          </div>
         </div>
-        <img
-          v-if="kind === 'image' && !imageLoadFailed"
-          class="material-preview-dialog__image"
-          :src="url"
-          :alt="title"
-          @error="emit('imageError')"
-        />
+        <div v-if="kind === 'image' && !imageLoadFailed" class="material-preview-dialog__media">
+          <img
+            class="material-preview-dialog__image"
+            :src="url"
+            :alt="title"
+            @load="markMediaReady"
+            @error="handleImageError"
+          />
+          <div v-if="mediaLoading" class="material-preview-dialog__loading" role="status" aria-live="polite">
+            <IconLoading size="md" />
+            <span>加载预览中</span>
+          </div>
+        </div>
         <div v-else-if="kind === 'image'" class="material-preview-dialog__fallback">
           <IconImage size="lg" />
           <span>{{ title }}</span>
         </div>
-        <video
-          v-else-if="kind === 'video' && url"
-          class="material-preview-dialog__video"
-          :src="url"
-          controls
-          playsinline
-          preload="metadata"
-        ></video>
+        <div v-else-if="kind === 'video' && url" class="material-preview-dialog__media">
+          <video
+            class="material-preview-dialog__video"
+            :src="url"
+            controls
+            playsinline
+            preload="metadata"
+            @loadstart="markMediaLoading"
+            @loadedmetadata="markMediaReady"
+            @loadeddata="markMediaReady"
+            @canplay="markMediaReady"
+          ></video>
+          <div v-if="mediaLoading" class="material-preview-dialog__loading" role="status" aria-live="polite">
+            <IconLoading size="md" />
+            <span>加载预览中</span>
+          </div>
+        </div>
         <div v-else-if="kind === 'video'" class="material-preview-dialog__video-empty">
           <IconVideo size="lg" />
           <span>暂无可播放视频</span>
@@ -46,9 +73,12 @@
 </template>
 
 <script setup lang="ts">
-import { IconClose, IconImage, IconVideo } from "@/components/icons";
+import { computed, ref, watch } from "vue";
+import { IconClose, IconDownload, IconImage, IconLoading, IconVideo } from "@/components/icons";
+import { messageApi } from "@/composables/useMessage";
+import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
   kind: "storyboard" | "image" | "video";
   title: string;
@@ -61,6 +91,50 @@ const emit = defineEmits<{
   close: [];
   imageError: [];
 }>();
+
+const mediaLoadState = ref<"idle" | "loading" | "ready">("idle");
+const hasPreviewMedia = computed(() => props.open && Boolean(props.url) && (props.kind === "image" || props.kind === "video"));
+const mediaLoading = computed(() => hasPreviewMedia.value && mediaLoadState.value === "loading");
+const downloadUrl = computed(() => String(props.url ?? "").trim());
+const downloadMediaKind = computed<DownloadMediaKind>(() => props.kind === "image" || props.kind === "video" ? props.kind : "file");
+
+function markMediaLoading() {
+  if (hasPreviewMedia.value) {
+    mediaLoadState.value = "loading";
+  }
+}
+
+function markMediaReady() {
+  if (hasPreviewMedia.value) {
+    mediaLoadState.value = "ready";
+  }
+}
+
+function handleImageError() {
+  mediaLoadState.value = "ready";
+  emit("imageError");
+}
+
+async function handleDownload() {
+  try {
+    const result = await downloadMedia({ url: downloadUrl.value, title: props.title, mediaType: downloadMediaKind.value });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
+  }
+}
+
+watch(
+  () => [props.open, props.kind, props.url],
+  () => {
+    mediaLoadState.value = hasPreviewMedia.value ? "loading" : "idle";
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -107,6 +181,33 @@ const emit = defineEmits<{
   line-height: 1.35;
 }
 
+.material-preview-dialog__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.material-preview-dialog__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: var(--accent-blue);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.material-preview-dialog__download:hover {
+  background: rgba(99, 102, 241, 0.16);
+}
+
 .material-preview-dialog__close {
   display: grid;
   place-items: center;
@@ -125,6 +226,12 @@ const emit = defineEmits<{
   color: var(--accent-indigo);
 }
 
+.material-preview-dialog__media {
+  position: relative;
+  overflow: hidden;
+  background: #0f172a;
+}
+
 .material-preview-dialog__image,
 .material-preview-dialog__video {
   display: block;
@@ -140,6 +247,26 @@ const emit = defineEmits<{
 
 .material-preview-dialog__video {
   object-fit: contain;
+}
+
+.material-preview-dialog__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 260px;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.62);
+  color: #fff;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.material-preview-dialog__loading span {
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .material-preview-dialog__fallback,

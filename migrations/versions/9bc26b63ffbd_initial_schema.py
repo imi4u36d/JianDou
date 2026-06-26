@@ -567,7 +567,6 @@ def upgrade() -> None:
     op.create_table('sys_user',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False, comment='Internal numeric primary key.'),
     sa.Column('username', sa.String(length=64), nullable=False, comment='Unique normalized login name.'),
-    sa.Column('display_name', sa.String(length=128), nullable=False, comment='User-facing display name.'),
     sa.Column('password_hash', sa.String(length=255), nullable=False, comment='Password hash; never stores raw passwords.'),
     sa.Column('role', sa.String(length=16), nullable=False, comment='UserRole enum value: USER or ADMIN.'),
     sa.Column('status', sa.String(length=16), nullable=False, comment='UserStatus enum value: ACTIVE or DISABLED.'),

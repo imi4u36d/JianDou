@@ -53,13 +53,6 @@ class Settings(BaseSettings):
             "JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_USERNAME",
         ),
     )
-    bootstrap_admin_display_name: str = Field(
-        default="系统管理员",
-        validation_alias=AliasChoices(
-            "JIANDOU_BOOTSTRAP_ADMIN_DISPLAY_NAME",
-            "JIANDOU_AUTH_BOOTSTRAP_INITIAL_ADMIN_DISPLAY_NAME",
-        ),
-    )
     bootstrap_admin_password: str = Field(
         default=DEFAULT_BOOTSTRAP_ADMIN_PASSWORD,
         validation_alias=AliasChoices(

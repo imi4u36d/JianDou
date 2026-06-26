@@ -9,7 +9,7 @@ import logging
 from fastapi import APIRouter, Query, Request
 
 from backend.auth import get_current_user
-from backend.errors import bad_request, internal_error, not_found, unauthorized
+from backend.errors import bad_request, internal_error, not_found, payment_required, unauthorized
 from backend.schemas.common import MessageResponse
 from backend.schemas.task import (
     CreateGenerationTaskRequest,
@@ -20,6 +20,7 @@ from backend.schemas.task import (
     TaskDetailResponse,
     TaskListItemResponse,
 )
+from backend.services.credit_service import InsufficientCreditsError
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,8 @@ async def create_generation_task(body: CreateGenerationTaskRequest, request: Req
     user_id = await _uid(request)
     try:
         return await _svc(request).create_generation_task_for_user(user_id, body)
+    except InsufficientCreditsError:
+        raise payment_required()
     except ValueError as exc:
         raise bad_request(str(exc))
 

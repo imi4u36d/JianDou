@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
 
 class LoginRequest(BaseModel):
@@ -12,9 +12,6 @@ class AuthSessionResponse(BaseModel):
     user: dict | None = None
 
 class ActivateInviteRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     code: str
     username: str
-    display_name: str = Field(alias="displayName")
     password: str

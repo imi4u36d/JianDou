@@ -23,6 +23,7 @@ import yaml
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
 
 from backend.config import settings
 from backend.domain.generation_run import GenerationModelKinds
@@ -647,20 +648,39 @@ class ModelRuntimePropertiesResolver:
     ) -> str:
         if self._credential_provider is None:
             return ""
-        return _first_valid_secret(
-            self._credential_provider.find_runtime_api_key(
-                user_id, self._preferred_api_key_scopes(current, provider, vendor)
+        preferred_scopes = self._preferred_api_key_scopes(current, provider, vendor)
+        for credential_user_id in self._runtime_credential_user_ids(user_id):
+            api_key = _first_valid_secret(
+                self._credential_provider.find_runtime_api_key(credential_user_id, preferred_scopes)
             )
-        )
+            if api_key:
+                return api_key
+        return ""
 
     def _resolve_user_provider_config(
         self, current: ConfigSnapshot, user_id: int | None, provider: str, vendor: str
     ) -> RuntimeProviderConfig:
         if user_id is None or self._credential_provider is None:
             return RuntimeProviderConfig()
-        return self._credential_provider.find_runtime_provider_config(
-            user_id, self._preferred_api_key_scopes(current, provider, vendor)
-        )
+        preferred_scopes = self._preferred_api_key_scopes(current, provider, vendor)
+        merged = RuntimeProviderConfig()
+        for credential_user_id in reversed(self._runtime_credential_user_ids(user_id)):
+            config = self._credential_provider.find_runtime_provider_config(credential_user_id, preferred_scopes)
+            if config.base_url:
+                merged.base_url = config.base_url
+            if config.task_base_url:
+                merged.task_base_url = config.task_base_url
+            if config.extras:
+                merged.extras.update({key: value for key, value in config.extras.items() if _trim_to_empty(value)})
+        return merged
+
+    def _runtime_credential_user_ids(self, user_id: int) -> list[int]:
+        if self._credential_provider is None:
+            return [user_id]
+        if self._credential_provider.is_admin_user(user_id):
+            return [user_id]
+        default_user_id = self._credential_provider.find_global_default_user_id()
+        return [default_user_id] if default_user_id is not None else []
 
     def _preferred_api_key_scopes(
         self, current: ConfigSnapshot, provider: str, vendor: str
@@ -924,6 +944,12 @@ class RuntimeModelCredentialProvider:
 
     def find_runtime_provider_config(self, user_id: int, preferred_scopes: list[str]) -> RuntimeProviderConfig:
         return RuntimeProviderConfig()
+
+    def find_global_default_user_id(self) -> int | None:
+        return None
+
+    def is_admin_user(self, user_id: int) -> bool:
+        return False
 
 
 @dataclass
@@ -2019,6 +2045,55 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                 if _normalize(provider_key) == normalized:
                     return config
         return RuntimeProviderConfig()
+
+    def find_global_default_user_id(self) -> int | None:
+        username = _normalize(settings.bootstrap_admin_username)
+        if not username:
+            return None
+        try:
+            with self._engine.connect() as conn:
+                row = conn.execute(
+                    text(
+                        """
+                    select id
+                    from sys_user
+                    where lower(username) = :username
+                      and role = 'ADMIN'
+                      and status = 'ACTIVE'
+                    order by id asc
+                    limit 1
+                    """
+                    ),
+                    {"username": username},
+                ).fetchone()
+        except SQLAlchemyError:
+            return None
+        if row is None:
+            return None
+        try:
+            return int(row[0])
+        except (TypeError, ValueError):
+            return None
+
+    def is_admin_user(self, user_id: int) -> bool:
+        try:
+            with self._engine.connect() as conn:
+                row = conn.execute(
+                    text(
+                        """
+                    select 1
+                    from sys_user
+                    where id = :user_id
+                      and role = 'ADMIN'
+                      and status = 'ACTIVE'
+                    limit 1
+                    """
+                    ),
+                    {"user_id": user_id},
+                ).fetchone()
+        except SQLAlchemyError:
+            return False
+        return row is not None
 
     def find_api_keys_by_user_id(self, user_id: int) -> dict[str, str]:
         self._ensure_table()

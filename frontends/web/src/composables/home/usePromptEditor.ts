@@ -15,7 +15,11 @@ export interface ReferenceImageItem {
 // Composable
 // ---------------------------------------------------------------------------
 
-export function usePromptEditor(referenceImages: Ref<ReferenceImageItem[]>) {
+export interface UsePromptEditorOptions {
+  onMentionTrigger?: () => void;
+}
+
+export function usePromptEditor(referenceImages: Ref<ReferenceImageItem[]>, options: UsePromptEditorOptions = {}) {
   // ----- state -----
 
   const promptEditor = ref<HTMLDivElement | null>(null);
@@ -282,6 +286,9 @@ export function usePromptEditor(referenceImages: Ref<ReferenceImageItem[]>) {
       return;
     }
     syncPromptTextFromEditor();
+    if (event.inputType === "insertText" && event.data === "@") {
+      options.onMentionTrigger?.();
+    }
   }
 
   function handlePromptEditorFocus() {

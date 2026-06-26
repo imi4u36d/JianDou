@@ -31,7 +31,6 @@ def _session_payload(user: dict) -> AuthSessionResponse:
         user={
             "id": user["id"],
             "username": user["username"],
-            "displayName": user.get("displayName", ""),
             "role": user["role"],
         },
     )
@@ -45,14 +44,6 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
         user = await auth_service.login(payload.username, payload.password)
     except ValueError as exc:
         raise forbidden(str(exc))
-
-    if not user and payload.username.lower() == settings.bootstrap_admin_username.lower():
-        if payload.password == settings.bootstrap_admin_password:
-            user = await auth_service.ensure_bootstrap_admin(
-                settings.bootstrap_admin_username,
-                settings.bootstrap_admin_display_name,
-                settings.bootstrap_admin_password,
-            )
 
     if not user:
         raise unauthorized("invalid_credentials")
@@ -81,7 +72,6 @@ async def activate_invite(
         user = await auth_service.activate_invite(
             payload.code,
             payload.username,
-            payload.display_name,
             payload.password,
         )
     except ValueError as exc:

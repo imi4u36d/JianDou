@@ -57,11 +57,24 @@
               </g>
             </g>
           </svg>
-          <span class="home-brand-play__bridge">
-            <span class="home-brand-play__beam"></span>
-            <span class="home-brand-play__dot home-brand-play__dot-a"></span>
-            <span class="home-brand-play__dot home-brand-play__dot-b"></span>
-            <span class="home-brand-play__dot home-brand-play__dot-c"></span>
+          <span class="home-brand-play__collision"></span>
+          <span class="home-brand-play__burst">
+            <span class="home-brand-play__spark home-brand-play__spark-1"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-2"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-3"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-4"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-5"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-6"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-7"></span>
+            <span class="home-brand-play__spark home-brand-play__spark-8"></span>
+          </span>
+          <span class="home-brand-play__fall">
+            <span class="home-brand-play__fall-dot home-brand-play__fall-dot-1"></span>
+            <span class="home-brand-play__fall-dot home-brand-play__fall-dot-2"></span>
+            <span class="home-brand-play__fall-dot home-brand-play__fall-dot-3"></span>
+            <span class="home-brand-play__fall-dot home-brand-play__fall-dot-4"></span>
+            <span class="home-brand-play__fall-dot home-brand-play__fall-dot-5"></span>
+            <span class="home-brand-play__fall-dot home-brand-play__fall-dot-6"></span>
           </span>
         </span>
       </h1>
@@ -75,6 +88,17 @@
         }"
         @submit.prevent="submitComposer"
       >
+        <span class="home-composer__particle-loop" aria-hidden="true">
+          <span class="home-composer__runner home-composer__runner-left home-composer__runner-1"></span>
+          <span class="home-composer__runner home-composer__runner-left home-composer__runner-2"></span>
+          <span class="home-composer__runner home-composer__runner-left home-composer__runner-3"></span>
+          <span class="home-composer__runner home-composer__runner-left home-composer__runner-4"></span>
+          <span class="home-composer__runner home-composer__runner-right home-composer__runner-5"></span>
+          <span class="home-composer__runner home-composer__runner-right home-composer__runner-6"></span>
+          <span class="home-composer__runner home-composer__runner-right home-composer__runner-7"></span>
+          <span class="home-composer__runner home-composer__runner-right home-composer__runner-8"></span>
+          <span class="home-composer__annihilation"></span>
+        </span>
         <button
           type="button"
           class="home-composer__upload"
@@ -155,7 +179,7 @@
 
         <div class="home-composer__footer">
           <div class="home-composer__toolbar">
-            <div class="home-menu">
+            <div class="home-menu home-menu-hidden" aria-hidden="true">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'model' }" @click="toggleMenu('model')">
                 <span class="home-tool__icon"><IconModel /></span>
                 {{ selectedPrimaryModelLabel }}
@@ -230,7 +254,7 @@
               </transition>
             </div>
 
-            <div class="home-menu">
+            <div class="home-menu home-menu-hidden" aria-hidden="true">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'count' }" @click="toggleMenu('count')">
                 <span class="home-tool__icon"><IconFrame /></span>
                 {{ `${imageOutputCount} / 张` }}
@@ -261,17 +285,23 @@
               <transition name="home-popover-float">
                 <div v-if="activeMenu === 'mention'" class="home-popover home-popover-mention">
                   <p class="home-popover__label">引用</p>
-                  <button type="button" class="home-popover__item" @click="insertMention('创建主体')">
-                    <span class="home-popover__icon"><IconPlus size="sm" /></span>
+                  <button
+                    v-if="!referenceImages.length"
+                    type="button"
+                    class="home-popover__item home-popover__item-empty"
+                    :disabled="uploadingReference"
+                    @click="handleReferenceEntryClick"
+                  >
+                    <span class="home-popover__icon"><IconImage size="sm" /></span>
                     <span>
-                      <strong>创建主体</strong>
+                      <strong>上传一张图片来作为参考图</strong>
                     </span>
                   </button>
                   <button
                     v-for="item in referenceImages"
                     :key="item.id"
                     type="button"
-                    class="home-popover__item"
+                    class="home-popover__item home-popover__item-reference"
                     @click="insertMention(item.label)"
                   >
                     <span class="home-popover__image">
@@ -285,7 +315,7 @@
               </transition>
             </div>
 
-            <div class="home-menu">
+            <div class="home-menu home-menu-hidden" aria-hidden="true">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'seed' }" @click="toggleMenu('seed')">
                 <span class="home-tool__icon"><IconTag /></span>
                 {{ seedMode === "auto" ? "自动" : "手动" }}
@@ -312,14 +342,27 @@
           </div>
 
           <div class="home-composer__meta">
-            <span v-if="creditLabel" class="home-credit-pill" :class="{ 'home-credit-pill-exempt': credits?.exempt }">
+            <button
+              v-if="creditLabel"
+              type="button"
+              class="home-credit-pill"
+              :class="{ 'home-credit-pill-exempt': credits?.exempt }"
+              @click="openCreditDialog"
+            >
               {{ creditLabel }}
-            </span>
+            </button>
             <RouterLink v-if="createdTaskId" :to="{ name: 'tasks', query: { selected: createdTaskId } }">查看</RouterLink>
           </div>
         </div>
 
-        <button class="home-composer__submit" type="submit" :disabled="submitting || loadingOptions || !isFormReady" :title="submitLabel">
+        <button
+          class="home-composer__submit"
+          :class="{ 'home-composer__submit-submitting': submitting }"
+          type="submit"
+          :disabled="submitting || loadingOptions || !isFormReady"
+          :aria-busy="submitting"
+          :title="submitLabel"
+        >
           <svg v-if="!submitting" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 19V5" />
             <path d="m5 12 7-7 7 7" />
@@ -362,7 +405,6 @@
         </div>
       </RouterLink>
     </section>
-
   </main>
 </template>
 
@@ -378,6 +420,7 @@ import { usePromptEditor } from "@/composables/home/usePromptEditor";
 import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/useReferenceImages";
 import { useGenerationForm, type ModeOption, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
+import { openCreditDetailsDialog } from "@/composables/useCreditDialog";
 import { IconCheck, IconClose, IconImage, IconModel, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
 
 type MenuKey = "" | "model" | "ratio" | "count" | "mention" | "seed";
@@ -420,7 +463,9 @@ const {
   handlePromptEditorBeforeInput,
   handlePromptEditorKeydown,
   handlePromptEditorPaste,
-} = usePromptEditor(referenceImagesBridge);
+} = usePromptEditor(referenceImagesBridge, {
+  onMentionTrigger: openMentionMenuFromPrompt,
+});
 
 const {
   form,
@@ -508,6 +553,10 @@ function toggleMenu(menu: Exclude<MenuKey, "">) {
   activeMenu.value = activeMenu.value === menu ? "" : menu;
 }
 
+function openMentionMenuFromPrompt() {
+  activeMenu.value = "mention";
+}
+
 function handleDocumentPointerDown(event: PointerEvent) {
   if (!activeMenu.value) {
     return;
@@ -527,6 +576,17 @@ function handleDocumentKeydown(event: KeyboardEvent) {
 
 function selectRatio(value: RatioOptionValue) {
   form.value.aspectRatio = value;
+}
+
+async function openCreditDialog() {
+  const authenticated = await requireAuth({
+    title: "登录后查看积分",
+    message: "登录后可以查看积分余额、充值入口和使用明细。",
+  });
+  if (!authenticated) {
+    return;
+  }
+  openCreditDetailsDialog(credits.value);
 }
 
 // ---------------------------------------------------------------------------
@@ -671,8 +731,14 @@ onBeforeUnmount(() => {
 }
 
 .home-brand-play {
+  display: grid;
+  place-items: center;
   width: min(100%, 340px);
   min-height: 148px;
+  margin: 0;
+  color: var(--text-strong);
+  letter-spacing: 0;
+  line-height: 1;
 }
 
 .home-brand-play__stage {
@@ -702,8 +768,8 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 70% 70%, rgba(59, 130, 246, 0.18), transparent 38%),
     rgba(255, 255, 255, 0.48);
   filter: blur(1px);
-  transform: translateX(-50%);
   opacity: 0.72;
+  transform: translateX(-50%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   animation: home-brand-halo 4.8s ease-in-out infinite;
 }
@@ -719,9 +785,8 @@ onBeforeUnmount(() => {
   filter: drop-shadow(0 18px 28px rgba(99, 102, 241, 0.14));
   transform: translateX(-50%) scale(0.82);
   transform-origin: 50% 78%;
-  transition:
-    filter 220ms ease,
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: home-brand-mark-collision 4.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  transition: filter 220ms ease;
 }
 
 .home-brand-play__letter {
@@ -730,11 +795,11 @@ onBeforeUnmount(() => {
 }
 
 .home-brand-play__letter-j {
-  animation: home-brand-j-idle 4.8s ease-in-out infinite;
+  animation: home-brand-j-collision 4.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
 }
 
 .home-brand-play__letter-d {
-  animation: home-brand-d-idle 4.8s ease-in-out infinite;
+  animation: home-brand-d-collision 4.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
 }
 
 .home-brand-play__logo-shadow {
@@ -801,93 +866,167 @@ onBeforeUnmount(() => {
   stroke-width: 2;
 }
 
-.home-brand-play__bridge {
+.home-brand-play__collision,
+.home-brand-play__spark,
+.home-brand-play__fall-dot {
   position: absolute;
   left: 50%;
-  bottom: -12px;
-  z-index: 1;
   display: block;
-  width: 150px;
-  height: 66px;
   pointer-events: none;
-  transform: translateX(-50%);
 }
 
-.home-brand-play__beam {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 2px;
-  height: 60px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.56), rgba(59, 130, 246, 0));
+.home-brand-play__collision {
+  top: 65px;
+  z-index: 4;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.92) 0 10%, rgba(251, 191, 36, 0.42) 11% 20%, rgba(139, 92, 246, 0.24) 21% 42%, rgba(59, 130, 246, 0) 66%);
+  filter: blur(0.6px);
   opacity: 0;
-  transform: translateX(-50%) scaleY(0.24);
-  transform-origin: top;
-  transition:
-    opacity 220ms ease,
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate(-50%, -50%) scale(0.18);
+  animation: home-brand-collision-flash 4.8s ease-out infinite;
 }
 
-.home-brand-play__dot {
+.home-brand-play__burst,
+.home-brand-play__fall {
   position: absolute;
-  left: 50%;
-  top: 4px;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.38);
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.home-brand-play__spark {
+  top: 65px;
+  width: 9px;
+  height: 1.5px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, var(--particle-color), transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--particle-color) 56%, transparent);
   opacity: 0;
-  transform: translate(-50%, 0) scale(0.72);
+  transform: translate(-50%, -50%) scale(0.3);
+  animation: home-brand-spark-burst 4.8s cubic-bezier(0.2, 0.8, 0.25, 1) infinite;
 }
 
-.home-brand-play__dot-b {
-  animation-delay: 180ms;
+.home-brand-play__spark-1 {
+  --particle-color: #8b5cf6;
+  --spark-x: -46px;
+  --spark-y: -28px;
 }
 
-.home-brand-play__dot-c {
-  animation-delay: 360ms;
+.home-brand-play__spark-2 {
+  --particle-color: #3b82f6;
+  --spark-x: -26px;
+  --spark-y: -46px;
 }
 
-.home-brand-play-focused .home-brand-play__mark {
+.home-brand-play__spark-3 {
+  --particle-color: #06b6d4;
+  --spark-x: 0px;
+  --spark-y: -52px;
+}
+
+.home-brand-play__spark-4 {
+  --particle-color: #22c55e;
+  --spark-x: 30px;
+  --spark-y: -42px;
+}
+
+.home-brand-play__spark-5 {
+  --particle-color: #f97316;
+  --spark-x: 48px;
+  --spark-y: -20px;
+}
+
+.home-brand-play__spark-6 {
+  --particle-color: #ec4899;
+  --spark-x: 36px;
+  --spark-y: 18px;
+}
+
+.home-brand-play__spark-7 {
+  --particle-color: #facc15;
+  --spark-x: -10px;
+  --spark-y: 26px;
+}
+
+.home-brand-play__spark-8 {
+  --particle-color: #a855f7;
+  --spark-x: -40px;
+  --spark-y: 12px;
+}
+
+.home-brand-play__fall-dot {
+  top: 76px;
+  z-index: 5;
+  width: 12px;
+  height: 1.5px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, var(--particle-color), transparent);
+  box-shadow:
+    0 0 7px color-mix(in srgb, var(--particle-color) 56%, transparent),
+    0 0 12px rgba(99, 102, 241, 0.12);
+  opacity: 0;
+  transform: translate(-50%, 0) rotate(var(--fall-tilt)) scaleX(0.52);
+  animation: home-brand-particle-fall 4.8s cubic-bezier(0.18, 0.82, 0.34, 1) infinite;
+}
+
+.home-brand-play__fall-dot-1 {
+  --particle-color: #8b5cf6;
+  --fall-tilt: -18deg;
+  --fall-start-x: -30px;
+  --fall-land-x: -48px;
+  animation-delay: 20ms;
+}
+
+.home-brand-play__fall-dot-2 {
+  --particle-color: #3b82f6;
+  --fall-tilt: 14deg;
+  --fall-start-x: -16px;
+  --fall-land-x: -24px;
+  animation-delay: 90ms;
+}
+
+.home-brand-play__fall-dot-3 {
+  --particle-color: #06b6d4;
+  --fall-tilt: -10deg;
+  --fall-start-x: -2px;
+  --fall-land-x: -6px;
+  animation-delay: 160ms;
+}
+
+.home-brand-play__fall-dot-4 {
+  --particle-color: #22c55e;
+  --fall-tilt: 12deg;
+  --fall-start-x: 10px;
+  --fall-land-x: 12px;
+  animation-delay: 230ms;
+}
+
+.home-brand-play__fall-dot-5 {
+  --particle-color: #f97316;
+  --fall-tilt: -14deg;
+  --fall-start-x: 24px;
+  --fall-land-x: 32px;
+  animation-delay: 300ms;
+}
+
+.home-brand-play__fall-dot-6 {
+  --particle-color: #ec4899;
+  --fall-tilt: 18deg;
+  --fall-start-x: 38px;
+  --fall-land-x: 52px;
+  animation-delay: 370ms;
+}
+
+.home-brand-play-focused .home-brand-play__mark,
+.home-brand-play-active .home-brand-play__mark {
   filter: drop-shadow(0 20px 30px rgba(99, 102, 241, 0.2));
-  transform: translateX(-50%) translateY(5px) scale(0.84);
-}
-
-.home-brand-play-focused .home-brand-play__letter-j {
-  animation: home-brand-j-listen 1.8s ease-in-out infinite;
-}
-
-.home-brand-play-focused .home-brand-play__letter-d {
-  animation: home-brand-d-listen 1.8s ease-in-out infinite;
-}
-
-.home-brand-play-focused .home-brand-play__beam,
-.home-brand-play-active .home-brand-play__beam {
-  opacity: 1;
-  transform: translateX(-50%) scaleY(1);
-}
-
-.home-brand-play-active .home-brand-play__dot {
-  animation: home-brand-dot-flow 1.34s cubic-bezier(0.35, 0, 0.2, 1) infinite;
-}
-
-.home-brand-play-active .home-brand-play__letter-j {
-  animation: home-brand-j-compose 1.18s ease-in-out infinite;
-}
-
-.home-brand-play-active .home-brand-play__letter-d {
-  animation: home-brand-d-compose 1.18s ease-in-out infinite;
 }
 
 .home-brand-play-submitting .home-brand-play__mark {
-  animation: home-brand-submit 720ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
-}
-
-.home-brand-play-submitting .home-brand-play__beam {
-  opacity: 1;
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.82), rgba(59, 130, 246, 0));
+  animation-duration: 1.2s;
 }
 
 @keyframes home-brand-halo {
@@ -896,105 +1035,130 @@ onBeforeUnmount(() => {
     transform: translateX(-50%) scale(1);
     opacity: 0.62;
   }
-  50% {
-    transform: translateX(-50%) scale(1.04);
-    opacity: 0.86;
+  31% {
+    transform: translateX(-50%) scale(1.08);
+    opacity: 0.92;
+  }
+  58% {
+    transform: translateX(-50%) scale(1.02);
+    opacity: 0.78;
   }
 }
 
-@keyframes home-brand-j-idle {
+@keyframes home-brand-mark-collision {
   0%,
   100% {
-    transform: translateY(0) rotate(-1deg);
+    transform: translateX(-50%) scale(0.82);
   }
-  45% {
-    transform: translateY(-2px) rotate(1deg);
+  24% {
+    transform: translateX(-50%) scale(0.86);
+  }
+  31% {
+    transform: translateX(-50%) scale(0.9);
+  }
+  38% {
+    transform: translateX(-50%) scale(0.8);
+  }
+  54% {
+    transform: translateX(-50%) scale(0.83);
   }
 }
 
-@keyframes home-brand-d-idle {
+@keyframes home-brand-j-collision {
   0%,
   100% {
-    transform: translateY(0) rotate(1deg);
+    transform: translateX(0) rotate(-1deg);
   }
-  45% {
-    transform: translateY(-2px) rotate(-1deg);
+  20% {
+    transform: translateX(8px) rotate(3deg);
+  }
+  30% {
+    transform: translateX(17px) rotate(8deg) scale(1.04);
+  }
+  37% {
+    transform: translateX(-5px) rotate(-5deg) scale(0.98);
+  }
+  55% {
+    transform: translateX(1px) rotate(1deg);
   }
 }
 
-@keyframes home-brand-j-listen {
+@keyframes home-brand-d-collision {
   0%,
   100% {
-    transform: translate(0, 1px) rotate(2deg);
+    transform: translateX(0) rotate(1deg);
   }
-  50% {
-    transform: translate(2px, 4px) rotate(5deg);
+  20% {
+    transform: translateX(-8px) rotate(-3deg);
+  }
+  30% {
+    transform: translateX(-17px) rotate(-8deg) scale(1.04);
+  }
+  37% {
+    transform: translateX(5px) rotate(5deg) scale(0.98);
+  }
+  55% {
+    transform: translateX(-1px) rotate(-1deg);
   }
 }
 
-@keyframes home-brand-d-listen {
+@keyframes home-brand-collision-flash {
   0%,
-  100% {
-    transform: translate(0, 1px) rotate(-2deg);
-  }
-  50% {
-    transform: translate(-2px, 4px) rotate(-5deg);
-  }
-}
-
-@keyframes home-brand-j-compose {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(-1deg);
-  }
-  50% {
-    transform: translate(1px, -4px) rotate(3deg);
-  }
-}
-
-@keyframes home-brand-d-compose {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(1deg);
-  }
-  50% {
-    transform: translate(-1px, -4px) rotate(-3deg);
-  }
-}
-
-@keyframes home-brand-dot-flow {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, 0) scale(0.7);
-  }
-  18% {
-    opacity: 1;
-  }
+  26%,
+  47%,
   100% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--dot-x, 0px)), 58px) scale(0.42);
+    transform: translate(-50%, -50%) scale(0.18);
+  }
+  31% {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+  39% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.45);
   }
 }
 
-.home-brand-play__dot-a {
-  --dot-x: -24px;
-}
-
-.home-brand-play__dot-b {
-  --dot-x: 0px;
-}
-
-.home-brand-play__dot-c {
-  --dot-x: 24px;
-}
-
-@keyframes home-brand-submit {
+@keyframes home-brand-spark-burst {
   0%,
+  27%,
   100% {
-    transform: translateX(-50%) translateY(5px) scale(0.84);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.28);
   }
-  50% {
-    transform: translateX(-50%) translateY(-2px) scale(0.88);
+  31% {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+  43% {
+    opacity: 0.82;
+    transform: translate(calc(-50% + var(--spark-x)), calc(-50% + var(--spark-y))) rotate(var(--spark-tilt, 0deg)) scaleX(0.86);
+  }
+  58% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--spark-x)), calc(-50% + var(--spark-y) + 34px)) rotate(var(--spark-tilt, 0deg)) scaleX(0.2);
+  }
+}
+
+@keyframes home-brand-particle-fall {
+  0%,
+  34%,
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--fall-start-x)), 0) scale(0.5);
+  }
+  43% {
+    opacity: 0.72;
+    transform: translate(calc(-50% + var(--fall-start-x)), 14px) rotate(var(--fall-tilt)) scaleX(1);
+  }
+  61% {
+    opacity: 0.58;
+    transform: translate(calc(-50% + var(--fall-land-x)), 82px) rotate(var(--fall-tilt)) scaleX(0.78);
+  }
+  70% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--fall-land-x)), 106px) rotate(var(--fall-tilt)) scaleX(0.18);
   }
 }
 
@@ -1006,6 +1170,246 @@ onBeforeUnmount(() => {
   }
   92% {
     transform: scaleY(0.16);
+  }
+}
+
+.home-composer__particle-loop {
+  position: absolute;
+  inset: -2px;
+  z-index: 5;
+  overflow: visible;
+  border-radius: 20px;
+  pointer-events: none;
+}
+
+.home-composer__particle-loop::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.72), rgba(59, 130, 246, 0.62), transparent) top left / 42% 1px no-repeat,
+    linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.62), rgba(236, 72, 153, 0.66), transparent) bottom right / 46% 1px no-repeat,
+    linear-gradient(180deg, transparent, rgba(6, 182, 212, 0.58), transparent) left top / 1px 56% no-repeat,
+    linear-gradient(180deg, transparent, rgba(34, 197, 94, 0.5), transparent) right top / 1px 54% no-repeat;
+  filter: blur(0.15px);
+  opacity: 0;
+  animation: home-composer-border-shimmer 4.8s linear infinite;
+}
+
+.home-composer__runner {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 28px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--runner-color), transparent);
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--runner-color) 68%, transparent),
+    0 0 16px rgba(99, 102, 241, 0.18);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(0.68);
+  transform-origin: center;
+  animation-duration: 4.8s;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+
+.home-composer__runner-left {
+  animation-name: home-composer-run-left;
+}
+
+.home-composer__runner-right {
+  animation-name: home-composer-run-right;
+}
+
+.home-composer__runner-1 {
+  --runner-color: #8b5cf6;
+  animation-delay: 0ms;
+}
+
+.home-composer__runner-2 {
+  --runner-color: #3b82f6;
+  animation-delay: 95ms;
+}
+
+.home-composer__runner-3 {
+  --runner-color: #06b6d4;
+  animation-delay: 190ms;
+}
+
+.home-composer__runner-4 {
+  --runner-color: #22c55e;
+  animation-delay: 285ms;
+}
+
+.home-composer__runner-5 {
+  --runner-color: #f97316;
+  animation-delay: 45ms;
+}
+
+.home-composer__runner-6 {
+  --runner-color: #ec4899;
+  animation-delay: 140ms;
+}
+
+.home-composer__runner-7 {
+  --runner-color: #facc15;
+  animation-delay: 235ms;
+}
+
+.home-composer__runner-8 {
+  --runner-color: #a855f7;
+  animation-delay: 330ms;
+}
+
+.home-composer__annihilation {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 58px;
+  height: 4px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.82) 0 12%, rgba(250, 204, 21, 0.36) 13% 28%, rgba(99, 102, 241, 0.28) 29% 54%, rgba(99, 102, 241, 0) 76%);
+  filter: blur(0.8px);
+  opacity: 0;
+  transform: translateX(-50%) scale(0.2);
+  animation: home-composer-annihilation 4.8s ease-out infinite;
+}
+
+@keyframes home-composer-border-shimmer {
+  0%,
+  56%,
+  100% {
+    opacity: 0;
+    background-position:
+      top left,
+      bottom right,
+      left top,
+      right top;
+  }
+  62% {
+    opacity: 0.42;
+  }
+  76% {
+    opacity: 0.5;
+  }
+  94% {
+    opacity: 0.4;
+    background-position:
+      top right,
+      bottom left,
+      left bottom,
+      right bottom;
+  }
+}
+
+@keyframes home-composer-run-left {
+  0%,
+  57%,
+  100% {
+    left: 50%;
+    top: 0;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.52);
+  }
+  60% {
+    left: 50%;
+    top: 0;
+    opacity: 0.82;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(1);
+  }
+  70% {
+    left: 2px;
+    top: 0;
+    opacity: 0.78;
+    transform: translate(-50%, -50%) rotate(90deg) scaleX(0.9);
+  }
+  84% {
+    left: 2px;
+    top: 100%;
+    opacity: 0.7;
+    transform: translate(-50%, -50%) rotate(90deg) scaleX(0.9);
+  }
+  96% {
+    left: 50%;
+    top: 100%;
+    opacity: 0.82;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.82);
+  }
+  99% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.16);
+  }
+}
+
+@keyframes home-composer-run-right {
+  0%,
+  57%,
+  100% {
+    left: 50%;
+    top: 0;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.52);
+  }
+  60% {
+    left: 50%;
+    top: 0;
+    opacity: 0.82;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(1);
+  }
+  70% {
+    left: calc(100% - 2px);
+    top: 0;
+    opacity: 0.78;
+    transform: translate(-50%, -50%) rotate(-90deg) scaleX(0.9);
+  }
+  84% {
+    left: calc(100% - 2px);
+    top: 100%;
+    opacity: 0.7;
+    transform: translate(-50%, -50%) rotate(-90deg) scaleX(0.9);
+  }
+  96% {
+    left: 50%;
+    top: 100%;
+    opacity: 0.82;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.82);
+  }
+  99% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.16);
+  }
+}
+
+@keyframes home-composer-annihilation {
+  0%,
+  78% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.2);
+  }
+  86% {
+    opacity: 0.42;
+    transform: translateX(-50%) scale(0.58);
+  }
+  92% {
+    opacity: 0.82;
+    transform: translateX(-50%) scale(0.82);
+  }
+  96% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.18);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(2);
   }
 }
 
@@ -1041,8 +1445,8 @@ onBeforeUnmount(() => {
   height: 3px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.72), rgba(59, 130, 246, 0));
-  opacity: 0;
-  transform: scaleX(0.18);
+  opacity: 0.34;
+  transform: scaleX(0.86);
   transform-origin: center;
   transition:
     opacity 220ms ease,
@@ -1062,7 +1466,7 @@ onBeforeUnmount(() => {
 
 .home-composer-linked::before,
 .home-composer-active::before {
-  opacity: 1;
+  opacity: 0.86;
   transform: scaleX(1);
 }
 
@@ -1580,6 +1984,10 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
+.home-menu-hidden {
+  display: none;
+}
+
 .home-menu:has(.home-popover) {
   z-index: 40;
 }
@@ -1916,13 +2324,29 @@ onBeforeUnmount(() => {
   color: var(--text-strong);
   font-size: 0.76rem;
   font-weight: 800;
+  font-family: inherit;
   white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.home-credit-pill:hover,
+.home-credit-pill:focus-visible {
+  border-color: rgba(99, 102, 241, 0.22);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.12);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .home-credit-pill-exempt {
-  border-color: rgba(0, 150, 136, 0.18);
-  background: rgba(232, 247, 243, 0.9);
-  color: #087767;
+  border-color: rgba(59, 130, 246, 0.18);
+  background: rgba(238, 242, 255, 0.9);
+  color: var(--accent-blue);
 }
 
 .home-composer__submit {
@@ -1946,12 +2370,22 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 26px rgba(99, 102, 241, 0.2);
 }
 
-.home-composer__submit:disabled {
+.home-composer__submit-submitting,
+.home-composer__submit-submitting:disabled {
+  background: linear-gradient(135deg, var(--accent-indigo) 0%, var(--accent-blue) 100%);
+  color: #fff;
+  opacity: 1;
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.2);
+  cursor: wait;
+}
+
+.home-composer__submit:disabled:not(.home-composer__submit-submitting) {
   cursor: not-allowed;
   opacity: 0.42;
 }
 
-.home-composer__submit svg {
+.home-composer__submit svg,
+.home-composer__submit :deep(svg) {
   width: 18px;
   height: 18px;
 }
@@ -2096,11 +2530,11 @@ onBeforeUnmount(() => {
   }
 
   .home-hero {
-    gap: 18px;
+    gap: 0;
   }
 
   .home-brand-play {
-    min-height: 122px;
+    display: none;
   }
 
   .home-brand-play__stage {
@@ -2125,19 +2559,14 @@ onBeforeUnmount(() => {
     transform: translateX(-50%) translateY(4px) scale(0.8);
   }
 
-  .home-brand-play__bridge {
-    bottom: -14px;
-    height: 56px;
-  }
-
-  .home-brand-play__beam {
-    height: 50px;
-  }
-
   .home-composer {
     min-height: 0;
     padding: 18px 62px 18px 18px;
     border-radius: 18px;
+  }
+
+  .home-composer__particle-loop {
+    display: none;
   }
 
   .home-composer::before {

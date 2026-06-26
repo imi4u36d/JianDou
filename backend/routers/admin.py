@@ -186,7 +186,6 @@ async def admin_create_user(body: AdminCreateUserRequest, request: Request, db: 
         user = await auth_service.create_user(
             username=body.username,
             password=body.password,
-            display_name=body.display_name,
             role=body.role,
             status=body.status,
             task_concurrency_limit=body.task_concurrency_limit,
@@ -204,6 +203,8 @@ async def admin_get_user_model_config(user_id: int, request: Request, db: AsyncS
     user = await auth_service.get_user_by_id(user_id)
     if not user:
         raise not_found("user_not_found")
+    if user.get("role") != "ADMIN":
+        raise bad_request("普通用户不支持配置模型 Key")
     config_service = request.app.state.user_model_config_service
     return config_service.read(user_id)
 
@@ -221,6 +222,8 @@ async def admin_update_user_model_config_keys(
     user = await auth_service.get_user_by_id(user_id)
     if not user:
         raise not_found("user_not_found")
+    if user.get("role") != "ADMIN":
+        raise bad_request("普通用户不支持配置模型 Key")
     config_service = request.app.state.user_model_config_service
     provider_inputs = [
         ModelConfigKeyUpdateRequest.ProviderKeyInput(
@@ -361,8 +364,7 @@ async def admin_list_credit_rules(request: Request, db: AsyncSession = Depends(g
     return rules
 
 
-@router.patch("/credits/rules/{rule_code}")
-@router.patch("/credits/rules/{rule_id}", response_model=dict)
+@router.patch("/credits/rules/{rule_code}", response_model=dict)
 async def admin_update_credit_rule(
     rule_code: str,
     body: AdminUpdateCreditRuleRequest,

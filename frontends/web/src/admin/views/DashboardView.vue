@@ -93,8 +93,7 @@
             <el-table-column label="队列" min-width="180">
               <template #default="{ row }">
                 <div class="dashboard-page__task-cell">
-                  <strong>{{ row.ownerDisplayName || row.ownerUsername || "系统任务" }}</strong>
-                  <span>{{ row.ownerUsername || "system" }}</span>
+                  <strong>{{ row.ownerUsername }}</strong>
                 </div>
               </template>
             </el-table-column>

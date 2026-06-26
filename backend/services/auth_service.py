@@ -33,15 +33,6 @@ def validate_username(username: str) -> str:
     return normalized
 
 
-def validate_display_name(display_name: str) -> str:
-    normalized = display_name.strip() if display_name else ""
-    if not normalized:
-        raise ValueError("显示名不能为空")
-    if len(normalized) > 128:
-        raise ValueError("显示名长度不能超过 128 个字符")
-    return normalized
-
-
 def validate_password(password: str) -> str:
     normalized = password.strip() if password else ""
     if len(normalized) < 8 or len(normalized) > 72:
@@ -121,47 +112,6 @@ class AuthService:
 
         return self._to_user_dict(user)
 
-    async def ensure_bootstrap_admin(
-        self,
-        username: str,
-        display_name: str,
-        password: str,
-    ) -> dict:
-        """Create or restore the configured bootstrap admin as a real DB user."""
-        _username = validate_username(username)
-        _display_name = validate_display_name(display_name)
-        _password = validate_password(password)
-
-        result = await self.db.execute(select(SysUser).where(SysUser.username == _username))
-        user = result.scalar_one_or_none()
-        now = _now_str()
-        if user is None:
-            user = SysUser(
-                username=_username,
-                display_name=_display_name,
-                password_hash=hash_password(_password),
-                role=UserRole.ADMIN.value,
-                status=UserStatus.ACTIVE.value,
-                task_concurrency_limit=1,
-                created_at=now,
-                updated_at=now,
-            )
-            self.db.add(user)
-            await self.db.commit()
-            await self.db.refresh(user)
-            return self._to_user_dict(user)
-
-        values = {
-            "display_name": user.display_name or _display_name,
-            "role": UserRole.ADMIN.value,
-            "status": UserStatus.ACTIVE.value,
-            "password_hash": hash_password(_password),
-            "updated_at": now,
-        }
-        await self.db.execute(sa_update(SysUser).where(SysUser.id == user.id).values(**values))
-        await self.db.commit()
-        return await self.get_user_by_id(user.id) or self._to_user_dict(user)
-
     async def get_session_user(self, user_id: int) -> dict | None:
         """根据 ID 获取用户会话信息（含状态检查）。"""
         result = await self.db.execute(select(SysUser).where(SysUser.id == user_id))
@@ -184,13 +134,11 @@ class AuthService:
         self,
         username: str,
         password: str,
-        display_name: str = "",
         role: str = UserRole.USER.value,
         status: str = UserStatus.ACTIVE.value,
         task_concurrency_limit: int = 1,
     ) -> dict:
         _username = validate_username(username)
-        _display_name = validate_display_name(display_name)
         _password = validate_password(password)
         _role = normalize_user_role(role)
         _status = normalize_user_status(status)
@@ -206,7 +154,6 @@ class AuthService:
         pwd_hash = hash_password(_password)
         user = SysUser(
             username=_username,
-            display_name=_display_name,
             password_hash=pwd_hash,
             role=_role,
             status=_status,
@@ -231,10 +178,7 @@ class AuthService:
 
         conditions = []
         if keyword:
-            conditions.append(
-                SysUser.username.like(f"%{keyword}%")
-                | SysUser.display_name.like(f"%{keyword}%")
-            )
+            conditions.append(SysUser.username.like(f"%{keyword}%"))
         if _role:
             conditions.append(SysUser.role == _role)
         if _status:
@@ -268,7 +212,6 @@ class AuthService:
     async def update_user(self, user_id: int, updates: dict) -> dict | None:
         existing = await self._require_user(user_id)
 
-        display_name = updates.get("display_name")
         role = updates.get("role")
         status = updates.get("status")
         task_concurrency_limit = updates.get("task_concurrency_limit")
@@ -276,9 +219,6 @@ class AuthService:
             role = normalize_user_role(role)
         if status is not None:
             status = normalize_user_status(status)
-
-        if display_name is not None:
-            validate_display_name(display_name)
 
         # Admin guard
         if role is not None or status is not None:
@@ -289,8 +229,6 @@ class AuthService:
             )
 
         values = {}
-        if display_name is not None:
-            values["display_name"] = display_name
         if role is not None:
             values["role"] = role
         if status is not None:
@@ -445,11 +383,10 @@ class AuthService:
         return self._to_invite_dict(updated_invite) if updated_invite else None
 
     async def activate_invite(
-        self, code: str, username: str, display_name: str, password: str
+        self, code: str, username: str, password: str
     ) -> dict | None:
         _code = validate_invite_code(code)
         _username = validate_username(username)
-        _display_name = validate_display_name(display_name)
         _password = validate_password(password)
 
         # 查找邀请码
@@ -476,7 +413,6 @@ class AuthService:
         pwd_hash = hash_password(_password)
         user = SysUser(
             username=_username,
-            display_name=_display_name,
             password_hash=pwd_hash,
             role=invite.role,
             status=UserStatus.ACTIVE.value,
@@ -585,7 +521,6 @@ class AuthService:
         return {
             "id": user.id,
             "username": user.username,
-            "displayName": user.display_name,
             "role": user.role,
             "status": user.status,
             "taskConcurrencyLimit": user.task_concurrency_limit,
@@ -599,7 +534,6 @@ class AuthService:
         return {
             "id": user.id,
             "username": user.username,
-            "displayName": user.display_name,
             "role": user.role,
             "status": user.status,
             "taskConcurrencyLimit": user.task_concurrency_limit,

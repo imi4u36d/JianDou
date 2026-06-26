@@ -182,6 +182,23 @@ class TaskCommandService:
         enqueue_result = self.execution_coordinator.enqueue(task, "dispatch", "task.enqueued", "任务已加入执行队列。")
         mutation = self._merge_mutation(mutation, enqueue_result)
 
+        credit_feature_code = self._credit_feature_code(task.task_type)
+        if credit_feature_code:
+            from backend.services.credit_service import CreditService
+
+            try:
+                credit_charge = await CreditService(self.task_repository.session).charge(
+                    owner_user_id,
+                    credit_feature_code,
+                    task_id=task.id,
+                    reason="任务创建扣费",
+                    commit=False,
+                )
+            except Exception:
+                await self.task_repository.session.rollback()
+                raise
+            task.mutable_execution_context()["creditCharge"] = credit_charge
+
         # Save all mutation data
         await self.task_repository.save_mutation(mutation)
 
@@ -355,6 +372,15 @@ class TaskCommandService:
             return "image_to_image" if urls else "video_generation"
         valid_types = {"image_generation", "image_to_image", "character_sheet", "video_generation"}
         return normalized if normalized in valid_types else normalized
+
+    @staticmethod
+    def _credit_feature_code(task_type: str | None) -> str:
+        normalized = _trimmed(task_type, "")
+        if normalized == "video_generation":
+            return "VIDEO_GENERATION"
+        if normalized in {"image_generation", "image_to_image", "character_sheet"}:
+            return "IMAGE_GENERATION"
+        return ""
 
     @staticmethod
     def _normalized_asset_type(asset_type: str | None, task_type: str) -> str:

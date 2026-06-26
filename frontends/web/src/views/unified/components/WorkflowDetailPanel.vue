@@ -474,7 +474,7 @@
                           <button type="button" class="workflow-more-menu__trigger" :popovertarget="`wfd-vid-${version.id}`"><IconMore size="sm" /></button>
                           <div :id="`wfd-vid-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                             <button type="button" :disabled="!canSelectVideoVersion(version) || version.selected" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)"><IconCheck size="xs" /><span>设为当前</span></button>
-                            <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank"><IconDownload size="xs" /><span>下载</span></a>
+                            <button v-if="version.downloadUrl" type="button" @click="handleDownloadMedia(version.downloadUrl, stageVersionDisplayTitle(version), 'video')"><IconDownload size="xs" /><span>下载</span></button>
                             <button type="button" class="workflow-menu-danger" @click="handleDeleteStageVersion(version)"><IconDelete size="xs" /><span>删除</span></button>
                           </div>
                         </div>
@@ -511,7 +511,7 @@
               <div class="final-result-card-v2__meta">
                 <h4>{{ selectedWorkflow.finalResult.title }}</h4>
                 <span>{{ durationLabel(selectedWorkflow.finalResult.durationSeconds) }}</span>
-                <a class="btn-primary btn-sm" :href="selectedWorkflow.finalResult.fileUrl" download target="_blank"><IconDownload size="xs" /> 下载</a>
+                <button class="btn-primary btn-sm" type="button" @click="handleDownloadMedia(selectedWorkflow.finalResult.fileUrl, selectedWorkflow.finalResult.title, 'video')"><IconDownload size="xs" /> 下载</button>
               </div>
             </article>
             <div v-else class="workflow-empty workflow-empty-large">{{ canFinalize ? "可拼接" : `缺 ${videoReadiness.missing.length} 个镜头` }}</div>
@@ -566,6 +566,8 @@ import {
 } from "@/components/icons";
 import { useWorkflowDetail } from "../composables/useWorkflowDetail";
 import { useAutoPilot } from "@/composables/workflow/useAutoPilot";
+import { messageApi } from "@/composables/useMessage";
+import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 import { watch, computed, ref } from "vue";
 
 const props = defineProps<{
@@ -799,6 +801,19 @@ const {
   handleClearStageVersions,
   handleReuseAsset,
 } = detail;
+
+async function handleDownloadMedia(url: string, title: string, mediaType: DownloadMediaKind) {
+  try {
+    const result = await downloadMedia({ url, title, mediaType });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
+  }
+}
 </script>
 
 <style scoped>

@@ -32,7 +32,6 @@ async def test_admin_can_create_and_update_user_with_camel_case_payload(auth_cli
         "/api/v3/admin/users",
         json={
             "username": "reviewer",
-            "displayName": "Code Reviewer",
             "password": "reviewer123",
             "role": "USER",
             "status": "ACTIVE",
@@ -42,17 +41,36 @@ async def test_admin_can_create_and_update_user_with_camel_case_payload(auth_cli
     assert create_response.status_code == 200
     created = create_response.json()
     assert created["username"] == "reviewer"
-    assert created["displayName"] == "Code Reviewer"
     assert created["taskConcurrencyLimit"] == 3
 
     update_response = await auth_client.patch(
         f"/api/v3/admin/users/{created['id']}",
-        json={"displayName": "Updated Reviewer", "taskConcurrencyLimit": 5},
+        json={"taskConcurrencyLimit": 5},
     )
     assert update_response.status_code == 200
     updated = update_response.json()
-    assert updated["displayName"] == "Updated Reviewer"
     assert updated["taskConcurrencyLimit"] == 5
+
+
+async def test_admin_cannot_set_model_keys_for_regular_user(auth_client):
+    create_response = await auth_client.post(
+        "/api/v3/admin/users",
+        json={
+            "username": "keyless-user",
+            "password": "keyless123",
+            "role": "USER",
+            "status": "ACTIVE",
+        },
+    )
+    assert create_response.status_code == 200
+    user_id = create_response.json()["id"]
+
+    response = await auth_client.put(
+        f"/api/v3/admin/users/{user_id}/model-config/keys",
+        json={"providers": [{"key": "openai", "apiKey": "sk-user-key"}]},
+    )
+
+    assert response.status_code == 400
 
 
 async def test_admin_can_create_invite_with_expires_at(auth_client):
@@ -91,7 +109,6 @@ async def test_admin_can_adjust_user_credit_with_schema_payload(auth_client):
         "/api/v3/admin/users",
         json={
             "username": "credit-user",
-            "displayName": "Credit User",
             "password": "credit123",
             "role": "USER",
             "status": "ACTIVE",

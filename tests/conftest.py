@@ -1,13 +1,18 @@
 """Pytest configuration and fixtures."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from backend.auth import hash_password
 from backend.config import settings
 from backend.database import Base, get_db
+from backend.domain.enums import UserRole, UserStatus
+from backend.models.user import SysUser
 
 
 @pytest_asyncio.fixture
@@ -21,6 +26,20 @@ async def db_session_factory(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
 
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        now = datetime.now(UTC).isoformat()
+        admin = SysUser(
+            username=settings.bootstrap_admin_username,
+            password_hash=hash_password(settings.bootstrap_admin_password),
+            role=UserRole.ADMIN.value,
+            status=UserStatus.ACTIVE.value,
+            task_concurrency_limit=1,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(admin)
+        await session.commit()
+
     yield async_session
 
     await engine.dispose()

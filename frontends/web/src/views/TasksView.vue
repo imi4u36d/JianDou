@@ -223,14 +223,14 @@
             <RouterLink class="surface-chip detail-material-link" :to="materialLibraryLink">素材库</RouterLink>
           </div>
           <div class="detail-result-list">
-            <a v-for="item in selectedTaskResultItems" :key="`result-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">
+            <button v-for="item in selectedTaskResultItems" :key="`result-${item.url}`" type="button" @click="handleDownloadMedia(item.url, item.title)">
               <IconDownload size="xs" />
               <span>{{ item.title }}</span>
-            </a>
-            <a v-for="item in selectedTaskMaterialItems" :key="`material-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">
+            </button>
+            <button v-for="item in selectedTaskMaterialItems" :key="`material-${item.url}`" type="button" @click="handleDownloadMedia(item.url, item.title)">
               <IconDownload size="xs" />
               <span>{{ item.title }}</span>
-            </a>
+            </button>
           </div>
         </section>
 
@@ -291,6 +291,7 @@ import { usePolling } from "@/composables/usePolling";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { continueTask, deleteTask, fetchTask, fetchTaskTrace, fetchTasks, pauseTask, retryTask, terminateTask } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
+import { downloadMedia, inferMediaDownloadKind, type DownloadMediaKind } from "@/utils/download";
 import AppSelect from "@/components/common/AppSelect.vue";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
@@ -997,6 +998,20 @@ async function handleDelete(task: TaskListItem) {
     messageApi.error(error instanceof Error ? error.message : "删除任务失败");
   } finally {
     managingTaskId.value = "";
+  }
+}
+
+async function handleDownloadMedia(url: string, title: string, mediaType?: DownloadMediaKind) {
+  try {
+    const resolvedMediaType = mediaType ?? inferMediaDownloadKind(url);
+    const result = await downloadMedia({ url, title, mediaType: resolvedMediaType });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
   }
 }
 
@@ -2212,11 +2227,13 @@ onUnmounted(() => {
 }
 
 .detail-result-list a,
+.detail-result-list button,
 .detail-material-link {
   text-decoration: none;
 }
 
-.detail-result-list a {
+.detail-result-list a,
+.detail-result-list button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2229,20 +2246,24 @@ onUnmounted(() => {
   font-size: 0.82rem;
   font-weight: 800;
   border: 1px solid rgba(99, 102, 241, 0.12);
+  cursor: pointer;
 }
 
-.detail-result-list a:hover {
+.detail-result-list a:hover,
+.detail-result-list button:hover {
   background: #eef2ff;
   border-color: rgba(79, 70, 229, 0.24);
 }
 
-.detail-result-list a :deep(svg) {
+.detail-result-list a :deep(svg),
+.detail-result-list button :deep(svg) {
   flex: 0 0 auto;
   width: 14px;
   height: 14px;
 }
 
-.detail-result-list a span {
+.detail-result-list a span,
+.detail-result-list button span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

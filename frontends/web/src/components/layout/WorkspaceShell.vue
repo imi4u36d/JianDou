@@ -23,10 +23,10 @@
       </div>
 
       <section class="sidebar-account-zone">
-        <div class="sidebar-credit-card" :title="creditTitle">
+        <button class="sidebar-credit-card" type="button" :title="creditTitle" @click="openCreditDialog">
           <span class="sidebar-credit-card__label">积分</span>
           <strong>{{ creditValue }}</strong>
-        </div>
+        </button>
         <div ref="accountMenuRef" class="sidebar-account" @keydown.escape="closeUserMenu">
           <button
             class="sidebar-account__trigger"
@@ -55,14 +55,6 @@
               >
                 管理
               </a>
-              <button
-                v-if="currentUser"
-                class="sidebar-user-popover__link sidebar-user-popover__link--btn"
-                type="button"
-                @click="keyDialogOpen = true; closeUserMenu()"
-              >
-                Key
-              </button>
               <button v-if="currentUser" class="sidebar-user-popover__logout" type="button" @click="handleLogout">
                 退出
               </button>
@@ -80,7 +72,6 @@
         <RouterView />
       </main>
     </div>
-    <KeyManagementDialog v-model="keyDialogOpen" />
   </div>
 </template>
 
@@ -91,12 +82,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchCreditSummary } from "@/api/credits";
+import { requireAuth } from "@/auth/modal";
 import { getRuntimeConfig } from "@/api/runtime-config";
 import { logoutAndClearSession, useAuthSessionState } from "@/auth/session";
+import { openCreditDetailsDialog } from "@/composables/useCreditDialog";
 import type { CreditSummary } from "@/types";
 import { iconComponentMap } from "@/components/icons";
 import type { IconName } from "@/components/icons";
-import KeyManagementDialog from "@/components/KeyManagementDialog.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -109,9 +101,7 @@ const navItems: { to: string; label: string; icon: IconName }[] = [
   { to: "/materials", label: "素材", icon: "material" },
 ];
 
-const sidebarOpen = ref(false);
 const userMenuOpen = ref(false);
-const keyDialogOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
 const credits = ref<CreditSummary | null>(null);
 const creditsLoading = ref(false);
@@ -119,7 +109,7 @@ const creditsLoading = ref(false);
 const currentUser = computed(() => authState.user.value);
 const isAdmin = computed(() => authState.isAdmin.value);
 const avatarInitials = computed(() => {
-  const source = currentUser.value?.displayName || currentUser.value?.username || "JD";
+  const source = currentUser.value?.username || "JD";
   return source.slice(0, 2).toUpperCase();
 });
 const roleLabel = computed(() => {
@@ -131,7 +121,7 @@ const roleLabel = computed(() => {
   }
   return "未登录";
 });
-const accountTitle = computed(() => currentUser.value?.displayName || currentUser.value?.username || "未登录");
+const accountTitle = computed(() => currentUser.value?.username || "未登录");
 const accountMeta = computed(() => {
   if (!currentUser.value) {
     return "未登录";
@@ -193,6 +183,18 @@ async function loadCredits() {
   }
 }
 
+async function openCreditDialog() {
+  closeUserMenu();
+  const authenticated = await requireAuth({
+    title: "登录后查看积分",
+    message: "登录后可以查看积分余额、充值入口和使用明细。",
+  });
+  if (!authenticated) {
+    return;
+  }
+  openCreditDetailsDialog(credits.value);
+}
+
 function handleDocumentPointerDown(event: PointerEvent) {
   if (!userMenuOpen.value) {
     return;
@@ -222,7 +224,6 @@ onBeforeUnmount(() => {
 watch(
   () => route.fullPath,
   () => {
-    sidebarOpen.value = false;
     userMenuOpen.value = false;
     void loadCredits();
   },
@@ -246,6 +247,13 @@ watch(
   background: transparent;
   color: var(--text-strong);
   overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .workspace-shell {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 }
 
 .workspace-sidebar {
@@ -408,6 +416,21 @@ watch(
   background: rgba(255, 255, 255, 0.5);
   color: var(--text-strong);
   text-align: center;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.sidebar-credit-card:hover,
+.sidebar-credit-card:focus-visible {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .sidebar-credit-card__label {
@@ -600,6 +623,165 @@ watch(
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .workspace-shell {
+    flex-direction: column;
+  }
+
+  .workspace-sidebar {
+    width: 100%;
+    height: auto;
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+  }
+
+  .workspace-sidebar__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .workspace-sidebar__topbar {
+    flex: 0 0 auto;
+  }
+
+  .sidebar-brand {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+  }
+
+  .sidebar-brand__logo {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px;
+    scrollbar-width: none;
+  }
+
+  .sidebar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar-nav__item {
+    flex: 0 0 auto;
+    grid-auto-flow: column;
+    justify-content: center;
+    align-content: center;
+    width: auto;
+    min-width: 64px;
+    min-height: 40px;
+    gap: 5px;
+    padding: 0 10px;
+    border-radius: 13px;
+  }
+
+  .sidebar-nav__icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sidebar-nav__label {
+    max-width: none;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .sidebar-account-zone {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+
+  .sidebar-credit-card {
+    width: auto;
+    min-width: 42px;
+    min-height: 38px;
+    padding: 0 9px;
+    border-radius: 14px;
+  }
+
+  .sidebar-credit-card strong {
+    max-width: 44px;
+    font-size: 0.74rem;
+  }
+
+  .sidebar-account__trigger {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sidebar-account__avatar {
+    width: 31px;
+    height: 31px;
+    font-size: 0.68rem;
+  }
+
+  .sidebar-account__status {
+    right: 5px;
+    bottom: 5px;
+  }
+
+  .sidebar-user-popover {
+    left: auto;
+    right: 0;
+    top: 48px;
+    bottom: auto;
+    width: min(252px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
+
+  .sidebar-user-popover__name,
+  .sidebar-user-popover__meta {
+    max-width: min(164px, calc(100vw - 112px));
+  }
+
+  .workspace-main {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .workspace-sidebar {
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .sidebar-nav__item {
+    min-width: 56px;
+    padding: 0 8px;
+  }
+
+  .sidebar-credit-card {
+    min-width: 38px;
+    padding: 0 7px;
+  }
 }
 
 </style>

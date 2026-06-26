@@ -33,6 +33,21 @@ function normalizeRedirectTarget(value: unknown) {
 
 const authState = useAuthSessionState();
 
+function isGuestOnlyRoute(to: { matched: Array<{ meta: Record<string, unknown> }> }) {
+  return to.matched.some((record) => record.meta.guestOnly);
+}
+
+function routeRequiresAuth(to: { matched: Array<{ meta: Record<string, unknown> }> }) {
+  if (!to.matched.length || isGuestOnlyRoute(to)) {
+    return false;
+  }
+  return true;
+}
+
+function loginRedirectPath(path: string) {
+  return path.startsWith("/admin") ? "/admin/login" : "/login";
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -204,29 +219,21 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  const requiresSession = to.matched.some((record) => record.meta.requiresAuth || record.meta.requiresAdmin || record.meta.guestOnly);
+  const requiresAuth = routeRequiresAuth(to);
+  const requiresSession = requiresAuth || isGuestOnlyRoute(to);
   if (requiresSession) {
     await ensureAuthSession();
   }
   const isAuthenticated = authState.isAuthenticated.value;
   const isAdmin = authState.isAdmin.value;
-  const guestOnly = to.matched.some((record) => record.meta.guestOnly);
-  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const guestOnly = isGuestOnlyRoute(to);
   const requiresAdmin = to.matched.some((record) => record.meta.requiresAdmin);
   if (guestOnly && isAuthenticated) {
     return normalizeRedirectTarget(to.query.redirect);
   }
   if (requiresAuth && !isAuthenticated) {
     return {
-      path: "/login",
-      query: {
-        redirect: to.fullPath
-      }
-    };
-  }
-  if (requiresAdmin && !isAuthenticated) {
-    return {
-      path: "/admin/login",
+      path: loginRedirectPath(to.path),
       query: {
         redirect: to.fullPath
       }
