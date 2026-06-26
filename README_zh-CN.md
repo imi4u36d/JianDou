@@ -23,6 +23,12 @@
 
 上传小说章节、粘贴正文或输入提示词 — JianDou 通过一条可配置的 AI 模型链路（文本、视觉、关键帧、视频）将文字变成视频。每个阶段均可独立选择厂商和模型版本，完全掌控生成流水线。
 
+## 项目截图
+
+| 图片生成工作台 | 任务列表与轮询视图 | 管理后台概览 |
+|---|---|---|
+| ![煎豆图片生成工作台](docs/screenshots/jiandou-home.png) | ![煎豆任务列表](docs/screenshots/jiandou-tasks.png) | ![煎豆管理后台概览](docs/screenshots/jiandou-admin.png) |
+
 ## 核心特性
 
 **灵活输入**
@@ -47,7 +53,7 @@
 
 **安全与部署**
 - 认证接口限流、来源校验、API Key 加密存储。
-- Docker 优先部署，自动数据库迁移和健康检查。
+- Docker Compose 部署，包含 app、MySQL 8.0、Redis 7、自动迁移、初始化 seed 和健康检查。
 - 通过环境变量和 YAML 文件进行全面配置。
 
 ## 架构
@@ -77,17 +83,16 @@
 # 1. 准备环境
 cp .env.docker.example .env.docker
 
-# 2. 构建并运行
-docker build -t jiandou .
-docker run -d -p 8100:8000 \
-  --env-file .env.docker \
-  -v ./config:/app/config \
-  -v ./data:/app/data \
-  -v ./storage:/app/storage \
-  jiandou
+# 2. 构建并启动 app + MySQL + Redis
+docker compose up --build
 ```
 
-镜像在容器内监听 `8000` 端口，启动时自动执行数据库迁移。设置 `JIANDOU_AUTO_MIGRATE=false` 可跳过自动迁移。
+Docker Compose 会启动：
+- `app`：访问 http://localhost:8100
+- `mysql:8.0`：数据库名 `jiandou`
+- `redis:7-alpine`：用于共享限流和短 TTL API 缓存
+
+app 容器启动时会自动执行 Alembic 迁移和 seed 初始化。设置 `JIANDOU_AUTO_MIGRATE=false` 可跳过自动迁移和 seed。
 
 ### 方式二：本地开发
 
@@ -148,6 +153,9 @@ config/model/
 |---|---|---|
 | `JIANDOU_SERVER_PORT` | 后端监听端口 | `8100` |
 | `JIANDOU_DATABASE_URL` | 数据库连接字符串 | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_REDIS_URL` | Docker/生产环境 Redis 连接字符串 | — |
+| `JIANDOU_CACHE_BACKEND` | API 缓存后端：`memory` 或 `redis` | `memory` |
+| `JIANDOU_RATE_LIMIT_BACKEND` | 认证限流后端：`memory` 或 `redis` | `memory` |
 | `JIANDOU_SECRET_KEY` | JWT 签名密钥 | （必须设置） |
 | `JIANDOU_WEB_ORIGIN` | 前端来源（CORS） | `http://127.0.0.1:8100` |
 | `JIANDOU_TRUSTED_ORIGINS` | 额外可信来源（逗号分隔） | — |
@@ -187,7 +195,7 @@ npx vitest run --coverage
 
 ### 后端
 
-后端使用 **FastAPI + SQLAlchemy + Alembic**，SQLite 通过 aiosqlite 驱动。
+后端使用 **FastAPI + SQLAlchemy + Alembic**。本地默认仍使用 SQLite + aiosqlite；Docker 和生产部署支持 MySQL + asyncmy。
 
 ```bash
 # 代码检查（ruff）
@@ -204,7 +212,7 @@ uv run pytest -m "not slow" # 跳过慢速测试
 
 # 导出 OpenAPI 模式
 uv run jiandou openapi --output docs/openapi.json
-
+```
 
 ### 验证
 

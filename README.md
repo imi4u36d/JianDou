@@ -23,6 +23,12 @@
 
 Upload novel chapters, paste text, or enter a prompt — JianDou turns your words into video through a chain of configurable AI models (text, visual, keyframe, and video). Each stage can be independently assigned to different providers and model versions, giving you full control over the generation pipeline.
 
+## Screenshots
+
+| Image generation workspace | Task list and polling view | Admin overview |
+|---|---|---|
+| ![JianDou image generation workspace](docs/screenshots/jiandou-home.png) | ![JianDou task list](docs/screenshots/jiandou-tasks.png) | ![JianDou admin overview](docs/screenshots/jiandou-admin.png) |
+
 ## Key Features
 
 **Flexible Input**
@@ -47,7 +53,7 @@ Upload novel chapters, paste text, or enter a prompt — JianDou turns your word
 
 **Security & Deployment**
 - Rate limiting on auth endpoints, origin validation, encrypted API key storage.
-- Docker-first deployment with automatic database migrations and health checks.
+- Docker Compose deployment with app, MySQL 8.0, Redis 7, automatic migrations, seed data, and health checks.
 - Comprehensive configuration via environment variables and YAML files.
 
 ## Architecture
@@ -77,17 +83,16 @@ Each pipeline stage is independently configurable with its own provider and mode
 # 1. Prepare environment
 cp .env.docker.example .env.docker
 
-# 2. Build and run
-docker build -t jiandou .
-docker run -d -p 8100:8000 \
-  --env-file .env.docker \
-  -v ./config:/app/config \
-  -v ./data:/app/data \
-  -v ./storage:/app/storage \
-  jiandou
+# 2. Build and run app + MySQL + Redis
+docker compose up --build
 ```
 
-The image exposes port `8000` inside the container and runs database migrations on startup. Set `JIANDOU_AUTO_MIGRATE=false` to skip automatic migration.
+Docker Compose starts:
+- `app` on http://localhost:8100
+- `mysql:8.0` with database `jiandou`
+- `redis:7-alpine` for shared rate limiting and short-lived API cache
+
+The app container runs Alembic migrations and seed data on startup. Set `JIANDOU_AUTO_MIGRATE=false` to skip automatic migration and seeding.
 
 ### Option 2: Local Development
 
@@ -148,6 +153,9 @@ Key variables:
 |---|---|---|
 | `JIANDOU_SERVER_PORT` | Backend listen port | `8100` |
 | `JIANDOU_DATABASE_URL` | Database connection string | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_REDIS_URL` | Redis connection string for Docker/production | — |
+| `JIANDOU_CACHE_BACKEND` | API cache backend: `memory` or `redis` | `memory` |
+| `JIANDOU_RATE_LIMIT_BACKEND` | Auth rate limit backend: `memory` or `redis` | `memory` |
 | `JIANDOU_SECRET_KEY` | JWT signing key | (must be set) |
 | `JIANDOU_WEB_ORIGIN` | Frontend origin for CORS | `http://127.0.0.1:8100` |
 | `JIANDOU_TRUSTED_ORIGINS` | Additional trusted origins (comma-separated) | — |
@@ -186,7 +194,7 @@ See [docs/frontend-architecture.md](docs/frontend-architecture.md) for the monor
 
 ### Backend
 
-The backend is built with **FastAPI + SQLAlchemy + Alembic**, using SQLite via aiosqlite.
+The backend is built with **FastAPI + SQLAlchemy + Alembic**. SQLite via aiosqlite remains the local default; MySQL via asyncmy is supported for Docker and production deployments.
 
 ```bash
 # Backend dev server with hot-reload

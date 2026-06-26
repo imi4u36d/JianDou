@@ -23,6 +23,12 @@
 
 小説の章をアップロード、テキストを貼り付け、またはプロンプトを入力 — JianDou は設定可能なAIモデルチェーン（テキスト、ビジュアル、キーフレーム、ビデオ）を通じてテキストをビデオに変換します。各ステージはプロバイダーとモデルバージョンを個別に選択でき、生成パイプラインを完全に制御できます。
 
+## スクリーンショット
+
+| 画像生成ワークスペース | タスクリストとポーリングビュー | 管理コンソール概要 |
+|---|---|---|
+| ![JianDou 画像生成ワークスペース](docs/screenshots/jiandou-home.png) | ![JianDou タスクリスト](docs/screenshots/jiandou-tasks.png) | ![JianDou 管理コンソール概要](docs/screenshots/jiandou-admin.png) |
+
 ## 主な機能
 
 **柔軟な入力**
@@ -47,7 +53,7 @@
 
 **セキュリティとデプロイメント**
 - 認証エンドポイントのレート制限、オリジン検証、API キーの暗号化ストレージ。
-- 自動データベースマイグレーションとヘルスチェックを備えた Docker ファーストのデプロイメント。
+- app、MySQL 8.0、Redis 7、自動マイグレーション、seed データ、ヘルスチェックを含む Docker Compose デプロイメント。
 - 環境変数とYAMLファイルによる包括的な設定。
 
 ## アーキテクチャ
@@ -77,17 +83,16 @@
 # 1. 環境の準備
 cp .env.docker.example .env.docker
 
-# 2. ビルドして実行
-docker build -t jiandou .
-docker run -d -p 8100:8000 \
-  --env-file .env.docker \
-  -v ./config:/app/config \
-  -v ./data:/app/data \
-  -v ./storage:/app/storage \
-  jiandou
+# 2. app + MySQL + Redis をビルドして起動
+docker compose up --build
 ```
 
-イメージはコンテナ内でポート `8000` をリッスンし、起動時にデータベースマイグレーションを実行します。自動マイグレーションをスキップするには `JIANDOU_AUTO_MIGRATE=false` を設定してください。
+Docker Compose は以下を起動します：
+- `app`：http://localhost:8100
+- `mysql:8.0`：データベース名 `jiandou`
+- `redis:7-alpine`：共有レート制限と短時間 API キャッシュ用
+
+app コンテナは起動時に Alembic マイグレーションと seed データ投入を実行します。自動マイグレーションと seed をスキップするには `JIANDOU_AUTO_MIGRATE=false` を設定してください。
 
 ### 方法2：ローカル開発
 
@@ -148,6 +153,9 @@ config/model/
 |---|---|---|
 | `JIANDOU_SERVER_PORT` | バックエンドのリッスンポート | `8100` |
 | `JIANDOU_DATABASE_URL` | データベース接続文字列 | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_REDIS_URL` | Docker/本番環境向け Redis 接続文字列 | — |
+| `JIANDOU_CACHE_BACKEND` | API キャッシュバックエンド：`memory` または `redis` | `memory` |
+| `JIANDOU_RATE_LIMIT_BACKEND` | 認証レート制限バックエンド：`memory` または `redis` | `memory` |
 | `JIANDOU_SECRET_KEY` | JWT 署名キー | （必須設定） |
 | `JIANDOU_WEB_ORIGIN` | フロントエンドオリジン（CORS） | `http://127.0.0.1:8100` |
 | `JIANDOU_TRUSTED_ORIGINS` | 追加の信頼オリジン（カンマ区切り） | — |
@@ -186,7 +194,7 @@ npx vitest run --coverage
 
 ### バックエンド
 
-バックエンドは **FastAPI + SQLAlchemy + Alembic** で構築され、aiosqlite 経由で SQLite を使用します。
+バックエンドは **FastAPI + SQLAlchemy + Alembic** で構築されています。ローカル既定は SQLite + aiosqlite のままですが、Docker と本番環境では MySQL + asyncmy を利用できます。
 
 ```bash
 # リント（ruff）
@@ -203,7 +211,7 @@ uv run pytest -m "not slow" # 遅いテストをスキップ
 
 # OpenAPI スキーマのエクスポート
 uv run jiandou openapi --output docs/openapi.json
-
+```
 
 ### 検証
 
