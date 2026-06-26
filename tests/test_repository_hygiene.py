@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 
@@ -7,6 +8,11 @@ import pytest
 
 pytestmark = pytest.mark.integration
 from pathlib import Path
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from backend.database import Base
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,8 +30,6 @@ FORBIDDEN_TRACKED_PREFIXES = (
 
 FORBIDDEN_TRACKED_SUFFIXES = (
     ".db",
-    ".sqlite",
-    ".sqlite3",
     ".egg-info/PKG-INFO",
 )
 
@@ -79,10 +83,17 @@ def test_release_check_runs_all_release_facing_gates() -> None:
     assert '"release:check": "sh scripts/release-check.sh"' in package_json
 
 
-def test_alembic_migrations_apply_to_fresh_sqlite(tmp_path) -> None:
-    db_path = tmp_path / "jiandou-migration-test.db"
+def test_alembic_migrations_apply_to_configured_database() -> None:
+    database_url = os.environ.get("JIANDOU_TEST_DATABASE_URL", "").strip()
+    if not database_url:
+        pytest.skip("Set JIANDOU_TEST_DATABASE_URL to run migration integration checks.")
+    if "test" not in database_url.lower():
+        pytest.skip("JIANDOU_TEST_DATABASE_URL must point at a disposable test database.")
+
+    _reset_database(database_url)
+
     env = os.environ.copy()
-    env["JIANDOU_DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+    env["JIANDOU_DATABASE_URL"] = database_url
 
     subprocess.run(
         ["uv", "run", "alembic", "upgrade", "head"],
@@ -98,12 +109,28 @@ def test_alembic_migrations_apply_to_fresh_sqlite(tmp_path) -> None:
     )
 
 
+def _reset_database(database_url: str) -> None:
+    async def reset() -> None:
+        import backend.models  # noqa: F401
+
+        engine = create_async_engine(database_url, echo=False)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+                await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(reset())
+
+
 def test_ci_runs_release_facing_quality_gates() -> None:
     workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     for expected in [
         "uv run ruff check backend tests migrations",
         "uv run pytest",
+        "JIANDOU_TEST_DATABASE_URL",
         "uv run alembic upgrade head",
         "uv run jiandou openapi --output docs/openapi.json",
         "uv build",

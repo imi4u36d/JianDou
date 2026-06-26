@@ -11,10 +11,17 @@
       <AppIcon v-else :name="item.kind === 'workflow' ? 'workflow' : 'task'" size="sm" />
     </span>
     <span class="unified-list-item__body">
-      <span class="unified-list-item__title">{{ item.title }}</span>
-      <span class="unified-list-item__meta">
-        <span class="unified-list-item__status" :class="`unified-list-item__status-${statusTone}`">{{ statusLabel }}</span>
-        <time :datetime="item.updatedAt || item.createdAt || undefined">{{ compactTime }}</time>
+      <span class="unified-list-item__title-row">
+        <span
+          class="unified-list-item__title"
+          :title="item.title"
+        >
+          <span class="unified-list-item__title-text">{{ item.title }}</span>
+        </span>
+        <span class="unified-list-item__meta">
+          <span class="unified-list-item__status" :class="`unified-list-item__status-${statusTone}`">{{ statusLabel }}</span>
+          <time class="unified-list-item__meta-tag" :datetime="item.updatedAt || item.createdAt || undefined">{{ compactTime }}</time>
+        </span>
       </span>
       <span class="unified-list-item__progress" aria-hidden="true"><i :style="{ width: `${item.progress}%` }"></i></span>
     </span>
@@ -28,7 +35,6 @@
       >
         <IconDelete size="xs" />
       </button>
-      <strong>{{ item.progress }}%</strong>
     </span>
   </button>
 </template>
@@ -118,7 +124,7 @@ const compactTime = computed(() => {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 0;
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -155,12 +161,22 @@ const compactTime = computed(() => {
 
 .unified-list-item__body {
   display: grid;
-  gap: 3px;
+  gap: 7px;
   min-width: 0;
   flex: 1;
 }
 
+.unified-list-item__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .unified-list-item__title {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-strong);
@@ -169,10 +185,21 @@ const compactTime = computed(() => {
   text-overflow: ellipsis;
 }
 
+.unified-list-item__title-text {
+  display: inline-block;
+  min-width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  will-change: transform;
+}
+
 .unified-list-item__meta {
   display: flex;
+  flex: 0 0 auto;
   gap: 6px;
   align-items: center;
+  min-width: 0;
   font-size: 0.72rem;
   color: var(--text-muted);
 }
@@ -182,6 +209,22 @@ const compactTime = computed(() => {
   border-radius: 4px;
   background: var(--bg-softer);
   font-weight: 600;
+}
+
+.unified-list-item__meta-tag,
+.unified-list-item__status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 22px;
+  max-width: none;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .unified-list-item__status-active { color: var(--accent-indigo); font-weight: 600; }
@@ -206,13 +249,11 @@ const compactTime = computed(() => {
 }
 
 .unified-list-item__side {
-  flex-shrink: 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
 }
 
 .unified-list-item__delete {
@@ -227,16 +268,9 @@ const compactTime = computed(() => {
   color: var(--text-muted);
   cursor: pointer;
   flex-shrink: 0;
-  opacity: 0;
   transition:
-    opacity 150ms ease,
     background 150ms ease,
     color 150ms ease;
-}
-
-.unified-list-item:hover .unified-list-item__delete,
-.unified-list-item-active .unified-list-item__delete {
-  opacity: 1;
 }
 
 .unified-list-item__delete:hover {

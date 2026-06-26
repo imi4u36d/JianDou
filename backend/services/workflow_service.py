@@ -145,6 +145,27 @@ class WorkflowService:
             raise RuntimeError("generation service not configured")
         return self._generation_service
 
+    def _material_thumbnail_url(
+        self,
+        media_type: str,
+        public_url: str,
+        candidate_image_urls: list[str] | None = None,
+    ) -> str:
+        if self._media_service is None or not public_url:
+            return ""
+        try:
+            return trim(
+                self._media_service.ensure_media_thumbnail(
+                    media_type,
+                    public_url,
+                    candidate_image_urls or [],
+                    480,
+                )
+            )
+        except Exception as ex:
+            logger.warning("Failed to generate %s thumbnail for workflow material: %s", media_type, ex)
+            return ""
+
     async def _validate_generation_models(
         self,
         owner_user_id: int,
@@ -848,6 +869,7 @@ class WorkflowService:
             origin_provider=trim(start_frame_metadata.get("provider")),
             origin_model=trim(start_frame_metadata.get("providerModel")),
             remote_url=start_frame_remote_url,
+            thumbnail_url=self._material_thumbnail_url("image", start_frame_output_url),
             metadata={
                 "runId": start_frame_gen_result_id,
                 "prompt": prompt,
@@ -1099,6 +1121,7 @@ class WorkflowService:
             origin_provider=trim(image_metadata.get("provider")),
             origin_model=trim(image_metadata.get("providerModel")),
             remote_url=image_remote_url,
+            thumbnail_url=self._material_thumbnail_url("image", image_output_url),
             metadata={
                 "runId": gen_result_id,
                 "prompt": prompt,
@@ -1368,6 +1391,11 @@ class WorkflowService:
                 origin_provider=trim(video_result.metadata.get("provider")),
                 origin_model=trim(video_result.metadata.get("providerModel")),
                 remote_task_id=video_result.remote_task_id,
+                thumbnail_url=self._material_thumbnail_url(
+                    "video",
+                    video_result.output_url,
+                    [video_result.preview_url, first_frame_url, last_frame_url],
+                ),
                 metadata={
                     "runId": video_result.run_id,
                     "prompt": prompt,
@@ -1548,6 +1576,7 @@ class WorkflowService:
             width=0,
             height=0,
             duration_seconds=total_duration,
+            thumbnail_url=self._material_thumbnail_url("video", public_url),
             metadata={
                 "sourceVideoVersionIds": [v.stage_version_id for v in selected_videos],
                 "note": metadata_note,
@@ -1910,6 +1939,7 @@ class WorkflowService:
                         origin_model=refresh_result.origin_model,
                         remote_task_id=refresh_result.remote_task_id,
                         remote_url=refresh_result.remote_source_url,
+                        thumbnail_url=self._material_thumbnail_url("video", refresh_result.output_url),
                         metadata={
                             "runId": run_id,
                             "taskId": refresh_result.remote_task_id,

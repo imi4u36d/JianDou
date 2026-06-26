@@ -10,6 +10,24 @@ on:
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: jiandou_test
+          MYSQL_USER: jiandou
+          MYSQL_PASSWORD: jiandou
+          MYSQL_ROOT_PASSWORD: jiandou-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ujiandou -pjiandou"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      JIANDOU_DATABASE_URL: mysql+asyncmy://jiandou:jiandou@127.0.0.1:3306/jiandou_test?charset=utf8mb4
+      JIANDOU_TEST_DATABASE_URL: mysql+asyncmy://jiandou:jiandou@127.0.0.1:3306/jiandou_test?charset=utf8mb4
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -32,10 +50,7 @@ jobs:
         run: uv run pytest
 
       - name: Verify database migrations
-        run: |
-          TMP_DB=$(mktemp -t jiandou.XXXXXX.db)
-          JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head
-          rm -f "$TMP_DB"
+        run: uv run alembic upgrade head
 
       - name: Export OpenAPI schema
         run: uv run jiandou openapi --output docs/openapi.json

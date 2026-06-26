@@ -160,7 +160,7 @@ config/model/
 | 变量 | 说明 | 默认值 |
 |---|---|---|
 | `JIANDOU_SERVER_PORT` | 后端监听端口 | `8100` |
-| `JIANDOU_DATABASE_URL` | 数据库连接字符串 | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_DATABASE_URL` | 数据库连接字符串 | `mysql+asyncmy://jiandou:jiandou@127.0.0.1:3306/jiandou?charset=utf8mb4` |
 | `JIANDOU_REDIS_URL` | Docker/生产环境 Redis 连接字符串 | — |
 | `JIANDOU_CACHE_BACKEND` | API 缓存后端：`memory` 或 `redis` | `memory` |
 | `JIANDOU_RATE_LIMIT_BACKEND` | 认证限流后端：`memory` 或 `redis` | `memory` |
@@ -203,7 +203,7 @@ npx vitest run --coverage
 
 ### 后端
 
-后端使用 **FastAPI + SQLAlchemy + Alembic**。本地默认仍使用 SQLite + aiosqlite；Docker 和生产部署支持 MySQL + asyncmy。
+后端使用 **FastAPI + SQLAlchemy + Alembic**。运行时数据库统一使用 MySQL + asyncmy。
 
 ```bash
 # 代码检查（ruff）
@@ -228,10 +228,8 @@ uv run jiandou openapi --output docs/openapi.json
 # 完整测试套件（后端 lint + 测试 + 前端类型检查）
 npm test
 
-# 验证迁移在空白临时数据库上可用
-TMP_DB=$(mktemp -t jiandou.XXXXXX.db) && \
-  JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head && \
-  rm -f "$TMP_DB"
+# 验证迁移在配置的测试数据库上可用
+JIANDOU_DATABASE_URL="$JIANDOU_TEST_DATABASE_URL" uv run alembic upgrade head
 
 # 包类型检查
 npm run packages:typecheck

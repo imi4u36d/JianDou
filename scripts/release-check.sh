@@ -10,9 +10,8 @@ trap cleanup EXIT INT TERM
 
 npm test
 
-TMP_DB=$(mktemp -t jiandou.XXXXXX.db)
-JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head
-rm -f "$TMP_DB"
+: "${JIANDOU_TEST_DATABASE_URL:?Set JIANDOU_TEST_DATABASE_URL before running release checks.}"
+JIANDOU_DATABASE_URL="$JIANDOU_TEST_DATABASE_URL" uv run alembic upgrade head
 
 npm run packages:typecheck
 npm run web:typecheck

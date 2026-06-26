@@ -5,11 +5,12 @@ import pytest
 
 pytestmark = pytest.mark.integration
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.infrastructure.task_repository import TaskRepository
 from backend.models.log import BizRequestLog
+from backend.models.public_share import BizPublicShare, BizPublicShareLike
 from backend.models.task import (
     BizMaterialAsset,
     BizTask,
@@ -22,6 +23,8 @@ from backend.models.task import (
     BizWorkerInstance,
 )
 from backend.models.workflow import BizStageVersion, BizStageWorkflow
+
+_CONSTRAINT_ERROR = (IntegrityError, OperationalError)
 
 
 def _task_row(**overrides):
@@ -213,6 +216,40 @@ def _material_asset_row(**overrides):
     return BizMaterialAsset(**row)
 
 
+def _public_share_row(**overrides):
+    row = {
+        "share_id": "share_constraints",
+        "owner_user_id": 1,
+        "material_asset_id": "asset_constraints",
+        "source_type": "material",
+        "source_id": "asset_constraints",
+        "media_type": "image",
+        "title": "Share",
+        "status": "ACTIVE",
+        "like_count": 0,
+        "create_time": "2026-01-01T00:00:00+00:00",
+        "update_time": "2026-01-01T00:00:00+00:00",
+        "is_deleted": 0,
+        "remark": "",
+    }
+    row.update(overrides)
+    return BizPublicShare(**row)
+
+
+def _public_share_like_row(**overrides):
+    row = {
+        "like_id": "like_constraints",
+        "share_id": "share_constraints",
+        "user_id": 1,
+        "create_time": "2026-01-01T00:00:00+00:00",
+        "update_time": "2026-01-01T00:00:00+00:00",
+        "is_deleted": 0,
+        "remark": "",
+    }
+    row.update(overrides)
+    return BizPublicShareLike(**row)
+
+
 def _request_log_row(**overrides):
     row = {
         "request_log_id": "request_log_constraints",
@@ -249,21 +286,21 @@ def _request_log_row(**overrides):
 async def test_task_rejects_unknown_status(db_session):
     db_session.add(_task_row(status="MYSTERY"))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_task_rejects_progress_out_of_range(db_session):
     db_session.add(_task_row(task_id="task_bad_progress", progress=101))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_task_rejects_invalid_duration_range(db_session):
     db_session.add(_task_row(task_id="task_bad_duration", min_duration_seconds=12, max_duration_seconds=5))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -297,7 +334,7 @@ async def test_workflow_rejects_unknown_status(db_session):
         )
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -331,7 +368,7 @@ async def test_stage_version_rejects_out_of_range_rating(db_session):
         )
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -358,7 +395,7 @@ async def test_task_attempt_rejects_unknown_status(db_session):
         )
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -388,7 +425,7 @@ async def test_task_stage_run_rejects_unknown_status(db_session):
         )
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -423,69 +460,69 @@ async def test_task_repository_normalizes_legacy_stage_run_status(db_session):
 async def test_task_status_history_rejects_progress_out_of_range(db_session):
     db_session.add(_status_history_row(progress=101))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_task_model_call_rejects_invalid_success_flag(db_session):
     db_session.add(_model_call_row(success=2))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_task_model_call_rejects_negative_token_count(db_session):
     db_session.add(_model_call_row(task_model_call_id="model_call_bad_tokens", input_tokens=-1))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_request_log_rejects_blank_request_type(db_session):
     db_session.add(_request_log_row(request_type="   "))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_request_log_rejects_invalid_success_flag(db_session):
     db_session.add(_request_log_row(request_log_id="request_log_bad_success", success=2))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_request_log_rejects_negative_duration_and_http_status(db_session):
     db_session.add(_request_log_row(request_log_id="request_log_bad_duration", duration_ms=-1))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
     await db_session.rollback()
     db_session.add(_request_log_row(request_log_id="request_log_bad_http", http_status=-1))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_request_log_rejects_invalid_soft_delete_flag(db_session):
     db_session.add(_request_log_row(request_log_id="request_log_bad_delete", is_deleted=2))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_task_result_rejects_negative_media_dimensions(db_session):
     db_session.add(_result_row(width=-1))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_task_result_rejects_negative_duration(db_session):
     db_session.add(_result_row(task_result_id="result_bad_duration", duration_seconds=-0.1))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -509,7 +546,7 @@ async def test_queue_event_rejects_unknown_event_type(db_session):
         )
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
@@ -534,26 +571,57 @@ async def test_worker_instance_rejects_unknown_status(db_session):
         )
     )
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_material_asset_rejects_out_of_range_rating(db_session):
     db_session.add(_material_asset_row(user_rating=6))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_material_asset_rejects_invalid_selected_flag(db_session):
     db_session.add(_material_asset_row(material_asset_id="asset_bad_selected", selected_for_next=2))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()
 
 
 async def test_material_asset_rejects_negative_size(db_session):
     db_session.add(_material_asset_row(material_asset_id="asset_bad_size", size_bytes=-1))
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(_CONSTRAINT_ERROR):
+        await db_session.commit()
+
+
+async def test_public_share_rejects_invalid_status(db_session):
+    db_session.add(_public_share_row(status="PUBLISHED"))
+
+    with pytest.raises(_CONSTRAINT_ERROR):
+        await db_session.commit()
+
+
+async def test_public_share_rejects_negative_like_count(db_session):
+    db_session.add(_public_share_row(share_id="share_bad_like_count", material_asset_id="asset_bad_like_count", like_count=-1))
+
+    with pytest.raises(_CONSTRAINT_ERROR):
+        await db_session.commit()
+
+
+async def test_public_share_like_rejects_duplicate_share_user(db_session):
+    db_session.add_all([
+        _public_share_like_row(like_id="like_constraints_1"),
+        _public_share_like_row(like_id="like_constraints_2"),
+    ])
+
+    with pytest.raises(_CONSTRAINT_ERROR):
+        await db_session.commit()
+
+
+async def test_public_share_like_rejects_invalid_deleted_flag(db_session):
+    db_session.add(_public_share_like_row(like_id="like_bad_deleted", is_deleted=2))
+
+    with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()

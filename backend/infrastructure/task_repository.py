@@ -57,6 +57,26 @@ def _stage_run_status(value: Any) -> str:
     return status.value if status is not None else StageRunStatus.FAILED.value
 
 
+def _first_non_blank(*values: Any) -> str:
+    for value in values:
+        normalized = string_value(value).strip()
+        if normalized:
+            return normalized
+    return ""
+
+
+def _material_public_url_from_row(row: BizMaterialAsset) -> str:
+    return _first_non_blank(row.public_url, row.remote_url, row.third_party_url)
+
+
+def _material_public_url_from_payload(row: dict[str, Any]) -> str:
+    return _first_non_blank(row.get("publicUrl"), row.get("fileUrl"), row.get("remoteUrl"), row.get("thirdPartyUrl"))
+
+
+def _material_thumbnail_url_from_payload(row: dict[str, Any]) -> str:
+    return _first_non_blank(row.get("thumbnailUrl"), row.get("previewUrl"))
+
+
 # ---------------------------------------------------------------------------
 # Mapping helpers: TaskRecord <-> BizTask
 # ---------------------------------------------------------------------------
@@ -108,8 +128,8 @@ def _biz_task_from_record(record: TaskRecord) -> BizTask:
 
 def _material_from_row(row: BizMaterialAsset) -> dict[str, Any]:
     metadata = read_json_object(row.metadata_json)
-    file_url = row.public_url or row.remote_url or ""
-    preview_url = row.thumbnail_url or row.public_url or row.remote_url or ""
+    public_url = _material_public_url_from_row(row)
+    thumbnail_url = row.thumbnail_url or ""
     return {
         "id": row.material_asset_id,
         "materialAssetId": row.material_asset_id,
@@ -145,19 +165,20 @@ def _material_from_row(row: BizMaterialAsset) -> dict[str, Any]:
         "hasAudio": bool(row.has_audio),
         "storagePath": row.local_storage_path or "",
         "localFilePath": row.local_file_path or "",
-        "fileUrl": file_url,
-        "previewUrl": preview_url,
-        "thumbnailUrl": row.thumbnail_url or "",
-        "thirdPartyUrl": row.third_party_url or "",
-        "remoteUrl": row.remote_url or "",
+        "publicUrl": public_url,
+        "fileUrl": public_url,
+        "previewUrl": thumbnail_url,
+        "thumbnailUrl": thumbnail_url,
+        "thirdPartyUrl": "",
+        "remoteUrl": "",
         "metadata": metadata,
         "createdAt": row.captured_at or row.create_time or "",
     }
 
 
 def _material_from_row_without_metadata(row: BizMaterialAsset) -> dict[str, Any]:
-    file_url = row.public_url or row.remote_url or ""
-    preview_url = row.thumbnail_url or row.public_url or row.remote_url or ""
+    public_url = _material_public_url_from_row(row)
+    thumbnail_url = row.thumbnail_url or ""
     return {
         "id": row.material_asset_id,
         "materialAssetId": row.material_asset_id,
@@ -193,11 +214,12 @@ def _material_from_row_without_metadata(row: BizMaterialAsset) -> dict[str, Any]
         "hasAudio": bool(row.has_audio),
         "storagePath": row.local_storage_path or "",
         "localFilePath": row.local_file_path or "",
-        "fileUrl": file_url,
-        "previewUrl": preview_url,
-        "thumbnailUrl": row.thumbnail_url or "",
-        "thirdPartyUrl": row.third_party_url or "",
-        "remoteUrl": row.remote_url or "",
+        "publicUrl": public_url,
+        "fileUrl": public_url,
+        "previewUrl": thumbnail_url,
+        "thumbnailUrl": thumbnail_url,
+        "thirdPartyUrl": "",
+        "remoteUrl": "",
         "metadata": {},
         "createdAt": row.captured_at or row.create_time or "",
     }
@@ -1744,10 +1766,10 @@ class TaskRepository:
             "has_audio": 1 if bool(row.get("hasAudio")) else 0,
             "local_storage_path": string_value(row.get("storagePath", "")) or None,
             "local_file_path": string_value(row.get("localFilePath", row.get("storagePath", ""))) or None,
-            "public_url": string_value(row.get("fileUrl", row.get("publicUrl", ""))) or None,
-            "thumbnail_url": string_value(row.get("thumbnailUrl", row.get("previewUrl", ""))) or None,
-            "third_party_url": string_value(row.get("thirdPartyUrl", "")) or None,
-            "remote_url": string_value(row.get("remoteUrl", "")) or None,
+            "public_url": _material_public_url_from_payload(row) or None,
+            "thumbnail_url": _material_thumbnail_url_from_payload(row) or None,
+            "third_party_url": None,
+            "remote_url": None,
             "metadata_json": write_json_object(metadata),
             "captured_at": string_value(row.get("capturedAt", row.get("createdAt", now))) or None,
             "timezone_offset_minutes": _optional_int(row.get("timezoneOffsetMinutes")),

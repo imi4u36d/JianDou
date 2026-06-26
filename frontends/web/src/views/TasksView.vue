@@ -42,8 +42,8 @@
       <div v-else-if="filteredTasks.length === 0" class="tasks-empty-board">
         <h3>{{ isFilterActive ? "没有匹配任务" : "暂无任务" }}</h3>
         <div class="tasks-empty-board__actions">
-          <button v-if="isFilterActive" class="btn-warning" type="button" @click="clearFilters">清空筛选</button>
-          <RouterLink to="/workspace" class="btn-secondary">返回工作台</RouterLink>
+          <button v-if="isFilterActive" class="jd-button jd-button--warning" type="button" @click="clearFilters">清空筛选</button>
+          <RouterLink to="/workspace" class="jd-button jd-button--secondary">返回工作台</RouterLink>
         </div>
       </div>
 
@@ -65,11 +65,19 @@
               <AppIcon v-else :name="taskTypeIcon(task)" size="sm" />
             </span>
             <span class="task-list__main">
-              <span class="task-list__title">{{ task.title || "未命名任务" }}</span>
-              <span class="task-list__meta">
-                <span>{{ taskTypeLabel(task) }}</span>
-                <span class="task-list__status" :class="`task-list__status-${taskStatusTone(task.status)}`">{{ formatTaskStatus(task.status) }}</span>
-                <time :datetime="task.updatedAt || task.createdAt || undefined">{{ formatCompactDateTime(task.updatedAt || task.createdAt) }}</time>
+              <span class="task-list__title-row">
+                <span
+                  class="task-list__title"
+                  :class="{ 'task-list__title-scrollable': isScrollableTaskTitle(task.title) }"
+                  :title="task.title || '未命名任务'"
+                >
+                  <span class="task-list__title-text">{{ task.title || "未命名任务" }}</span>
+                </span>
+                <span class="task-list__meta">
+                  <span class="task-list__meta-tag">{{ taskTypeLabel(task) }}</span>
+                  <span class="task-list__status" :class="`task-list__status-${taskStatusTone(task.status)}`">{{ formatTaskStatus(task.status) }}</span>
+                  <time class="task-list__meta-tag" :datetime="task.updatedAt || task.createdAt || undefined">{{ formatCompactDateTime(task.updatedAt || task.createdAt) }}</time>
+                </span>
               </span>
               <span class="task-list__progress" aria-hidden="true"><i :style="{ width: `${taskProgress(task)}%` }"></i></span>
             </span>
@@ -115,8 +123,9 @@
             <h2 id="task-detail-title">{{ selectedTask?.title || "任务详情" }}</h2>
             <div class="task-detail-header__meta">
               <span class="surface-chip">{{ selectedTaskTypeLabel }}</span>
-              <span class="surface-chip" :title="selectedTaskId">{{ selectedTaskShortId }}</span>
-            <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
+              <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
+              <span class="surface-chip">{{ selectedTaskHeaderAspectRatio }}</span>
+              <span class="surface-chip">{{ selectedTaskJoinProgressPercent }}%</span>
               <span v-if="selectedTaskLoading" class="surface-chip surface-chip-loading">
                 <IconRefresh size="xs" />
               </span>
@@ -128,27 +137,27 @@
         </header>
 
         <div class="detail-actions" aria-label="任务操作">
-          <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+          <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
             <IconRefresh size="xs" />
             刷新
           </button>
-          <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+          <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
             <IconRefresh size="xs" />
             重试
           </button>
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
-            <span class="detail-action-btn__pause" aria-hidden="true"></span>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+            <span class="jd-button__pause" aria-hidden="true"></span>
             暂停
           </button>
-          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
             <IconRefresh size="xs" />
             继续
           </button>
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm jd-button--warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
             <IconWarning size="xs" />
             终止
           </button>
-          <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+          <button v-if="selectedTaskActionTask" class="jd-button jd-button--sm jd-button--danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
             <IconDelete size="xs" />
             删除
           </button>
@@ -199,22 +208,6 @@
             </div>
           </section>
 
-          <section class="detail-section detail-section-card">
-            <div class="detail-section__head">
-              <h3>请求参数</h3>
-              <span class="surface-chip">{{ selectedTaskDurationModeLabel }}</span>
-            </div>
-            <div class="detail-params">
-              <div v-for="item in selectedTaskCompactParameterRows" :key="item.label" class="detail-params__row">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-            <div v-if="selectedTaskTranscriptPreview" class="detail-note-block">
-              <span>Prompt</span>
-              <p>{{ selectedTaskTranscriptPreview }}</p>
-            </div>
-          </section>
         </div>
 
         <section v-if="selectedTaskResultItems.length || selectedTaskMaterialItems.length" class="detail-section detail-section-card">
@@ -298,17 +291,8 @@ import type { AppSelectOption } from "@/components/common/app-select";
 import { AppIcon, IconChevronDown, IconClose, IconDelete, IconDownload, IconRefresh, IconWarning, type IconName } from "@/components/icons";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import {
-  formatTaskDurationMode,
-  formatTaskModelValue,
-  formatTaskOutputCount,
-  formatTaskRequestedDuration,
-  formatTaskResolvedDuration,
   formatTaskSeed,
-  formatTaskStopBeforeVideoGeneration,
-  formatTaskTranscriptSummary,
-  getTaskResolutionRow,
   getTaskRequestSnapshot,
-  previewTaskTranscript,
 } from "@/utils/task-request";
 import { formatTaskStatus } from "@/utils/task";
 import { formatDateTime as formatCompactDateTime, getTaskStatusMeta } from "@/utils/presentation";
@@ -451,8 +435,6 @@ const selectedTaskActionTask = computed(() => selectedTaskDetail.value ?? select
 
 const selectedTaskTypeLabel = computed(() => taskTypeLabel(selectedTask.value));
 
-const selectedTaskShortId = computed(() => compactIdentifier(selectedTaskId.value, 8));
-
 const selectedTaskStageLabel = computed(() => {
   if (selectedTaskDetail.value) {
     return formatTaskStatus(selectedTaskDetail.value.status);
@@ -465,9 +447,11 @@ const selectedTaskStageLabel = computed(() => {
 
 const selectedTaskRequestSnapshot = computed(() => getTaskRequestSnapshot(selectedTaskDetail.value));
 
-const selectedTaskDurationModeLabel = computed(() => formatTaskDurationMode(selectedTaskRequestSnapshot.value));
-
-const selectedTaskTranscriptPreview = computed(() => previewTaskTranscript(selectedTaskRequestSnapshot.value));
+const selectedTaskHeaderAspectRatio = computed(() => {
+  const task = selectedTask.value;
+  const snapshotAspectRatio = selectedTaskRequestSnapshot.value.aspectRatio;
+  return String(snapshotAspectRatio || task?.aspectRatio || "").trim() || "未设置";
+});
 
 const selectedReferenceImageCount = computed(() => {
   const snapshotCount = listValue(selectedTaskDetail.value?.requestSnapshot?.referenceImageUrls).length;
@@ -488,10 +472,6 @@ const selectedTaskSeedLabel = computed(() => {
   return formatTaskSeed(selectedTaskRequestSnapshot.value);
 });
 
-const selectedTaskCompactParameterRows = computed(() => {
-  return selectedTaskParameterRows.value.slice(0, 6);
-});
-
 const selectedTaskJoinProgressPercent = computed(() => {
   const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
   if (status === "COMPLETED") {
@@ -499,27 +479,6 @@ const selectedTaskJoinProgressPercent = computed(() => {
   }
   const progress = selectedTaskDetail.value?.progress ?? selectedTaskSummary.value?.progress ?? 0;
   return Math.max(0, Math.min(100, Math.round(progress)));
-});
-
-const selectedTaskParameterRows = computed(() => {
-  const task = selectedTaskDetail.value;
-  if (!task) {
-    return [];
-  }
-  const snapshot = selectedTaskRequestSnapshot.value;
-  return [
-    { label: "文本模型", value: formatTaskModelValue(snapshot.textAnalysisModel) },
-    { label: "关键帧模型", value: formatTaskModelValue(snapshot.imageModel) },
-    { label: "视频模型", value: formatTaskModelValue(snapshot.videoModel) },
-    getTaskResolutionRow(snapshot, task.executionContext),
-    { label: "输出数量", value: formatTaskOutputCount(snapshot) },
-    { label: "请求时长", value: formatTaskRequestedDuration(snapshot) },
-    { label: "生效时长", value: formatTaskResolvedDuration(task) },
-    { label: "任务种子", value: selectedTaskSeedLabel.value },
-    { label: "提前停止视频生成", value: formatTaskStopBeforeVideoGeneration(snapshot) },
-    { label: "文本输入", value: formatTaskTranscriptSummary(snapshot) },
-    { label: "画幅比例", value: formatTaskModelValue(snapshot.aspectRatio || task.aspectRatio) },
-  ];
 });
 
 const selectedTaskMonitoringRows = computed(() => {
@@ -588,7 +547,7 @@ const selectedTaskMaterialItems = computed(() => {
   }
   const rows: Array<{ title: string; url: string }> = [];
   for (const material of detail.materials ?? []) {
-    const url = firstNonBlank(material.fileUrl, material.previewUrl);
+    const url = firstNonBlank(material.publicUrl, material.fileUrl);
     if (url) {
       rows.push({ title: material.title || material.id || "任务素材", url });
     }
@@ -1139,6 +1098,10 @@ function taskTypeIcon(task?: Pick<TaskListItem, "taskType"> & { requestSnapshot?
   }
 }
 
+function isScrollableTaskTitle(title?: string | null) {
+  return (title || "未命名任务").trim().length > 12;
+}
+
 function firstNonBlank(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const normalized = String(value ?? "").trim();
@@ -1453,6 +1416,7 @@ onUnmounted(() => {
 }
 
 .task-list__item {
+  --task-title-max-width: clamp(7.5rem, 42%, 12.5rem);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1460,7 +1424,7 @@ onUnmounted(() => {
   min-height: 66px;
   padding: 8px 10px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 0;
   background: transparent;
   color: var(--text-strong);
   transition:
@@ -1501,7 +1465,7 @@ onUnmounted(() => {
 .task-list__main-button:focus-visible {
   outline: 2px solid rgba(79, 70, 229, 0.34);
   outline-offset: 5px;
-  border-radius: 12px;
+  border-radius: 0;
 }
 
 .task-list__type-badge {
@@ -1541,12 +1505,24 @@ onUnmounted(() => {
 
 .task-list__main {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
 }
 
-.task-list__title {
+.task-list__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  overflow: hidden;
+}
+
+.task-list__title {
+  display: block;
+  width: var(--task-title-max-width);
+  max-width: var(--task-title-max-width);
+  min-width: 0;
+  flex: 0 1 auto;
   font-size: 0.94rem;
   font-weight: 760;
   white-space: nowrap;
@@ -1554,17 +1530,70 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
+.task-list__title-text {
+  display: inline-block;
+  min-width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  will-change: transform;
+}
+
+.task-list__title-scrollable:hover .task-list__title-text {
+  max-width: none;
+  overflow: visible;
+  animation: task-title-marquee 4.8s ease-in-out infinite alternate;
+}
+
+@keyframes task-title-marquee {
+  0%,
+  18% {
+    transform: translateX(0);
+  }
+
+  82%,
+  100% {
+    transform: translateX(min(0px, calc(-100% + var(--task-title-max-width))));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-list__title-scrollable:hover .task-list__title-text {
+    animation: none;
+    transform: none;
+  }
+}
+
 .task-list__meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 8px;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
   align-items: center;
+  min-width: 0;
   color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 720;
+  overflow: hidden;
+}
+
+.task-list__meta-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  max-width: 8rem;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-list__meta time {
+  max-width: 7.6rem;
   white-space: nowrap;
 }
 
@@ -1728,26 +1757,25 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   position: sticky;
-  top: -14px;
+  top: 8px;
   z-index: 5;
-  padding: 2px 2px 12px;
-  border: 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.76));
-  backdrop-filter: blur(40px) saturate(2.0);
-  box-shadow: none;
+  padding: 16px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(32px) saturate(1.8);
+  box-shadow: var(--shadow-soft);
 }
 
 .task-detail-header h2 {
   margin: 0;
-  font-size: clamp(1.22rem, 1.8vw, 1.6rem);
-  font-weight: 820;
+  font-size: 1.15rem;
+  font-weight: 600;
   color: var(--text-strong);
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 1.35;
 }
 
 .task-detail-header__meta {
@@ -2201,6 +2229,7 @@ onUnmounted(() => {
 
 .task-detail-grid-primary {
   align-items: start;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .task-detail-grid-primary > .detail-section-card,
@@ -2370,52 +2399,8 @@ onUnmounted(() => {
   padding: 0 0 2px;
 }
 
-.detail-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 11px;
-  border: 1px solid rgba(79, 70, 229, 0.24);
-  border-radius: 11px;
-  background: #eef4ff;
-  color: #1d4ed8;
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 780;
-  cursor: pointer;
-  box-shadow: 0 5px 14px rgba(79, 70, 229, 0.08);
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.detail-action-btn:hover:not(:disabled):not(.detail-action-btn-primary):not(.detail-action-btn-warning):not(.detail-action-btn-danger),
-.detail-action-btn:focus-visible:not(.detail-action-btn-primary):not(.detail-action-btn-warning):not(.detail-action-btn-danger) {
-  transform: translateY(-1px);
-  border-color: rgba(79, 70, 229, 0.4);
-  background: #dfe9ff;
-  color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.14);
-}
-
-.detail-action-btn-primary:hover:not(:disabled),
-.detail-action-btn-warning:hover:not(:disabled),
-.detail-action-btn-danger:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.detail-action-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.54;
-}
-
-.detail-action-btn span,
-.detail-action-btn :deep(svg) {
+.jd-button__pause {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 15px;
@@ -2423,12 +2408,8 @@ onUnmounted(() => {
   flex: 0 0 auto;
 }
 
-.detail-action-btn__pause {
-  position: relative;
-}
-
-.detail-action-btn__pause::before,
-.detail-action-btn__pause::after {
+.jd-button__pause::before,
+.jd-button__pause::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -2438,30 +2419,12 @@ onUnmounted(() => {
   background: currentColor;
 }
 
-.detail-action-btn__pause::before {
+.jd-button__pause::before {
   left: 3px;
 }
 
-.detail-action-btn__pause::after {
+.jd-button__pause::after {
   right: 3px;
-}
-
-.detail-action-btn-primary {
-  border-color: rgba(99, 102, 241, 0.16);
-  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(224, 231, 255, 0.9));
-  color: var(--accent-blue);
-}
-
-.detail-action-btn-warning {
-  border-color: rgba(217, 137, 0, 0.2);
-  background: rgba(255, 190, 100, 0.12);
-  color: #966128;
-}
-
-.detail-action-btn-danger {
-  border-color: rgba(229, 72, 101, 0.16);
-  background: rgba(229, 72, 101, 0.08);
-  color: var(--accent-danger);
 }
 
 @media (max-width: 900px) {
@@ -2492,7 +2455,7 @@ onUnmounted(() => {
     border-radius: 0;
   }
 
-  .detail-action-btn {
+  .detail-actions .jd-button {
     width: 100%;
   }
 

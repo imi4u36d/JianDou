@@ -71,8 +71,8 @@ def test_row_factory_creates_image_material_asset_defaults() -> None:
     assert row.selected_for_next == 1
     assert row.has_audio == 0
     assert row.public_url == "/media/keyframe.png"
-    assert row.thumbnail_url == "/media/keyframe.png"
-    assert row.remote_url == "https://remote.example/keyframe.png"
+    assert row.thumbnail_url == ""
+    assert row.remote_url == ""
     assert json.loads(row.metadata_json) == {"prompt": "hello"}
     assert row.create_time == "2026-01-02T00:00:00Z"
     assert row.update_time == "2026-01-02T00:00:00Z"

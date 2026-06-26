@@ -50,6 +50,16 @@
               <IconDownload size="xs" />
               下载
             </button>
+            <button
+              v-if="shareableFinalResult"
+              class="workflow-result-download"
+              type="button"
+              :disabled="sharingFinalResult"
+              @click="openWorkflowShareConfirm"
+            >
+              <IconShare size="xs" />
+              {{ workflowShareId ? "已分享" : "分享" }}
+            </button>
           </div>
           <div v-if="previewMedia?.type === 'video'" class="workflow-result-media">
             <video
@@ -135,17 +145,52 @@
           </button>
         </div>
       </section>
+
+      <section class="detail-section-card detail-trace-section" :class="{ 'detail-trace-section-open': workflowTraceOpen }">
+        <button
+          type="button"
+          class="detail-trace-summary"
+          :aria-expanded="workflowTraceOpen"
+          aria-controls="workflow-result-traces"
+          @click="workflowTraceOpen = !workflowTraceOpen"
+        >
+          <span class="detail-trace-summary__copy">
+            <strong>追踪</strong>
+            <small>{{ workflowTraceItems[0]?.message || "暂无记录" }}</small>
+          </span>
+          <span class="surface-chip">{{ workflowTraceItems.length }} 条</span>
+          <span class="detail-trace-summary__chevron" aria-hidden="true">
+            <IconChevronDown size="xs" />
+          </span>
+        </button>
+        <div v-if="workflowTraceOpen" id="workflow-result-traces" class="detail-traces">
+          <div v-if="workflowTraceItems.length === 0" class="detail-traces__empty">暂无记录</div>
+          <div v-for="event in workflowTraceItems" :key="`${event.timestamp}-${event.event}-${event.stage}-${event.message}`" class="detail-traces__item">
+            <div class="detail-traces__body">
+              <p>{{ event.message }}</p>
+              <small>
+                <span class="detail-traces__stage">{{ formatWorkflowTraceStage(event.stage) }}</span>
+                <span class="detail-traces__event">{{ formatWorkflowTraceEvent(event.event) }}</span>
+              </small>
+            </div>
+            <time class="detail-traces__time" :datetime="event.timestamp || undefined">{{ formatDateTime(event.timestamp) }}</time>
+          </div>
+        </div>
+      </section>
     </section>
+    <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptWorkflowShareConfirm" @cancel="cancelWorkflowShareConfirm" />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { fetchWorkflow } from "@/features/workflows";
-import { IconDownload, IconImage, IconLoading, IconRefresh, IconVideo, IconWorkflow } from "@/components/icons";
+import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
+import { IconChevronDown, IconDownload, IconImage, IconLoading, IconRefresh, IconShare, IconVideo, IconWorkflow } from "@/components/icons";
+import { createPublicShare, deletePublicShare } from "@/api/public-shares";
 import { messageApi } from "@/composables/useMessage";
 import { downloadMedia } from "@/utils/download";
-import type { WorkflowDetail } from "@/types";
+import type { StageVersion, WorkflowDetail } from "@/types";
 
 const props = defineProps<{
   selectedWorkflowId: string;
@@ -157,8 +202,19 @@ defineEmits<{
 
 const workflow = ref<WorkflowDetail | null>(null);
 const loading = ref(false);
+const sharingFinalResult = ref(false);
+const workflowShareId = ref("");
+const workflowTraceOpen = ref(false);
+const shareConfirmDialog = ref({
+  open: false,
+  title: "分享生成结果",
+  message: "确认分享后，你的生成结果会展示在首页，供其他用户浏览、点赞，帮助你成为人气用户。",
+  confirmText: "确认分享",
+  cancelText: "取消",
+  tone: "primary" as "primary" | "danger",
+});
 
-const finalPreviewUrl = computed(() => workflow.value?.finalResult?.previewUrl || workflow.value?.finalResult?.fileUrl || "");
+const finalPreviewUrl = computed(() => materialPublicUrl(workflow.value?.finalResult));
 const finalPreviewLoadState = ref<"idle" | "loading" | "ready" | "failed">("idle");
 const finalPreviewLoading = computed(() => Boolean(previewMedia.value?.url) && finalPreviewLoadState.value === "loading");
 
@@ -170,6 +226,12 @@ type WorkflowTaskStageItem = {
   state: WorkflowTaskStageState;
   stateLabel: string;
 };
+type WorkflowTraceItem = {
+  timestamp: string;
+  stage: string;
+  event: string;
+  message: string;
+};
 
 const stageStateLabels: Record<WorkflowTaskStageState, string> = {
   pending: "等待",
@@ -178,6 +240,10 @@ const stageStateLabels: Record<WorkflowTaskStageState, string> = {
   done: "已完成",
   failed: "失败",
 };
+
+function materialPublicUrl(asset?: { publicUrl?: string | null; fileUrl?: string | null } | null) {
+  return asset?.publicUrl || asset?.fileUrl || "";
+}
 
 const statusLabel = computed(() => {
   const status = String(workflow.value?.status ?? "").toUpperCase();
@@ -267,7 +333,7 @@ const resultItems = computed(() => {
   if (!current) return [];
   const items: Array<{ title: string; url: string; type: WorkflowResultMediaKind; kind: string }> = [];
   const finalResult = current.finalResult;
-  const finalUrl = finalResult?.fileUrl || finalResult?.previewUrl || "";
+  const finalUrl = materialPublicUrl(finalResult);
   if (finalUrl) {
     items.push({
       title: finalResult?.title || "成片",
@@ -278,7 +344,7 @@ const resultItems = computed(() => {
   }
   for (const slot of current.clipSlots) {
     for (const version of slot.videoVersions) {
-      const url = version.asset?.fileUrl || version.asset?.previewUrl || version.downloadUrl || version.previewUrl || "";
+      const url = materialPublicUrl(version.asset) || version.downloadUrl || version.previewUrl || "";
       if (url) {
         items.push({ title: version.title || `镜头 ${slot.clipIndex} 视频`, url, type: "video", kind: `镜头 ${slot.clipIndex}` });
       }
@@ -286,7 +352,7 @@ const resultItems = computed(() => {
   }
   for (const slot of current.clipSlots) {
     const selected = slot.keyframeVersions.find((version) => version.selected) || slot.keyframeVersions[0];
-    const url = selected?.asset?.fileUrl || selected?.asset?.previewUrl || selected?.downloadUrl || selected?.previewUrl || "";
+    const url = materialPublicUrl(selected?.asset) || selected?.downloadUrl || selected?.previewUrl || "";
     if (url) {
       items.push({ title: selected?.title || `镜头 ${slot.clipIndex} 关键帧`, url, type: "image", kind: `镜头 ${slot.clipIndex}` });
     }
@@ -305,12 +371,54 @@ const previewMedia = computed(() => {
 });
 
 const previewFileUrl = computed(() => previewMedia.value?.url || "");
+const finalMaterialAssetId = computed(() => workflow.value?.finalResult?.id || "");
+const shareableFinalResult = computed(() => Boolean(finalMaterialAssetId.value && materialPublicUrl(workflow.value?.finalResult)));
 const previewPlaceholder = computed(() => {
   const status = String(workflow.value?.status || "").toUpperCase();
   if (status === "COMPLETED") return "暂无可预览结果";
   if (status === "FAILED") return "生成失败，进入阶段工作流查看原因";
   if (String(workflow.value?.autoPilotState || "").toLowerCase() === "queued") return "排队中";
   return "生成中";
+});
+
+const workflowTraceItems = computed<WorkflowTraceItem[]>(() => {
+  const current = workflow.value;
+  if (!current) return [];
+  const items: WorkflowTraceItem[] = [];
+  const push = (item: WorkflowTraceItem) => {
+    if (!item.message.trim()) return;
+    items.push(item);
+  };
+
+  push({
+    timestamp: current.updatedAt || current.createdAt || "",
+    stage: current.currentStage || "workflow",
+    event: `workflow.${String(current.status || "updated").toLowerCase()}`,
+    message: workflowStateMessage(current),
+  });
+
+  const autoPilotState = String(current.autoPilotState || "").toLowerCase();
+  if (autoPilotState) {
+    push({
+      timestamp: current.updatedAt || current.autoPilotStartedAt || current.createdAt || "",
+      stage: "auto_pilot",
+      event: `auto_pilot.${autoPilotState}`,
+      message: current.autoPilotErrorMessage || current.autoPilotCurrentTask || autoPilotStateMessage(autoPilotState),
+    });
+  }
+
+  for (const version of workflowStageVersions(current)) {
+    push({
+      timestamp: version.updatedAt || version.createdAt || "",
+      stage: version.stageType || "workflow",
+      event: `stage.${String(version.status || "updated").toLowerCase()}`,
+      message: stageVersionTraceMessage(version),
+    });
+  }
+
+  return items
+    .sort((a, b) => timestampValue(b.timestamp) - timestampValue(a.timestamp))
+    .slice(0, 24);
 });
 
 async function loadWorkflow() {
@@ -357,6 +465,106 @@ function stageStateClass(state: WorkflowTaskStageState) {
   }
 }
 
+function workflowStageVersions(current: WorkflowDetail) {
+  const versions: StageVersion[] = [...current.storyboardVersions];
+  for (const sheet of current.characterSheets ?? []) {
+    versions.push(...(sheet.versions ?? sheet.keyframeVersions ?? []));
+  }
+  for (const slot of current.clipSlots) {
+    versions.push(...slot.keyframeVersions, ...slot.videoVersions);
+  }
+  return versions;
+}
+
+function workflowStateMessage(current: WorkflowDetail) {
+  const status = String(current.status || "").toUpperCase();
+  if (status === "FAILED") return current.autoPilotErrorMessage || "工作流生成失败";
+  if (status === "COMPLETED") return "工作流已完成";
+  if (String(current.autoPilotState || "").toLowerCase() === "queued") return "工作流已加入自动生成队列";
+  return current.autoPilotCurrentTask || "工作流状态已更新";
+}
+
+function autoPilotStateMessage(state: string) {
+  if (state === "queued") return "自动生成排队中";
+  if (state === "running") return "自动生成执行中";
+  if (state === "paused") return "自动生成已暂停";
+  if (state === "failed") return "自动生成失败";
+  if (state === "completed") return "自动生成已完成";
+  return "自动生成状态已更新";
+}
+
+function stageVersionTraceMessage(version: StageVersion) {
+  const status = String(version.status || "").toUpperCase();
+  const error = stageVersionErrorMessage(version);
+  if (error) return error;
+  const label = formatWorkflowTraceStage(version.stageType);
+  const suffix = version.clipIndex > 0 && version.clipIndex < 1000 ? ` ${version.clipIndex}` : "";
+  if (status === "FAILED") return `${label}${suffix}生成失败`;
+  if (status === "COMPLETED" || version.asset || version.selected) return `${label}${suffix}已完成`;
+  if (status === "RUNNING" || status === "PROCESSING") return `${label}${suffix}生成中`;
+  return `${label}${suffix}已更新`;
+}
+
+function stageVersionErrorMessage(version: StageVersion) {
+  const output = version.outputSummary ?? {};
+  const frameFailure = Array.isArray(output.frameFailures)
+    ? output.frameFailures.find((item) => item?.errorMessage)
+    : null;
+  return stringValue(output.error)
+    || stringValue(output.taskMessage)
+    || stringValue(frameFailure?.errorMessage)
+    || "";
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function timestampValue(value: string) {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatDateTime(timestamp: string) {
+  if (!timestamp) return "刚刚";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString();
+}
+
+function formatWorkflowTraceStage(stage: string) {
+  const normalized = String(stage || "").toLowerCase();
+  const labels: Record<string, string> = {
+    workflow: "工作流",
+    auto_pilot: "自动生成",
+    storyboard: "分镜",
+    keyframe: "关键帧",
+    video: "视频",
+    joined: "拼接",
+  };
+  return labels[normalized] ?? (stage || "系统");
+}
+
+function formatWorkflowTraceEvent(event: string) {
+  const normalized = String(event || "").toLowerCase();
+  const labels: Record<string, string> = {
+    "workflow.ready": "状态更新",
+    "workflow.running": "生成中",
+    "workflow.failed": "失败",
+    "workflow.completed": "完成",
+    "auto_pilot.queued": "排队",
+    "auto_pilot.running": "执行中",
+    "auto_pilot.paused": "暂停",
+    "auto_pilot.failed": "失败",
+    "auto_pilot.completed": "完成",
+    "stage.completed": "阶段完成",
+    "stage.failed": "阶段失败",
+    "stage.running": "阶段执行",
+    "stage.processing": "阶段执行",
+  };
+  return labels[normalized] ?? (event || "事件");
+}
+
 async function handleDownloadPreview() {
   const media = previewMedia.value;
   if (!media) return;
@@ -376,7 +584,61 @@ async function handleDownloadMedia(url: string, title: string, mediaType: Workfl
   }
 }
 
+function openWorkflowShareConfirm() {
+  const shared = Boolean(workflowShareId.value);
+  shareConfirmDialog.value = {
+    open: true,
+    title: shared ? "取消分享" : "分享生成结果",
+    message: shared
+      ? "取消分享后，这个生成结果将不再展示在首页分享区。"
+      : "确认分享后，你的生成结果会展示在首页，供其他用户浏览、点赞，帮助你成为人气用户。",
+    confirmText: shared ? "取消分享" : "确认分享",
+    cancelText: "取消",
+    tone: shared ? "danger" : "primary",
+  };
+}
+
+function cancelWorkflowShareConfirm() {
+  shareConfirmDialog.value = { ...shareConfirmDialog.value, open: false };
+}
+
+async function acceptWorkflowShareConfirm() {
+  const materialAssetId = finalMaterialAssetId.value;
+  if (!materialAssetId || sharingFinalResult.value) return;
+  sharingFinalResult.value = true;
+  try {
+    if (workflowShareId.value) {
+      await deletePublicShare(workflowShareId.value);
+      workflowShareId.value = "";
+      messageApi.success("已取消分享");
+    } else {
+      const share = await createPublicShare({
+        materialAssetId,
+        sourceType: "workflow",
+        sourceId: props.selectedWorkflowId,
+      });
+      workflowShareId.value = share.shareId;
+      messageApi.success("已分享到首页");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "分享失败");
+  } finally {
+    sharingFinalResult.value = false;
+    cancelWorkflowShareConfirm();
+  }
+}
+
 watch(() => props.selectedWorkflowId, () => void loadWorkflow(), { immediate: true });
+
+watch(workflow, (current) => {
+  const status = String(current?.status || "").toUpperCase();
+  const autoPilotState = String(current?.autoPilotState || "").toLowerCase();
+  workflowTraceOpen.value = status === "FAILED" || autoPilotState === "failed";
+}, { immediate: true });
+
+watch(finalMaterialAssetId, () => {
+  workflowShareId.value = "";
+});
 
 watch(previewFileUrl, (url) => {
   finalPreviewLoadState.value = url ? "loading" : "idle";
@@ -877,6 +1139,135 @@ watch(previewFileUrl, (url) => {
   font-size: 0.72rem;
 }
 
+.detail-trace-section {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.detail-trace-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.detail-trace-summary:hover {
+  background: rgba(99, 102, 241, 0.045);
+}
+
+.detail-trace-summary__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.detail-trace-summary__copy strong {
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.detail-trace-summary__copy small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-trace-summary__chevron {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+}
+
+.detail-trace-section-open .detail-trace-summary__chevron {
+  transform: rotate(180deg);
+}
+
+.detail-traces {
+  display: grid;
+  max-height: 360px;
+  padding: 4px 16px 14px;
+  border-top: 1px solid rgba(80, 90, 110, 0.08);
+  overflow: auto;
+}
+
+.detail-traces__empty {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.detail-traces__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 14px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(80, 90, 110, 0.08);
+}
+
+.detail-traces__item:last-child {
+  border-bottom: 0;
+}
+
+.detail-traces__body {
+  min-width: 0;
+}
+
+.detail-traces__item p {
+  margin: 0;
+  color: var(--text-body);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.detail-traces__item small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.detail-traces__stage {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-softer);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.detail-traces__event {
+  color: var(--text-body);
+}
+
+.detail-traces__time {
+  padding-top: 1px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .workflow-result-header {
     flex-direction: column;
@@ -896,6 +1287,19 @@ watch(previewFileUrl, (url) => {
 
   .workflow-result-grid-primary {
     grid-template-columns: 1fr;
+  }
+
+  .detail-trace-summary {
+    align-items: flex-start;
+  }
+
+  .detail-traces__item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .detail-traces__time {
+    white-space: normal;
   }
 }
 </style>

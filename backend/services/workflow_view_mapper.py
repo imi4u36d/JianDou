@@ -271,6 +271,8 @@ class WorkflowViewMapper:
     def to_material_asset_row(asset: BizMaterialAsset | None) -> dict[str, Any] | None:
         if asset is None:
             return None
+        public_url = _trim(asset.public_url) or _trim(asset.remote_url) or _trim(asset.third_party_url)
+        thumbnail_url = _trim(asset.thumbnail_url)
         return {
             "id": asset.material_asset_id,
             "workflowId": asset.workflow_id,
@@ -282,10 +284,11 @@ class WorkflowViewMapper:
             "width": asset.width,
             "height": asset.height,
             "hasAudio": _safe_bool(asset.has_audio),
-            "fileUrl": asset.public_url,
-            "previewUrl": asset.public_url,
-            "thumbnailUrl": asset.thumbnail_url or "",
-            "remoteUrl": asset.remote_url,
+            "publicUrl": public_url,
+            "fileUrl": public_url,
+            "previewUrl": thumbnail_url,
+            "thumbnailUrl": thumbnail_url,
+            "remoteUrl": "",
             "userRating": asset.user_rating,
             "ratingNote": asset.rating_note,
             "originModel": asset.origin_model,

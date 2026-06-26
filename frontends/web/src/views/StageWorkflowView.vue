@@ -246,7 +246,7 @@
                 <span>{{ createTranscriptCharacterCount > 0 ? `${createTranscriptCharacterCount} 字` : "等待正文输入" }}</span>
               </div>
               <div class="workflow-composer-actions">
-                <button class="btn-secondary btn-sm" type="button" :disabled="creatingWorkflow" @click="closeCreateReview">取消</button>
+                <button class="jd-button jd-button--secondary jd-button--sm" type="button" :disabled="creatingWorkflow" @click="closeCreateReview">取消</button>
                 <button
                   class="workflow-composer-submit workflow-composer-submit-inline"
                   type="submit"
@@ -268,7 +268,7 @@
 
       <div v-else-if="showDetailLoadFailed" class="surface-panel workflow-banner workflow-banner-error">
         <p>工作流详情加载失败</p>
-        <button class="btn-secondary btn-sm" type="button" :disabled="loadingDetail" @click="reloadCurrentWorkflow">重新加载</button>
+        <button class="jd-button jd-button--secondary jd-button--sm" type="button" :disabled="loadingDetail" @click="reloadCurrentWorkflow">重新加载</button>
       </div>
 
       <div v-else-if="loadingDetail" class="surface-panel workflow-empty workflow-empty-large">
@@ -281,13 +281,13 @@
             <h2>{{ selectedWorkflow.title }}</h2>
             <div class="workflow-canvas-header__summary">
               <div class="workflow-summary__parameter-tags workflow-summary__parameter-tags-header">
-                <span v-for="item in workflowParameterTags" :key="item.label" class="workflow-summary-tag" :title="`${item.label}：${item.value}`">
+                <span v-for="item in workflowParameterTags" :key="item.label" class="surface-chip workflow-summary-tag" :title="`${item.label}：${item.value}`">
                   <span class="workflow-summary-tag__label" aria-hidden="true">{{ item.label }}</span>
                   <strong class="workflow-summary-tag__value">{{ item.value }}</strong>
                 </span>
               </div>
               <button
-                class="btn-secondary btn-sm workflow-canvas-header__settings-button"
+                class="jd-button jd-button--secondary jd-button--sm workflow-canvas-header__settings-button"
                 type="button"
                 :class="{ 'workflow-canvas-header__settings-button-active': workflowSettingsOpen }"
                 :aria-label="workflowSettingsOpen ? '收起参数' : '编辑参数'"
@@ -320,7 +320,7 @@
                   <button class="workflow-icon-action" type="button" :disabled="busyActionKey === 'workflow-settings'" title="收起" aria-label="收起参数" @click="workflowSettingsOpen = false">
                     <IconClose size="xs" />
                   </button>
-                  <button class="btn-primary btn-sm" type="submit" :disabled="busyActionKey === 'workflow-settings' || Boolean(workflowSettingsValidationMessage)">
+                  <button class="jd-button jd-button--primary jd-button--sm" type="submit" :disabled="busyActionKey === 'workflow-settings' || Boolean(workflowSettingsValidationMessage)">
                     <IconLoading v-if="busyActionKey === 'workflow-settings'" size="xs" />
                     <span>{{ busyActionKey === "workflow-settings" ? "保存中" : "保存" }}</span>
                   </button>
@@ -340,7 +340,7 @@
                 <div class="stage-board__head-actions">
                   <button
                     v-if="(selectedWorkflow.storyboardVersions ?? []).length"
-                    class="btn-secondary btn-sm workflow-menu-danger"
+                    class="jd-button jd-button--secondary jd-button--sm workflow-menu-danger"
                     type="button"
                     :disabled="busyActionKey === 'clear-storyboard-versions'"
                     @click="handleClearStageVersions('storyboard')"
@@ -349,7 +349,7 @@
                     <IconDelete v-else size="xs" />
                     <span>{{ busyActionKey === 'clear-storyboard-versions' ? '清空中' : '清空分镜版本' }}</span>
                   </button>
-                  <button class="btn-primary btn-sm" type="button" :disabled="busyActionKey === 'storyboard'" @click="handleGenerateStoryboard">
+                  <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="busyActionKey === 'storyboard'" @click="handleGenerateStoryboard">
                     <IconLoading v-if="busyActionKey === 'storyboard'" size="xs" />
                     <span>{{ busyActionKey === "storyboard" ? "生成中" : "生成" }}</span>
                   </button>
@@ -400,7 +400,7 @@
                   <div v-if="selectedStoryboardVersion" class="storyboard-adjust-panel">
                     <input v-model="storyboardAdjustmentDrafts[selectedStoryboardVersion.id]" class="field-input storyboard-adjust-panel__input" type="text" placeholder="调整要求，可留空" />
                     <button
-                      class="btn-primary btn-sm storyboard-adjust-panel__button"
+                      class="jd-button jd-button--primary jd-button--sm storyboard-adjust-panel__button"
                       type="button"
                       :disabled="busyActionKey === `storyboard-adjust-${selectedStoryboardVersion.id}` || selectedStoryboardVersion.status !== 'SUCCEEDED'"
                       @click="handleAdjustStoryboard(selectedStoryboardVersion.id)"
@@ -418,7 +418,7 @@
                 <h3>角色三视图</h3>
                 <div class="stage-board__meta">
                   <span class="surface-chip">{{ workflowCharacterSheets.length }} 个角色</span>
-                  <button class="btn-primary btn-sm" type="button" :disabled="!missingCharacterSheets.length || busyActionKey === 'character-missing'" @click="handleGenerateMissingCharacterSheets">
+                  <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="!missingCharacterSheets.length || busyActionKey === 'character-missing'" @click="handleGenerateMissingCharacterSheets">
                     <IconLoading v-if="busyActionKey === 'character-missing'" size="xs" />
                     <span>{{ busyActionKey === "character-missing" ? "补齐中" : "补齐" }}</span>
                   </button>
@@ -476,11 +476,11 @@
                     </button>
                   </div>
                   <div class="character-mini-card__actions">
-                    <button class="btn-secondary btn-sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null" title="从素材库选择" aria-label="从素材库选择" @click="openCharacterAssetPicker(sheet)">
+                    <button class="jd-button jd-button--secondary jd-button--sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null" title="从素材库选择" aria-label="从素材库选择" @click="openCharacterAssetPicker(sheet)">
                       <IconSearch size="xs" />
                       <span>素材</span>
                     </button>
-                    <button class="btn-ghost btn-sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null || busyActionKey === 'character-missing' || busyActionKey === `keyframe-${characterSheetClipIndex(sheet)}`" :title="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" :aria-label="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" @click="handleGenerateKeyframe(characterSheetClipIndex(sheet) || 0)">
+                    <button class="jd-button jd-button--ghost jd-button--sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null || busyActionKey === 'character-missing' || busyActionKey === `keyframe-${characterSheetClipIndex(sheet)}`" :title="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" :aria-label="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" @click="handleGenerateKeyframe(characterSheetClipIndex(sheet) || 0)">
                       <IconRefresh v-if="previewCharacterSheetVersion(sheet)" size="xs" />
                       <IconPlus v-else size="xs" />
                       <span>{{ previewCharacterSheetVersion(sheet) ? "重生" : "生成" }}</span>
@@ -504,7 +504,7 @@
                         <span>模型</span>
                         <input v-model="characterAssetPicker.model" class="field-input" type="search" placeholder="模型" @keyup.enter="loadCharacterAssetCandidates(sheet)" />
                       </label>
-                      <button class="btn-secondary btn-sm character-asset-picker__search" type="button" :disabled="characterAssetPicker.loading" @click="loadCharacterAssetCandidates(sheet)">
+                      <button class="jd-button jd-button--secondary jd-button--sm character-asset-picker__search" type="button" :disabled="characterAssetPicker.loading" @click="loadCharacterAssetCandidates(sheet)">
                         <IconLoading v-if="characterAssetPicker.loading" size="xs" />
                         <IconSearch v-else size="xs" />
                         <span>{{ characterAssetPicker.loading ? "搜索中" : "搜索" }}</span>
@@ -530,7 +530,7 @@
                             <span class="surface-chip surface-chip-quiet">{{ materialAssetModelLabel(asset) }}</span>
                           </div>
                         </div>
-                        <button class="btn-primary btn-sm" type="button" :disabled="busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}`" @click="handleSelectCharacterSheetAsset(sheet, asset.id)">
+                        <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}`" @click="handleSelectCharacterSheetAsset(sheet, asset.id)">
                           <IconLoading v-if="busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}`" size="xs" />
                           <span>{{ busyActionKey === `character-sheet-asset-${characterSheetClipIndex(sheet)}` ? "选择中" : "选择" }}</span>
                         </button>
@@ -547,7 +547,7 @@
                 <div class="stage-board__head-actions">
                   <button
                     v-if="(selectedWorkflow.clipSlots ?? []).some(s => s.keyframeVersions.length > 0)"
-                    class="btn-secondary btn-sm workflow-menu-danger"
+                    class="jd-button jd-button--secondary jd-button--sm workflow-menu-danger"
                     type="button"
                     :disabled="busyActionKey === 'clear-keyframe-versions'"
                     @click="handleClearStageVersions('keyframe')"
@@ -556,7 +556,7 @@
                     <IconDelete v-else size="xs" />
                     <span>{{ busyActionKey === 'clear-keyframe-versions' ? '清空中' : '清空关键帧版本' }}</span>
                   </button>
-                  <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateKeyframe(selectedCanvasClip.clipIndex)">
+                  <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="!selectedCanvasClip || busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateKeyframe(selectedCanvasClip.clipIndex)">
                     <IconLoading v-if="selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}`" size="xs" />
                     <span>{{ selectedCanvasClip && busyActionKey === `keyframe-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
                   </button>
@@ -685,7 +685,7 @@
                   </div>
                   <button
                     v-if="videoReadiness.generated > 0"
-                    class="btn-secondary btn-sm workflow-menu-danger"
+                    class="jd-button jd-button--secondary jd-button--sm workflow-menu-danger"
                     type="button"
                     :disabled="busyActionKey === 'clear-video-versions'"
                     @click="handleClearStageVersions('video')"
@@ -694,7 +694,7 @@
                     <IconDelete v-else size="xs" />
                     <span>{{ busyActionKey === 'clear-video-versions' ? '清空中' : '清空视频版本' }}</span>
                   </button>
-                  <button class="btn-primary btn-sm" type="button" :disabled="!selectedCanvasClip || !selectedKeyframeVersion(selectedCanvasClip) || busyActionKey === `video-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateVideo(selectedCanvasClip.clipIndex)">
+                  <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="!selectedCanvasClip || !selectedKeyframeVersion(selectedCanvasClip) || busyActionKey === `video-${selectedCanvasClip.clipIndex}`" @click="selectedCanvasClip && handleGenerateVideo(selectedCanvasClip.clipIndex)">
                     <IconLoading v-if="selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}`" size="xs" />
                     <span>{{ selectedCanvasClip && busyActionKey === `video-${selectedCanvasClip.clipIndex}` ? "生成中" : "生成" }}</span>
                   </button>
@@ -824,7 +824,7 @@
                     <span>{{ videoReadiness.selected }} 已选</span>
                     <span>{{ finalizeHint }}</span>
                   </div>
-                  <button class="btn-primary btn-sm" type="button" :disabled="!canFinalize || busyActionKey === 'finalize'" @click="handleFinalize">
+                  <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="!canFinalize || busyActionKey === 'finalize'" @click="handleFinalize">
                     <IconLoading v-if="busyActionKey === 'finalize'" size="xs" />
                     <span>{{ busyActionKey === "finalize" ? "拼接中" : finalizeButtonLabel }}</span>
                   </button>
@@ -832,7 +832,7 @@
               </div>
 
               <article v-if="selectedWorkflow.finalResult" class="final-result-card-v2">
-                <video v-if="selectedWorkflow.finalResult.previewUrl" class="final-result-card__video" :src="selectedWorkflow.finalResult.previewUrl" controls playsinline preload="metadata"></video>
+                <video v-if="selectedWorkflow.finalResult.publicUrl || selectedWorkflow.finalResult.fileUrl" class="final-result-card__video" :src="selectedWorkflow.finalResult.publicUrl || selectedWorkflow.finalResult.fileUrl" controls playsinline preload="metadata"></video>
                 <div class="final-result-card-v2__meta">
                   <div class="final-result-card-v2__summary">
                     <h4>{{ selectedWorkflow.finalResult.title }}</h4>
@@ -852,7 +852,7 @@
                     </div>
                   </section>
                   <div class="final-result-card-v2__actions">
-                    <button class="workflow-icon-action workflow-icon-action-primary" type="button" title="下载成片" aria-label="下载成片" @click="handleDownloadMedia(selectedWorkflow.finalResult.fileUrl, selectedWorkflow.finalResult.title, 'video')">
+                    <button class="workflow-icon-action workflow-icon-action-primary" type="button" title="下载成片" aria-label="下载成片" @click="handleDownloadMedia(selectedWorkflow.finalResult.publicUrl || selectedWorkflow.finalResult.fileUrl, selectedWorkflow.finalResult.title, 'video')">
                       <IconDownload size="xs" />
                     </button>
                   </div>
@@ -1313,21 +1313,10 @@ const workflowParameterTags = computed(() => {
     return [];
   }
   return [
-    {
-      label: "关键帧模型",
-      value: compactModelLabel(valueOptionLabel(imageModelOptions.value, workflow.imageModel, workflow.imageModel || "未设置")),
-    },
-    {
-      label: "视频模型",
-      value: compactModelLabel(valueOptionLabel(videoModelOptions.value, workflow.videoModel, workflow.videoModel || "未设置")),
-    },
-    {
-      label: "尺寸",
-      value: compactVideoSizeLabel(
-        valueOptionLabel(catalogVideoSizeOptions.value, workflow.videoSize, workflow.videoSize || "未设置"),
-        workflow.aspectRatio
-      ),
-    },
+    { label: "类型", value: "视频生成" },
+    { label: "状态", value: formatWorkflowStatus(workflow.status) },
+    { label: "画幅", value: workflow.aspectRatio || "未设置" },
+    { label: "进度", value: `${workflowCompletionPercentage(workflow)}%` },
   ];
 });
 const canFinalize = computed(() => {
@@ -1444,6 +1433,25 @@ function compactVideoSizeLabel(sizeLabel: string, aspectRatio?: string | null) {
   return `${size} · ${ratio}`;
 }
 
+function formatWorkflowStatus(status?: string | null) {
+  switch ((status || "").trim().toUpperCase()) {
+    case "DRAFT":
+      return "草稿";
+    case "READY":
+      return "可生成";
+    case "RUNNING":
+      return "执行中";
+    case "PAUSED":
+      return "已暂停";
+    case "COMPLETED":
+      return "已完成";
+    case "FAILED":
+      return "失败";
+    default:
+      return status || "等待更新";
+  }
+}
+
 function normalizedStageVersionStatus(version: StageVersion) {
   return (version.status || "").trim().toUpperCase();
 }
@@ -1493,7 +1501,7 @@ function compactVideoVersionError(version: StageVersion) {
 
 function canSelectVideoVersion(version: StageVersion) {
   const status = normalizedStageVersionStatus(version);
-  return status === "COMPLETED" && Boolean(version.downloadUrl || version.outputSummary?.fileUrl || version.asset?.fileUrl);
+  return status === "COMPLETED" && Boolean(version.downloadUrl || version.outputSummary?.fileUrl || version.asset?.publicUrl || version.asset?.fileUrl);
 }
 
 function videoVersionStatusLabel(version: StageVersion) {
@@ -2507,12 +2515,18 @@ onBeforeUnmount(() => {
 }
 
 .workflow-canvas-header {
-  position: relative;
+  position: sticky;
+  top: 8px;
   z-index: 20;
   overflow: visible;
   align-items: flex-start;
-  gap: 18px;
-  padding: 16px 18px;
+  gap: 12px;
+  padding: 16px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(32px) saturate(1.8);
 }
 
 .workflow-canvas-header__body {
@@ -2525,6 +2539,9 @@ onBeforeUnmount(() => {
 
 .workflow-canvas-header__body h2 {
   min-width: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .workflow-canvas-header__summary {
@@ -2925,7 +2942,7 @@ onBeforeUnmount(() => {
   flex: 1;
   flex-wrap: nowrap;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding-bottom: 0;
   scrollbar-width: none;
   mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent 100%);
 }
@@ -2938,8 +2955,10 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  min-width: 34px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
 }
 
@@ -2955,16 +2974,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-summary-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  min-height: 30px;
   flex: 0 0 auto;
-  max-width: 100%;
-  padding: 6px 11px;
-  border: 1px solid rgba(99, 102, 241, 0.1);
-  border-radius: 999px;
-  background: linear-gradient(135deg, #eef2ff, #f4fffb);
+  max-width: 15rem;
+  overflow: hidden;
 }
 
 .workflow-summary__meta-compact {
@@ -2987,12 +2999,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-summary-tag__value {
-  color: var(--text-strong);
-  font-size: 0.76rem;
-  font-weight: 800;
+  min-width: 0;
   max-width: 11rem;
   overflow: hidden;
-  overflow-wrap: anywhere;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3625,13 +3634,20 @@ button:disabled {
   padding: 18px;
 }
 
-.workflow-canvas-header,
 .workflow-stage-pipeline,
 .workflow-stage-board {
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.workflow-canvas-header {
+  padding: 16px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-soft);
 }
 
 .workflow-stage-pipeline {

@@ -4,6 +4,11 @@ import { messageApi } from "@/composables/useMessage";
 import { fetchWorkflows } from "@/features/workflows";
 import type { WorkflowSummary } from "@/types";
 
+type WorkflowProgressSource = object & Partial<Pick<
+  WorkflowSummary,
+  "storyboardVersionCount" | "characterSheetCount" | "selectedCharacterSheetCount" | "characterSheetVersionCount" | "keyframeVersionCount" | "videoVersionCount"
+>>;
+
 export function useWorkflowList() {
   const loadingWorkflows = ref(false);
   const workflowSearch = ref("");
@@ -11,7 +16,7 @@ export function useWorkflowList() {
   const workflowSearchInput = ref<HTMLInputElement | null>(null);
   const workflows = ref<WorkflowSummary[]>([]);
 
-  function workflowCompletionPercentage(workflow: WorkflowSummary): number {
+  function workflowCompletionPercentage(workflow: WorkflowProgressSource): number {
     const storyboardCount = Number(workflow.storyboardVersionCount ?? 0);
     const characterTotal = Number(workflow.characterSheetCount ?? 0);
     const characterSelected = Number(workflow.selectedCharacterSheetCount ?? workflow.characterSheetVersionCount ?? 0);

@@ -88,6 +88,24 @@
   --radius-xl: 28px;
   --radius-full: 999px;
 
+  /* ── Button system (matches the public-share like action) ── */
+  --button-radius: var(--radius-full);
+  --button-bg: #eef2ff;
+  --button-bg-hover: rgba(99, 102, 241, 0.16);
+  --button-border: rgba(99, 102, 241, 0.16);
+  --button-color: var(--accent-blue);
+  --button-shadow: none;
+  --button-focus-ring: 0 0 0 2px rgba(99, 102, 241, 0.18);
+  --button-danger-bg: rgba(229, 72, 101, 0.08);
+  --button-danger-bg-hover: rgba(229, 72, 101, 0.14);
+  --button-danger-border: rgba(229, 72, 101, 0.16);
+  --button-warning-bg: rgba(217, 119, 6, 0.1);
+  --button-warning-bg-hover: rgba(217, 119, 6, 0.16);
+  --button-warning-border: rgba(217, 119, 6, 0.18);
+  --button-neutral-bg: rgba(248, 250, 252, 0.92);
+  --button-neutral-bg-hover: rgba(226, 232, 240, 0.88);
+  --button-neutral-border: rgba(15, 23, 42, 0.08);
+
   /* ── Scrollbar ── */
   --scrollbar-track: rgba(0, 0, 0, 0.03);
   --scrollbar-thumb: rgba(0, 0, 0, 0.1);
@@ -471,25 +489,19 @@ textarea:focus-visible {
   }
 
   /* ── Buttons ── */
-  .btn-primary,
-  .btn-secondary,
-  .btn-ghost,
-  .btn-warning,
-  .btn-danger,
-  .btn-segment,
-  .shell-icon-btn {
+  .jd-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.55rem;
-    border-radius: var(--radius-md);
+    gap: 0.45rem;
+    border-radius: var(--button-radius);
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    font-weight: 700;
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
-      0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--button-border);
+    background: var(--button-bg);
+    color: var(--button-color);
+    font-weight: 800;
+    text-decoration: none;
+    box-shadow: var(--button-shadow);
     transition:
       transform 180ms ease,
       box-shadow 180ms ease,
@@ -498,101 +510,98 @@ textarea:focus-visible {
       color 180ms ease;
   }
 
-  .btn-primary,
-  .btn-secondary,
-  .btn-ghost,
-  .btn-warning,
-  .btn-danger {
+  .jd-button:not(.jd-button--xs):not(.jd-button--sm):not(.jd-button--lg) {
     min-height: 44px;
     padding: 0 1rem;
   }
 
-  .btn-compact {
+  .jd-button--xs {
+    min-height: 28px;
+    padding: 0 0.55rem;
+    font-size: 0.75rem;
+  }
+
+  .jd-button--compact {
     min-height: 38px;
     padding: 0 0.9rem;
-    border-radius: var(--radius-sm);
   }
 
-  .btn-sm {
+  .jd-button--sm {
     min-height: 34px;
-    padding: 0 0.9rem;
+    padding: 0 0.8rem;
     font-size: 0.8rem;
-    border-radius: var(--radius-sm);
   }
 
-  .btn-primary {
-    border-color: transparent;
-    background: var(--bg-accent);
-    color: #fff;
-    box-shadow: 0 12px 28px rgba(99, 102, 241, 0.25);
+  .jd-button--lg {
+    min-height: 52px;
+    padding: 0 1.6rem;
+    font-size: 1rem;
   }
 
-  .btn-secondary,
-  .btn-ghost,
-  .btn-segment,
-  .shell-icon-btn {
-    background: rgba(255, 255, 255, 0.5);
-    color: var(--text-strong);
-    backdrop-filter: blur(40px) saturate(2.0);
+  .jd-button--icon-only {
+    aspect-ratio: 1;
+    padding: 0;
   }
 
-  .btn-secondary {
-    border-color: rgba(255, 255, 255, 0.6);
-    background: rgba(255, 255, 255, 0.55);
+  .jd-button--primary {
+    --button-bg: #eef2ff;
+    --button-bg-hover: rgba(99, 102, 241, 0.16);
+    --button-border: rgba(99, 102, 241, 0.16);
+    --button-color: var(--accent-blue);
   }
 
-  .btn-ghost {
-    border-color: transparent;
-    background: rgba(255, 255, 255, 0.3);
-    color: var(--text-body);
+  .jd-button--secondary {
+    --button-bg: var(--button-neutral-bg);
+    --button-bg-hover: var(--button-neutral-bg-hover);
+    --button-border: var(--button-neutral-border);
+    --button-color: var(--text-strong);
   }
 
-  .btn-warning {
-    background: rgba(217, 119, 6, 0.08);
-    border-color: rgba(217, 119, 6, 0.2);
-    color: var(--accent-warning);
+  .jd-button--ghost {
+    --button-bg: transparent;
+    --button-bg-hover: rgba(99, 102, 241, 0.1);
+    --button-border: transparent;
+    --button-color: var(--text-body);
   }
 
-  .btn-danger {
-    background: rgba(229, 72, 101, 0.08);
-    border-color: rgba(229, 72, 101, 0.2);
-    color: var(--accent-danger);
+  .jd-button--warning {
+    --button-bg: var(--button-warning-bg);
+    --button-bg-hover: var(--button-warning-bg-hover);
+    --button-border: var(--button-warning-border);
+    --button-color: var(--accent-warning);
   }
 
-  /* Liquid Glass rim-lighting on hover */
-  .btn-primary:hover:not(:disabled),
-  .btn-secondary:hover:not(:disabled),
-  .btn-ghost:hover:not(:disabled),
-  .btn-warning:hover:not(:disabled),
-  .btn-danger:hover:not(:disabled),
-  .btn-segment:hover:not(:disabled),
-  .shell-icon-btn:hover:not(:disabled) {
+  .jd-button--danger {
+    --button-bg: var(--button-danger-bg);
+    --button-bg-hover: var(--button-danger-bg-hover);
+    --button-border: var(--button-danger-border);
+    --button-color: var(--accent-danger);
+  }
+
+  .jd-button--accent {
+    --button-bg: #ecfdf5;
+    --button-bg-hover: rgba(16, 185, 129, 0.16);
+    --button-border: rgba(16, 185, 129, 0.16);
+    --button-color: var(--accent-lime);
+  }
+
+  .jd-button:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.95) inset,
-      0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
-      0 0 0 3px rgba(255, 255, 255, 0.5),
-      0 8px 24px rgba(0, 0, 0, 0.08);
-    border-color: rgba(255, 255, 255, 0.7);
+    border-color: var(--button-border);
+    background: var(--button-bg-hover);
+    color: var(--button-color);
+    box-shadow: var(--button-shadow);
   }
 
-  .btn-primary:active:not(:disabled),
-  .btn-secondary:active:not(:disabled),
-  .btn-ghost:active:not(:disabled),
-  .btn-warning:active:not(:disabled),
-  .btn-danger:active:not(:disabled),
-  .btn-segment:active:not(:disabled),
-  .shell-icon-btn:active:not(:disabled) {
+  .jd-button:active:not(:disabled) {
     transform: scale(0.97);
   }
 
-  .btn-primary:disabled,
-  .btn-secondary:disabled,
-  .btn-ghost:disabled,
-  .btn-warning:disabled,
-  .btn-danger:disabled,
-  .btn-segment:disabled,
-  .shell-icon-btn:disabled {
+  .jd-button:focus-visible {
+    box-shadow: var(--button-focus-ring);
+  }
+
+  .jd-button:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none;
@@ -608,20 +617,6 @@ textarea:focus-visible {
     background: rgba(255, 255, 255, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.5);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) inset;
-  }
-
-  .btn-segment {
-    min-height: 34px;
-    padding: 0 0.85rem;
-    border-radius: var(--radius-sm);
-    color: var(--text-body);
-  }
-
-  .btn-segment-active {
-    color: var(--accent-blue);
-    border-color: rgba(255, 255, 255, 0.7);
-    background: rgba(255, 255, 255, 0.7);
-    box-shadow: var(--shadow-soft);
   }
 
   /* ── Progress ── */

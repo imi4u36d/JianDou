@@ -33,6 +33,8 @@ export type IconName =
   | "edit"
   | "delete"
   | "download"
+  | "share"
+  | "heart"
   | "settings"
   | "user"
   | "eye"

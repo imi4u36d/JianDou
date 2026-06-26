@@ -33,10 +33,8 @@ npm run web:test
 # Apply database migrations
 uv run jiandou db migrate
 
-# Verify migrations against a fresh temporary SQLite database
-TMP_DB=$(mktemp -t jiandou.XXXXXX.db) && \
-  JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head && \
-  rm -f "$TMP_DB"
+# Verify migrations against the configured test database
+JIANDOU_DATABASE_URL="$JIANDOU_TEST_DATABASE_URL" uv run alembic upgrade head
 
 # Start the full local server
 npm run serve

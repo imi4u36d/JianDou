@@ -14,7 +14,7 @@ DEFAULT_BOOTSTRAP_ADMIN_PASSWORD = "admin123"
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "sqlite+aiosqlite:///./data/jiandou.db"
+    database_url: str = "mysql+asyncmy://jiandou:jiandou@127.0.0.1:3306/jiandou?charset=utf8mb4"
     db_pool_size: int = 10
     db_max_overflow: int = 20
     db_pool_timeout: int = 30
@@ -119,15 +119,6 @@ class Settings(BaseSettings):
         sr = Path(self.storage_root)
         if not sr.is_absolute():
             self.storage_root = str(PROJECT_ROOT / sr)
-
-        # --- database_url (sqlite path) ---
-        for prefix in ("sqlite+aiosqlite:///", "sqlite:///"):
-            if self.database_url.startswith(prefix):
-                db_path = self.database_url[len(prefix) :]
-                p = Path(db_path)
-                if not p.is_absolute():
-                    self.database_url = prefix + str(PROJECT_ROOT / p)
-                break
 
         return self
 

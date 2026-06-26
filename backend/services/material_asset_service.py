@@ -4,7 +4,7 @@ import json
 import uuid
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.task import BizMaterialAsset
@@ -53,6 +53,53 @@ def _metadata_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _first_non_blank(*values: Any) -> str:
+    for value in values:
+        normalized = string_value(value).strip()
+        if normalized:
+            return normalized
+    return ""
+
+
+def _public_url_from_values(values: dict[str, Any]) -> str:
+    return _first_non_blank(
+        values.get("publicUrl"),
+        values.get("fileUrl"),
+        values.get("remoteUrl"),
+        values.get("thirdPartyUrl"),
+    )
+
+
+def _thumbnail_url_from_values(values: dict[str, Any]) -> str:
+    return _first_non_blank(values.get("thumbnailUrl"), values.get("previewUrl"))
+
+
+def _public_url_from_row(row: BizMaterialAsset) -> str:
+    return _first_non_blank(row.public_url, row.remote_url, row.third_party_url)
+
+
+def _non_blank_column(column: Any) -> Any:
+    return and_(column.is_not(None), column != "")
+
+
+def _blank_column(column: Any) -> Any:
+    return or_(column.is_(None), column == "")
+
+
+def _workflow_artifact_filter() -> Any:
+    return or_(
+        _non_blank_column(BizMaterialAsset.workflow_id),
+        BizMaterialAsset.asset_role == "workflow",
+    )
+
+
+def _non_workflow_artifact_filter() -> Any:
+    return and_(
+        _blank_column(BizMaterialAsset.workflow_id),
+        or_(BizMaterialAsset.asset_role.is_(None), BizMaterialAsset.asset_role != "workflow"),
+    )
+
+
 class MaterialAssetService:
     """Database-backed material asset library service."""
 
@@ -77,8 +124,12 @@ class MaterialAssetService:
             BizMaterialAsset.owner_user_id == owner_user_id,
             BizMaterialAsset.is_deleted == 0,
         ]
-        if not include_workflow_artifacts:
-            filters.append(or_(BizMaterialAsset.workflow_id.is_(None), BizMaterialAsset.workflow_id == ""))
+        normalized_asset_type = asset_type.strip() if asset_type and asset_type.strip() else ""
+        workflow_artifacts_only = normalized_asset_type == "workflow"
+        if workflow_artifacts_only:
+            filters.append(_workflow_artifact_filter())
+        elif not include_workflow_artifacts:
+            filters.append(_non_workflow_artifact_filter())
         if q and q.strip():
             pattern = f"%{q.strip()}%"
             filters.append(
@@ -90,8 +141,8 @@ class MaterialAssetService:
             )
         if media_type and media_type.strip():
             filters.append(BizMaterialAsset.media_type == media_type.strip())
-        if asset_type and asset_type.strip():
-            filters.append(BizMaterialAsset.asset_role == asset_type.strip())
+        if normalized_asset_type and not workflow_artifacts_only:
+            filters.append(BizMaterialAsset.asset_role == normalized_asset_type)
         if min_rating is not None:
             filters.append(BizMaterialAsset.user_rating >= min_rating)
         if model and model.strip():
@@ -167,10 +218,10 @@ class MaterialAssetService:
             "has_audio": _bool_to_int(values.get("hasAudio", False)),
             "local_storage_path": string_value(values.get("storagePath", "")) or None,
             "local_file_path": string_value(values.get("localFilePath", values.get("storagePath", ""))) or None,
-            "public_url": string_value(values.get("fileUrl", values.get("publicUrl", ""))) or None,
-            "thumbnail_url": string_value(values.get("thumbnailUrl", values.get("previewUrl", ""))) or None,
-            "third_party_url": string_value(values.get("thirdPartyUrl", "")) or None,
-            "remote_url": string_value(values.get("remoteUrl", "")) or None,
+            "public_url": _public_url_from_values(values) or None,
+            "thumbnail_url": _thumbnail_url_from_values(values) or None,
+            "third_party_url": None,
+            "remote_url": None,
             "metadata_json": json.dumps(metadata, ensure_ascii=False),
             "captured_at": string_value(values.get("capturedAt", now)) or None,
             "timezone_offset_minutes": _optional_int(values.get("timezoneOffsetMinutes")),
@@ -242,8 +293,8 @@ class MaterialAssetService:
     @staticmethod
     def to_view(row: BizMaterialAsset) -> dict[str, Any]:
         metadata = _metadata_dict(row.metadata_json)
-        file_url = row.public_url or row.remote_url or row.third_party_url or ""
-        preview_url = row.thumbnail_url or row.public_url or row.remote_url or ""
+        public_url = _public_url_from_row(row)
+        thumbnail_url = row.thumbnail_url or ""
         return {
             "id": row.material_asset_id,
             "materialAssetId": row.material_asset_id,
@@ -266,12 +317,13 @@ class MaterialAssetService:
             "width": row.width,
             "height": row.height,
             "hasAudio": bool(row.has_audio),
-            "fileUrl": file_url,
-            "previewUrl": preview_url,
-            "thumbnailUrl": row.thumbnail_url,
-            "remoteUrl": row.remote_url,
-            "hasRemotePath": bool(row.remote_url or row.third_party_url),
-            "remotePath": row.remote_url or row.third_party_url,
+            "publicUrl": public_url,
+            "fileUrl": public_url,
+            "previewUrl": thumbnail_url,
+            "thumbnailUrl": thumbnail_url,
+            "remoteUrl": "",
+            "hasRemotePath": False,
+            "remotePath": "",
             "metadata": metadata,
             "createdAt": row.create_time or row.captured_at or "",
             "updatedAt": row.update_time or row.create_time or "",

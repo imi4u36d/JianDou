@@ -152,7 +152,7 @@ config/model/
 | 変数 | 説明 | デフォルト |
 |---|---|---|
 | `JIANDOU_SERVER_PORT` | バックエンドのリッスンポート | `8100` |
-| `JIANDOU_DATABASE_URL` | データベース接続文字列 | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_DATABASE_URL` | データベース接続文字列 | `mysql+asyncmy://jiandou:jiandou@127.0.0.1:3306/jiandou?charset=utf8mb4` |
 | `JIANDOU_REDIS_URL` | Docker/本番環境向け Redis 接続文字列 | — |
 | `JIANDOU_CACHE_BACKEND` | API キャッシュバックエンド：`memory` または `redis` | `memory` |
 | `JIANDOU_RATE_LIMIT_BACKEND` | 認証レート制限バックエンド：`memory` または `redis` | `memory` |
@@ -194,7 +194,7 @@ npx vitest run --coverage
 
 ### バックエンド
 
-バックエンドは **FastAPI + SQLAlchemy + Alembic** で構築されています。ローカル既定は SQLite + aiosqlite のままですが、Docker と本番環境では MySQL + asyncmy を利用できます。
+バックエンドは **FastAPI + SQLAlchemy + Alembic** で構築されています。ランタイムデータベースは MySQL + asyncmy に統一されています。
 
 ```bash
 # リント（ruff）
@@ -219,10 +219,8 @@ uv run jiandou openapi --output docs/openapi.json
 # フルテストスイート（バックエンドリント + テスト + フロントエンド型チェック）
 npm test
 
-# 新規一時データベースでのマイグレーション検証
-TMP_DB=$(mktemp -t jiandou.XXXXXX.db) && \
-  JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head && \
-  rm -f "$TMP_DB"
+# 設定済みテストデータベースでのマイグレーション検証
+JIANDOU_DATABASE_URL="$JIANDOU_TEST_DATABASE_URL" uv run alembic upgrade head
 
 # パッケージ型チェック
 npm run packages:typecheck

@@ -174,15 +174,7 @@ def history():
 
 
 def _run_migrations() -> None:
-    """Run Alembic migrations.
-
-    Handles the case where tables already exist (e.g. created by
-    ``Base.metadata.create_all``) but the ``alembic_version`` table
-    has not been stamped yet.  In that situation we stamp to the
-    current head first, then run a normal upgrade so any future
-    incremental migrations will still apply.
-    """
-    import sqlite3
+    """Run Alembic migrations."""
 
     from alembic import command
     from alembic.config import Config
@@ -194,32 +186,6 @@ def _run_migrations() -> None:
     if not head:
         console.print("[yellow]No migration revisions found, nothing to do.[/yellow]")
         return
-
-    # Determine the database path for SQLite stamp detection.
-    from backend.config import settings
-
-    db_url = settings.database_url
-    db_path: str | None = None
-    if db_url.startswith("sqlite+aiosqlite:///"):
-        db_path = db_url.split("///", 1)[1]
-    elif db_url.startswith("sqlite:///"):
-        db_path = db_url.split("///", 1)[1]
-
-    need_stamp = False
-    if db_path and Path(db_path).exists():
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'")
-            has_version_table = cursor.fetchone() is not None
-            conn.close()
-            if not has_version_table:
-                need_stamp = True
-        except Exception:
-            need_stamp = True
-
-    if need_stamp:
-        console.print("[yellow]Tables exist but alembic_version is missing; stamping to current head...[/yellow]")
-        command.stamp(cfg, "head")
 
     command.upgrade(cfg, "head")
 
