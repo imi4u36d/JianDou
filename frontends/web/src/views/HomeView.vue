@@ -1,9 +1,80 @@
 <template>
   <main class="home-page">
     <section class="home-hero">
-      <h1>用 OpenAI 生成图片</h1>
+      <h1
+        class="home-brand-play"
+        :class="{
+          'home-brand-play-focused': promptEditorFocused,
+          'home-brand-play-active': hasPromptInput,
+          'home-brand-play-submitting': submitting,
+        }"
+        aria-label="JianDou 图片生成工作台"
+      >
+        <span class="home-brand-play__stage" aria-hidden="true">
+          <span class="home-brand-play__halo"></span>
+          <svg class="home-brand-play__mark" viewBox="0 0 128 128" role="presentation" focusable="false">
+            <defs>
+              <linearGradient id="home-brand-gradient" x1="31" y1="29" x2="97" y2="99" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8b5cf6" />
+                <stop offset="0.5" stop-color="#6366f1" />
+                <stop offset="1" stop-color="#3b82f6" />
+              </linearGradient>
+              <linearGradient id="home-brand-gloss" x1="30" y1="32" x2="106" y2="65" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#c4b5fd" />
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0.36" />
+              </linearGradient>
+            </defs>
+            <g class="home-brand-play__letter home-brand-play__letter-j">
+              <path class="home-brand-play__logo-shadow" d="M27 39C32.7 34 43.2 33.5 49.5 38.8" />
+              <path class="home-brand-play__logo-shadow" d="M44 37C45.2 51.2 44.7 64.5 41.5 75C37.4 88.6 27.9 95.3 18.5 90.5" />
+              <path class="home-brand-play__logo-stroke" d="M27 39C32.7 34 43.2 33.5 49.5 38.8" />
+              <path class="home-brand-play__logo-stroke" d="M44 37C45.2 51.2 44.7 64.5 41.5 75C37.4 88.6 27.9 95.3 18.5 90.5" />
+              <path class="home-brand-play__logo-gloss" d="M31 38.5C35.1 36.7 42 36.8 46.4 39" />
+              <g class="home-brand-play__face home-brand-play__face-j">
+                <circle cx="35.4" cy="47.4" r="2" />
+                <circle cx="44.6" cy="47.8" r="2" />
+                <path d="M35.5 54.5C38.4 57 42.7 57 45.5 54.5" />
+              </g>
+            </g>
+            <g class="home-brand-play__letter home-brand-play__letter-d">
+              <path
+                class="home-brand-play__logo-fill-shadow"
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M77 32H87C105.7 32 116 44.5 116 64C116 83.5 105.7 96 87 96H77C70.9 96 67 92.1 67 86V42C67 35.9 70.9 32 77 32ZM84 48V80H87C96.4 80 101.4 74.1 101.4 64C101.4 53.9 96.4 48 87 48H84Z"
+              />
+              <path
+                class="home-brand-play__logo-fill"
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M77 30H87C105.7 30 116 42.5 116 62C116 81.5 105.7 94 87 94H77C70.9 94 67 90.1 67 84V40C67 33.9 70.9 30 77 30ZM84 46V78H87C96.4 78 101.4 72.1 101.4 62C101.4 51.9 96.4 46 87 46H84Z"
+              />
+              <path class="home-brand-play__logo-gloss" d="M77 40C79.4 36.7 84.2 35.2 89.2 35.5" />
+              <g class="home-brand-play__face home-brand-play__face-d">
+                <circle cx="88.7" cy="60" r="1.8" />
+                <circle cx="96.2" cy="60" r="1.8" />
+                <path d="M88.6 67C91.2 69.4 95.3 69.4 97.9 67" />
+              </g>
+            </g>
+          </svg>
+          <span class="home-brand-play__bridge">
+            <span class="home-brand-play__beam"></span>
+            <span class="home-brand-play__dot home-brand-play__dot-a"></span>
+            <span class="home-brand-play__dot home-brand-play__dot-b"></span>
+            <span class="home-brand-play__dot home-brand-play__dot-c"></span>
+          </span>
+        </span>
+      </h1>
 
-      <form class="home-composer liquid-glass" @submit.prevent="submitComposer">
+      <form
+        class="home-composer liquid-glass"
+        :class="{
+          'home-composer-linked': promptEditorFocused,
+          'home-composer-active': hasPromptInput,
+          'home-composer-submitting': submitting,
+        }"
+        @submit.prevent="submitComposer"
+      >
         <button
           type="button"
           class="home-composer__upload"
@@ -427,6 +498,8 @@ const submitLabel = computed(() => {
   return "生成图片";
 });
 
+const hasPromptInput = computed(() => promptText.value.trim().length > 0);
+
 // ---------------------------------------------------------------------------
 // Menu toggle logic (not extracted)
 // ---------------------------------------------------------------------------
@@ -581,49 +654,359 @@ onBeforeUnmount(() => {
 <style scoped>
 .home-page {
   min-height: 100%;
-  padding: 56px 48px 48px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: clamp(32px, 7vh, 72px) 48px;
   background: linear-gradient(180deg, #f4f5f7 0%, #ffffff 46%, #f4f5f7 100%);
   color: var(--text-strong);
 }
 
 .home-hero {
   display: grid;
+  width: 100%;
   justify-items: center;
-  gap: 26px;
+  gap: clamp(18px, 3vh, 28px);
 }
 
-.home-hero h1 {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 0;
-  max-width: 920px;
-  color: var(--text-strong);
-  font-size: clamp(1.45rem, 2.6vw, 2.18rem);
-  font-weight: 780;
-  letter-spacing: 0;
-  line-height: 1.18;
+.home-brand-play {
+  width: min(100%, 340px);
+  min-height: 148px;
 }
 
-.hero-mode-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-height: 34px;
-  margin: -2px 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--accent-blue);
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(99, 102, 241, 0.24);
-  text-decoration-thickness: 0.12em;
-  text-underline-offset: 0.14em;
+.home-brand-play__stage {
+  position: relative;
+  display: block;
+  width: min(100%, 284px);
+  height: 148px;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.home-brand-play__stage::before,
+.home-brand-play__stage::after {
+  content: none;
+}
+
+.home-brand-play__halo {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  z-index: 0;
+  width: 176px;
+  height: 106px;
+  border-radius: 48% 52% 46% 54%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(196, 181, 253, 0.34), transparent 30%),
+    radial-gradient(circle at 70% 70%, rgba(59, 130, 246, 0.18), transparent 38%),
+    rgba(255, 255, 255, 0.48);
+  filter: blur(1px);
+  transform: translateX(-50%);
+  opacity: 0.72;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  animation: home-brand-halo 4.8s ease-in-out infinite;
+}
+
+.home-brand-play__mark {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  z-index: 2;
+  width: 172px;
+  height: 172px;
+  overflow: visible;
+  filter: drop-shadow(0 18px 28px rgba(99, 102, 241, 0.14));
+  transform: translateX(-50%) scale(0.82);
+  transform-origin: 50% 78%;
+  transition:
+    filter 220ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-brand-play__letter {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.home-brand-play__letter-j {
+  animation: home-brand-j-idle 4.8s ease-in-out infinite;
+}
+
+.home-brand-play__letter-d {
+  animation: home-brand-d-idle 4.8s ease-in-out infinite;
+}
+
+.home-brand-play__logo-shadow {
+  fill: none;
+  stroke: #1e1b4b;
+  stroke-linecap: round;
+  stroke-opacity: 0.12;
+  stroke-width: 18;
+}
+
+.home-brand-play__logo-stroke {
+  fill: none;
+  stroke: url("#home-brand-gradient");
+  stroke-linecap: round;
+  stroke-width: 14;
+}
+
+.home-brand-play__logo-fill-shadow {
+  fill: #1e1b4b;
+  fill-opacity: 0.12;
+}
+
+.home-brand-play__logo-fill {
+  fill: url("#home-brand-gradient");
+}
+
+.home-brand-play__logo-gloss {
+  fill: none;
+  stroke: url("#home-brand-gloss");
+  stroke-linecap: round;
+  stroke-width: 4.5;
+}
+
+.home-brand-play__face {
+  opacity: 0.94;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 180ms ease;
+}
+
+.home-brand-play__face circle {
+  fill: #fff;
+  stroke: rgba(30, 27, 75, 0.18);
+  stroke-width: 0.45;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: home-brand-blink 4.8s ease-in-out infinite;
+}
+
+.home-brand-play__face path {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-width: 2.2;
+}
+
+.home-brand-play__face-d circle {
+  fill: #1e1b4b;
+  stroke: none;
+}
+
+.home-brand-play__face-d path {
+  stroke: #1e1b4b;
+  stroke-width: 2;
+}
+
+.home-brand-play__bridge {
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  z-index: 1;
+  display: block;
+  width: 150px;
+  height: 66px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.home-brand-play__beam {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 60px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.56), rgba(59, 130, 246, 0));
+  opacity: 0;
+  transform: translateX(-50%) scaleY(0.24);
+  transform-origin: top;
+  transition:
+    opacity 220ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-brand-play__dot {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.38);
+  opacity: 0;
+  transform: translate(-50%, 0) scale(0.72);
+}
+
+.home-brand-play__dot-b {
+  animation-delay: 180ms;
+}
+
+.home-brand-play__dot-c {
+  animation-delay: 360ms;
+}
+
+.home-brand-play-focused .home-brand-play__mark {
+  filter: drop-shadow(0 20px 30px rgba(99, 102, 241, 0.2));
+  transform: translateX(-50%) translateY(5px) scale(0.84);
+}
+
+.home-brand-play-focused .home-brand-play__letter-j {
+  animation: home-brand-j-listen 1.8s ease-in-out infinite;
+}
+
+.home-brand-play-focused .home-brand-play__letter-d {
+  animation: home-brand-d-listen 1.8s ease-in-out infinite;
+}
+
+.home-brand-play-focused .home-brand-play__beam,
+.home-brand-play-active .home-brand-play__beam {
+  opacity: 1;
+  transform: translateX(-50%) scaleY(1);
+}
+
+.home-brand-play-active .home-brand-play__dot {
+  animation: home-brand-dot-flow 1.34s cubic-bezier(0.35, 0, 0.2, 1) infinite;
+}
+
+.home-brand-play-active .home-brand-play__letter-j {
+  animation: home-brand-j-compose 1.18s ease-in-out infinite;
+}
+
+.home-brand-play-active .home-brand-play__letter-d {
+  animation: home-brand-d-compose 1.18s ease-in-out infinite;
+}
+
+.home-brand-play-submitting .home-brand-play__mark {
+  animation: home-brand-submit 720ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.home-brand-play-submitting .home-brand-play__beam {
+  opacity: 1;
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.82), rgba(59, 130, 246, 0));
+}
+
+@keyframes home-brand-halo {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.62;
+  }
+  50% {
+    transform: translateX(-50%) scale(1.04);
+    opacity: 0.86;
+  }
+}
+
+@keyframes home-brand-j-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  45% {
+    transform: translateY(-2px) rotate(1deg);
+  }
+}
+
+@keyframes home-brand-d-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(1deg);
+  }
+  45% {
+    transform: translateY(-2px) rotate(-1deg);
+  }
+}
+
+@keyframes home-brand-j-listen {
+  0%,
+  100% {
+    transform: translate(0, 1px) rotate(2deg);
+  }
+  50% {
+    transform: translate(2px, 4px) rotate(5deg);
+  }
+}
+
+@keyframes home-brand-d-listen {
+  0%,
+  100% {
+    transform: translate(0, 1px) rotate(-2deg);
+  }
+  50% {
+    transform: translate(-2px, 4px) rotate(-5deg);
+  }
+}
+
+@keyframes home-brand-j-compose {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(-1deg);
+  }
+  50% {
+    transform: translate(1px, -4px) rotate(3deg);
+  }
+}
+
+@keyframes home-brand-d-compose {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(1deg);
+  }
+  50% {
+    transform: translate(-1px, -4px) rotate(-3deg);
+  }
+}
+
+@keyframes home-brand-dot-flow {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dot-x, 0px)), 58px) scale(0.42);
+  }
+}
+
+.home-brand-play__dot-a {
+  --dot-x: -24px;
+}
+
+.home-brand-play__dot-b {
+  --dot-x: 0px;
+}
+
+.home-brand-play__dot-c {
+  --dot-x: 24px;
+}
+
+@keyframes home-brand-submit {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(5px) scale(0.84);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-2px) scale(0.88);
+  }
+}
+
+@keyframes home-brand-blink {
+  0%,
+  88%,
+  100% {
+    transform: scaleY(1);
+  }
+  92% {
+    transform: scaleY(0.16);
+  }
 }
 
 .home-composer {
@@ -641,6 +1024,54 @@ onBeforeUnmount(() => {
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 14px 34px rgba(99, 102, 241, 0.07),
     0 4px 16px rgba(79, 70, 229, 0.06);
+  overflow: visible;
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.home-composer::before {
+  content: "";
+  position: absolute;
+  left: 118px;
+  right: 68px;
+  top: -2px;
+  z-index: 3;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.72), rgba(59, 130, 246, 0));
+  opacity: 0;
+  transform: scaleX(0.18);
+  transform-origin: center;
+  transition:
+    opacity 220ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.home-composer-linked,
+.home-composer-active {
+  border-color: rgba(99, 102, 241, 0.24);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.98) inset,
+    0 18px 44px rgba(99, 102, 241, 0.11),
+    0 6px 18px rgba(79, 70, 229, 0.08);
+  transform: translateY(-1px);
+}
+
+.home-composer-linked::before,
+.home-composer-active::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.home-composer-submitting {
+  border-color: rgba(99, 102, 241, 0.34);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.98) inset,
+    0 20px 48px rgba(99, 102, 241, 0.14),
+    0 0 0 1px rgba(99, 102, 241, 0.08);
 }
 
 .home-hidden-input {
@@ -1665,18 +2096,53 @@ onBeforeUnmount(() => {
   }
 
   .home-hero {
-    gap: 22px;
+    gap: 18px;
   }
 
-  .home-hero h1 {
-    gap: 4px 8px;
-    line-height: 1.24;
+  .home-brand-play {
+    min-height: 122px;
+  }
+
+  .home-brand-play__stage {
+    width: 236px;
+    height: 122px;
+  }
+
+  .home-brand-play__halo {
+    top: 10px;
+    width: 144px;
+    height: 88px;
+  }
+
+  .home-brand-play__mark {
+    top: -13px;
+    width: 150px;
+    height: 150px;
+    transform: translateX(-50%) scale(0.78);
+  }
+
+  .home-brand-play-focused .home-brand-play__mark {
+    transform: translateX(-50%) translateY(4px) scale(0.8);
+  }
+
+  .home-brand-play__bridge {
+    bottom: -14px;
+    height: 56px;
+  }
+
+  .home-brand-play__beam {
+    height: 50px;
   }
 
   .home-composer {
     min-height: 0;
     padding: 18px 62px 18px 18px;
     border-radius: 18px;
+  }
+
+  .home-composer::before {
+    left: 18px;
+    right: 62px;
   }
 
   .home-composer__toolbar,
