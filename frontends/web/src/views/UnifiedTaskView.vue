@@ -20,7 +20,7 @@
       </div>
 
       <TaskDetailPanel
-        v-else-if="effectiveSelectedKind === 'task'"
+        v-else-if="selectedDetailMode === 'task'"
         :key="`task-${selectedId}`"
         :selected-task-id="selectedId"
         :tasks="list.tasks.value"
@@ -28,8 +28,15 @@
         @deleted="handleDeleted"
       />
 
+      <WorkflowResultPanel
+        v-else-if="selectedDetailMode === 'workflow-result'"
+        :key="`workflow-result-${selectedId}`"
+        :selected-workflow-id="selectedId"
+        @open-stage="openSelectedWorkflowStage"
+      />
+
       <WorkflowDetailPanel
-        v-else-if="effectiveSelectedKind === 'workflow'"
+        v-else-if="selectedDetailMode === 'workflow-stage'"
         :key="`workflow-${selectedId}`"
         :selected-workflow-id="selectedId"
         :reload-workflows="list.load"
@@ -73,6 +80,7 @@ import { useUnifiedSelection } from "@/composables/unified/useUnifiedSelection";
 import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
 import TaskDetailPanel from "./unified/components/TaskDetailPanel.vue";
 import WorkflowDetailPanel from "./unified/components/WorkflowDetailPanel.vue";
+import WorkflowResultPanel from "./unified/components/WorkflowResultPanel.vue";
 import CreateTaskDialog from "./unified/components/CreateTaskDialog.vue";
 import { IconPlus } from "@/components/icons";
 import type { UnifiedListItem } from "@/types/unified-task";
@@ -89,12 +97,31 @@ const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfi
 
 const selectedId = selection.selectedId;
 const selectedItem = computed(() => selectedId.value ? list.findItem(selectedId.value) : undefined);
-const effectiveSelectedKind = computed(() => selectedItem.value?.kind ?? selection.selectedKind.value ?? (list.loading.value ? "" : "task"));
 const createDialogOpen = ref(false);
 const managingId = ref("");
+const workflowStageOverrideId = ref("");
+
+const selectedDetailMode = computed(() => {
+  const item = selectedItem.value;
+  if (!item) {
+    if (list.loading.value) return "";
+    return selection.selectedKind.value === "workflow" ? "workflow-stage" : "task";
+  }
+  if (item.kind === "task") return "task";
+  if (item.status === "COMPLETED" && workflowStageOverrideId.value !== item.id) {
+    return "workflow-result";
+  }
+  return "workflow-stage";
+});
 
 function handleSelect(item: UnifiedListItem) {
+  workflowStageOverrideId.value = "";
   selection.selectItem(item);
+}
+
+function openSelectedWorkflowStage() {
+  if (selectedItem.value?.kind !== "workflow") return;
+  workflowStageOverrideId.value = selectedItem.value.id;
 }
 
 async function handleDelete(item: UnifiedListItem) {
@@ -122,6 +149,7 @@ async function handleDelete(item: UnifiedListItem) {
       await deleteTask(item.id);
     }
     if (selectedId.value === item.id) {
+      workflowStageOverrideId.value = "";
       selection.clearSelection();
     }
     await list.load();
@@ -135,6 +163,7 @@ async function handleDelete(item: UnifiedListItem) {
 
 function handleDeleted(taskId: string) {
   if (selectedId.value === taskId) {
+    workflowStageOverrideId.value = "";
     selection.clearSelection();
   }
 }
@@ -145,6 +174,7 @@ function handleCreated(id: string) {
   void list.load().then(() => {
     const found = list.findItem(id);
     if (found) {
+      workflowStageOverrideId.value = "";
       selection.selectItem(found);
     }
   });
@@ -152,6 +182,7 @@ function handleCreated(id: string) {
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Escape" && selectedId.value) {
+    workflowStageOverrideId.value = "";
     selection.clearSelection();
   }
 }

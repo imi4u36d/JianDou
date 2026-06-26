@@ -252,12 +252,13 @@ class TaskWorkerPipelineHandler:
                 task.started_at = now_iso()
             self._runtime_support.assert_task_still_active(task)
             active_attempt = self._runtime_support.active_attempt(task)
-            dimensions = self._runtime_support.resolve_dimensions(task)
 
             if not self._is_video_generation_task(task):
+                dimensions = self._runtime_support.resolve_workspace_image_dimensions(task)
                 await self._process_workspace_image_task(task, run_context, dimensions)
                 return
 
+            dimensions = self._runtime_support.resolve_dimensions(task)
             duration_seconds = self._runtime_support.resolve_duration_seconds(task)
             video_size = f"{dimensions[0]}*{dimensions[1]}"
             existing_video_clip_indices = self._existing_video_clip_indices(task)
@@ -499,7 +500,10 @@ class TaskWorkerPipelineHandler:
         self, task: TaskRecord, run_context: TaskWorkerExecutionContext, dimensions: list[int]
     ) -> None:
         output_count = self._runtime_support.resolve_workspace_image_output_count(task)
-        self._put_execution_context(task, "imageSize", f"{dimensions[0]}x{dimensions[1]}")
+        if dimensions[0] > 0 and dimensions[1] > 0:
+            self._put_execution_context(task, "imageSize", f"{dimensions[0]}x{dimensions[1]}")
+        else:
+            self._put_execution_context(task, "imageSize", None)
         self._put_execution_context(task, "requestedImageOutputCount", output_count)
         self._put_execution_context(task, "workerInstanceId", run_context.worker_instance_id)
         await self._save_result(
@@ -578,6 +582,12 @@ class TaskWorkerPipelineHandler:
             self._runtime_support.assert_task_still_active(task)
             image_result = self._result_map(image_run)
             image_metadata = map_value(image_result.get("metadata"))
+            actual_width = safe_int(image_result.get("width"), 0) or safe_int(image_metadata.get("artifactWidth"), 0)
+            actual_height = safe_int(image_result.get("height"), 0) or safe_int(image_metadata.get("artifactHeight"), 0)
+            if actual_width > 0 and actual_height > 0:
+                actual_image_size = f"{actual_width}x{actual_height}"
+                self._put_execution_context(task, "imageSize", actual_image_size)
+                self._put_execution_context(task, "actualImageSize", actual_image_size)
             output_url = first_non_blank(
                 string_value(image_result.get("outputUrl")),
                 string_value(image_metadata.get("outputUrl")),

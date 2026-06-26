@@ -29,6 +29,33 @@ export function formatTaskModelValue(value: string | null | undefined) {
   return normalized || "未选择";
 }
 
+function cleanContextString(context: Record<string, unknown> | null | undefined, key: string) {
+  const raw = context?.[key];
+  return typeof raw === "string" ? cleanString(raw) : "";
+}
+
+/**
+ * 返回任务详情里用于展示的尺寸/清晰度策略行。
+ * 图片任务历史上可能存在 imageSize；新任务只指定比例，实际尺寸以产物为准。
+ * @param snapshot 快照值
+ */
+export function getTaskResolutionRow(
+  snapshot: TaskRequestSnapshot | null | undefined,
+  context?: Record<string, unknown> | null,
+) {
+  const taskType = cleanString(snapshot?.taskType);
+  const imageSize = cleanString(snapshot?.imageSize);
+  const videoSize = cleanString(snapshot?.videoSize);
+  if (taskType === "video_generation" || (!imageSize && videoSize)) {
+    return { label: "视频清晰度", value: formatTaskModelValue(videoSize) };
+  }
+  const actualImageSize = cleanContextString(context, "actualImageSize");
+  if (actualImageSize) {
+    return { label: "图片实际尺寸", value: actualImageSize };
+  }
+  return { label: "图片尺寸策略", value: imageSize || "按上游实际返回" };
+}
+
 /**
  * 格式化任务时长模式。
  * @param snapshot 快照值

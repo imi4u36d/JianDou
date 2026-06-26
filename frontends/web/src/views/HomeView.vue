@@ -155,29 +155,6 @@
                       </button>
                     </div>
                   </section>
-                  <section class="home-popover-section">
-                    <p class="home-popover__label">分辨率</p>
-                    <div class="home-resolution-list">
-                      <button
-                        v-for="size in imageSizeOptions"
-                        :key="size.value"
-                        type="button"
-                        :class="{ 'home-resolution-active': form.imageSize === size.value }"
-                        @click="form.imageSize = size.value"
-                      >
-                        {{ formatImageSizeOptionLabel(size) }}
-                      </button>
-                    </div>
-                  </section>
-                  <section v-if="selectedImageSizeDimensions" class="home-popover-section">
-                    <p class="home-popover__label">尺寸</p>
-                    <div class="home-dimension-row">
-                      <strong data-label="W">{{ selectedImageSizeDimensions.width }}</strong>
-                      <span class="home-dimension-link">⌁</span>
-                      <strong data-label="H">{{ selectedImageSizeDimensions.height }}</strong>
-                      <span>PX</span>
-                    </div>
-                  </section>
                 </div>
               </transition>
             </div>
@@ -390,8 +367,6 @@ const {
   selectedPrimaryModelLabel,
   creditLabel,
   ratioOptions,
-  imageSizeOptions,
-  selectedImageSizeDimensions,
   selectedMaterialAssetType,
   ratioToolLabel,
   parsedManualSeed,
@@ -399,7 +374,6 @@ const {
   isFormReady,
   imageOutputCountOptions,
   refreshAutoSeed,
-  formatImageSizeOptionLabel,
   resolvedImageAspectRatioForSubmit,
   loadOptions,
   loadCredits,
@@ -518,7 +492,7 @@ async function submitImageGeneration() {
     assetType: selectedMaterialAssetType.value,
     creativePrompt: promptText.value.trim(),
     aspectRatio: resolvedImageAspectRatioForSubmit(),
-    imageSize: form.value.imageSize || null,
+    imageSize: null,
     textAnalysisModel: form.value.textAnalysisModel || null,
     imageModel: form.value.imageModel || null,
     videoModel: null,
@@ -1453,84 +1427,6 @@ onBeforeUnmount(() => {
   border-radius: 4px;
 }
 
-.home-resolution-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  overflow: hidden;
-  padding: 4px;
-  border-radius: 12px;
-  background: #f4f7f9;
-}
-
-.home-resolution-list button {
-  min-height: 42px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #1f2831;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.home-resolution-active {
-  background: #fff !important;
-  color: #1f2831 !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-.home-dimension-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 38px minmax(0, 1fr) 50px;
-  align-items: center;
-  gap: 8px;
-}
-
-.home-dimension-row span,
-.home-dimension-row strong {
-  min-height: 42px;
-  display: grid;
-  align-items: center;
-  border-radius: 10px;
-  background: #f3f6f8;
-}
-
-.home-dimension-row span {
-  justify-items: center;
-  color: #556473;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.home-dimension-row strong {
-  grid-template-columns: 40px minmax(0, 1fr);
-  justify-items: stretch;
-  padding: 0 12px;
-  color: #1f2831;
-  font-size: 0.84rem;
-  font-weight: 600;
-}
-
-.home-dimension-row strong::before {
-  content: attr(data-label);
-  display: grid;
-  align-items: center;
-  color: #556473;
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.home-dimension-row .home-dimension-link {
-  background: transparent;
-  color: #63717d;
-  font-size: 1.18rem;
-}
-
 .home-segment-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 4px;
@@ -1896,16 +1792,6 @@ onBeforeUnmount(() => {
 
   .home-popover-ratio {
     width: auto;
-  }
-
-  .home-dimension-row {
-    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 36px;
-    gap: 6px;
-  }
-
-  .home-dimension-row strong {
-    grid-template-columns: 24px minmax(0, 1fr);
-    padding: 0 8px;
   }
 
   .home-active-tasks {

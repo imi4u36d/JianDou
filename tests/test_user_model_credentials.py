@@ -50,6 +50,49 @@ def test_user_model_credentials_still_read_legacy_plaintext(tmp_path):
     assert repo.find_runtime_api_key(9, ["openai"]) == "sk-legacy-secret"
 
 
+def test_user_model_credentials_insert_runtime_columns_without_server_defaults(tmp_path):
+    db_path = tmp_path / "strict-credentials.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            create table sys_user_model_credential (
+                id integer primary key autoincrement,
+                user_id integer not null,
+                provider_key varchar(64) not null,
+                encrypted_api_key text not null,
+                base_url text not null,
+                task_base_url text not null,
+                extras_json text not null,
+                created_at varchar(32) not null,
+                updated_at varchar(32) not null
+            )
+            """
+        )
+        conn.execute(
+            """
+            create unique index ux_sys_user_model_credential_user_provider
+            on sys_user_model_credential(user_id, provider_key)
+            """
+        )
+        conn.commit()
+
+    repo = SqlAlchemyUserModelCredentialRepository(f"sqlite+aiosqlite:///{db_path}")
+    repo.save_api_keys(7, {"openai": "sk-live-secret"})
+
+    with sqlite3.connect(db_path) as conn:
+        stored = conn.execute(
+            """
+            select base_url, task_base_url, extras_json
+            from sys_user_model_credential
+            where user_id = ? and provider_key = ?
+            """,
+            (7, "openai"),
+        ).fetchone()
+
+    assert stored == ("", "", "{}")
+    assert repo.find_runtime_api_key(7, ["openai"]) == "sk-live-secret"
+
+
 def test_user_model_runtime_config_overrides_yaml_provider_values(tmp_path):
     db_path = tmp_path / "runtime-config.db"
     config_dir = tmp_path / "config"

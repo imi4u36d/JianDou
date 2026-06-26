@@ -1451,7 +1451,7 @@ class OpenAiImageModelProvider:
         request: ImageGenerationRequest,
     ) -> RemoteImageGenerationResult:
         provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
-        size = f"{request.width}x{request.height}"
+        size = self._requested_image_size(request)
         request_body: dict[str, Any] = {
             "model": provider_model,
             "prompt": request.prompt,
@@ -1487,7 +1487,7 @@ class OpenAiImageModelProvider:
         reference_image_urls: list[str],
     ) -> RemoteImageGenerationResult:
         provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
-        size = f"{request.width}x{request.height}"
+        size = self._requested_image_size(request)
         files = await self._reference_urls_to_file_parts(reference_image_urls, profile.config.timeout_seconds)
         if not files:
             raise GenerationProviderException("openai image edits require at least one usable reference image")
@@ -1577,7 +1577,7 @@ class OpenAiImageModelProvider:
             endpoint_host=profile.endpoint_host,
             width=request.width,
             height=request.height,
-            requested_size=f"{request.width}x{request.height}",
+            requested_size=self._requested_image_size(request),
             provider_request=provider_request,
             provider_response=payload,
             http_status=http_status,
@@ -1586,6 +1586,12 @@ class OpenAiImageModelProvider:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _requested_image_size(request: ImageGenerationRequest) -> str:
+        if request.width <= 0 or request.height <= 0:
+            return "auto"
+        return f"{request.width}x{request.height}"
 
     async def _reference_urls_to_file_parts(
         self,

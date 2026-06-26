@@ -2089,14 +2089,17 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                         text(
                             """
                         insert into sys_user_model_credential
-                            (user_id, provider_key, encrypted_api_key, created_at, updated_at)
-                        values (:user_id, :provider_key, :api_key, :created_at, :updated_at)
+                            (user_id, provider_key, encrypted_api_key, base_url, task_base_url, extras_json, created_at, updated_at)
+                        values (:user_id, :provider_key, :api_key, :base_url, :task_base_url, :extras_json, :created_at, :updated_at)
                         """,
                         ),
                         {
                             "user_id": user_id,
                             "provider_key": provider_key,
                             "api_key": protected_api_key,
+                            "base_url": "",
+                            "task_base_url": "",
+                            "extras_json": "{}",
                             "created_at": now,
                             "updated_at": now,
                         },

@@ -326,7 +326,7 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
       .filter((value): value is RatioOptionValue => Boolean(value));
     const unique = [...new Set(ratios)];
     const available = unique.length ? unique : availableVideoRatios.value;
-    return ["智能", ...available.filter((value) => value !== "智能")];
+    return available.filter((value) => value !== "智能");
   });
 
   const imageCandidateSizes = computed<GenerationImageSizeOption[]>(() => {
@@ -396,10 +396,6 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
   const selectedMaterialAssetType = computed(() => selectedMode.value.value === "character_sheet" ? "character_sheet" : "free");
 
   const ratioToolLabel = computed(() => {
-    if (selectedMode.value.kind === "image") {
-      const quality = selectedImageSizeOption.value ? imageQualityLabel(selectedImageSizeOption.value) : "";
-      return [form.value.aspectRatio, quality].filter(Boolean).join(" | ") || form.value.aspectRatio;
-    }
     return form.value.aspectRatio;
   });
 
@@ -422,9 +418,6 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
       return false;
     }
     if (selectedMode.value.kind === "video" && (!form.value.videoModel || !form.value.videoSize)) {
-      return false;
-    }
-    if (selectedMode.value.kind === "image" && !form.value.imageSize) {
       return false;
     }
     return isSeedReady.value;
@@ -453,7 +446,7 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
     if (form.value.aspectRatio !== "智能") {
       return form.value.aspectRatio;
     }
-    return selectedImageSizeOption.value ? sizeRatioLabel(selectedImageSizeOption.value) ?? "1:1" : "1:1";
+    return "1:1";
   }
 
   async function loadOptions() {
@@ -492,19 +485,10 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
   // ---------------------------------------------------------------------------
 
   watch(
-    () => [selectedModeValue.value, imageSizeOptions.value] as const,
-    ([, items]) => {
-      if (selectedMode.value.kind !== "image") {
-        return;
-      }
-      if (!items.length) {
+    selectedModeValue,
+    () => {
+      if (selectedMode.value.kind === "image") {
         form.value.imageSize = null;
-        return;
-      }
-      const configured = options.value?.defaultImageSize;
-      const currentValid = form.value.imageSize && items.some((item) => item.value === form.value.imageSize);
-      if (!currentValid) {
-        form.value.imageSize = items.find((item) => item.value === configured)?.value ?? items[0].value;
       }
     },
     { immediate: true },

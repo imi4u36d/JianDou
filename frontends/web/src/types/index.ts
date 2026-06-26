@@ -902,30 +902,46 @@ export interface TaskShowcaseResponse {
  */
 export interface HealthModelSummary {
   provider: string | null;
-  primary_model: string | null;
+  primary_model?: string | null;
+  primaryModel?: string | null;
   text_analysis_provider?: string | null;
+  textAnalysisProvider?: string | null;
   text_analysis_model?: string | null;
+  textAnalysisModel?: string | null;
   endpoint_host?: string;
-  api_key_present: boolean;
+  endpointHost?: string | null;
+  api_key_present?: boolean;
+  apiKeyPresent?: boolean;
   ready: boolean;
   temperature: number;
-  max_tokens: number;
-  config_errors: string[];
+  max_tokens?: number;
+  maxTokens?: number;
+  config_errors?: string[];
+  configErrors?: string[];
 }
 
 /**
  * 健康检查规划能力接口定义。
  */
 export interface HealthPlanningCapabilities {
-  timed_transcript_supported: boolean;
-  transcript_semantic_planning: boolean;
-  visual_content_analysis: boolean;
-  visual_event_reasoning: boolean;
-  subtitle_visual_fusion: boolean;
-  audio_peak_signal: boolean;
-  scene_boundary_signal: boolean;
-  fusion_timeline_planning: boolean;
-  fallback_heuristic_enabled: boolean;
+  timed_transcript_supported?: boolean;
+  timedTranscriptSupported?: boolean;
+  transcript_semantic_planning?: boolean;
+  transcriptSemanticPlanning?: boolean;
+  visual_content_analysis?: boolean;
+  visualContentAnalysis?: boolean;
+  visual_event_reasoning?: boolean;
+  visualEventReasoning?: boolean;
+  subtitle_visual_fusion?: boolean;
+  subtitleVisualFusion?: boolean;
+  audio_peak_signal?: boolean;
+  audioPeakSignal?: boolean;
+  scene_boundary_signal?: boolean;
+  sceneBoundarySignal?: boolean;
+  fusion_timeline_planning?: boolean;
+  fusionTimelinePlanning?: boolean;
+  fallback_heuristic_enabled?: boolean;
+  fallbackHeuristicEnabled?: boolean;
 }
 
 /**
@@ -934,12 +950,17 @@ export interface HealthPlanningCapabilities {
 export interface HealthRuntimeSummary {
   name: string;
   env: string;
-  execution_mode: string;
-  database_url: string;
-  model_provider: string | null;
-  storage_root: string;
+  execution_mode?: string;
+  executionMode?: string;
+  database_url?: string;
+  databaseUrl?: string;
+  model_provider?: string | null;
+  modelProvider?: string | null;
+  storage_root?: string;
+  storageRoot?: string;
   model: HealthModelSummary;
-  planning_capabilities: HealthPlanningCapabilities;
+  planning_capabilities?: HealthPlanningCapabilities;
+  planningCapabilities?: HealthPlanningCapabilities;
 }
 
 /**

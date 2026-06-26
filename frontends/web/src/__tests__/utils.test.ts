@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { clampProgress, formatDateTime, formatAspectRatioLabel, formatVideoSizeLabel } from "@/utils/presentation";
-import { formatTaskOutputCount } from "@/utils/task-request";
+import { formatTaskOutputCount, getTaskResolutionRow } from "@/utils/task-request";
 
 describe("clampProgress", () => {
   it("clamps values below 0 to 0", () => {
@@ -96,5 +96,40 @@ describe("formatTaskOutputCount", () => {
 
   it("formats structured fixed output counts", () => {
     expect(formatTaskOutputCount({ outputCount: { auto: false, count: 3 } })).toBe("3 条");
+  });
+});
+
+describe("getTaskResolutionRow", () => {
+  it("uses imageSize for image tasks", () => {
+    expect(getTaskResolutionRow({ taskType: "image_generation", imageSize: "3840x2160", videoSize: "" })).toEqual({
+      label: "图片尺寸策略",
+      value: "3840x2160",
+    });
+  });
+
+  it("describes auto image dimensions when imageSize is omitted", () => {
+    expect(getTaskResolutionRow({ taskType: "image_generation", imageSize: "", videoSize: "" })).toEqual({
+      label: "图片尺寸策略",
+      value: "按上游实际返回",
+    });
+  });
+
+  it("uses actual image size from execution context when available", () => {
+    expect(
+      getTaskResolutionRow(
+        { taskType: "image_generation", imageSize: "", videoSize: "" },
+        { actualImageSize: "864x1821" },
+      ),
+    ).toEqual({
+      label: "图片实际尺寸",
+      value: "864x1821",
+    });
+  });
+
+  it("uses videoSize for video tasks", () => {
+    expect(getTaskResolutionRow({ taskType: "video_generation", imageSize: "1024x1024", videoSize: "720*1280" })).toEqual({
+      label: "视频清晰度",
+      value: "720*1280",
+    });
   });
 });

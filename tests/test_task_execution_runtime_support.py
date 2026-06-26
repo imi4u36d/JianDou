@@ -57,6 +57,12 @@ def test_resolve_dimensions_and_duration_prefers_explicit_snapshot_values() -> N
     assert support.resolve_duration_seconds(task) == 7
 
 
+def test_resolve_workspace_image_dimensions_uses_auto_when_size_omitted() -> None:
+    support = TaskExecutionRuntimeSupport()
+
+    assert support.resolve_workspace_image_dimensions(_task(task_type="image_generation")) == [0, 0]
+
+
 def test_resolve_workspace_image_output_count_clamps_to_supported_range() -> None:
     support = TaskExecutionRuntimeSupport()
 
@@ -133,6 +139,19 @@ def test_build_workspace_image_request_uses_unique_file_stem_for_additional_outp
     assert request["input"]["height"] == 2048
     assert request["storage"]["fileStem"] == "workspace-image-2"
     assert request["metadata"]["outputIndex"] == 2
+
+
+def test_build_workspace_image_request_preserves_zero_dimensions_for_auto_size() -> None:
+    support = TaskExecutionRuntimeSupport(model_resolver=_Resolver())
+    task = _task(task_type="image_generation", aspect_ratio="16:9")
+
+    request = support.build_workspace_image_run_request(task, 0, 0)
+
+    assert request["input"]["width"] == 0
+    assert request["input"]["height"] == 0
+    assert "画面比例：16:9" in request["input"]["prompt"]
+    assert "3840x2160" in request["input"]["prompt"]
+    assert "4K 分辨率" in request["input"]["prompt"]
 
 
 def test_build_workspace_image_request_uses_data_uri_when_public_url_missing() -> None:

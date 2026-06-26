@@ -17,19 +17,49 @@
             </span>
           </div>
         </div>
-        <button class="task-detail-close-button" type="button" aria-label="关闭详情" title="关闭" @click="$emit('close')">
-          <IconClose size="sm" />
-        </button>
       </header>
 
-      <div class="detail-stage-line" aria-label="任务阶段">
-        <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
-          <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
-          <span class="detail-stage-line__copy">
-            <strong>{{ stage.label }}</strong>
-            <small>{{ stage.stateLabel }}</small>
-          </span>
+      <section class="detail-stage-card" aria-label="任务阶段">
+        <div class="detail-stage-line">
+          <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
+            <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
+            <span class="detail-stage-line__copy">
+              <strong>{{ stage.label }}</strong>
+              <small>{{ stage.stateLabel }}</small>
+            </span>
+          </div>
         </div>
+      </section>
+
+      <div class="detail-actions detail-actions-card" aria-label="任务操作">
+        <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+          <IconRefresh size="xs" />
+          刷新
+        </button>
+        <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+          <IconRefresh size="xs" />
+          重试
+        </button>
+        <button v-if="selectedTaskActionTask?.status === 'COMPLETED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+          <IconRefresh size="xs" />
+          重新生成
+        </button>
+        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+          <span class="detail-action-btn__pause" aria-hidden="true"></span>
+          暂停
+        </button>
+        <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+          <IconRefresh size="xs" />
+          继续
+        </button>
+        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+          <IconWarning size="xs" />
+          终止
+        </button>
+        <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+          <IconDelete size="xs" />
+          删除
+        </button>
       </div>
 
       <section v-if="selectedTaskFailureReason" class="task-failure-card" :class="{ 'task-failure-card-open': failureDetailsOpen }">
@@ -66,29 +96,38 @@
             />
             <div v-else>生成中</div>
           </div>
-          <div class="detail-overview">
-            <div class="detail-overview__row detail-overview__row-progress">
-              <span>进度</span>
-              <div class="detail-overview__progress">
-                <div class="detail-overview__progress-fill" :style="{ width: `${selectedTaskJoinProgressPercent}%` }"></div>
-              </div>
-              <strong>{{ selectedTaskJoinProgressPercent }}%</strong>
-            </div>
-            <div class="detail-overview__row"><span>参考图</span><strong>{{ selectedReferenceImageCount }} 张</strong></div>
-            <div class="detail-overview__row"><span>实例</span><strong :title="selectedTaskActionTask?.activeWorkerInstanceId || ''">{{ selectedTaskShortWorkerLabel }}</strong></div>
-            <div class="detail-overview__row"><span>种子</span><strong>{{ selectedTaskSeedLabel }}</strong></div>
-          </div>
         </section>
 
-        <section class="detail-section detail-section-card">
+        <section class="detail-section detail-section-card detail-params-section">
           <div class="detail-section__head">
-            <h3>请求参数</h3>
+            <h3>参数</h3>
             <span class="surface-chip">{{ selectedTaskDurationModeLabel }}</span>
           </div>
-          <div class="detail-params">
-            <div v-for="item in selectedTaskCompactParameterRows" :key="item.label" class="detail-params__row">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
+          <div class="detail-param-tags" aria-label="任务参数">
+            <div class="detail-param-tag detail-param-tag-progress">
+              <span class="detail-param-tag__label">进度</span>
+              <div class="detail-param-tag__progress">
+                <div class="detail-overview__progress">
+                  <div class="detail-overview__progress-fill" :style="{ width: `${selectedTaskJoinProgressPercent}%` }"></div>
+                </div>
+                <strong class="detail-param-tag__value">{{ selectedTaskJoinProgressPercent }}%</strong>
+              </div>
+            </div>
+            <div class="detail-param-tag">
+              <span class="detail-param-tag__label">参考图</span>
+              <strong class="detail-param-tag__value">{{ selectedReferenceImageCount }} 张</strong>
+            </div>
+            <div class="detail-param-tag">
+              <span class="detail-param-tag__label">实例</span>
+              <strong class="detail-param-tag__value" :title="selectedTaskActionTask?.activeWorkerInstanceId || ''">{{ selectedTaskShortWorkerLabel }}</strong>
+            </div>
+            <div class="detail-param-tag">
+              <span class="detail-param-tag__label">种子</span>
+              <strong class="detail-param-tag__value">{{ selectedTaskSeedLabel }}</strong>
+            </div>
+            <div v-for="item in selectedTaskCompactParameterRows" :key="item.label" class="detail-param-tag">
+              <span class="detail-param-tag__label">{{ item.label }}</span>
+              <strong class="detail-param-tag__value" :title="item.value">{{ item.value }}</strong>
             </div>
           </div>
           <div v-if="selectedTaskTranscriptPreview" class="detail-note-block">
@@ -100,18 +139,44 @@
 
       <section v-if="selectedTaskResultItems.length || selectedTaskMaterialItems.length" class="detail-section detail-section-card">
         <div class="detail-section__head">
-          <h3>结果和素材</h3>
+          <h3>结果素材</h3>
           <RouterLink class="surface-chip detail-material-link" :to="materialLibraryLink">素材库</RouterLink>
         </div>
         <div class="detail-result-list">
-          <a v-for="item in selectedTaskResultItems" :key="`result-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">
-            <IconDownload size="xs" />
-            <span>{{ item.title }}</span>
-          </a>
-          <a v-for="item in selectedTaskMaterialItems" :key="`material-${item.url}`" :href="item.url" target="_blank" rel="noreferrer">
-            <IconDownload size="xs" />
-            <span>{{ item.title }}</span>
-          </a>
+          <button
+            v-for="item in selectedTaskResultItems"
+            :key="`result-${item.url}`"
+            class="detail-result-item"
+            type="button"
+            @click="openTaskPreviewItem(item.title, item.url)"
+          >
+            <span class="detail-result-item__icon" aria-hidden="true">
+              <IconImage v-if="previewKindForUrl(item.url) === 'image'" size="xs" />
+              <IconVideo v-else-if="previewKindForUrl(item.url) === 'video'" size="xs" />
+              <IconDownload v-else size="xs" />
+            </span>
+            <span class="detail-result-item__copy">
+              <strong>{{ item.title }}</strong>
+              <small>结果</small>
+            </span>
+          </button>
+          <button
+            v-for="item in selectedTaskMaterialItems"
+            :key="`material-${item.url}`"
+            class="detail-result-item"
+            type="button"
+            @click="openTaskPreviewItem(item.title, item.url)"
+          >
+            <span class="detail-result-item__icon" aria-hidden="true">
+              <IconImage v-if="previewKindForUrl(item.url) === 'image'" size="xs" />
+              <IconVideo v-else-if="previewKindForUrl(item.url) === 'video'" size="xs" />
+              <IconDownload v-else size="xs" />
+            </span>
+            <span class="detail-result-item__copy">
+              <strong>{{ item.title }}</strong>
+              <small>素材</small>
+            </span>
+          </button>
         </div>
       </section>
 
@@ -140,49 +205,50 @@
         </section>
       </div>
 
-      <section class="detail-section detail-section-card">
-        <div class="detail-section__head">
-          <h3>追踪</h3>
-          <span class="surface-chip">{{ selectedTaskTrace.length }}</span>
-        </div>
-        <div class="detail-traces">
+      <section class="detail-section detail-section-card detail-trace-section" :class="{ 'detail-trace-section-open': traceListOpen }">
+        <button
+          type="button"
+          class="detail-trace-summary"
+          :aria-expanded="traceListOpen"
+          aria-controls="task-detail-traces"
+          @click="traceListOpen = !traceListOpen"
+        >
+          <span class="detail-trace-summary__copy">
+            <strong>追踪</strong>
+            <small>{{ selectedTaskTracePreview[0]?.message || "暂无记录" }}</small>
+          </span>
+          <span class="surface-chip">{{ selectedTaskTrace.length }} 条</span>
+          <span class="detail-trace-summary__chevron" aria-hidden="true">
+            <IconChevronDown size="xs" />
+          </span>
+        </button>
+        <div v-if="traceListOpen" id="task-detail-traces" class="detail-traces">
           <div v-if="selectedTaskTrace.length === 0" class="detail-traces__empty">暂无记录</div>
           <div v-for="event in selectedTaskTracePreview" :key="`${event.timestamp}-${event.event}-${event.stage}`" class="detail-traces__item">
-            <p>{{ event.message }}</p>
-            <small>
-              <span class="detail-traces__stage">{{ formatTraceStage(event.stage) }}</span>
-              <span class="detail-traces__event">{{ formatTraceEvent(event.event) }}</span>
-              <span class="detail-traces__time">{{ formatDateTime(event.timestamp) }}</span>
-            </small>
+            <div class="detail-traces__body">
+              <p>{{ event.message }}</p>
+              <small>
+                <span class="detail-traces__stage">{{ formatTraceStage(event.stage) }}</span>
+                <span class="detail-traces__event">{{ formatTraceEvent(event.event) }}</span>
+              </small>
+            </div>
+            <time class="detail-traces__time" :datetime="event.timestamp || undefined">{{ formatDateTime(event.timestamp) }}</time>
           </div>
         </div>
       </section>
 
-      <div class="detail-actions">
-        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
-          <span class="detail-action-btn__pause" aria-hidden="true"></span>
-          暂停
-        </button>
-        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
-          <IconWarning size="xs" />
-          终止
-        </button>
-        <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
-          <IconRefresh size="xs" />
-          继续
-        </button>
-        <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
-          <IconRefresh size="xs" />
-          刷新
-        </button>
-        <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
-          <IconDelete size="xs" />
-          删除
-        </button>
-      </div>
     </section>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
+    <MaterialPreviewDialog
+      :open="previewDialog.open"
+      :kind="previewDialog.kind"
+      :title="previewDialog.title"
+      :url="previewDialog.url"
+      :image-load-failed="previewImageLoadFailed"
+      @close="closeTaskPreviewDialog"
+      @image-error="previewImageLoadFailed = true"
+    />
   </main>
 </template>
 
@@ -193,7 +259,8 @@
  */
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
-import { IconChevronDown, IconClose, IconDelete, IconDownload, IconRefresh, IconWarning } from "@/components/icons";
+import MaterialPreviewDialog from "@/components/materials/MaterialPreviewDialog.vue";
+import { IconChevronDown, IconDelete, IconDownload, IconImage, IconRefresh, IconVideo, IconWarning } from "@/components/icons";
 import { useTaskDetail } from "../composables/useTaskDetail";
 import type { TaskListItem } from "@/types";
 
@@ -204,7 +271,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  close: [];
   deleted: [taskId: string];
 }>();
 
@@ -249,6 +315,7 @@ const {
   startDetailPolling,
   stopDetailPolling,
   refreshSelectedTask,
+  handleRetry,
   handlePause,
   handleTerminate,
   handleContinueTask,
@@ -263,8 +330,43 @@ const {
 } = detail;
 
 // 选中变化时重新加载详情
-import { onUnmounted, watch } from "vue";
+import { onUnmounted, reactive, ref, watch } from "vue";
+const traceListOpen = ref(false);
+const previewImageLoadFailed = ref(false);
+const previewDialog = reactive({
+  open: false,
+  kind: "image" as "storyboard" | "image" | "video",
+  title: "",
+  url: "",
+});
+
+const IMAGE_PREVIEW_URL_PATTERN = /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i;
+const VIDEO_PREVIEW_URL_PATTERN = /\.(m4v|mov|mp4|ogg|webm)(?:[?#].*)?$/i;
+
+function previewKindForUrl(url: string): "image" | "video" | "storyboard" {
+  if (VIDEO_PREVIEW_URL_PATTERN.test(url)) return "video";
+  if (IMAGE_PREVIEW_URL_PATTERN.test(url)) return "image";
+  return "image";
+}
+
+function openTaskPreviewItem(title: string, url: string) {
+  previewImageLoadFailed.value = false;
+  previewDialog.kind = previewKindForUrl(url);
+  previewDialog.title = title;
+  previewDialog.url = url;
+  previewDialog.open = true;
+}
+
+function closeTaskPreviewDialog() {
+  previewDialog.open = false;
+  previewDialog.title = "";
+  previewDialog.url = "";
+  previewImageLoadFailed.value = false;
+}
+
 watch(() => props.selectedTaskId, () => {
+  traceListOpen.value = false;
+  closeTaskPreviewDialog();
   stopDetailPolling();
   void loadSelectedTaskDetails({ includeTrace: true }).then(() => {
     if (selectedTaskIsActive.value) {
@@ -296,7 +398,8 @@ onUnmounted(() => {
 
 .task-detail-content {
   display: grid;
-  gap: 18px;
+  gap: 16px;
+  width: 100%;
   min-width: 0;
 }
 
@@ -306,17 +409,24 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   position: sticky;
-  top: 0;
+  top: 8px;
   z-index: 2;
-  padding: 12px 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 60%, rgba(255, 255, 255, 0));
+  min-width: 0;
+  padding: 16px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(32px) saturate(1.8);
 }
 
 .task-detail-header h2 {
   margin: 0;
   font-size: 1.15rem;
+  line-height: 1.35;
   font-weight: 600;
   color: var(--text-strong);
+  word-break: break-word;
 }
 
 .task-detail-header__meta {
@@ -334,39 +444,50 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
-.task-detail-close-button {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.task-detail-close-button:hover {
-  background: var(--bg-soft);
-  color: var(--text-strong);
+.detail-stage-card {
+  padding: 12px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
 }
 
 .detail-stage-line {
-  display: flex;
-  gap: 2px;
-  padding: 8px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
 }
 
 .detail-stage-line__item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
+  gap: 10px;
   min-width: 0;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(80, 90, 110, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.detail-stage-line__item-done {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.16);
+}
+
+.detail-stage-line__item-active,
+.detail-stage-line__item-paused {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.detail-stage-line__item-failed {
+  background: rgba(229, 72, 101, 0.08);
+  border-color: rgba(229, 72, 101, 0.22);
 }
 
 .detail-stage-line__dot {
+  position: relative;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -383,6 +504,18 @@ onUnmounted(() => {
   background: var(--accent-indigo);
   border-color: var(--accent-indigo);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  animation: task-stage-dot-breathe 1.8s ease-in-out infinite;
+}
+
+.detail-stage-line__dot.task-stage-row--active::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: inherit;
+  background: rgba(99, 102, 241, 0.2);
+  opacity: 0;
+  animation: task-stage-dot-pulse 1.8s ease-out infinite;
+  pointer-events: none;
 }
 
 .detail-stage-line__dot.task-stage-row--paused {
@@ -398,6 +531,7 @@ onUnmounted(() => {
 .detail-stage-line__copy {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -405,11 +539,43 @@ onUnmounted(() => {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-stage-line__copy small {
   font-size: 0.68rem;
   color: var(--text-muted);
+}
+
+@keyframes task-stage-dot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes task-stage-dot-pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.45);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-stage-line__dot.task-stage-row--active,
+  .detail-stage-line__dot.task-stage-row--active::before {
+    animation: none;
+  }
 }
 
 .task-failure-card {
@@ -451,15 +617,17 @@ onUnmounted(() => {
 
 .task-detail-grid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .task-detail-grid-primary {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(360px, 1.25fr) minmax(280px, 0.75fr);
+  align-items: stretch;
 }
 
 .task-detail-grid-secondary {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .detail-section {
@@ -468,10 +636,11 @@ onUnmounted(() => {
 }
 
 .detail-section-card {
-  padding: 14px;
+  padding: 16px;
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.66);
+  border: var(--glass-border);
+  box-shadow: var(--shadow-soft);
 }
 
 .detail-section__head {
@@ -490,9 +659,10 @@ onUnmounted(() => {
 
 .task-result-preview {
   border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.08);
   overflow: hidden;
-  background: var(--bg-softer);
-  min-height: 160px;
+  background: rgba(245, 247, 252, 0.72);
+  min-height: clamp(260px, 36vw, 430px);
   display: grid;
   place-items: center;
   color: var(--text-muted);
@@ -514,7 +684,8 @@ onUnmounted(() => {
 
 .detail-overview {
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .detail-overview__row {
@@ -522,6 +693,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
   font-size: 0.82rem;
   color: var(--text-body);
 }
@@ -533,6 +709,7 @@ onUnmounted(() => {
 
 .detail-overview__row-progress {
   gap: 10px;
+  grid-column: 1 / -1;
 }
 
 .detail-overview__progress {
@@ -552,7 +729,7 @@ onUnmounted(() => {
 
 .detail-params {
   display: grid;
-  gap: 4px;
+  gap: 8px;
 }
 
 .detail-params__row {
@@ -561,7 +738,9 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 8px;
   font-size: 0.8rem;
-  padding: 3px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
   color: var(--text-body);
 }
 
@@ -570,6 +749,55 @@ onUnmounted(() => {
   font-weight: 500;
   text-align: right;
   word-break: break-all;
+}
+
+.detail-params-section {
+  align-content: start;
+}
+
+.detail-param-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+}
+
+.detail-param-tag {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 150px;
+  min-width: min(100%, 150px);
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: rgba(99, 102, 241, 0.055);
+}
+
+.detail-param-tag-progress {
+  flex-basis: 100%;
+}
+
+.detail-param-tag__label {
+  font-size: 0.7rem;
+  line-height: 1.25;
+  color: var(--text-muted);
+}
+
+.detail-param-tag__value {
+  min-width: 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  font-weight: 650;
+  color: var(--text-strong);
+  word-break: break-word;
+}
+
+.detail-param-tag__progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 10px;
+  align-items: center;
 }
 
 .detail-note-block {
@@ -601,31 +829,132 @@ onUnmounted(() => {
 }
 
 .detail-result-list {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x proximity;
 }
 
-.detail-result-list a {
+.detail-result-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  flex: 0 0 min(220px, 72vw);
+  gap: 8px;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--text-strong);
+  cursor: zoom-in;
+  scroll-snap-align: start;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+
+.detail-result-item:hover {
+  border-color: rgba(99, 102, 241, 0.24);
+  background: rgba(99, 102, 241, 0.07);
+  transform: translateY(-1px);
+}
+
+.detail-result-item__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
+}
+
+.detail-result-item__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail-result-item__copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-result-item__copy small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.detail-trace-section {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.detail-trace-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--bg-softer);
-  color: var(--accent-indigo);
-  text-decoration: none;
-  font-size: 0.82rem;
-  transition: background 0.15s;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.detail-result-list a:hover {
-  background: var(--bg-soft);
+.detail-trace-summary:hover {
+  background: rgba(99, 102, 241, 0.045);
+}
+
+.detail-trace-summary__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.detail-trace-summary__copy strong {
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.detail-trace-summary__copy small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-trace-summary__chevron {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+}
+
+.detail-trace-section-open .detail-trace-summary__chevron {
+  transform: rotate(180deg);
 }
 
 .detail-traces {
   display: grid;
-  gap: 6px;
-  max-height: 240px;
+  max-height: 360px;
+  padding: 4px 16px 14px;
+  border-top: 1px solid rgba(80, 90, 110, 0.08);
   overflow: auto;
 }
 
@@ -637,21 +966,36 @@ onUnmounted(() => {
 }
 
 .detail-traces__item {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--bg-softer);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 14px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(80, 90, 110, 0.08);
+}
+
+.detail-traces__item:last-child {
+  border-bottom: 0;
+}
+
+.detail-traces__body {
+  min-width: 0;
 }
 
 .detail-traces__item p {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
   color: var(--text-body);
   word-break: break-word;
 }
 
 .detail-traces__item small {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  margin-top: 6px;
   font-size: 0.7rem;
   color: var(--text-muted);
 }
@@ -669,18 +1013,27 @@ onUnmounted(() => {
 }
 
 .detail-traces__time {
-  margin-left: auto;
-  font-family: monospace;
+  padding-top: 1px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  position: sticky;
-  bottom: 0;
-  padding: 12px 0;
-  background: linear-gradient(0deg, rgba(255, 255, 255, 0.92) 60%, rgba(255, 255, 255, 0));
+  justify-content: flex-start;
+}
+
+.detail-actions-card {
+  padding: 12px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: var(--shadow-soft);
 }
 
 .detail-action-btn {
@@ -689,17 +1042,20 @@ onUnmounted(() => {
   gap: 6px;
   padding: 8px 14px;
   border-radius: 10px;
-  border: 1px solid var(--glass-border);
-  background: var(--bg-surface);
-  color: var(--text-strong);
+  border: 1px solid rgba(79, 70, 229, 0.22);
+  background: #eef4ff;
+  color: #1d4ed8;
   font-size: 0.82rem;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 5px 14px rgba(79, 70, 229, 0.08);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
 
 .detail-action-btn:hover:not(:disabled):not(.detail-action-btn-primary):not(.detail-action-btn-warning):not(.detail-action-btn-danger) {
-  background: var(--bg-soft);
+  border-color: rgba(79, 70, 229, 0.38);
+  background: #dfe9ff;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.14);
 }
 
 .detail-action-btn-primary:hover:not(:disabled) {
@@ -749,10 +1105,29 @@ onUnmounted(() => {
   border-right: 3px solid currentColor;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1080px) {
   .task-detail-grid-primary,
   .task-detail-grid-secondary {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .detail-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-trace-summary {
+    align-items: flex-start;
+  }
+
+  .detail-traces__item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .detail-traces__time {
+    padding-top: 0;
   }
 
   .detail-actions {

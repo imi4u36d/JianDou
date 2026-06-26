@@ -103,6 +103,15 @@ class TaskExecutionRuntimeSupport:
         }
         return aspect_map.get(task.aspect_ratio, [1440, 2560])
 
+    def resolve_workspace_image_dimensions(self, task: TaskRecord) -> list[int]:
+        snapshot = task.request_snapshot or {}
+        image_size = string_value(snapshot.get("imageSize", ""))
+        if image_size:
+            parsed = self._parse_dimensions(image_size)
+            if parsed:
+                return parsed
+        return [0, 0]
+
     def resolve_duration_seconds(self, task: TaskRecord) -> int:
         snapshot = task.request_snapshot or {}
         video_duration = snapshot.get("videoDuration")
@@ -279,6 +288,7 @@ class TaskExecutionRuntimeSupport:
         )
         reference_urls = self._reference_image_urls(task)
         prompt = self._build_workspace_image_prompt(asset_type, task.title, prompt, bool(reference_urls))
+        prompt = self._append_aspect_ratio_instruction(prompt, task.aspect_ratio)
         input_data: dict[str, Any] = {
             "prompt": prompt,
             "width": width,
@@ -504,6 +514,35 @@ class TaskExecutionRuntimeSupport:
             parts.append("脸、发型、服装、体型、年龄感和配饰保持一致。")
             parts.append("背景使用纯净浅色或纯白背景，不出现文字、箭头、水印、logo、说明标签或复杂场景。")
         return "\n".join(parts)
+
+    def _append_aspect_ratio_instruction(self, prompt: str, aspect_ratio: str) -> str:
+        normalized_ratio = string_value(aspect_ratio)
+        if not normalized_ratio or normalized_ratio.lower() in {"auto", "智能"}:
+            return prompt
+        resolution = self._aspect_ratio_4k_resolution(normalized_ratio)
+        if resolution:
+            return (
+                f"{prompt}\n"
+                f"画面比例：{normalized_ratio}。请使用该比例对应的 4K 分辨率（{resolution}）生成图片，"
+                "按该画幅构图，不要自行拉伸或变形主体。"
+            )
+        return (
+            f"{prompt}\n"
+            f"画面比例：{normalized_ratio}。请使用该比例对应的 4K 分辨率生成图片，"
+            "按该画幅构图，不要自行拉伸或变形主体。"
+        )
+
+    def _aspect_ratio_4k_resolution(self, aspect_ratio: str) -> str:
+        return {
+            "16:9": "3840x2160",
+            "9:16": "2160x3840",
+            "1:1": "4096x4096",
+            "21:9": "4096x1755",
+            "3:2": "3840x2560",
+            "2:3": "2560x3840",
+            "4:3": "3840x2880",
+            "3:4": "2880x3840",
+        }.get(string_value(aspect_ratio), "")
 
     def _build_video_clip_execution_prompt(self, prompt: str) -> str:
         return _truncate_text(prompt, 2200)

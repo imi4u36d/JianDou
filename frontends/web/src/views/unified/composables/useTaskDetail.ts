@@ -19,6 +19,7 @@ import {
   formatTaskSeed,
   formatTaskStopBeforeVideoGeneration,
   formatTaskTranscriptSummary,
+  getTaskResolutionRow,
   getTaskRequestSnapshot,
   previewTaskTranscript,
 } from "@/utils/task-request";
@@ -284,7 +285,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
       { label: "文本模型", value: formatTaskModelValue(snapshot.textAnalysisModel) },
       { label: "关键帧模型", value: formatTaskModelValue(snapshot.imageModel) },
       { label: "视频模型", value: formatTaskModelValue(snapshot.videoModel) },
-      { label: "清晰度 / 画幅", value: formatTaskModelValue(snapshot.videoSize) },
+      getTaskResolutionRow(snapshot, task.executionContext),
       { label: "输出数量", value: formatTaskOutputCount(snapshot) },
       { label: "请求时长", value: formatTaskRequestedDuration(snapshot) },
       { label: "生效时长", value: formatTaskResolvedDuration(task) },

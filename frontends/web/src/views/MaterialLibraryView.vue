@@ -232,50 +232,16 @@
       </div>
     </section>
 
-    <Teleport to="body">
-      <div v-if="previewDialog.open" class="material-preview-overlay" role="dialog" aria-modal="true" @click.self="closePreviewDialog">
-        <div
-          class="material-preview-dialog"
-          :class="{
-            'material-preview-dialog-video': previewDialog.kind === 'image' || previewDialog.kind === 'video',
-          }"
-        >
-          <div class="material-preview-dialog__head">
-            <div>
-              <h3>{{ previewDialog.title }}</h3>
-            </div>
-            <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="closePreviewDialog">
-              <IconClose size="sm" />
-            </button>
-          </div>
-          <img
-            v-if="previewDialog.kind === 'image' && !previewImageLoadFailed"
-            class="material-preview-dialog__image"
-            :src="previewDialog.url"
-            :alt="previewDialog.title"
-            @error="previewImageLoadFailed = true"
-          />
-          <div v-else-if="previewDialog.kind === 'image'" class="material-preview-dialog__fallback">
-            <IconImage size="lg" />
-            <span>{{ previewDialog.title }}</span>
-          </div>
-          <video
-            v-else-if="previewDialog.kind === 'video' && previewDialog.url"
-            class="material-preview-dialog__video"
-            :src="previewDialog.url"
-            controls
-            playsinline
-            preload="metadata"
-          ></video>
-          <div v-else-if="previewDialog.kind === 'video'" class="material-preview-dialog__video-empty">
-            <IconVideo size="lg" />
-            <span>暂无可播放视频</span>
-          </div>
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-else class="material-preview-dialog__markdown" v-html="previewDialog.html"></div>
-        </div>
-      </div>
-    </Teleport>
+    <MaterialPreviewDialog
+      :open="previewDialog.open"
+      :kind="previewDialog.kind"
+      :title="previewDialog.title"
+      :html="previewDialog.html"
+      :url="previewDialog.url"
+      :image-load-failed="previewImageLoadFailed"
+      @close="closePreviewDialog"
+      @image-error="previewImageLoadFailed = true"
+    />
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
   </section>
@@ -289,6 +255,7 @@ import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import AppSelect from "@/components/common/AppSelect.vue";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
+import MaterialPreviewDialog from "@/components/materials/MaterialPreviewDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
 import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
@@ -1502,181 +1469,6 @@ watch(
   color: var(--accent-danger) !important;
 }
 
-.material-preview-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(40px) saturate(2.0);
-}
-
-.material-preview-dialog {
-  display: flex;
-  flex-direction: column;
-  width: min(980px, calc(100vw - 48px));
-  max-height: min(86vh, 960px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 253, 0.98));
-  box-shadow:
-    0 22px 56px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
-}
-
-.material-preview-dialog-video {
-  width: min(980px, calc(100vw - 48px));
-}
-
-.material-preview-dialog__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.material-preview-dialog__head h3 {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 0.94rem;
-  font-weight: 820;
-  line-height: 1.35;
-}
-
-.material-preview-dialog__close {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 34px;
-  min-height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 11px;
-  background: #f3f8fa;
-  color: var(--text-body);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.material-preview-dialog__close :deep(svg) {
-  width: 16px;
-  height: 16px;
-}
-
-.material-preview-dialog__close:hover,
-.material-preview-dialog__close:focus-visible {
-  background: #fff;
-  color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
-}
-
-.material-preview-dialog__image {
-  display: block;
-  align-self: center;
-  width: auto;
-  max-width: 100%;
-  max-height: calc(86dvh - 68px);
-  object-fit: contain;
-  background: #0f172a;
-}
-
-.material-preview-dialog__video {
-  display: block;
-  width: 100%;
-  max-height: calc(86dvh - 68px);
-  background: #0f172a;
-  object-fit: contain;
-}
-
-.material-preview-dialog__video-empty {
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  min-height: 260px;
-  padding: 24px;
-  color: var(--text-muted);
-}
-
-.material-preview-dialog__video-empty :deep(svg) {
-  width: 28px;
-  height: 28px;
-}
-
-.material-preview-dialog__video-empty span {
-  color: var(--text-body);
-  font-size: 0.86rem;
-}
-
-.material-preview-dialog__fallback {
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  width: min(520px, calc(100vw - 56px));
-  min-height: 220px;
-  padding: 24px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: #f8fafc;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.material-preview-dialog__fallback :deep(svg) {
-  width: 28px;
-  height: 28px;
-  color: var(--text-muted);
-}
-
-.material-preview-dialog__fallback span {
-  color: var(--text-body);
-  font-size: 0.82rem;
-  overflow-wrap: anywhere;
-}
-
-.material-preview-dialog__markdown {
-  padding: 20px 22px 22px;
-  overflow: auto;
-  color: var(--text-body);
-  line-height: 1.75;
-}
-
-.material-preview-dialog__markdown :deep(h1),
-.material-preview-dialog__markdown :deep(h2),
-.material-preview-dialog__markdown :deep(h3),
-.material-preview-dialog__markdown :deep(h4) {
-  margin: 0 0 12px;
-  color: var(--text-strong);
-  line-height: 1.35;
-}
-
-.material-preview-dialog__markdown :deep(p) {
-  margin: 0 0 12px;
-}
-
-.material-preview-dialog__markdown :deep(table) {
-  width: 100%;
-  margin: 12px 0 22px;
-  border-collapse: collapse;
-  font-size: 0.92rem;
-}
-
-.material-preview-dialog__markdown :deep(th),
-.material-preview-dialog__markdown :deep(td) {
-  padding: 8px 9px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  vertical-align: top;
-}
-
-.material-preview-dialog__markdown :deep(th) {
-  background: #f3f6f8;
-  color: var(--text-strong);
-}
-
 @media (max-width: 1180px) {
   .material-topbar {
     align-items: stretch;
@@ -1794,22 +1586,5 @@ watch(
     height: 204px;
   }
 
-  .material-preview-overlay {
-    padding: 16px;
-  }
-
-  .material-preview-dialog {
-    width: calc(100vw - 32px);
-    max-height: calc(100vh - 32px);
-    border-radius: 18px;
-  }
-
-  .material-preview-dialog__head {
-    padding: 16px;
-  }
-
-  .material-preview-dialog__markdown {
-    padding: 18px;
-  }
 }
 </style>

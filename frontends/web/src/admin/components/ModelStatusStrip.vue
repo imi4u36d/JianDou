@@ -13,18 +13,18 @@
         <el-tag :type="health.runtime.model.ready ? 'success' : 'danger'" effect="light">
           {{ health.runtime.model.ready ? "模型就绪" : "模型未就绪" }}
         </el-tag>
-        <el-tag type="info" effect="light">{{ health.runtime.execution_mode }}</el-tag>
+        <el-tag type="info" effect="light">{{ executionMode }}</el-tag>
         <el-tag type="info" effect="light">{{ health.runtime.model.provider || "未指定" }}</el-tag>
       </div>
 
       <div class="model-status-strip__grid">
         <div>
           <el-descriptions :column="1" border size="small">
-            <el-descriptions-item label="主模型">{{ health.runtime.model.primary_model || "未配置" }}</el-descriptions-item>
-            <el-descriptions-item label="文本分析模型">{{ health.runtime.model.text_analysis_model || "未配置" }}</el-descriptions-item>
-            <el-descriptions-item label="Endpoint Host">{{ health.runtime.model.endpoint_host || "未配置" }}</el-descriptions-item>
-            <el-descriptions-item label="温度 / Max Tokens">{{ health.runtime.model.temperature }} / {{ health.runtime.model.max_tokens }}</el-descriptions-item>
-            <el-descriptions-item label="API Key">{{ health.runtime.model.api_key_present ? "已配置" : "缺失" }}</el-descriptions-item>
+            <el-descriptions-item label="主模型">{{ modelPrimaryModel || "未配置" }}</el-descriptions-item>
+            <el-descriptions-item label="文本分析模型">{{ modelTextAnalysisModel || "未配置" }}</el-descriptions-item>
+            <el-descriptions-item label="Endpoint Host">{{ modelEndpointHost || "未配置" }}</el-descriptions-item>
+            <el-descriptions-item label="温度 / Max Tokens">{{ health.runtime.model.temperature }} / {{ modelMaxTokens }}</el-descriptions-item>
+            <el-descriptions-item label="API Key">{{ modelApiKeyPresent ? "已配置" : "缺失" }}</el-descriptions-item>
           </el-descriptions>
         </div>
 
@@ -43,7 +43,7 @@
         </div>
       </div>
 
-      <el-alert v-if="health.runtime.model.config_errors.length" class="model-status-strip__alert" :title="'配置问题：' + health.runtime.model.config_errors.join(' / ')" type="warning" show-icon />
+      <el-alert v-if="modelConfigErrors.length" class="model-status-strip__alert" :title="'配置问题：' + modelConfigErrors.join(' / ')" type="warning" show-icon />
     </div>
   </el-card>
 </template>
@@ -53,23 +53,36 @@ import { computed, onMounted, ref } from "vue";
 import { Refresh } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { fetchHealth } from "@/api/health";
-import type { HealthResponse } from "@/types";
+import type { HealthPlanningCapabilities, HealthResponse } from "@/types";
 
 const health = ref<HealthResponse | null>(null);
 const loading = ref(true);
 
+const executionMode = computed(() => health.value?.runtime.execution_mode ?? health.value?.runtime.executionMode ?? "");
+const modelPrimaryModel = computed(() => health.value?.runtime.model.primary_model ?? health.value?.runtime.model.primaryModel ?? "");
+const modelTextAnalysisModel = computed(() => health.value?.runtime.model.text_analysis_model ?? health.value?.runtime.model.textAnalysisModel ?? "");
+const modelEndpointHost = computed(() => health.value?.runtime.model.endpoint_host ?? health.value?.runtime.model.endpointHost ?? "");
+const modelApiKeyPresent = computed(() => Boolean(health.value?.runtime.model.api_key_present ?? health.value?.runtime.model.apiKeyPresent));
+const modelMaxTokens = computed(() => health.value?.runtime.model.max_tokens ?? health.value?.runtime.model.maxTokens ?? 0);
+const modelConfigErrors = computed(() => health.value?.runtime.model.config_errors ?? health.value?.runtime.model.configErrors ?? []);
+
 const capabilityRows = computed(() => {
   if (!health.value) return [];
-  const c = health.value.runtime.planning_capabilities;
+  const c: Partial<HealthPlanningCapabilities> =
+    health.value.runtime.planning_capabilities ?? health.value.runtime.planningCapabilities ?? {};
+  const enabled = (
+    snakeKey: keyof HealthPlanningCapabilities,
+    camelKey: keyof HealthPlanningCapabilities,
+  ) => Boolean(c[snakeKey] ?? c[camelKey]);
   return [
-    { key: "timed_transcript", label: "带时间戳字幕优先", enabled: c.timed_transcript_supported },
-    { key: "transcript_semantic", label: "字幕语义规划", enabled: c.transcript_semantic_planning },
-    { key: "visual_content", label: "视频内容理解", enabled: c.visual_content_analysis },
-    { key: "visual_event", label: "视觉事件识别", enabled: c.visual_event_reasoning },
-    { key: "fusion", label: "字幕+视频融合", enabled: c.subtitle_visual_fusion },
-    { key: "audio_peak", label: "音频峰值信号", enabled: c.audio_peak_signal },
-    { key: "scene_boundary", label: "镜头切换边界", enabled: c.scene_boundary_signal },
-    { key: "timeline", label: "融合时间轴规划", enabled: c.fusion_timeline_planning },
+    { key: "timed_transcript", label: "带时间戳字幕优先", enabled: enabled("timed_transcript_supported", "timedTranscriptSupported") },
+    { key: "transcript_semantic", label: "字幕语义规划", enabled: enabled("transcript_semantic_planning", "transcriptSemanticPlanning") },
+    { key: "visual_content", label: "视频内容理解", enabled: enabled("visual_content_analysis", "visualContentAnalysis") },
+    { key: "visual_event", label: "视觉事件识别", enabled: enabled("visual_event_reasoning", "visualEventReasoning") },
+    { key: "fusion", label: "字幕+视频融合", enabled: enabled("subtitle_visual_fusion", "subtitleVisualFusion") },
+    { key: "audio_peak", label: "音频峰值信号", enabled: enabled("audio_peak_signal", "audioPeakSignal") },
+    { key: "scene_boundary", label: "镜头切换边界", enabled: enabled("scene_boundary_signal", "sceneBoundarySignal") },
+    { key: "timeline", label: "融合时间轴规划", enabled: enabled("fusion_timeline_planning", "fusionTimelinePlanning") },
   ];
 });
 

@@ -127,6 +127,33 @@
           </button>
         </header>
 
+        <div class="detail-actions" aria-label="任务操作">
+          <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+            <IconRefresh size="xs" />
+            刷新
+          </button>
+          <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+            <IconRefresh size="xs" />
+            重试
+          </button>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+            <span class="detail-action-btn__pause" aria-hidden="true"></span>
+            暂停
+          </button>
+          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+            <IconRefresh size="xs" />
+            继续
+          </button>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+            <IconWarning size="xs" />
+            终止
+          </button>
+          <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+            <IconDelete size="xs" />
+            删除
+          </button>
+        </div>
+
         <div class="detail-stage-line" aria-label="任务阶段">
           <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
             <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
@@ -246,28 +273,6 @@
           </div>
         </section>
 
-        <div class="detail-actions">
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
-            <span class="detail-action-btn__pause" aria-hidden="true"></span>
-            暂停
-          </button>
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
-            <IconWarning size="xs" />
-            终止
-          </button>
-          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
-            <IconRefresh size="xs" />
-            继续
-          </button>
-          <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
-            <IconRefresh size="xs" />
-            刷新
-          </button>
-          <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
-            <IconDelete size="xs" />
-            删除
-          </button>
-        </div>
       </section>
     </main>
 
@@ -300,6 +305,7 @@ import {
   formatTaskSeed,
   formatTaskStopBeforeVideoGeneration,
   formatTaskTranscriptSummary,
+  getTaskResolutionRow,
   getTaskRequestSnapshot,
   previewTaskTranscript,
 } from "@/utils/task-request";
@@ -494,7 +500,7 @@ const selectedTaskParameterRows = computed(() => {
     { label: "文本模型", value: formatTaskModelValue(snapshot.textAnalysisModel) },
     { label: "关键帧模型", value: formatTaskModelValue(snapshot.imageModel) },
     { label: "视频模型", value: formatTaskModelValue(snapshot.videoModel) },
-    { label: "清晰度 / 画幅", value: formatTaskModelValue(snapshot.videoSize) },
+    getTaskResolutionRow(snapshot, task.executionContext),
     { label: "输出数量", value: formatTaskOutputCount(snapshot) },
     { label: "请求时长", value: formatTaskRequestedDuration(snapshot) },
     { label: "生效时长", value: formatTaskResolvedDuration(task) },
@@ -1897,6 +1903,18 @@ onUnmounted(() => {
 .task-stage-row--active {
   background: var(--accent-blue);
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+  animation: task-stage-dot-breathe 1.8s ease-in-out infinite;
+}
+
+.task-stage-row--active::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  background: rgba(99, 102, 241, 0.18);
+  opacity: 0;
+  animation: task-stage-dot-pulse 1.8s ease-out infinite;
+  pointer-events: none;
 }
 
 .task-stage-row--paused {
@@ -1909,6 +1927,35 @@ onUnmounted(() => {
 
 .task-stage-row--pending {
   background: rgba(0, 0, 0, 0.06);
+}
+
+@keyframes task-stage-dot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes task-stage-dot-pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.55);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-stage-row--active,
+  .task-stage-row--active::before {
+    animation: none;
+  }
 }
 
 .task-failure-card {
@@ -2284,17 +2331,12 @@ onUnmounted(() => {
 }
 
 .detail-actions {
-  position: sticky;
-  bottom: 0;
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 7px;
-  margin: 0;
-  padding: 11px 0 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.9) 28%);
-  backdrop-filter: blur(40px) saturate(2.0);
+  margin: -6px 0 0;
+  padding: 0 0 2px;
 }
 
 .detail-action-btn {
@@ -2304,14 +2346,15 @@ onUnmounted(() => {
   gap: 6px;
   min-height: 36px;
   padding: 0 11px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(79, 70, 229, 0.24);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--text-body);
+  background: #eef4ff;
+  color: #1d4ed8;
   font-family: inherit;
   font-size: 0.8rem;
   font-weight: 780;
   cursor: pointer;
+  box-shadow: 0 5px 14px rgba(79, 70, 229, 0.08);
   transition:
     transform 160ms ease,
     border-color 160ms ease,
@@ -2320,13 +2363,19 @@ onUnmounted(() => {
     box-shadow 160ms ease;
 }
 
-.detail-action-btn:hover:not(:disabled),
-.detail-action-btn:focus-visible {
+.detail-action-btn:hover:not(:disabled):not(.detail-action-btn-primary):not(.detail-action-btn-warning):not(.detail-action-btn-danger),
+.detail-action-btn:focus-visible:not(.detail-action-btn-primary):not(.detail-action-btn-warning):not(.detail-action-btn-danger) {
   transform: translateY(-1px);
-  border-color: rgba(79, 70, 229, 0.24);
-  background: #fff;
+  border-color: rgba(79, 70, 229, 0.4);
+  background: #dfe9ff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.14);
+}
+
+.detail-action-btn-primary:hover:not(:disabled),
+.detail-action-btn-warning:hover:not(:disabled),
+.detail-action-btn-danger:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .detail-action-btn:disabled {

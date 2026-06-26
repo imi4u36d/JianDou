@@ -593,6 +593,18 @@ const recentLog = computed(() => autoPilot.statusLog.value.slice(-1));
 const _autoPilotInitialized = ref(false);
 
 watch(
+  () => props.selectedWorkflowId,
+  () => {
+    _autoPilotInitialized.value = false;
+    autoPilot.autoPilotState.value = "idle";
+    autoPilot.nextStage.value = "";
+    autoPilot.currentTask.value = "";
+    autoPilot.errorMessage.value = "";
+    autoPilot.stopPolling();
+  }
+);
+
+watch(
   () => detail.selectedWorkflow.value?.autoPilotState,
   (state, prevState) => {
     // On first data load, initialize from backend state.
