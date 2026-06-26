@@ -266,7 +266,7 @@ watch(
   flex-direction: column;
   justify-content: space-between;
   padding: 20px 6px 18px;
-  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  border-right: 0;
   background: transparent;
 }
 
@@ -622,8 +622,18 @@ watch(
   flex: 1;
   min-width: 0;
   min-height: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.workspace-content::before,
+.workspace-content::after {
+  display: none;
 }
 
 @media (max-width: 768px) {

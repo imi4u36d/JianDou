@@ -1184,11 +1184,8 @@ async function handleDownloadMedia(url: string, title: string, mediaType: Downlo
 .workflow-canvas-header__actions .jd-button {
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: var(--bg-surface);
   color: var(--text-strong);
-  box-shadow: none;
 }
 
 .workflow-task-view-btn {

@@ -159,8 +159,9 @@ watch(
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(10, 10, 20, 0.25);
-  backdrop-filter: blur(40px) saturate(2);
+  background: var(--glass-overlay-bg);
+  backdrop-filter: var(--glass-overlay-blur);
+  -webkit-backdrop-filter: var(--glass-overlay-blur);
 }
 
 .app-preview-dialog {
@@ -169,12 +170,12 @@ watch(
   width: min(980px, calc(100vw - 48px));
   max-height: min(86vh, 960px);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: var(--glass-panel-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  background: var(--glass-panel-bg);
+  box-shadow: var(--glass-panel-shadow);
+  backdrop-filter: var(--glass-panel-blur);
+  -webkit-backdrop-filter: var(--glass-panel-blur);
 }
 
 .app-preview-dialog-wide {

@@ -1281,7 +1281,7 @@ watch(
   padding: 22px 36px 36px;
   overflow-y: auto;
   overflow-x: hidden;
-  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4f5f7 100%);
+  background: var(--bg-base);
   color: var(--text-strong);
 }
 

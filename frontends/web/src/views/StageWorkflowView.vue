@@ -2462,7 +2462,7 @@ onBeforeUnmount(() => {
   padding: 18px 22px 18px 18px;
   color: var(--text-strong);
   overflow: hidden;
-  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4fbf7 100%);
+  background: var(--bg-base);
 }
 
 .workflow-inspector,
