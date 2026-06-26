@@ -578,16 +578,29 @@ export interface TaskFilters {
  * 任务输出接口定义。
  */
 export interface TaskOutput {
-  id: string;
+  id?: string;
+  resultId?: string;
+  taskId?: string;
+  resultType?: string | null;
+  sourceModelCallId?: string | null;
+  materialAssetId?: string | null;
   clipIndex: number;
   title: string;
   reason: string;
   startSeconds: number;
   endSeconds: number;
   durationSeconds: number;
-  previewUrl: string;
-  downloadUrl: string;
+  previewUrl?: string | null;
+  previewPath?: string | null;
+  downloadUrl?: string | null;
+  downloadPath?: string | null;
+  remoteUrl?: string | null;
+  mimeType?: string | null;
+  width?: number | null;
+  height?: number | null;
+  sizeBytes?: number | null;
   thumbnailUrl?: string | null;
+  extra?: Record<string, unknown> | null;
 }
 
 /**

@@ -24,6 +24,7 @@ import {
 } from "@/utils/task-request";
 import { formatTaskStatus } from "@/utils/task";
 import { getTaskStatusMeta } from "@/utils/presentation";
+import { resolveTaskPreviewMedia, resolveTaskThumbnailUrl } from "@/utils/task-preview";
 
 type TaskStageState = "pending" | "active" | "paused" | "done" | "failed";
 
@@ -143,18 +144,7 @@ function taskFailureContext(task?: Pick<TaskListItem, "failureStage" | "failureC
 }
 
 function taskThumbnailUrl(task?: (TaskListItem | TaskDetail) | null): string {
-  const detail = task && "outputs" in task ? task : null;
-  if (detail) {
-    const material = detail.materials?.find((item) => firstNonBlank(item.thumbnailUrl, item.previewUrl, item.fileUrl));
-    if (material) return firstNonBlank(material.thumbnailUrl, material.previewUrl, material.fileUrl);
-    const output = detail.outputs?.find((item) => firstNonBlank(item.thumbnailUrl, item.previewUrl, item.downloadUrl));
-    if (output) return firstNonBlank(output.thumbnailUrl, output.previewUrl, output.downloadUrl);
-    const source = detail.sourceAssets?.find((item) => firstNonBlank(item.thumbnailUrl, item.fileUrl));
-    if (source) return firstNonBlank(source.thumbnailUrl, source.fileUrl);
-    return firstNonBlank(detail.source?.fileUrl);
-  }
-  if (task?.thumbnailUrl) return task.thumbnailUrl;
-  return "";
+  return resolveTaskThumbnailUrl(task);
 }
 
 function stageStateClass(state: TaskStageState): string {
@@ -339,12 +329,16 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     taskThumbnailUrl(selectedTaskDetail.value ?? selectedTaskSummary.value)
   );
 
+  const selectedTaskPreviewMedia = computed(() =>
+    resolveTaskPreviewMedia(selectedTaskDetail.value ?? selectedTaskSummary.value)
+  );
+
   const selectedTaskResultItems = computed(() => {
     const items: Array<{ title: string; url: string }> = [];
     const detail = selectedTaskDetail.value;
     if (!detail) return items;
     for (const output of detail.outputs ?? []) {
-      const url = firstNonBlank(output.downloadUrl, output.previewUrl);
+      const url = firstNonBlank(output.downloadUrl, output.downloadPath, output.previewUrl, output.previewPath, output.remoteUrl);
       if (url) items.push({ title: output.title || `结果 #${output.clipIndex || items.length + 1}`, url });
     }
     const latestJoinUrl = detail.monitoring?.latestJoinOutputUrl;
@@ -363,7 +357,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     if (!detail) return [];
     const rows: Array<{ title: string; url: string }> = [];
     for (const material of detail.materials ?? []) {
-      const url = firstNonBlank(material.fileUrl, material.previewUrl);
+      const url = firstNonBlank(material.fileUrl, material.previewUrl, material.thumbnailUrl);
       if (url) rows.push({ title: material.title || material.id || "任务素材", url });
     }
     if (detail.source?.fileUrl) {
@@ -585,6 +579,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     selectedTaskFailureReason,
     selectedTaskFailureContext,
     selectedTaskThumbnailUrl,
+    selectedTaskPreviewMedia,
     selectedTaskResultItems,
     selectedTaskMaterialItems,
     selectedTaskTracePreview,

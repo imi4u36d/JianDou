@@ -50,7 +50,20 @@
             <span class="surface-chip">{{ selectedTaskJoinProgressPercent }}%</span>
           </div>
           <div class="task-result-preview">
-            <img v-if="selectedTaskThumbnailUrl" :src="selectedTaskThumbnailUrl" alt="任务结果预览" />
+            <video
+              v-if="selectedTaskPreviewMedia?.type === 'video'"
+              :src="selectedTaskPreviewMedia.url"
+              :poster="selectedTaskPreviewMedia.posterUrl || undefined"
+              controls
+              playsinline
+              preload="metadata"
+              :aria-label="selectedTaskPreviewMedia.title"
+            ></video>
+            <img
+              v-else-if="selectedTaskPreviewMedia?.type === 'image'"
+              :src="selectedTaskPreviewMedia.url"
+              :alt="selectedTaskPreviewMedia.title || '任务结果预览'"
+            />
             <div v-else>生成中</div>
           </div>
           <div class="detail-overview">
@@ -222,7 +235,7 @@ const {
   selectedTaskShortWorkerLabel,
   selectedTaskFailureReason,
   selectedTaskFailureContext,
-  selectedTaskThumbnailUrl,
+  selectedTaskPreviewMedia,
   selectedTaskResultItems,
   selectedTaskMaterialItems,
   selectedTaskTracePreview,
@@ -467,17 +480,24 @@ watch(() => props.selectedTaskId, () => {
   border-radius: 10px;
   overflow: hidden;
   background: var(--bg-softer);
-  min-height: 120px;
+  min-height: 160px;
   display: grid;
   place-items: center;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
 
-.task-result-preview img {
+.task-result-preview img,
+.task-result-preview video {
   width: 100%;
-  height: auto;
+  max-height: min(52vh, 420px);
   display: block;
+  object-fit: contain;
+}
+
+.task-result-preview video {
+  aspect-ratio: 16 / 9;
+  background: #111827;
 }
 
 .detail-overview {

@@ -111,7 +111,7 @@
             v-if="asset.mediaType === 'video' && assetVideoPosterUrl(asset)"
             class="material-preview-trigger material-preview-trigger-video"
             type="button"
-            @click="openVideoAsset(asset)"
+            @click="openVideoPreview(asset)"
           >
             <img
               v-if="!isAssetPreviewImageFailed(assetVideoPosterUrl(asset))"
@@ -129,7 +129,7 @@
             v-else-if="asset.mediaType === 'video'"
             class="material-preview-trigger material-preview-trigger-placeholder"
             type="button"
-            @click="openVideoAsset(asset)"
+            @click="openVideoPreview(asset)"
           >
             <span><IconVideo size="sm" /></span>
           </button>
@@ -232,35 +232,50 @@
       </div>
     </section>
 
-    <div v-if="previewDialog.open" class="material-preview-overlay" role="dialog" aria-modal="true" @click.self="closePreviewDialog">
-      <div class="material-preview-dialog" :class="{ 'material-preview-dialog-image': previewDialog.kind === 'image' }">
-        <div v-if="previewDialog.kind !== 'image'" class="material-preview-dialog__head">
-          <div>
-            <h3>{{ previewDialog.title }}</h3>
+    <Teleport to="body">
+      <div v-if="previewDialog.open" class="material-preview-overlay" role="dialog" aria-modal="true" @click.self="closePreviewDialog">
+        <div
+          class="material-preview-dialog"
+          :class="{
+            'material-preview-dialog-video': previewDialog.kind === 'image' || previewDialog.kind === 'video',
+          }"
+        >
+          <div class="material-preview-dialog__head">
+            <div>
+              <h3>{{ previewDialog.title }}</h3>
+            </div>
+            <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="closePreviewDialog">
+              <IconClose size="sm" />
+            </button>
           </div>
-          <button type="button" class="material-preview-dialog__close" aria-label="关闭预览" @click="closePreviewDialog">
-            <IconClose size="sm" />
-          </button>
+          <img
+            v-if="previewDialog.kind === 'image' && !previewImageLoadFailed"
+            class="material-preview-dialog__image"
+            :src="previewDialog.url"
+            :alt="previewDialog.title"
+            @error="previewImageLoadFailed = true"
+          />
+          <div v-else-if="previewDialog.kind === 'image'" class="material-preview-dialog__fallback">
+            <IconImage size="lg" />
+            <span>{{ previewDialog.title }}</span>
+          </div>
+          <video
+            v-else-if="previewDialog.kind === 'video' && previewDialog.url"
+            class="material-preview-dialog__video"
+            :src="previewDialog.url"
+            controls
+            playsinline
+            preload="metadata"
+          ></video>
+          <div v-else-if="previewDialog.kind === 'video'" class="material-preview-dialog__video-empty">
+            <IconVideo size="lg" />
+            <span>暂无可播放视频</span>
+          </div>
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div v-else class="material-preview-dialog__markdown" v-html="previewDialog.html"></div>
         </div>
-        <button v-else type="button" class="material-preview-dialog__close material-preview-dialog__close-floating" aria-label="关闭预览" @click="closePreviewDialog">
-          <IconClose size="sm" />
-        </button>
-        <strong v-if="previewDialog.kind === 'image'" class="material-preview-dialog__caption">{{ previewDialog.title }}</strong>
-        <img
-          v-if="previewDialog.kind === 'image' && !previewImageLoadFailed"
-          class="material-preview-dialog__image"
-          :src="previewDialog.url"
-          :alt="previewDialog.title"
-          @error="previewImageLoadFailed = true"
-        />
-        <div v-else-if="previewDialog.kind === 'image'" class="material-preview-dialog__fallback">
-          <IconImage size="lg" />
-          <span>{{ previewDialog.title }}</span>
-        </div>
-        <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-else class="material-preview-dialog__markdown" v-html="previewDialog.html"></div>
       </div>
-    </div>
+    </Teleport>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
   </section>
@@ -341,7 +356,7 @@ const filters = reactive({
 });
 const previewDialog = reactive({
   open: false,
-  kind: "storyboard" as "storyboard" | "image",
+  kind: "storyboard" as "storyboard" | "image" | "video",
   title: "",
   html: "",
   url: "",
@@ -453,11 +468,17 @@ function assetOriginalImageUrl(asset: MaterialAssetLibraryItem) {
   return asset.fileUrl || asset.remoteUrl || asset.previewUrl || asset.thumbnailUrl || "";
 }
 
-function openVideoAsset(asset: MaterialAssetLibraryItem) {
-  const url = assetOriginalImageUrl(asset);
-  if (url) {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
+function assetVideoPreviewUrl(asset: MaterialAssetLibraryItem) {
+  return asset.fileUrl || asset.remoteUrl || asset.previewUrl || "";
+}
+
+function openVideoPreview(asset: MaterialAssetLibraryItem) {
+  previewImageLoadFailed.value = false;
+  previewDialog.kind = "video";
+  previewDialog.title = asset.title;
+  previewDialog.html = "";
+  previewDialog.url = assetVideoPreviewUrl(asset);
+  previewDialog.open = true;
 }
 
 function closePreviewDialog() {
@@ -1507,12 +1528,8 @@ watch(
   overflow: hidden;
 }
 
-.material-preview-dialog-image {
-  width: min(1280px, calc(100vw - 48px));
-  position: relative;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
+.material-preview-dialog-video {
+  width: min(980px, calc(100vw - 48px));
 }
 
 .material-preview-dialog__head {
@@ -1559,46 +1576,41 @@ watch(
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
 }
 
-.material-preview-dialog__close-floating {
-  position: fixed;
-  right: 28px;
-  top: 24px;
-  z-index: 2;
-  background: rgba(255, 255, 255, 0.5);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(40px) saturate(2.0);
-}
-
-.material-preview-dialog__caption {
-  position: fixed;
-  left: 28px;
-  top: 24px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  max-width: calc(100vw - 116px);
-  min-height: 38px;
-  overflow: hidden;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: 0.88rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  backdrop-filter: blur(40px) saturate(2.0);
-}
-
 .material-preview-dialog__image {
   display: block;
+  align-self: center;
+  width: auto;
   max-width: 100%;
-  max-height: calc(100dvh - 128px);
-  border-radius: 16px;
+  max-height: calc(86dvh - 68px);
   object-fit: contain;
-  background: #eef2f4;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  background: #0f172a;
+}
+
+.material-preview-dialog__video {
+  display: block;
+  width: 100%;
+  max-height: calc(86dvh - 68px);
+  background: #0f172a;
+  object-fit: contain;
+}
+
+.material-preview-dialog__video-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 260px;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.material-preview-dialog__video-empty :deep(svg) {
+  width: 28px;
+  height: 28px;
+}
+
+.material-preview-dialog__video-empty span {
+  color: var(--text-body);
+  font-size: 0.86rem;
 }
 
 .material-preview-dialog__fallback {
@@ -1608,21 +1620,20 @@ watch(
   width: min(520px, calc(100vw - 56px));
   min-height: 220px;
   padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #f8fafc;
+  color: var(--text-muted);
   text-align: center;
 }
 
 .material-preview-dialog__fallback :deep(svg) {
   width: 28px;
   height: 28px;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--text-muted);
 }
 
 .material-preview-dialog__fallback span {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-body);
   font-size: 0.82rem;
   overflow-wrap: anywhere;
 }
@@ -1795,24 +1806,6 @@ watch(
 
   .material-preview-dialog__head {
     padding: 16px;
-  }
-
-  .material-preview-dialog__close-floating {
-    right: 16px;
-    top: 16px;
-    width: 38px;
-    min-height: 38px;
-  }
-
-  .material-preview-dialog__caption {
-    left: 16px;
-    top: 18px;
-    max-width: calc(100vw - 82px);
-    padding: 7px 10px;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(40px) saturate(2.0);
-    font-size: 0.78rem;
   }
 
   .material-preview-dialog__markdown {
