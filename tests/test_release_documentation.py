@@ -12,7 +12,7 @@ def test_changelog_has_unreleased_section_and_current_version() -> None:
     changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
     assert "## [Unreleased]" in changelog
-    assert "## [0.1.0] - 2026-06-19" in changelog
+    assert "## [0.1.0] - 2026-06-26" in changelog
     assert "Keep a Changelog" in changelog
     assert "Semantic Versioning" in changelog
 

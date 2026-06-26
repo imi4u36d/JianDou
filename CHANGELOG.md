@@ -7,8 +7,11 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-26
+
 ### Added
 
+- Initial alpha codebase for JianDou text-to-video workflows.
 - Frontend open-source readiness: ESLint + Prettier code-quality tooling, Vitest test framework with 15 initial unit tests, and frontend architecture documentation at `docs/frontend-architecture.md`.
 - `.editorconfig`, `.nvmrc`, and `.gitattributes` for consistent editor settings and line endings across contributors.
 - Frontend-specific UI bug issue template.
@@ -55,9 +58,3 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 - Platform secrets are kept out of version control via examples and repository hygiene tests.
 - User-scoped model provider keys are encrypted at rest with a key derived from `JIANDOU_SECRET_KEY`.
-
-## [0.1.0] - 2026-06-19
-
-### Added
-
-- Initial alpha codebase for JianDou text-to-video workflows.
