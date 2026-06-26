@@ -299,7 +299,7 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     return message.length > 42 ? `${message.slice(0, 42)}...` : message;
   }
   function canSelectVideoVersion(version: StageVersion) {
-    return normalizedStageVersionStatus(version) === "COMPLETED" && Boolean(version.downloadUrl || version.outputSummary?.fileUrl || version.asset?.fileUrl);
+    return normalizedStageVersionStatus(version) === "COMPLETED" && Boolean(version.downloadUrl || version.outputSummary?.fileUrl || version.asset?.publicUrl || version.asset?.fileUrl);
   }
   function videoVersionStatusLabel(version: StageVersion) {
     const error = videoVersionErrorMessage(version);

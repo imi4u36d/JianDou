@@ -616,6 +616,7 @@ export interface TaskMaterial {
   assetRole?: string | null;
   mediaType: "video" | "image" | "text" | string;
   title: string;
+  publicUrl?: string | null;
   fileUrl: string;
   previewUrl?: string | null;
   thumbnailUrl?: string | null;
@@ -904,6 +905,52 @@ export interface TaskShowcaseResponse {
   items: TaskShowcaseItem[];
 }
 
+export interface PublicShareItem {
+  id: string;
+  shareId: string;
+  materialAssetId: string;
+  sourceType: "task" | "workflow" | "material" | string;
+  sourceId: string;
+  ownerUserId: number;
+  authorName: string;
+  title: string;
+  mediaType: "image" | "video";
+  publicUrl: string;
+  fileUrl: string;
+  previewUrl: string;
+  thumbnailUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  durationSeconds?: number | null;
+  likeCount: number;
+  likedByMe: boolean;
+  sharedAt: string;
+  updatedAt: string;
+  status: string;
+}
+
+export interface PublicShareListResponse {
+  items: PublicShareItem[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  nextOffset?: number | null;
+}
+
+export interface PublicShareQuery {
+  type?: "image" | "video";
+  offset?: number;
+  limit?: number;
+  sort?: "popular" | "latest";
+}
+
+export interface CreatePublicShareRequest {
+  materialAssetId: string;
+  sourceType: "task" | "workflow" | "material";
+  sourceId: string;
+}
+
 /**
  * 健康检查模型摘要接口定义。
  */
@@ -1136,6 +1183,7 @@ export interface RateStageVersionRequest {
 
 export interface MaterialAssetLibraryItem {
   id: string;
+  taskId?: string | null;
   workflowId?: string | null;
   stageType: WorkflowStageType;
   clipIndex: number;
@@ -1154,6 +1202,7 @@ export interface MaterialAssetLibraryItem {
   width?: number | null;
   height?: number | null;
   hasAudio?: boolean | null;
+  publicUrl: string;
   fileUrl: string;
   previewUrl: string;
   thumbnailUrl?: string | null;

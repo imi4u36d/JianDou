@@ -16,7 +16,7 @@ export function useCharacterAssetPicker() {
   });
 
   function materialAssetPreviewUrl(asset: MaterialAssetLibraryItem): string {
-    return asset.previewUrl || asset.fileUrl || asset.remoteUrl || "";
+    return asset.thumbnailUrl || asset.previewUrl || "";
   }
 
   function materialAssetModelLabel(asset: MaterialAssetLibraryItem): string {
@@ -26,7 +26,7 @@ export function useCharacterAssetPicker() {
   function isCharacterSheetSelectableAsset(asset: MaterialAssetLibraryItem): boolean {
     const assetType = typeof asset.assetType === "string" ? asset.assetType.trim().toLowerCase() : "";
     const isSupportedAssetType = assetType === "character_sheet" || assetType === "free";
-    const hasPreview = asset.mediaType === "image" || Boolean(materialAssetPreviewUrl(asset));
+    const hasPreview = Boolean(asset.publicUrl || asset.fileUrl);
     return isSupportedAssetType && hasPreview;
   }
 

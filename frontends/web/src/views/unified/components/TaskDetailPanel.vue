@@ -10,8 +10,9 @@
           <h2 id="task-detail-title">{{ selectedTask?.title || "任务详情" }}</h2>
           <div class="task-detail-header__meta">
             <span class="surface-chip">{{ selectedTaskTypeLabel }}</span>
-            <span class="surface-chip" :title="selectedTaskId">{{ selectedTaskShortId }}</span>
             <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
+            <span class="surface-chip">{{ selectedTaskHeaderAspectRatio }}</span>
+            <span class="surface-chip">{{ selectedTaskJoinProgressPercent }}%</span>
             <span v-if="selectedTaskLoading" class="surface-chip surface-chip-loading">
               <IconRefresh size="xs" />
             </span>
@@ -42,31 +43,31 @@
       </section>
 
       <div class="detail-actions detail-actions-card" aria-label="任务操作">
-        <button class="detail-action-btn" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+        <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
           <IconRefresh size="xs" />
           刷新
         </button>
-        <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+        <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
           <IconRefresh size="xs" />
           重试
         </button>
-        <button v-if="selectedTaskActionTask?.status === 'COMPLETED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+        <button v-if="selectedTaskActionTask?.status === 'COMPLETED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
           <IconRefresh size="xs" />
           重新生成
         </button>
-        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="detail-action-btn" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
-          <span class="detail-action-btn__pause" aria-hidden="true"></span>
+        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+          <span class="jd-button__pause" aria-hidden="true"></span>
           暂停
         </button>
-        <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="detail-action-btn detail-action-btn-primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+        <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
           <IconRefresh size="xs" />
           继续
         </button>
-        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="detail-action-btn detail-action-btn-warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm jd-button--warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
           <IconWarning size="xs" />
           终止
         </button>
-        <button v-if="selectedTaskActionTask" class="detail-action-btn detail-action-btn-danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+        <button v-if="selectedTaskActionTask" class="jd-button jd-button--sm jd-button--danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
           <IconDelete size="xs" />
           删除
         </button>
@@ -147,6 +148,16 @@
                   <IconDownload size="xs" />
                   下载
                 </button>
+                <button
+                  v-if="selectedTaskShareable"
+                  class="task-result-preview__action"
+                  type="button"
+                  :disabled="sharingTaskResult"
+                  @click="openTaskShareConfirm"
+                >
+                  <IconShare size="xs" />
+                  {{ selectedTaskShareRecord ? "已分享" : "分享" }}
+                </button>
               </div>
               <video
                 v-if="selectedTaskPreviewMedia?.type === 'video'"
@@ -193,43 +204,6 @@
           </div>
         </section>
 
-        <section class="detail-section detail-section-card detail-params-section">
-          <div class="detail-section__head">
-            <h3>参数</h3>
-            <span class="surface-chip">{{ selectedTaskDurationModeLabel }}</span>
-          </div>
-          <div class="detail-param-tags" aria-label="任务参数">
-            <div class="detail-param-tag detail-param-tag-progress">
-              <span class="detail-param-tag__label">进度</span>
-              <div class="detail-param-tag__progress">
-                <div class="detail-overview__progress">
-                  <div class="detail-overview__progress-fill" :style="{ width: `${selectedTaskJoinProgressPercent}%` }"></div>
-                </div>
-                <strong class="detail-param-tag__value">{{ selectedTaskJoinProgressPercent }}%</strong>
-              </div>
-            </div>
-            <div class="detail-param-tag">
-              <span class="detail-param-tag__label">参考图</span>
-              <strong class="detail-param-tag__value">{{ selectedReferenceImageCount }} 张</strong>
-            </div>
-            <div class="detail-param-tag">
-              <span class="detail-param-tag__label">实例</span>
-              <strong class="detail-param-tag__value" :title="selectedTaskActionTask?.activeWorkerInstanceId || ''">{{ selectedTaskShortWorkerLabel }}</strong>
-            </div>
-            <div class="detail-param-tag">
-              <span class="detail-param-tag__label">种子</span>
-              <strong class="detail-param-tag__value">{{ selectedTaskSeedLabel }}</strong>
-            </div>
-            <div v-for="item in selectedTaskCompactParameterRows" :key="item.label" class="detail-param-tag">
-              <span class="detail-param-tag__label">{{ item.label }}</span>
-              <strong class="detail-param-tag__value" :title="item.value">{{ item.value }}</strong>
-            </div>
-          </div>
-          <div v-if="selectedTaskTranscriptPreview" class="detail-note-block">
-            <span>Prompt</span>
-            <p>{{ selectedTaskTranscriptPreview }}</p>
-          </div>
-        </section>
       </div>
 
       <section v-if="selectedTaskResultItems.length || selectedTaskMaterialItems.length" class="detail-section detail-section-card">
@@ -335,7 +309,8 @@
     </section>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
-    <MaterialPreviewDialog
+    <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptTaskShareConfirm" @cancel="cancelTaskShareConfirm" />
+    <AppPreviewDialog
       :open="previewDialog.open"
       :kind="previewDialog.kind"
       :title="previewDialog.title"
@@ -354,9 +329,10 @@
  */
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
-import MaterialPreviewDialog from "@/components/materials/MaterialPreviewDialog.vue";
-import { IconChevronDown, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
+import AppPreviewDialog from "@/components/common/AppPreviewDialog.vue";
+import { IconChevronDown, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconShare, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
 import { messageApi } from "@/composables/useMessage";
+import { createPublicShare, deletePublicShare } from "@/api/public-shares";
 import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 import { useTaskDetail } from "../composables/useTaskDetail";
 import type { TaskDetail, TaskListItem, TaskMaterial } from "@/types";
@@ -387,16 +363,9 @@ const {
   selectedTask,
   selectedTaskActionTask,
   selectedTaskTypeLabel,
-  selectedTaskShortId,
   selectedTaskStageLabel,
-  selectedTaskDurationModeLabel,
-  selectedTaskTranscriptPreview,
-  selectedReferenceImageCount,
-  selectedTaskSeedLabel,
-  selectedTaskCompactParameterRows,
   selectedTaskJoinProgressPercent,
   selectedTaskCompactMonitoringRows,
-  selectedTaskShortWorkerLabel,
   selectedTaskFailureReason,
   selectedTaskFailureContext,
   selectedTaskPreviewMedia,
@@ -448,6 +417,16 @@ const traceListOpen = ref(false);
 const previewImageLoadFailed = ref(false);
 const taskPreviewLoadState = ref<"idle" | "loading" | "ready" | "failed">("idle");
 const taskPreviewMediaUrl = computed(() => selectedTaskPreviewMedia.value?.url || "");
+const sharingTaskResult = ref(false);
+const taskShareRecords = ref<Record<string, string>>({});
+const shareConfirmDialog = reactive({
+  open: false,
+  title: "分享生成结果",
+  message: "确认分享后，你的生成结果会展示在首页，供其他用户浏览、点赞，帮助你成为人气用户。",
+  confirmText: "确认分享",
+  cancelText: "取消",
+  tone: "primary" as "primary" | "danger",
+});
 const selectedTaskTypeKey = computed(() => {
   const task = selectedTask.value as TaskDetail | null;
   return String(task?.requestSnapshot?.taskType || task?.taskType || "video_generation").trim() || "video_generation";
@@ -465,12 +444,70 @@ const linkedWorkflowId = computed(() => {
   return typeof contextWorkflowId === "string" ? contextWorkflowId : "";
 });
 const taskPreviewIsLoading = computed(() => Boolean(taskPreviewMediaUrl.value) && taskPreviewLoadState.value === "loading");
+const selectedTaskHeaderAspectRatio = computed(() => {
+  const task = selectedTask.value as TaskDetail | TaskListItem | null;
+  if (!task) return "未设置";
+  const requestSnapshot = "requestSnapshot" in task ? task.requestSnapshot : null;
+  const aspectRatio = requestSnapshot?.aspectRatio || task.aspectRatio || "";
+  return String(aspectRatio).trim() || "未设置";
+});
+const selectedTaskPreviewMaterialId = computed(() => selectedTaskPreviewMedia.value?.materialAssetId || "");
+const selectedTaskShareRecord = computed(() => {
+  const materialId = selectedTaskPreviewMaterialId.value;
+  return materialId ? taskShareRecords.value[materialId] || "" : "";
+});
+const selectedTaskShareable = computed(() => {
+  const status = String(selectedTaskActionTask.value?.status || selectedTask.value?.status || "").toUpperCase();
+  return status === "COMPLETED" && Boolean(selectedTaskPreviewMaterialId.value);
+});
 const previewDialog = reactive({
   open: false,
   kind: "image" as "storyboard" | "image" | "video",
   title: "",
   url: "",
 });
+
+function openTaskShareConfirm() {
+  if (!selectedTaskShareable.value) return;
+  const shared = Boolean(selectedTaskShareRecord.value);
+  shareConfirmDialog.title = shared ? "取消分享" : "分享生成结果";
+  shareConfirmDialog.message = shared
+    ? "取消分享后，这个生成结果将不再展示在首页分享区。"
+    : "确认分享后，你的生成结果会展示在首页，供其他用户浏览、点赞，帮助你成为人气用户。";
+  shareConfirmDialog.confirmText = shared ? "取消分享" : "确认分享";
+  shareConfirmDialog.tone = shared ? "danger" : "primary";
+  shareConfirmDialog.open = true;
+}
+
+function cancelTaskShareConfirm() {
+  shareConfirmDialog.open = false;
+}
+
+async function acceptTaskShareConfirm() {
+  const materialId = selectedTaskPreviewMaterialId.value;
+  if (!materialId || sharingTaskResult.value) return;
+  sharingTaskResult.value = true;
+  try {
+    const currentShareId = selectedTaskShareRecord.value;
+    if (currentShareId) {
+      await deletePublicShare(currentShareId);
+      const next = { ...taskShareRecords.value };
+      delete next[materialId];
+      taskShareRecords.value = next;
+      messageApi.success("已取消分享");
+    } else {
+      const taskId = selectedTaskActionTask.value?.id || selectedTask.value?.id || props.selectedTaskId;
+      const share = await createPublicShare({ materialAssetId: materialId, sourceType: "task", sourceId: taskId });
+      taskShareRecords.value = { ...taskShareRecords.value, [materialId]: share.shareId };
+      messageApi.success("已分享到首页");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "分享失败");
+  } finally {
+    shareConfirmDialog.open = false;
+    sharingTaskResult.value = false;
+  }
+}
 
 const IMAGE_PREVIEW_URL_PATTERN = /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i;
 const VIDEO_PREVIEW_URL_PATTERN = /\.(m4v|mov|mp4|ogg|webm)(?:[?#].*)?$/i;
@@ -677,7 +714,7 @@ onUnmounted(() => {
 .detail-stage-card {
   padding: 12px;
   border: var(--glass-border);
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.64);
   box-shadow: var(--shadow-soft);
 }
@@ -851,7 +888,7 @@ onUnmounted(() => {
 }
 
 .task-detail-grid-primary {
-  grid-template-columns: minmax(360px, 1.25fr) minmax(280px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
 }
 
@@ -867,7 +904,7 @@ onUnmounted(() => {
 
 .detail-section-card {
   padding: 16px;
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.66);
   border: var(--glass-border);
   box-shadow: var(--shadow-soft);
@@ -889,7 +926,7 @@ onUnmounted(() => {
 
 .task-result-preview {
   position: relative;
-  border-radius: 10px;
+  border-radius: 0;
   border: 1px solid rgba(99, 102, 241, 0.08);
   overflow: hidden;
   background: rgba(245, 247, 252, 0.72);
@@ -1466,73 +1503,12 @@ onUnmounted(() => {
 .detail-actions-card {
   padding: 12px;
   border: var(--glass-border);
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.64);
   box-shadow: var(--shadow-soft);
 }
 
-.detail-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(79, 70, 229, 0.22);
-  background: #eef4ff;
-  color: #1d4ed8;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 5px 14px rgba(79, 70, 229, 0.08);
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-}
-
-.detail-action-btn:hover:not(:disabled):not(.detail-action-btn-primary):not(.detail-action-btn-warning):not(.detail-action-btn-danger) {
-  border-color: rgba(79, 70, 229, 0.38);
-  background: #dfe9ff;
-  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.14);
-}
-
-.detail-action-btn-primary:hover:not(:disabled) {
-  background: #5558e3;
-}
-
-.detail-action-btn-warning:hover:not(:disabled) {
-  background: #c26b05;
-}
-
-.detail-action-btn-danger:hover:not(:disabled) {
-  background: #d43d5e;
-}
-
-.detail-action-btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.detail-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.detail-action-btn-primary {
-  background: var(--accent-indigo);
-  border-color: var(--accent-indigo);
-  color: white;
-}
-
-.detail-action-btn-warning {
-  background: var(--accent-warning);
-  border-color: var(--accent-warning);
-  color: white;
-}
-
-.detail-action-btn-danger {
-  background: var(--accent-danger);
-  border-color: var(--accent-danger);
-  color: white;
-}
-
-.detail-action-btn__pause {
+.jd-button__pause {
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -1604,7 +1580,7 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
-  .detail-action-btn {
+  .detail-actions .jd-button {
     justify-content: center;
   }
 }

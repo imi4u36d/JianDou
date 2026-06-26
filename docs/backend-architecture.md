@@ -95,7 +95,7 @@ The following items are recognized technical debt. They work correctly today but
 
 ### Timestamps stored as strings
 
-All timestamp columns use `String(32)` storing ISO 8601 text instead of native `DateTime`. This works reliably for the current SQLite driver and avoids timezone driver quirks, but has trade-offs:
+All timestamp columns use `String(32)` storing ISO 8601 text instead of native `DateTime`. This keeps serialization explicit across application layers, but has trade-offs:
 
 - Date-range queries require string comparison rather than native date arithmetic.
 - The database cannot validate that a value is a real timestamp.

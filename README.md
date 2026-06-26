@@ -102,6 +102,13 @@ docker compose up -d --build frontend  # frontend-only changes
 docker compose up -d --build app       # backend/API changes
 ```
 
+To run the application image directly, keep the backend listening on the container
+default port and publish it on the host UI port:
+
+```bash
+docker run -d -p 8100:8000 --env-file .env.docker jiandou:latest
+```
+
 ### Option 2: Local Development
 
 **Development mode** (two terminals):
@@ -159,8 +166,8 @@ Key variables:
 
 | Variable | Description | Default |
 |---|---|---|
-| `JIANDOU_SERVER_PORT` | Backend listen port | `8100` |
-| `JIANDOU_DATABASE_URL` | Database connection string | `sqlite+aiosqlite:///./data/jiandou.db` |
+| `JIANDOU_SERVER_PORT` | Backend listen port inside the container | `8000` |
+| `JIANDOU_DATABASE_URL` | Database connection string | `mysql+asyncmy://jiandou:jiandou@127.0.0.1:3306/jiandou?charset=utf8mb4` |
 | `JIANDOU_REDIS_URL` | Redis connection string for Docker/production | — |
 | `JIANDOU_CACHE_BACKEND` | API cache backend: `memory` or `redis` | `memory` |
 | `JIANDOU_RATE_LIMIT_BACKEND` | Auth rate limit backend: `memory` or `redis` | `memory` |
@@ -202,7 +209,7 @@ See [docs/frontend-architecture.md](docs/frontend-architecture.md) for the monor
 
 ### Backend
 
-The backend is built with **FastAPI + SQLAlchemy + Alembic**. SQLite via aiosqlite remains the local default; MySQL via asyncmy is supported for Docker and production deployments.
+The backend is built with **FastAPI + SQLAlchemy + Alembic**. MySQL via asyncmy is the supported runtime database.
 
 ```bash
 # Backend dev server with hot-reload
@@ -232,10 +239,8 @@ See [docs/backend-architecture.md](docs/backend-architecture.md) for module owne
 # Full test suite (backend lint + tests + frontend typecheck)
 npm test
 
-# Verify migrations against a fresh temporary database
-TMP_DB=$(mktemp -t jiandou.XXXXXX.db) && \
-  JIANDOU_DATABASE_URL="sqlite+aiosqlite:///$TMP_DB" uv run alembic upgrade head && \
-  rm -f "$TMP_DB"
+# Verify migrations against the configured test database
+JIANDOU_DATABASE_URL="$JIANDOU_TEST_DATABASE_URL" uv run alembic upgrade head
 
 # Package type checks
 npm run packages:typecheck

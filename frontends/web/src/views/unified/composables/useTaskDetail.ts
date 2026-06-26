@@ -409,7 +409,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
       rows.push({ title, url });
     };
     for (const material of detail.materials ?? []) {
-      const url = firstNonBlank(material.fileUrl, material.previewUrl, material.thumbnailUrl);
+      const url = firstNonBlank(material.publicUrl, material.fileUrl);
       pushUnique(material.title || material.id || "任务素材", url);
     }
     return rows;

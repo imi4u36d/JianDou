@@ -52,6 +52,7 @@ class WorkflowPersistenceRowFactory:
         origin_model: str = "",
         remote_task_id: str = "",
         remote_url: str = "",
+        thumbnail_url: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> BizMaterialAsset:
         now = self._now()
@@ -90,9 +91,9 @@ class WorkflowPersistenceRowFactory:
             local_storage_path="",
             local_file_path="",
             public_url=public_url,
-            thumbnail_url=public_url if media_type == "image" else "",
+            thumbnail_url=thumbnail_url,
             third_party_url="",
-            remote_url=remote_url,
+            remote_url="",
             metadata_json=_write_json(metadata or {}),
             captured_at=now,
             timezone_offset_minutes=0,

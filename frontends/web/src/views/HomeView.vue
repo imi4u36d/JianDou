@@ -88,17 +88,6 @@
         }"
         @submit.prevent="submitComposer"
       >
-        <span class="home-composer__particle-loop" aria-hidden="true">
-          <span class="home-composer__runner home-composer__runner-left home-composer__runner-1"></span>
-          <span class="home-composer__runner home-composer__runner-left home-composer__runner-2"></span>
-          <span class="home-composer__runner home-composer__runner-left home-composer__runner-3"></span>
-          <span class="home-composer__runner home-composer__runner-left home-composer__runner-4"></span>
-          <span class="home-composer__runner home-composer__runner-right home-composer__runner-5"></span>
-          <span class="home-composer__runner home-composer__runner-right home-composer__runner-6"></span>
-          <span class="home-composer__runner home-composer__runner-right home-composer__runner-7"></span>
-          <span class="home-composer__runner home-composer__runner-right home-composer__runner-8"></span>
-          <span class="home-composer__annihilation"></span>
-        </span>
         <button
           type="button"
           class="home-composer__upload"
@@ -315,6 +304,21 @@
               </transition>
             </div>
 
+            <Transition name="home-template-chip-pop">
+              <span
+                v-if="selectedPromptTemplate"
+                :key="`${selectedPromptTemplate.id}-${templateChipNonce}`"
+                class="home-template-chip"
+                tabindex="0"
+                :aria-label="`已使用${selectedPromptTemplate.title}`"
+              >
+                <span class="home-template-chip__shine" aria-hidden="true"></span>
+                <IconCheck size="xs" />
+                <span>已使用{{ selectedPromptTemplate.title }}</span>
+                <span class="home-template-chip__tooltip" role="tooltip">{{ selectedPromptTemplate.prompt }}</span>
+              </span>
+            </Transition>
+
             <div class="home-menu home-menu-hidden" aria-hidden="true">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'seed' }" @click="toggleMenu('seed')">
                 <span class="home-tool__icon"><IconTag /></span>
@@ -373,6 +377,10 @@
 
     </section>
 
+    <PromptTemplateGallery @apply="applyPromptTemplate" />
+
+    <PublicShareGallery />
+
     <Transition name="home-toast-slide">
       <div v-if="taskToastTaskId" class="home-task-toast" role="status">
         <span>已提交</span>
@@ -422,8 +430,16 @@ import { useGenerationForm, type ModeOption, type RatioOptionValue } from "@/com
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
 import { openCreditDetailsDialog } from "@/composables/useCreditDialog";
 import { IconCheck, IconClose, IconImage, IconModel, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
+import PromptTemplateGallery from "@/components/home/PromptTemplateGallery.vue";
+import PublicShareGallery from "@/components/home/PublicShareGallery.vue";
 
 type MenuKey = "" | "model" | "ratio" | "count" | "mention" | "seed";
+
+interface AppliedPromptTemplate {
+  id: string;
+  title: string;
+  prompt: string;
+}
 
 // ---------------------------------------------------------------------------
 // Local state (not extracted to composables)
@@ -435,6 +451,8 @@ const statusText = ref("加载参数");
 const submitting = ref(false);
 const createdTaskId = ref("");
 const taskToastTaskId = ref("");
+const selectedPromptTemplate = ref<AppliedPromptTemplate | null>(null);
+const templateChipNonce = ref(0);
 let taskToastTimer: number | null = null;
 
 // ---------------------------------------------------------------------------
@@ -589,6 +607,27 @@ async function openCreditDialog() {
   openCreditDetailsDialog(credits.value);
 }
 
+function applyPromptTemplate(template: AppliedPromptTemplate) {
+  activeMenu.value = "";
+  selectedPromptTemplate.value = template;
+  templateChipNonce.value += 1;
+  statusText.value = `已使用${template.title}`;
+  nextTick(() => {
+    renderPromptEditor(promptText.value);
+    focusPromptEditorToEnd();
+  });
+}
+
+function buildCreativePrompt() {
+  const userPrompt = promptText.value.trim();
+  const template = selectedPromptTemplate.value;
+  if (!template) {
+    return userPrompt;
+  }
+  const styledPrompt = template.prompt.replace("[主体]", userPrompt || "主体");
+  return `${userPrompt}\n\n画风模板：${template.title}\n画风提示词：${styledPrompt}`;
+}
+
 // ---------------------------------------------------------------------------
 // Form submission logic (not extracted)
 // ---------------------------------------------------------------------------
@@ -619,11 +658,12 @@ async function submitComposer() {
 
 async function submitImageGeneration() {
   const taskType = referenceImages.value.length ? "image_to_image" : "image_generation";
+  const creativePrompt = buildCreativePrompt();
   const task = await createGenerationTask({
     title: promptText.value.trim().slice(0, 32) || "OpenAI 图片生成",
     taskType,
     assetType: selectedMaterialAssetType.value,
-    creativePrompt: promptText.value.trim(),
+    creativePrompt,
     aspectRatio: resolvedImageAspectRatioForSubmit(),
     imageSize: null,
     textAnalysisModel: form.value.textAnalysisModel || null,
@@ -715,10 +755,10 @@ onBeforeUnmount(() => {
 .home-page {
   min-height: 100%;
   display: grid;
-  align-content: center;
+  align-content: start;
   justify-items: center;
-  gap: 14px;
-  padding: clamp(32px, 7vh, 72px) 48px;
+  gap: 18px;
+  padding: clamp(18px, 3.8vh, 38px) 48px 42px;
   background: linear-gradient(180deg, #f4f5f7 0%, #ffffff 46%, #f4f5f7 100%);
   color: var(--text-strong);
 }
@@ -727,14 +767,14 @@ onBeforeUnmount(() => {
   display: grid;
   width: 100%;
   justify-items: center;
-  gap: clamp(18px, 3vh, 28px);
+  gap: clamp(8px, 1.6vh, 18px);
 }
 
 .home-brand-play {
   display: grid;
   place-items: center;
   width: min(100%, 340px);
-  min-height: 148px;
+  min-height: 118px;
   margin: 0;
   color: var(--text-strong);
   letter-spacing: 0;
@@ -745,7 +785,7 @@ onBeforeUnmount(() => {
   position: relative;
   display: block;
   width: min(100%, 284px);
-  height: 148px;
+  height: 118px;
   overflow: visible;
   isolation: isolate;
 }
@@ -1173,248 +1213,22 @@ onBeforeUnmount(() => {
   }
 }
 
-.home-composer__particle-loop {
-  position: absolute;
-  inset: -2px;
-  z-index: 5;
-  overflow: visible;
-  border-radius: 20px;
-  pointer-events: none;
+@property --home-composer-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
-.home-composer__particle-loop::before {
-  position: absolute;
-  inset: 0;
-  content: "";
-  border-radius: inherit;
-  background:
-    linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.72), rgba(59, 130, 246, 0.62), transparent) top left / 42% 1px no-repeat,
-    linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.62), rgba(236, 72, 153, 0.66), transparent) bottom right / 46% 1px no-repeat,
-    linear-gradient(180deg, transparent, rgba(6, 182, 212, 0.58), transparent) left top / 1px 56% no-repeat,
-    linear-gradient(180deg, transparent, rgba(34, 197, 94, 0.5), transparent) right top / 1px 54% no-repeat;
-  filter: blur(0.15px);
-  opacity: 0;
-  animation: home-composer-border-shimmer 4.8s linear infinite;
-}
-
-.home-composer__runner {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 28px;
-  height: 1.5px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, var(--runner-color), transparent);
-  box-shadow:
-    0 0 8px color-mix(in srgb, var(--runner-color) 68%, transparent),
-    0 0 16px rgba(99, 102, 241, 0.18);
-  mix-blend-mode: screen;
-  opacity: 0;
-  transform: translate(-50%, -50%) scaleX(0.68);
-  transform-origin: center;
-  animation-duration: 4.8s;
-  animation-iteration-count: infinite;
-  animation-timing-function: linear;
-}
-
-.home-composer__runner-left {
-  animation-name: home-composer-run-left;
-}
-
-.home-composer__runner-right {
-  animation-name: home-composer-run-right;
-}
-
-.home-composer__runner-1 {
-  --runner-color: #8b5cf6;
-  animation-delay: 0ms;
-}
-
-.home-composer__runner-2 {
-  --runner-color: #3b82f6;
-  animation-delay: 95ms;
-}
-
-.home-composer__runner-3 {
-  --runner-color: #06b6d4;
-  animation-delay: 190ms;
-}
-
-.home-composer__runner-4 {
-  --runner-color: #22c55e;
-  animation-delay: 285ms;
-}
-
-.home-composer__runner-5 {
-  --runner-color: #f97316;
-  animation-delay: 45ms;
-}
-
-.home-composer__runner-6 {
-  --runner-color: #ec4899;
-  animation-delay: 140ms;
-}
-
-.home-composer__runner-7 {
-  --runner-color: #facc15;
-  animation-delay: 235ms;
-}
-
-.home-composer__runner-8 {
-  --runner-color: #a855f7;
-  animation-delay: 330ms;
-}
-
-.home-composer__annihilation {
-  position: absolute;
-  left: 50%;
-  bottom: -3px;
-  width: 58px;
-  height: 4px;
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.82) 0 12%, rgba(250, 204, 21, 0.36) 13% 28%, rgba(99, 102, 241, 0.28) 29% 54%, rgba(99, 102, 241, 0) 76%);
-  filter: blur(0.8px);
-  opacity: 0;
-  transform: translateX(-50%) scale(0.2);
-  animation: home-composer-annihilation 4.8s ease-out infinite;
-}
-
-@keyframes home-composer-border-shimmer {
-  0%,
-  56%,
-  100% {
-    opacity: 0;
-    background-position:
-      top left,
-      bottom right,
-      left top,
-      right top;
-  }
-  62% {
-    opacity: 0.42;
-  }
-  76% {
-    opacity: 0.5;
-  }
-  94% {
-    opacity: 0.4;
-    background-position:
-      top right,
-      bottom left,
-      left bottom,
-      right bottom;
-  }
-}
-
-@keyframes home-composer-run-left {
-  0%,
-  57%,
-  100% {
-    left: 50%;
-    top: 0;
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.52);
-  }
-  60% {
-    left: 50%;
-    top: 0;
-    opacity: 0.82;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(1);
-  }
-  70% {
-    left: 2px;
-    top: 0;
-    opacity: 0.78;
-    transform: translate(-50%, -50%) rotate(90deg) scaleX(0.9);
-  }
-  84% {
-    left: 2px;
-    top: 100%;
-    opacity: 0.7;
-    transform: translate(-50%, -50%) rotate(90deg) scaleX(0.9);
-  }
-  96% {
-    left: 50%;
-    top: 100%;
-    opacity: 0.82;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.82);
-  }
-  99% {
-    left: 50%;
-    top: 100%;
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.16);
-  }
-}
-
-@keyframes home-composer-run-right {
-  0%,
-  57%,
-  100% {
-    left: 50%;
-    top: 0;
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.52);
-  }
-  60% {
-    left: 50%;
-    top: 0;
-    opacity: 0.82;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(1);
-  }
-  70% {
-    left: calc(100% - 2px);
-    top: 0;
-    opacity: 0.78;
-    transform: translate(-50%, -50%) rotate(-90deg) scaleX(0.9);
-  }
-  84% {
-    left: calc(100% - 2px);
-    top: 100%;
-    opacity: 0.7;
-    transform: translate(-50%, -50%) rotate(-90deg) scaleX(0.9);
-  }
-  96% {
-    left: 50%;
-    top: 100%;
-    opacity: 0.82;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.82);
-  }
-  99% {
-    left: 50%;
-    top: 100%;
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(0deg) scaleX(0.16);
-  }
-}
-
-@keyframes home-composer-annihilation {
-  0%,
-  78% {
-    opacity: 0;
-    transform: translateX(-50%) scale(0.2);
-  }
-  86% {
-    opacity: 0.42;
-    transform: translateX(-50%) scale(0.58);
-  }
-  92% {
-    opacity: 0.82;
-    transform: translateX(-50%) scale(0.82);
-  }
-  96% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1.18);
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(-50%) scale(2);
+@keyframes home-composer-focus-border {
+  to {
+    --home-composer-border-angle: 360deg;
   }
 }
 
 .home-composer {
+  --home-composer-border-angle: 0deg;
   position: relative;
+  isolation: isolate;
   display: grid;
   width: min(100%, 1120px);
   min-height: 188px;
@@ -1438,19 +1252,28 @@ onBeforeUnmount(() => {
 .home-composer::before {
   content: "";
   position: absolute;
-  left: 118px;
-  right: 68px;
-  top: -2px;
-  z-index: 3;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0), rgba(99, 102, 241, 0.72), rgba(59, 130, 246, 0));
-  opacity: 0.34;
-  transform: scaleX(0.86);
-  transform-origin: center;
-  transition:
-    opacity 220ms ease,
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  inset: -2px;
+  z-index: 0;
+  padding: 2px;
+  border-radius: 20px;
+  background: conic-gradient(
+    from var(--home-composer-border-angle),
+    rgba(139, 92, 246, 0.9),
+    rgba(59, 130, 246, 0.9),
+    rgba(6, 182, 212, 0.82),
+    rgba(34, 197, 94, 0.74),
+    rgba(250, 204, 21, 0.82),
+    rgba(236, 72, 153, 0.9),
+    rgba(139, 92, 246, 0.9)
+  );
+  opacity: 0;
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.16));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  transition: opacity 180ms ease;
   pointer-events: none;
 }
 
@@ -1464,10 +1287,9 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
-.home-composer-linked::before,
-.home-composer-active::before {
-  opacity: 0.86;
-  transform: scaleX(1);
+.home-composer-linked::before {
+  opacity: 1;
+  animation: home-composer-focus-border 2.8s linear infinite;
 }
 
 .home-composer-submitting {
@@ -1977,6 +1799,203 @@ onBeforeUnmount(() => {
   height: 16px;
   border: 2px solid currentColor;
   border-radius: 5px;
+}
+
+.home-template-chip-pop-enter-active,
+.home-template-chip-pop-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.home-template-chip-pop-enter-from,
+.home-template-chip-pop-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.82) rotate(-4deg);
+}
+
+.home-template-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  max-width: 210px;
+  padding: 0 12px 0 10px;
+  border: 1px solid rgba(236, 72, 153, 0.18);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(135deg, rgba(255, 241, 242, 0.98), rgba(238, 242, 255, 0.96) 52%, rgba(240, 253, 250, 0.96));
+  color: #7c3aed;
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+  box-shadow:
+    0 10px 22px rgba(236, 72, 153, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  cursor: help;
+  isolation: isolate;
+  animation: home-template-chip-arrive 620ms cubic-bezier(0.2, 1.4, 0.22, 1) both;
+}
+
+.home-template-chip::before,
+.home-template-chip::after {
+  position: absolute;
+  z-index: -1;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  content: "";
+  background: #f472b6;
+  opacity: 0;
+  pointer-events: none;
+  animation: home-template-chip-spark 760ms ease-out both;
+}
+
+.home-template-chip::before {
+  left: 10px;
+  top: -5px;
+  box-shadow:
+    22px -5px 0 #facc15,
+    44px 3px 0 #38bdf8;
+}
+
+.home-template-chip::after {
+  right: 16px;
+  bottom: -5px;
+  background: #a78bfa;
+  box-shadow:
+    -22px 5px 0 #34d399,
+    -44px -2px 0 #fb7185;
+  animation-delay: 80ms;
+}
+
+.home-template-chip :deep(svg) {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+}
+
+.home-template-chip > span:not(.home-template-chip__shine):not(.home-template-chip__tooltip) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-template-chip__shine {
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.home-template-chip__shine::before {
+  position: absolute;
+  left: -44%;
+  top: -40%;
+  width: 44%;
+  height: 180%;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
+  transform: rotate(18deg);
+  animation: home-template-chip-shine 1.1s ease-out 180ms both;
+}
+
+.home-template-chip__tooltip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 50;
+  width: min(360px, calc(100vw - 48px));
+  max-width: max-content;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.55;
+  white-space: normal;
+  opacity: 0;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.2);
+  transform: translateY(5px) scale(0.98);
+  transform-origin: left bottom;
+  transition:
+    opacity 150ms ease,
+    transform 170ms ease;
+  pointer-events: none;
+}
+
+.home-template-chip__tooltip::after {
+  position: absolute;
+  left: 18px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  content: "";
+  background: rgba(15, 23, 42, 0.94);
+  transform: rotate(45deg);
+}
+
+.home-template-chip:hover,
+.home-template-chip:focus-visible {
+  border-color: rgba(124, 58, 237, 0.26);
+  transform: translateY(-1px);
+}
+
+.home-template-chip:hover .home-template-chip__tooltip,
+.home-template-chip:focus-visible .home-template-chip__tooltip {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@keyframes home-template-chip-arrive {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.68) rotate(-7deg);
+  }
+  58% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.08) rotate(2deg);
+  }
+  78% {
+    transform: translateY(1px) scale(0.98) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes home-template-chip-spark {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.3);
+  }
+  36% {
+    opacity: 0.9;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.15);
+  }
+}
+
+@keyframes home-template-chip-shine {
+  from {
+    transform: translateX(0) rotate(18deg);
+  }
+  to {
+    transform: translateX(360%) rotate(18deg);
+  }
 }
 
 .home-menu {
@@ -2520,7 +2539,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1180px) {
   .home-page {
-    padding: 34px 22px 36px;
+    padding: 24px 22px 36px;
   }
 }
 
@@ -2563,15 +2582,6 @@ onBeforeUnmount(() => {
     min-height: 0;
     padding: 18px 62px 18px 18px;
     border-radius: 18px;
-  }
-
-  .home-composer__particle-loop {
-    display: none;
-  }
-
-  .home-composer::before {
-    left: 18px;
-    right: 62px;
   }
 
   .home-composer__toolbar,

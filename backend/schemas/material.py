@@ -56,6 +56,7 @@ class MaterialAssetResponse(BaseModel):
     title: str = ""
     asset_type: str = ""
     media_type: str = ""
+    public_url: str = ""
     file_url: str = ""
     remote_url: str | None = None
     thumbnail_url: str | None = None

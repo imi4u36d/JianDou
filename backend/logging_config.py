@@ -32,7 +32,7 @@ def configure_logging(
     root.addHandler(handler)
 
     # Silence noisy third-party loggers at INFO level
-    for noisy in ("httpx", "httpcore", "urllib3", "asyncio", "aiosqlite"):
+    for noisy in ("httpx", "httpcore", "urllib3", "asyncio"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # Application loggers

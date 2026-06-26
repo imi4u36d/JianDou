@@ -27,9 +27,6 @@ timeout = max(1, int(timeout_text))
 parsed = urlsplit(url)
 scheme = parsed.scheme.split("+", 1)[0]
 
-if scheme in {"sqlite", "aiosqlite"}:
-    raise SystemExit(0)
-
 default_ports = {
     "mysql": 3306,
     "mariadb": 3306,

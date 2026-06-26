@@ -33,7 +33,7 @@
 
           <div class="create-task-dialog__footer">
             <span class="create-status-text" :class="{ 'create-status-text--error': isStatusError }">{{ taskStatusText }}</span>
-            <button class="btn-primary" type="submit" :disabled="submitting || !taskTitle.trim()">
+            <button class="jd-button jd-button--primary" type="submit" :disabled="submitting || !taskTitle.trim()">
               <IconLoading v-if="submitting" size="xs" />
               <span>{{ submitting ? "创建中" : "开始" }}</span>
             </button>
@@ -345,7 +345,7 @@ async function submitTask() {
   font-weight: 600;
 }
 
-.create-task-dialog__footer .btn-primary {
+.create-task-dialog__footer .jd-button--primary {
   margin-left: auto;
 }
 

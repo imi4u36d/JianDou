@@ -42,8 +42,8 @@ The frontend gateway proxies `/api/`, `/storage/`, and `/runtime-config.json` to
 
 ## Database
 
-- `JIANDOU_DATABASE_URL`: async SQLAlchemy URL. SQLite works out of the box, for example `sqlite+aiosqlite:///./data/jiandou.db`.
-- `JIANDOU_DB_POOL_SIZE`: SQLAlchemy pool size for non-SQLite databases.
+- `JIANDOU_DATABASE_URL`: async SQLAlchemy URL, for example `mysql+asyncmy://jiandou:jiandou@mysql:3306/jiandou?charset=utf8mb4`.
+- `JIANDOU_DB_POOL_SIZE`: SQLAlchemy pool size.
 - `JIANDOU_DB_MAX_OVERFLOW`: additional connections allowed beyond the pool size.
 - `JIANDOU_DB_POOL_TIMEOUT`: seconds to wait for a pooled connection.
 - `JIANDOU_DB_POOL_RECYCLE`: seconds before recycling pooled connections.

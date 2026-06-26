@@ -22,8 +22,7 @@ def upgrade() -> None:
     checks = _check_names(bind, "biz_stage_workflows")
     is_mysql = bind.dialect.name == "mysql"
 
-    # Use batch mode for SQLite compatibility; batch_alter_table transparently
-    # rebuilds the table when the backend cannot alter constraints in place.
+    # Batch mode keeps constraint edits portable across supported SQL backends.
     with op.batch_alter_table("biz_stage_workflows") as batch_op:
         if "execution_mode" not in columns:
             batch_op.add_column(

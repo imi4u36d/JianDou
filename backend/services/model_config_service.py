@@ -22,7 +22,6 @@ from typing import Any, Optional
 import yaml
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.config import settings
@@ -2026,7 +2025,6 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
     def __init__(self, database_url: str) -> None:
         self._database_url = self._sync_database_url(database_url)
         self._engine = create_engine(self._database_url, future=True)
-        self._dialect = make_url(self._database_url).get_backend_name()
 
     def find_runtime_api_key(self, user_id: int, preferred_scopes: list[str]) -> str:
         keys = self.find_api_keys_by_user_id(user_id)
@@ -2236,37 +2234,7 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                     )
 
     def _ensure_table(self) -> None:
-        if self._dialect != "sqlite":
-            return
-        with self._engine.begin() as conn:
-            conn.exec_driver_sql(
-                """
-                create table if not exists sys_user_model_credential (
-                    id integer primary key autoincrement,
-                    user_id integer not null,
-                    provider_key varchar(64) not null,
-                    encrypted_api_key text not null,
-                    base_url text not null default '',
-                    task_base_url text not null default '',
-                    extras_json text not null default '{}',
-                    created_at varchar(32) not null,
-                    updated_at varchar(32) not null
-                )
-                """
-            )
-            columns = {row[1] for row in conn.exec_driver_sql("pragma table_info(sys_user_model_credential)").all()}
-            if "base_url" not in columns:
-                conn.exec_driver_sql("alter table sys_user_model_credential add column base_url text not null default ''")
-            if "task_base_url" not in columns:
-                conn.exec_driver_sql("alter table sys_user_model_credential add column task_base_url text not null default ''")
-            if "extras_json" not in columns:
-                conn.exec_driver_sql("alter table sys_user_model_credential add column extras_json text not null default '{}'")
-            conn.exec_driver_sql(
-                """
-                create unique index if not exists ux_sys_user_model_credential_user_provider
-                on sys_user_model_credential(user_id, provider_key)
-                """
-            )
+        return
 
     @staticmethod
     def _decode_extras_json(raw: str | None) -> dict[str, str]:
@@ -2286,16 +2254,8 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
 
     @staticmethod
     def _sync_database_url(database_url: str) -> str:
-        from backend.config import PROJECT_ROOT
-
-        if database_url.startswith("sqlite+aiosqlite:"):
-            return database_url.replace("sqlite+aiosqlite:", "sqlite:", 1)
         if database_url.startswith("mysql+asyncmy:"):
             return database_url.replace("mysql+asyncmy:", "mysql+pymysql:", 1)
-        if database_url.startswith("sqlite:"):
-            return database_url
-        if "://" not in database_url:
-            return "sqlite:///" + str(PROJECT_ROOT / "data" / "jiandou.db")
         return database_url
 
 

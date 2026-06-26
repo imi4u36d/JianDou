@@ -1,8 +1,10 @@
 """Pytest configuration and fixtures."""
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -16,13 +18,19 @@ from backend.models.user import SysUser
 
 
 @pytest_asyncio.fixture
-async def db_session_factory(tmp_path):
-    """Create a fresh SQLite database and session factory for each test."""
+async def db_session_factory():
+    """Create a fresh database schema and session factory for each test."""
     import backend.models  # noqa: F401
 
-    db_path = tmp_path / "jiandou-test.db"
-    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", echo=False)
+    database_url = os.environ.get("JIANDOU_TEST_DATABASE_URL", "").strip()
+    if not database_url:
+        pytest.skip("Set JIANDOU_TEST_DATABASE_URL to run database integration tests.")
+    if "test" not in database_url.lower():
+        pytest.skip("JIANDOU_TEST_DATABASE_URL must point at a disposable test database.")
+
+    engine = create_async_engine(database_url, echo=False)
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

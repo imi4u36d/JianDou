@@ -172,6 +172,10 @@ def test_workflow_view_mapper_builds_summary_and_detail() -> None:
     assert summary["keyframeVersionCount"] == 1
     assert summary["characterSheetVersionCount"] == 1
     assert detail["clipSlots"][0]["keyframeVersions"][0]["asset"]["id"] == "mat_keyframe"
+    assert detail["clipSlots"][0]["keyframeVersions"][0]["asset"]["publicUrl"] == "/media/keyframe.png"
+    assert detail["clipSlots"][0]["keyframeVersions"][0]["asset"]["previewUrl"] == "/media/keyframe-thumb.png"
     assert detail["characterSheets"][0]["keyframeVersions"][0]["id"] == "kv_character"
     assert detail["finalResult"]["id"] == "mat_final"
+    assert detail["finalResult"]["publicUrl"] == "/media/final.mp4"
+    assert detail["finalResult"]["previewUrl"] == ""
     assert detail["finalResult"]["hasAudio"] is True

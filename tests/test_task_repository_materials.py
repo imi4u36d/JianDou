@@ -74,6 +74,8 @@ async def test_repository_persists_material_rows_as_material_assets(db_session) 
     assert asset.media_type == "video"
     assert asset.public_url == "/storage/clip1.mp4"
     assert asset.thumbnail_url == "/storage/clip1-thumb.jpg"
+    assert asset.remote_url is None
+    assert asset.third_party_url is None
     assert asset.local_storage_path == "/tmp/clip1.mp4"
     assert asset.has_audio == 1
 
@@ -123,11 +125,12 @@ async def test_repository_persists_material_rows_as_material_assets(db_session) 
             "hasAudio": True,
             "storagePath": "/tmp/clip1.mp4",
             "localFilePath": "/tmp/clip1.mp4",
+            "publicUrl": "/storage/clip1.mp4",
             "fileUrl": "/storage/clip1.mp4",
             "previewUrl": "/storage/clip1-thumb.jpg",
             "thumbnailUrl": "/storage/clip1-thumb.jpg",
             "thirdPartyUrl": "",
-            "remoteUrl": "https://provider.example.test/clip1.mp4",
+            "remoteUrl": "",
             "metadata": {"clipIndex": 1, "taskArtifact": True},
             "createdAt": "2026-01-01T00:01:00+00:00",
         }

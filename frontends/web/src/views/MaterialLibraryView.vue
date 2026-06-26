@@ -8,7 +8,7 @@
           type="button"
           class="material-tab"
           :class="{ 'material-tab-active': activeLibraryTab === tab.key }"
-          @click="activeLibraryTab = tab.key"
+          @click="selectLibraryTab(tab.key)"
         >
           {{ tab.label }}
         </button>
@@ -63,6 +63,30 @@
       </div>
     </header>
 
+    <section class="material-favorite-folders" aria-label="收藏夹">
+      <div class="material-favorite-folders__head">
+        <span>收藏夹</span>
+        <button type="button" aria-label="新增收藏夹" title="新增收藏夹" @click="openFavoriteDialog()">
+          <IconPlus size="xs" />
+        </button>
+      </div>
+      <div class="material-favorite-folders__list">
+        <button
+          v-for="folder in favoriteFolders"
+          :key="folder.id"
+          type="button"
+          class="material-favorite-folder"
+          :class="{ 'material-favorite-folder-active': activeFavoriteFolderId === folder.id }"
+          @click="selectFavoriteFolder(folder.id)"
+        >
+          <IconHeart size="xs" :filled="activeFavoriteFolderId === folder.id" />
+          <span>{{ folder.name }}</span>
+          <small>{{ folder.assetIds.length }}</small>
+        </button>
+        <span v-if="!favoriteFolders.length" class="material-favorite-folders__empty">暂无收藏夹</span>
+      </div>
+    </section>
+
     <section v-if="advancedFiltersOpen" class="material-filter-drawer">
       <label class="material-field">
         <span>素材类型</span>
@@ -81,19 +105,19 @@
         <input v-model="filters.clipIndex" class="field-input" type="number" min="0" step="1" placeholder="全部" @keyup.enter="loadAssets" />
       </label>
       <div class="material-filter-drawer__actions">
-        <button class="btn-primary btn-sm" type="button" :disabled="loading" @click="loadAssets">应用</button>
-        <button class="btn-ghost btn-sm" type="button" :disabled="loading" @click="resetFilters">清空</button>
+        <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="loading" @click="loadAssets">应用</button>
+        <button class="jd-button jd-button--ghost jd-button--sm" type="button" :disabled="loading" @click="resetFilters">清空</button>
       </div>
     </section>
 
     <section v-if="batchMode && displayedAssets.length" class="material-batch-bar">
       <span>已选 {{ selectedAssetIds.length }}</span>
-      <button class="btn-secondary btn-sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchUpload">
+      <button class="jd-button jd-button--secondary jd-button--sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchUpload">
         <IconLoading v-if="busyActionKey === 'batch-upload'" size="xs" />
         <IconUpload v-else size="xs" />
         {{ busyActionKey === "batch-upload" ? "上传中" : "上传" }}
       </button>
-      <button class="btn-danger btn-sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
+      <button class="jd-button jd-button--danger jd-button--sm" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
         <IconLoading v-if="busyActionKey === 'batch-delete'" size="xs" />
         <IconDelete v-else size="xs" />
         {{ busyActionKey === "batch-delete" ? "删除中" : "删除" }}
@@ -174,6 +198,17 @@
           </button>
         </div>
 
+        <button
+          type="button"
+          class="material-card__favorite"
+          :class="{ 'material-card__favorite-active': isAssetFavorited(asset.id) }"
+          :aria-label="isAssetFavorited(asset.id) ? '已收藏，管理收藏夹' : '收藏素材'"
+          :title="isAssetFavorited(asset.id) ? '已收藏' : '收藏'"
+          @click.stop="openFavoriteDialog(asset)"
+        >
+          <IconHeart size="sm" :filled="isAssetFavorited(asset.id)" />
+        </button>
+
         <div class="material-card__body">
           <div class="material-card__head">
             <div class="material-card__title">
@@ -209,6 +244,10 @@
                   <IconDownload size="xs" />
                   <span>下载</span>
                 </button>
+                <button v-if="isAssetShareable(asset)" type="button" :disabled="sharingAssetId === asset.id" @click="openMaterialShareConfirm(asset)">
+                  <IconShare size="xs" />
+                  <span>{{ sharedAssetRecords[asset.id] ? "已分享" : "分享" }}</span>
+                </button>
                 <button type="button" class="material-menu-danger" :disabled="busyActionKey === `delete-${asset.id}`" @click="handleDeleteAsset(asset)">
                   <IconLoading v-if="busyActionKey === `delete-${asset.id}`" size="xs" />
                   <IconDelete v-else size="xs" />
@@ -218,7 +257,7 @@
             </div>
           </div>
           <div class="material-card__chips">
-            <span>{{ assetTypeLabel(asset.assetType) }}</span>
+            <span>{{ assetDisplayTypeLabel(asset) }}</span>
             <button v-if="asset.remoteUrl" type="button" :title="`复制远程地址：${asset.remoteUrl}`" aria-label="复制远程地址" @click="copyRemoteUrl(asset.remoteUrl)">
               <IconUpload size="xs" />
             </button>
@@ -227,17 +266,17 @@
         </div>
       </article>
 
-      <div v-if="!displayedAssets.length && !hasMoreAssets" class="material-empty material-empty-inline">
+      <div v-if="!displayedAssets.length && (activeFavoriteFolderId || !hasMoreAssets)" class="material-empty material-empty-inline">
         <strong>{{ materialEmptyTitle }}</strong>
       </div>
 
-      <div v-else-if="displayedAssets.length || hasMoreAssets" ref="loadMoreTrigger" class="material-load-more">
+      <div v-else-if="!activeFavoriteFolderId && (displayedAssets.length || hasMoreAssets)" ref="loadMoreTrigger" class="material-load-more">
         <IconLoading v-if="loadingMore" size="sm" />
         <span v-else-if="hasMoreAssets" aria-hidden="true"></span>
       </div>
     </section>
 
-    <MaterialPreviewDialog
+    <AppPreviewDialog
       :open="previewDialog.open"
       :kind="previewDialog.kind"
       :title="previewDialog.title"
@@ -246,9 +285,114 @@
       :image-load-failed="previewImageLoadFailed"
       @close="closePreviewDialog"
       @image-error="previewImageLoadFailed = true"
-    />
+    >
+      <template v-if="previewAsset" #actions>
+        <button
+          type="button"
+          class="jd-button jd-button--sm material-preview-favorite-action"
+          :class="{ 'material-preview-favorite-action-active': isAssetFavorited(previewAsset.id) }"
+          :aria-label="isAssetFavorited(previewAsset.id) ? '已收藏，管理收藏夹' : '收藏预览素材'"
+          @click="openFavoriteDialog(previewAsset)"
+        >
+          <IconHeart size="xs" :filled="isAssetFavorited(previewAsset.id)" />
+          <span>{{ isAssetFavorited(previewAsset.id) ? "已收藏" : "收藏" }}</span>
+        </button>
+        <button
+          v-if="isAssetShareable(previewAsset)"
+          type="button"
+          class="jd-button jd-button--sm"
+          :disabled="sharingAssetId === previewAsset.id"
+          aria-label="分享预览素材"
+          @click="openMaterialShareConfirm(previewAsset)"
+        >
+          <IconShare size="xs" />
+          <span>{{ sharedAssetRecords[previewAsset.id] ? "已分享" : "分享" }}</span>
+        </button>
+      </template>
+    </AppPreviewDialog>
+
+    <Transition name="material-favorite-dialog-fade">
+      <div
+        v-if="favoriteDialog.open"
+        class="material-favorite-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="material-favorite-dialog-title"
+        @click.self="closeFavoriteDialog"
+        @keydown.esc.stop.prevent="closeFavoriteDialog"
+      >
+        <div class="material-favorite-dialog__panel">
+          <div class="material-favorite-dialog__head">
+            <div>
+              <h3 id="material-favorite-dialog-title">{{ favoriteDialog.asset ? "添加到收藏夹" : "管理收藏夹" }}</h3>
+              <p v-if="favoriteDialog.asset">{{ favoriteDialog.asset.title }}</p>
+            </div>
+            <button type="button" aria-label="关闭收藏夹弹窗" @click="closeFavoriteDialog">
+              <IconClose size="sm" />
+            </button>
+          </div>
+
+          <div class="material-favorite-dialog__folders">
+            <div
+              v-for="folder in favoriteFolders"
+              :key="folder.id"
+              class="material-favorite-dialog__folder"
+              :class="{ 'material-favorite-dialog__folder-active': favoriteDialog.asset && folderContainsAsset(folder.id, favoriteDialog.asset.id) }"
+            >
+              <form
+                v-if="favoriteDialog.editingFolderId === folder.id"
+                class="material-favorite-dialog__rename"
+                @submit.prevent="commitFavoriteFolderRename(folder.id)"
+              >
+                <input
+                  v-model="favoriteDialog.editingFolderName"
+                  type="text"
+                  maxlength="28"
+                  aria-label="收藏夹名称"
+                  @keydown.stop
+                />
+                <button type="submit" :disabled="!favoriteDialog.editingFolderName.trim()">保存</button>
+                <button type="button" @click="cancelFavoriteFolderRename">取消</button>
+              </form>
+              <template v-else>
+                <button
+                  type="button"
+                  class="material-favorite-dialog__folder-main"
+                  :disabled="!favoriteDialog.asset"
+                  @click="favoriteDialog.asset && toggleFavoriteFolderMembership(folder.id, favoriteDialog.asset)"
+                >
+                  <IconHeart size="sm" :filled="Boolean(favoriteDialog.asset && folderContainsAsset(folder.id, favoriteDialog.asset.id))" />
+                  <span>{{ folder.name }}</span>
+                  <small>{{ folder.assetIds.length }}</small>
+                </button>
+                <div v-if="!favoriteDialog.asset" class="material-favorite-dialog__folder-actions">
+                  <button type="button" @click="beginFavoriteFolderRename(folder)">
+                    <IconEdit size="xs" />
+                    修改
+                  </button>
+                  <button type="button" class="material-favorite-dialog__folder-delete" @click="confirmDeleteFavoriteFolder(folder)">
+                    <IconDelete size="xs" />
+                    删除
+                  </button>
+                </div>
+              </template>
+            </div>
+            <span v-if="!favoriteFolders.length" class="material-favorite-dialog__empty">还没有收藏夹</span>
+          </div>
+
+          <form class="material-favorite-dialog__create" @submit.prevent="createFavoriteFolder">
+            <input v-model="favoriteDialog.newFolderName" type="text" maxlength="28" placeholder="输入收藏夹名称" />
+            <button type="submit" :disabled="!favoriteDialog.newFolderName.trim()">
+              <IconPlus size="xs" />
+              添加
+            </button>
+          </form>
+        </div>
+      </div>
+    </Transition>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
+    <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptMaterialShareConfirm" @cancel="cancelMaterialShareConfirm" />
   </section>
 </template>
 
@@ -256,17 +400,28 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { deleteMaterialAsset, fetchMaterialAssetPage, reuseMaterialAsset, uploadMaterialAsset } from "@/features/materials";
+import { fetchMaterialAsset } from "@/api/material-assets";
 import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
+import { createPublicShare, deletePublicShare } from "@/api/public-shares";
 import AppSelect from "@/components/common/AppSelect.vue";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
-import MaterialPreviewDialog from "@/components/materials/MaterialPreviewDialog.vue";
+import AppPreviewDialog from "@/components/common/AppPreviewDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
 import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
 import { downloadMedia, inferMediaDownloadKind, type DownloadMediaKind } from "@/utils/download";
-import { IconCheck, IconClose, IconDelete, IconDownload, IconImage, IconLoading, IconMore, IconPlus, IconSearch, IconSettings, IconUpload, IconVideo, IconWorkflow } from "@/components/icons";
+import { IconCheck, IconClose, IconDelete, IconDownload, IconEdit, IconHeart, IconImage, IconLoading, IconMore, IconPlus, IconSearch, IconSettings, IconShare, IconUpload, IconVideo, IconWorkflow } from "@/components/icons";
+
+interface MaterialFavoriteFolder {
+  id: string;
+  name: string;
+  assetIds: string[];
+  createdAt: string;
+}
+
+const FAVORITE_FOLDERS_STORAGE_KEY = "jiandou.materialFavoriteFolders.v1";
 
 const route = useRoute();
 const router = useRouter();
@@ -278,6 +433,20 @@ const advancedFiltersOpen = ref(false);
 const batchMode = ref(false);
 const selectedAssetIds = ref<string[]>([]);
 const failedAssetPreviewUrls = ref(new Set<string>());
+const sharingAssetId = ref("");
+const pendingShareAsset = ref<MaterialAssetLibraryItem | null>(null);
+const previewAsset = ref<MaterialAssetLibraryItem | null>(null);
+const sharedAssetRecords = ref<Record<string, string>>({});
+const favoriteFolders = ref<MaterialFavoriteFolder[]>([]);
+const activeFavoriteFolderId = ref("");
+const favoriteAssetCache = ref<Record<string, MaterialAssetLibraryItem>>({});
+const favoriteDialog = reactive({
+  open: false,
+  asset: null as MaterialAssetLibraryItem | null,
+  newFolderName: "",
+  editingFolderId: "",
+  editingFolderName: "",
+});
 
 const assets = ref<MaterialAssetLibraryItem[]>([]);
 const loadMoreTrigger = ref<HTMLElement | null>(null);
@@ -337,8 +506,23 @@ const previewDialog = reactive({
 });
 const previewImageLoadFailed = ref(false);
 const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
+const shareConfirmDialog = reactive({
+  open: false,
+  title: "分享素材",
+  message: "确认分享后，你的生成结果会展示在首页，供其他用户浏览、点赞，帮助你成为人气用户。",
+  confirmText: "确认分享",
+  cancelText: "取消",
+  tone: "primary" as "primary" | "danger",
+});
 
 const displayedAssets = computed(() => {
+  if (activeFavoriteFolderId.value) {
+    const folder = favoriteFolders.value.find((item) => item.id === activeFavoriteFolderId.value);
+    if (!folder) return [];
+    return folder.assetIds
+      .map((assetId) => assets.value.find((asset) => asset.id === assetId) ?? favoriteAssetCache.value[assetId])
+      .filter((asset): asset is MaterialAssetLibraryItem => Boolean(asset));
+  }
   const tab = activeLibraryTab.value;
   if (tab === "image") {
     return assets.value.filter((asset) => asset.mediaType === "image");
@@ -349,6 +533,9 @@ const displayedAssets = computed(() => {
   if (tab === "all") {
     return assets.value;
   }
+  if (tab === "workflow") {
+    return assets.value.filter(isWorkflowArtifactAsset);
+  }
   return assets.value.filter((asset) => asset.assetType === tab);
 });
 
@@ -356,7 +543,188 @@ const canUseBatchMode = computed(() => displayedAssets.value.length > 0);
 const activeFilterCount = computed(() => {
   return [filters.assetType, filters.showWorkflowArtifacts, filters.model.trim(), filters.aspectRatio, filters.clipIndex].filter(Boolean).length;
 });
-const materialEmptyTitle = computed(() => (filters.q.trim() || activeFilterCount.value > 0 || activeLibraryTab.value !== "all" ? "没有匹配素材" : "暂无素材"));
+const materialEmptyTitle = computed(() => {
+  if (activeFavoriteFolderId.value) {
+    return "收藏夹暂无素材";
+  }
+  return filters.q.trim() || activeFilterCount.value > 0 || activeLibraryTab.value !== "all" ? "没有匹配素材" : "暂无素材";
+});
+
+function selectLibraryTab(tabKey: string) {
+  activeFavoriteFolderId.value = "";
+  activeLibraryTab.value = tabKey;
+}
+
+function loadFavoriteFolders() {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(FAVORITE_FOLDERS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) {
+      favoriteFolders.value = [];
+      return;
+    }
+    favoriteFolders.value = parsed
+      .map((folder): MaterialFavoriteFolder | null => {
+        if (!folder || typeof folder !== "object") return null;
+        const id = typeof folder.id === "string" ? folder.id : "";
+        const name = typeof folder.name === "string" ? folder.name.trim() : "";
+        const rawAssetIds: unknown[] = Array.isArray(folder.assetIds) ? folder.assetIds : [];
+        const assetIds: string[] = Array.from(new Set(rawAssetIds.filter((assetId): assetId is string => typeof assetId === "string")));
+        const createdAt = typeof folder.createdAt === "string" ? folder.createdAt : new Date().toISOString();
+        return id && name ? { id, name, assetIds, createdAt } : null;
+      })
+      .filter((folder): folder is MaterialFavoriteFolder => Boolean(folder));
+  } catch {
+    favoriteFolders.value = [];
+  }
+}
+
+function persistFavoriteFolders() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(FAVORITE_FOLDERS_STORAGE_KEY, JSON.stringify(favoriteFolders.value));
+}
+
+function favoriteFolderId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `favorite-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function cacheMaterialAssets(items: MaterialAssetLibraryItem[]) {
+  if (!items.length) return;
+  const next = { ...favoriteAssetCache.value };
+  for (const item of items) {
+    next[item.id] = item;
+  }
+  favoriteAssetCache.value = next;
+}
+
+function isAssetFavorited(assetId: string) {
+  return favoriteFolders.value.some((folder) => folder.assetIds.includes(assetId));
+}
+
+function folderContainsAsset(folderId: string, assetId: string) {
+  return Boolean(favoriteFolders.value.find((folder) => folder.id === folderId)?.assetIds.includes(assetId));
+}
+
+function openFavoriteDialog(asset?: MaterialAssetLibraryItem) {
+  favoriteDialog.asset = asset ?? null;
+  favoriteDialog.newFolderName = "";
+  favoriteDialog.editingFolderId = "";
+  favoriteDialog.editingFolderName = "";
+  favoriteDialog.open = true;
+  if (asset) {
+    cacheMaterialAssets([asset]);
+  }
+}
+
+function closeFavoriteDialog() {
+  favoriteDialog.open = false;
+  favoriteDialog.asset = null;
+  favoriteDialog.newFolderName = "";
+  favoriteDialog.editingFolderId = "";
+  favoriteDialog.editingFolderName = "";
+}
+
+function createFavoriteFolder() {
+  const name = favoriteDialog.newFolderName.trim();
+  if (!name) return;
+  if (favoriteFolders.value.some((folder) => folder.name === name)) {
+    messageApi.warning("收藏夹名称已存在");
+    return;
+  }
+  const asset = favoriteDialog.asset;
+  const folder: MaterialFavoriteFolder = {
+    id: favoriteFolderId(),
+    name,
+    assetIds: asset ? [asset.id] : [],
+    createdAt: new Date().toISOString(),
+  };
+  favoriteFolders.value = [...favoriteFolders.value, folder];
+  if (asset) {
+    cacheMaterialAssets([asset]);
+  }
+  if (asset) {
+    activeFavoriteFolderId.value = folder.id;
+  }
+  favoriteDialog.newFolderName = "";
+  persistFavoriteFolders();
+  messageApi.success(asset ? "已加入收藏夹" : "已创建收藏夹");
+}
+
+function beginFavoriteFolderRename(folder: MaterialFavoriteFolder) {
+  favoriteDialog.editingFolderId = folder.id;
+  favoriteDialog.editingFolderName = folder.name;
+}
+
+function cancelFavoriteFolderRename() {
+  favoriteDialog.editingFolderId = "";
+  favoriteDialog.editingFolderName = "";
+}
+
+function commitFavoriteFolderRename(folderId: string) {
+  const name = favoriteDialog.editingFolderName.trim();
+  if (!name) return;
+  if (favoriteFolders.value.some((folder) => folder.id !== folderId && folder.name === name)) {
+    messageApi.warning("收藏夹名称已存在");
+    return;
+  }
+  favoriteFolders.value = favoriteFolders.value.map((folder) => folder.id === folderId ? { ...folder, name } : folder);
+  persistFavoriteFolders();
+  cancelFavoriteFolderRename();
+  messageApi.success("已重命名收藏夹");
+}
+
+async function confirmDeleteFavoriteFolder(folder: MaterialFavoriteFolder) {
+  const confirmed = await requestConfirm({
+    title: "删除收藏夹",
+    message: `删除后会移除收藏夹「${folder.name}」，素材本身不会被删除。`,
+    confirmText: "删除",
+  });
+  if (!confirmed) return;
+  favoriteFolders.value = favoriteFolders.value.filter((item) => item.id !== folder.id);
+  if (activeFavoriteFolderId.value === folder.id) {
+    activeFavoriteFolderId.value = "";
+  }
+  if (favoriteDialog.editingFolderId === folder.id) {
+    cancelFavoriteFolderRename();
+  }
+  persistFavoriteFolders();
+  messageApi.success("已删除收藏夹");
+}
+
+function toggleFavoriteFolderMembership(folderId: string, asset: MaterialAssetLibraryItem) {
+  cacheMaterialAssets([asset]);
+  let added = false;
+  favoriteFolders.value = favoriteFolders.value.map((folder) => {
+    if (folder.id !== folderId) return folder;
+    if (folder.assetIds.includes(asset.id)) {
+      return { ...folder, assetIds: folder.assetIds.filter((assetId) => assetId !== asset.id) };
+    }
+    added = true;
+    return { ...folder, assetIds: [asset.id, ...folder.assetIds] };
+  });
+  persistFavoriteFolders();
+  messageApi.success(added ? "已加入收藏夹" : "已移出收藏夹");
+}
+
+async function selectFavoriteFolder(folderId: string) {
+  activeFavoriteFolderId.value = folderId;
+  selectedAssetIds.value = [];
+  batchMode.value = false;
+  const folder = favoriteFolders.value.find((item) => item.id === folderId);
+  if (!folder) return;
+  const missingAssetIds = folder.assetIds.filter((assetId) => !assets.value.some((asset) => asset.id === assetId) && !favoriteAssetCache.value[assetId]);
+  if (!missingAssetIds.length) return;
+  try {
+    const loadedAssets = await Promise.all(missingAssetIds.map((assetId) => fetchMaterialAsset(assetId).catch(() => null)));
+    cacheMaterialAssets(loadedAssets.filter((asset): asset is MaterialAssetLibraryItem => Boolean(asset)));
+  } catch {
+    messageApi.warning("部分收藏素材加载失败");
+  }
+}
 
 function toggleBatchMode() {
   if (!canUseBatchMode.value) {
@@ -364,11 +732,23 @@ function toggleBatchMode() {
   }
   batchMode.value = !batchMode.value;
 }
+
+function normalizedAssetValue(value?: string | null) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function isWorkflowArtifactAsset(asset: MaterialAssetLibraryItem) {
+  return Boolean(normalizedAssetValue(asset.workflowId))
+    || normalizedAssetValue(asset.assetType) === "workflow"
+    || normalizedAssetValue(asset.assetRole) === "workflow";
+}
+
 function buildQuery(): MaterialAssetQuery {
+  const workflowArtifactsSelected = activeLibraryTab.value === "workflow" || filters.assetType === "workflow";
   return {
     q: filters.q.trim() || undefined,
     assetType: filters.assetType as MaterialAssetQuery["assetType"],
-    includeWorkflowArtifacts: filters.showWorkflowArtifacts,
+    includeWorkflowArtifacts: filters.showWorkflowArtifacts || workflowArtifactsSelected,
     model: filters.model.trim() || undefined,
     aspectRatio: filters.aspectRatio || undefined,
     clipIndex: filters.clipIndex ? Number(filters.clipIndex) : null,
@@ -402,6 +782,13 @@ function assetTypeLabel(value?: MaterialAssetType | string | null) {
   return "工作流产物";
 }
 
+function assetDisplayTypeLabel(asset: MaterialAssetLibraryItem) {
+  if (isWorkflowArtifactAsset(asset)) {
+    return "工作流产物";
+  }
+  return assetTypeLabel(asset.assetType);
+}
+
 function mediaTypeLabel(value?: string | null) {
   if (value === "image") {
     return "图片";
@@ -415,9 +802,13 @@ function mediaTypeLabel(value?: string | null) {
   return "素材";
 }
 
+function assetPublicUrl(asset: MaterialAssetLibraryItem) {
+  return asset.publicUrl || asset.fileUrl || "";
+}
+
 function assetDownloadKind(asset: MaterialAssetLibraryItem): DownloadMediaKind {
   if (asset.mediaType === "image" || asset.mediaType === "video") return asset.mediaType;
-  return inferMediaDownloadKind(asset.fileUrl);
+  return inferMediaDownloadKind(assetPublicUrl(asset));
 }
 
 function assetSubtitle(asset: MaterialAssetLibraryItem) {
@@ -445,14 +836,29 @@ function assetVideoPosterUrl(asset: MaterialAssetLibraryItem) {
 }
 
 function assetOriginalImageUrl(asset: MaterialAssetLibraryItem) {
-  return asset.fileUrl || asset.remoteUrl || asset.previewUrl || asset.thumbnailUrl || "";
+  return assetPublicUrl(asset);
 }
 
 function assetVideoPreviewUrl(asset: MaterialAssetLibraryItem) {
-  return asset.fileUrl || asset.remoteUrl || asset.previewUrl || "";
+  return assetPublicUrl(asset);
+}
+
+function isAssetShareable(asset: MaterialAssetLibraryItem) {
+  return (asset.mediaType === "image" || asset.mediaType === "video") && Boolean(assetPublicUrl(asset));
+}
+
+function materialShareSource(asset: MaterialAssetLibraryItem): { sourceType: "task" | "workflow" | "material"; sourceId: string } {
+  if (asset.workflowId) {
+    return { sourceType: "workflow", sourceId: asset.workflowId };
+  }
+  if (asset.taskId) {
+    return { sourceType: "task", sourceId: asset.taskId };
+  }
+  return { sourceType: "material", sourceId: asset.id };
 }
 
 function openVideoPreview(asset: MaterialAssetLibraryItem) {
+  previewAsset.value = asset;
   previewImageLoadFailed.value = false;
   previewDialog.kind = "video";
   previewDialog.title = asset.title;
@@ -465,10 +871,12 @@ function closePreviewDialog() {
   previewDialog.open = false;
   previewDialog.html = "";
   previewDialog.url = "";
+  previewAsset.value = null;
   previewImageLoadFailed.value = false;
 }
 
 function openStoryboardPreview(asset: MaterialAssetLibraryItem) {
+  previewAsset.value = asset;
   previewImageLoadFailed.value = false;
   previewDialog.kind = "storyboard";
   previewDialog.title = asset.title;
@@ -478,6 +886,7 @@ function openStoryboardPreview(asset: MaterialAssetLibraryItem) {
 }
 
 function openImagePreview(asset: MaterialAssetLibraryItem) {
+  previewAsset.value = asset;
   previewImageLoadFailed.value = false;
   previewDialog.kind = "image";
   previewDialog.title = asset.title;
@@ -516,6 +925,7 @@ async function loadAssets() {
       return;
     }
     assets.value = page?.items ?? [];
+    cacheMaterialAssets(assets.value);
     nextAssetOffset.value = page?.nextOffset ?? assets.value.length;
     hasMoreAssets.value = page?.hasMore ?? false;
     selectedAssetIds.value = selectedAssetIds.value.filter((id) => assets.value.some((asset) => asset.id === id));
@@ -546,6 +956,7 @@ async function loadMoreAssets() {
       ...assets.value,
       ...(page?.items ?? []).filter((asset) => !existingIds.has(asset.id)),
     ];
+    cacheMaterialAssets(page?.items ?? []);
     nextAssetOffset.value = page?.nextOffset ?? assets.value.length;
     hasMoreAssets.value = page?.hasMore ?? false;
   } catch (error) {
@@ -727,7 +1138,7 @@ async function handleReuseAsset(assetId: string) {
 
 async function handleDownloadAsset(asset: MaterialAssetLibraryItem) {
   try {
-    const result = await downloadMedia({ url: asset.fileUrl, title: asset.title || asset.id, mediaType: assetDownloadKind(asset) });
+    const result = await downloadMedia({ url: assetPublicUrl(asset), title: asset.title || asset.id, mediaType: assetDownloadKind(asset) });
     if (result.target === "album") {
       messageApi.success("已保存到相册");
     } else if (result.target === "share") {
@@ -735,6 +1146,54 @@ async function handleDownloadAsset(asset: MaterialAssetLibraryItem) {
     }
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "下载失败");
+  }
+}
+
+function openMaterialShareConfirm(asset: MaterialAssetLibraryItem) {
+  if (!isAssetShareable(asset)) return;
+  const shared = Boolean(sharedAssetRecords.value[asset.id]);
+  pendingShareAsset.value = asset;
+  shareConfirmDialog.title = shared ? "取消分享" : "分享素材";
+  shareConfirmDialog.message = shared
+    ? "取消分享后，这个素材将不再展示在首页分享区。"
+    : "确认分享后，你的生成结果会展示在首页，供其他用户浏览、点赞，帮助你成为人气用户。";
+  shareConfirmDialog.confirmText = shared ? "取消分享" : "确认分享";
+  shareConfirmDialog.tone = shared ? "danger" : "primary";
+  shareConfirmDialog.open = true;
+}
+
+function cancelMaterialShareConfirm() {
+  shareConfirmDialog.open = false;
+  pendingShareAsset.value = null;
+}
+
+async function acceptMaterialShareConfirm() {
+  const asset = pendingShareAsset.value;
+  if (!asset || sharingAssetId.value) return;
+  sharingAssetId.value = asset.id;
+  try {
+    const existingShareId = sharedAssetRecords.value[asset.id];
+    if (existingShareId) {
+      await deletePublicShare(existingShareId);
+      const next = { ...sharedAssetRecords.value };
+      delete next[asset.id];
+      sharedAssetRecords.value = next;
+      messageApi.success("已取消分享");
+    } else {
+      const source = materialShareSource(asset);
+      const share = await createPublicShare({
+        materialAssetId: asset.id,
+        sourceType: source.sourceType,
+        sourceId: source.sourceId,
+      });
+      sharedAssetRecords.value = { ...sharedAssetRecords.value, [asset.id]: share.shareId };
+      messageApi.success("已分享到首页");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "分享失败");
+  } finally {
+    sharingAssetId.value = "";
+    cancelMaterialShareConfirm();
   }
 }
 
@@ -758,6 +1217,7 @@ function positionMaterialMenu(event: ToggleEvent) {
 }
 
 onMounted(async () => {
+  loadFavoriteFolders();
   const queryAssetType = typeof route.query.assetType === "string" ? route.query.assetType : "";
   if (typeFilterOptions.some((option) => option.value === queryAssetType)) {
     filters.assetType = queryAssetType;
@@ -864,6 +1324,104 @@ watch(
 .material-tab-active {
   background: #eef2ff;
   color: var(--accent-blue);
+}
+
+.material-favorite-folders {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-top: -8px;
+}
+
+.material-favorite-folders__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.material-favorite-folders__head button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+
+.material-favorite-folders__head button:hover {
+  background: rgba(99, 102, 241, 0.16);
+}
+
+.material-favorite-folders__list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.material-favorite-folders__list::-webkit-scrollbar {
+  display: none;
+}
+
+.material-favorite-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  max-width: 180px;
+  padding: 0 9px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-body);
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.material-favorite-folder span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.material-favorite-folder small {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-blue);
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+.material-favorite-folder:hover,
+.material-favorite-folder-active {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: #eef2ff;
+  color: var(--accent-blue);
+}
+
+.material-favorite-folders__empty {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .material-topbar__tools {
@@ -1126,7 +1684,7 @@ watch(
   align-items: center;
 }
 
-.material-filter-drawer__actions .btn-sm {
+.material-filter-drawer__actions .jd-button--sm {
   min-height: 38px;
   border-radius: 11px;
 }
@@ -1160,8 +1718,7 @@ watch(
   font-weight: 800;
 }
 
-.material-batch-bar .btn-secondary,
-.material-batch-bar .btn-danger {
+.material-batch-bar .jd-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1293,6 +1850,31 @@ watch(
   border-radius: 11px;
   overflow: hidden;
   background: #eef2ff;
+}
+
+.material-card__favorite {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text-muted);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+
+.material-card__favorite:hover,
+.material-card__favorite-active {
+  background: rgba(255, 255, 255, 0.92);
+  color: #e54865;
 }
 
 .material-card__preview video,
@@ -1565,10 +2147,300 @@ watch(
   color: var(--accent-danger) !important;
 }
 
+.material-preview-favorite-action {
+  color: #e54865 !important;
+}
+
+.material-preview-favorite-action-active {
+  background: rgba(251, 113, 133, 0.14) !important;
+}
+
+.material-favorite-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1450;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 10, 20, 0.25);
+  backdrop-filter: blur(40px) saturate(2);
+}
+
+.material-favorite-dialog__panel {
+  display: grid;
+  gap: 14px;
+  width: min(440px, 100%);
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(40px) saturate(1.8);
+}
+
+.material-favorite-dialog__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.material-favorite-dialog__head h3,
+.material-favorite-dialog__head p {
+  margin: 0;
+}
+
+.material-favorite-dialog__head h3 {
+  color: var(--text-strong);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.material-favorite-dialog__head p {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.material-favorite-dialog__head button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.material-favorite-dialog__head button:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
+}
+
+.material-favorite-dialog__folders {
+  display: grid;
+  gap: 8px;
+  max-height: min(320px, calc(100vh - 260px));
+  overflow: auto;
+}
+
+.material-favorite-dialog__folder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px;
+  border: 1px solid rgba(79, 70, 229, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-body);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.material-favorite-dialog__folder-main {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.material-favorite-dialog__folder-main:disabled {
+  cursor: default;
+}
+
+.material-favorite-dialog__folder-main span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.material-favorite-dialog__folder-main small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.material-favorite-dialog__folder:hover,
+.material-favorite-dialog__folder-active {
+  border-color: rgba(99, 102, 241, 0.26);
+  background: #eef2ff;
+  color: var(--accent-blue);
+}
+
+.material-favorite-dialog__folder-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.material-favorite-dialog__folder-actions button,
+.material-favorite-dialog__rename button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-blue);
+  font-size: 0.74rem;
+  font-weight: 850;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.material-favorite-dialog__folder-actions button:hover,
+.material-favorite-dialog__rename button:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.16);
+}
+
+.material-favorite-dialog__folder-actions .material-favorite-dialog__folder-delete {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--accent-danger);
+}
+
+.material-favorite-dialog__folder-actions .material-favorite-dialog__folder-delete:hover {
+  background: rgba(251, 113, 133, 0.18);
+}
+
+.material-favorite-dialog__rename {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.material-favorite-dialog__rename input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 10px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-strong);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.material-favorite-dialog__rename input:focus-visible {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.material-favorite-dialog__rename button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.material-favorite-dialog__empty {
+  display: grid;
+  place-items: center;
+  min-height: 86px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.material-favorite-dialog__create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.material-favorite-dialog__create input {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  border-radius: 12px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text-strong);
+  font-size: 0.86rem;
+}
+
+.material-favorite-dialog__create input:focus-visible {
+  border-color: rgba(99, 102, 241, 0.42);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.material-favorite-dialog__create button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-accent);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.material-favorite-dialog__create button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.material-favorite-dialog-fade-enter-active,
+.material-favorite-dialog-fade-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.material-favorite-dialog-fade-enter-active .material-favorite-dialog__panel,
+.material-favorite-dialog-fade-leave-active .material-favorite-dialog__panel {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.material-favorite-dialog-fade-enter-from,
+.material-favorite-dialog-fade-leave-to {
+  opacity: 0;
+}
+
+.material-favorite-dialog-fade-enter-from .material-favorite-dialog__panel,
+.material-favorite-dialog-fade-leave-to .material-favorite-dialog__panel {
+  transform: translateY(8px) scale(0.985);
+}
+
 @media (max-width: 1180px) {
   .material-topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .material-favorite-folders {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .material-topbar__tools {
@@ -1707,6 +2579,20 @@ watch(
 
   .material-card__preview {
     height: 204px;
+  }
+
+  .material-card__favorite {
+    top: 16px;
+    right: 16px;
+  }
+
+  .material-favorite-dialog {
+    align-items: end;
+    padding: 14px;
+  }
+
+  .material-favorite-dialog__panel {
+    border-radius: 20px;
   }
 
 }

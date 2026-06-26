@@ -55,10 +55,12 @@ def create_app(start_worker: bool = True) -> FastAPI:
     async def lifespan(_app: FastAPI):
         if start_worker:
             await container.worker_runner.start()
+            await container.auto_pilot_runner.start()
         try:
             yield
         finally:
             if start_worker:
+                await container.auto_pilot_runner.stop()
                 await container.worker_runner.stop()
             await container.task_repository.close()
             await container.json_cache.close()
@@ -120,6 +122,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
         health,
         material_assets,
         material_center,
+        public_shares,
         runtime_config,
         tasks,
         uploads,
@@ -135,6 +138,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
     app.include_router(uploads.router)
     app.include_router(material_assets.router)
     app.include_router(material_center.router)
+    app.include_router(public_shares.router)
     app.include_router(workflows.router)
     app.include_router(admin.router)
 

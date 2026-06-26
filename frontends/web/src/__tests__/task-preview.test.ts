@@ -160,6 +160,67 @@ describe("resolveTaskPreviewMedia", () => {
       type: "video",
       url: "/storage/join-6.mp4",
       posterUrl: "/storage/thumbs/join-6.jpg",
+      materialAssetId: "asset_join",
+    });
+  });
+
+  it("uses linked material publicUrl instead of previewUrl for media", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      outputs: [
+        output({
+          resultType: "video_join",
+          clipIndex: 10008,
+          materialAssetId: "asset_public_join",
+        }),
+      ],
+      materials: [
+        {
+          id: "asset_public_join",
+          kind: "video_join",
+          mediaType: "video",
+          title: "完整视频",
+          publicUrl: "/storage/join-public.mp4",
+          fileUrl: "",
+          previewUrl: "/storage/thumbs/join-public.jpg",
+          thumbnailUrl: "/storage/thumbs/join-public.jpg",
+        },
+      ],
+    }));
+
+    expect(preview).toMatchObject({
+      type: "video",
+      url: "/storage/join-public.mp4",
+      posterUrl: "/storage/thumbs/join-public.jpg",
+      materialAssetId: "asset_public_join",
+    });
+  });
+
+  it("uses linked material media when output only has materialAssetId", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      outputs: [
+        output({
+          resultType: "video_join",
+          clipIndex: 10007,
+          materialAssetId: "asset_join_only",
+        }),
+      ],
+      materials: [
+        {
+          id: "asset_join_only",
+          kind: "video_join",
+          mediaType: "video",
+          title: "完整视频",
+          fileUrl: "/storage/join-only.mp4",
+          thumbnailUrl: "/storage/thumbs/join-only.jpg",
+        },
+      ],
+    }));
+
+    expect(preview).toMatchObject({
+      type: "video",
+      url: "/storage/join-only.mp4",
+      posterUrl: "/storage/thumbs/join-only.jpg",
+      materialAssetId: "asset_join_only",
     });
   });
 });

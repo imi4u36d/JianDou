@@ -24,8 +24,6 @@ FORBIDDEN_TRACKED_PREFIXES = (
 
 FORBIDDEN_TRACKED_SUFFIXES = (
     ".db",
-    ".sqlite",
-    ".sqlite3",
     ".egg-info/PKG-INFO",
 )
 
@@ -79,10 +77,15 @@ def test_release_check_runs_all_release_facing_gates() -> None:
     assert '"release:check": "sh scripts/release-check.sh"' in package_json
 
 
-def test_alembic_migrations_apply_to_fresh_sqlite(tmp_path) -> None:
-    db_path = tmp_path / "jiandou-migration-test.db"
+def test_alembic_migrations_apply_to_configured_database() -> None:
+    database_url = os.environ.get("JIANDOU_TEST_DATABASE_URL", "").strip()
+    if not database_url:
+        pytest.skip("Set JIANDOU_TEST_DATABASE_URL to run migration integration checks.")
+    if "test" not in database_url.lower():
+        pytest.skip("JIANDOU_TEST_DATABASE_URL must point at a disposable test database.")
+
     env = os.environ.copy()
-    env["JIANDOU_DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+    env["JIANDOU_DATABASE_URL"] = database_url
 
     subprocess.run(
         ["uv", "run", "alembic", "upgrade", "head"],
@@ -104,6 +107,7 @@ def test_ci_runs_release_facing_quality_gates() -> None:
     for expected in [
         "uv run ruff check backend tests migrations",
         "uv run pytest",
+        "JIANDOU_TEST_DATABASE_URL",
         "uv run alembic upgrade head",
         "uv run jiandou openapi --output docs/openapi.json",
         "uv build",

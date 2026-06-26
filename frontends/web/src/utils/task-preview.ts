@@ -7,6 +7,7 @@ export interface TaskPreviewMedia {
   url: string;
   title: string;
   posterUrl?: string;
+  materialAssetId?: string;
 }
 
 const IMAGE_RESULT_TYPES = new Set(["image", "image_generation", "image_to_image", "character_sheet", "workspace_image"]);
@@ -88,7 +89,7 @@ export function taskOutputUrl(output: TaskOutput): string {
 }
 
 export function taskMaterialUrl(material: TaskMaterial): string {
-  return firstNonBlankTaskValue(material.fileUrl, material.previewUrl);
+  return firstNonBlankTaskValue(material.publicUrl, material.fileUrl);
 }
 
 function taskOutputDownloadUrl(output: TaskOutput): string {
@@ -121,6 +122,7 @@ function outputPreviewMedia(
     url: type === "video" ? taskOutputDownloadUrl(output) || (linkedMaterial ? taskMaterialUrl(linkedMaterial) : "") || url : url,
     posterUrl: type === "video" ? firstNonBlankTaskValue(outputPosterUrl(output), linkedMaterial?.thumbnailUrl) : undefined,
     title: output.title || "任务结果",
+    materialAssetId: firstNonBlankTaskValue(output.materialAssetId, linkedMaterial?.id),
   };
 }
 
@@ -134,6 +136,7 @@ function materialPreviewMedia(material: TaskMaterial): TaskPreviewMedia | null {
     url,
     posterUrl: type === "video" ? firstNonBlankTaskValue(material.thumbnailUrl) : undefined,
     title: material.title || material.id || "任务素材",
+    materialAssetId: material.id,
   };
 }
 

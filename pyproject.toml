@@ -29,7 +29,6 @@ dependencies = [
     "python-jose[cryptography]",
     "passlib[bcrypt]",
     "bcrypt>=4.0,<4.1",
-    "aiosqlite",
     "greenlet>=3.1.0",
     "click>=8.1",
     "rich>=13.0",
@@ -66,7 +65,7 @@ include = ["backend*"]
 [tool.pytest.ini_options]
 markers = [
     "unit: Fast unit tests that do not require a database or external service.",
-    "integration: Tests that require database access (SQLite or other).",
+    "integration: Tests that require configured database access.",
     "api: Tests that exercise HTTP endpoints through the FastAPI test client.",
     "domain: Tests for the domain layer (entities, value objects, domain services).",
     "service: Tests for the application service layer.",
