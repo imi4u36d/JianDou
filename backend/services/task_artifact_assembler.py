@@ -431,12 +431,6 @@ class TaskExecutionArtifactAssembler:
         total_duration_seconds: float,
     ) -> dict[str, Any]:
         public_url = _artifact_public_url(artifact, "")
-        absolute_path = string_value(getattr(artifact, "absolute_path", ""))
-        if callable(getattr(artifact, "absolute_path", None)):
-            absolute_path = string_value(artifact.absolute_path())
-        file_name = file_name_from_url(public_url) if public_url else string_value(getattr(artifact, "file_name", ""))
-        if callable(getattr(artifact, "file_name", None)):
-            file_name = string_value(artifact.file_name())
         clip_index = _JOIN_OUTPUT_CLIP_INDEX_BASE + max(1, end_clip_index)
         metadata = {
             "taskId": task.id,
