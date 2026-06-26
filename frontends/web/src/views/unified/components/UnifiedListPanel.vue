@@ -91,8 +91,8 @@ const statusFilterOptions: Array<{ label: string; value: UnifiedStatusFilter }> 
 ];
 
 const sortModeOptions: AppSelectOption[] = [
-  { label: "最近更新", value: "updated_desc" },
   { label: "最新创建", value: "created_desc" },
+  { label: "最近更新", value: "updated_desc" },
   { label: "进度最高", value: "progress_desc" },
   { label: "状态优先", value: "status_desc" },
 ];

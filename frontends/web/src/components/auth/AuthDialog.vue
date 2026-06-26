@@ -71,10 +71,6 @@
             <input v-model.trim="registerForm.username" autocomplete="username" placeholder="用户名" type="text" />
           </label>
           <label class="auth-dialog__field">
-            <span class="auth-dialog__field-label">显示名</span>
-            <input v-model.trim="registerForm.displayName" autocomplete="nickname" placeholder="显示名" type="text" />
-          </label>
-          <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">密码</span>
             <div class="auth-dialog__password-wrap">
               <input
@@ -131,7 +127,6 @@ const loginForm = reactive({
 const registerForm = reactive({
   code: "",
   username: "",
-  displayName: "",
   password: "",
 });
 
@@ -169,7 +164,6 @@ async function handleRegister() {
     await activateInviteAndStoreSession({
       code: registerForm.code,
       username: registerForm.username,
-      displayName: registerForm.displayName,
       password: registerForm.password,
     });
     closeAuthModal(true);
@@ -209,7 +203,7 @@ onBeforeUnmount(restoreFocus);
 .auth-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 5000;
   display: grid;
   place-items: center;
   padding: 18px;
@@ -218,6 +212,8 @@ onBeforeUnmount(restoreFocus);
 }
 
 .auth-dialog {
+  position: relative;
+  z-index: 1;
   width: min(460px, 100%);
   max-height: min(620px, calc(100dvh - 36px));
   overflow: auto;

@@ -26,6 +26,9 @@ The `Settings` class provides two levels of validation:
 - `JIANDOU_SERVER_ADDRESS`: bind address used by the CLI/container entrypoint.
 - `JIANDOU_SERVER_PORT`: bind port used by the CLI/container entrypoint. In Docker Compose this is the backend-internal port (`8000`); the public web entrypoint is the `frontend` service on host port `8100`.
 - `JIANDOU_AUTO_MIGRATE`: Docker entrypoint flag; `true` runs Alembic migrations on startup.
+- `JIANDOU_STARTUP_WAIT_SECONDS`: Docker entrypoint timeout for waiting until configured database/Redis sockets are reachable before migrations run.
+- `JIANDOU_STARTUP_RETRIES`: Docker entrypoint retry count for startup migration and seed commands.
+- `JIANDOU_STARTUP_RETRY_DELAY_SECONDS`: delay between Docker entrypoint migration/seed retry attempts.
 
 ## Docker Compose Topology
 
@@ -69,7 +72,6 @@ For Docker Compose / MySQL deployments, use `mysql+asyncmy://jiandou:jiandou@mys
 
 - `JIANDOU_SECRET_KEY`: signing/encryption secret. Generate a strong random value for production.
 - `JIANDOU_BOOTSTRAP_ADMIN_USERNAME`: bootstrap admin username.
-- `JIANDOU_BOOTSTRAP_ADMIN_DISPLAY_NAME`: bootstrap admin display name.
 - `JIANDOU_BOOTSTRAP_ADMIN_PASSWORD`: bootstrap admin password. Change before production.
 - `JIANDOU_AUTH_INVITE_EXPIRY_HOURS`: default invite expiry window.
 - `JIANDOU_AUTH_LOGIN_RATE_LIMIT`: login attempts per limiter window.

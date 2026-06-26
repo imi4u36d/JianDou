@@ -9,7 +9,13 @@ from backend.models.task import BizMaterialAsset, BizTaskModelCall
 from backend.services.task_query_service import TaskQueryService
 
 
-def _task(task_id: str, owner_user_id: int = 1) -> TaskRecord:
+def _task(
+    task_id: str,
+    owner_user_id: int = 1,
+    *,
+    created_at: str = "2026-01-01T00:00:00+00:00",
+    updated_at: str = "2026-01-01T00:01:00+00:00",
+) -> TaskRecord:
     return TaskRecord(
         id=task_id,
         owner_user_id=owner_user_id,
@@ -17,9 +23,32 @@ def _task(task_id: str, owner_user_id: int = 1) -> TaskRecord:
         title=f"Task {task_id}",
         status="PENDING",
         progress=10,
-        created_at="2026-01-01T00:00:00+00:00",
-        updated_at="2026-01-01T00:01:00+00:00",
+        created_at=created_at,
+        updated_at=updated_at,
     )
+
+
+async def test_task_list_sorting_separates_created_and_updated_times(db_session) -> None:
+    repository = TaskRepository(db_session)
+    old_but_updated = _task(
+        "task_old_but_updated",
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-03T00:00:00+00:00",
+    )
+    newly_created = _task(
+        "task_newly_created",
+        created_at="2026-01-02T00:00:00+00:00",
+        updated_at="2026-01-02T00:00:00+00:00",
+    )
+    await repository.save_mutation(TaskPersistenceMutation().set_task(old_but_updated))
+    await repository.save_mutation(TaskPersistenceMutation().set_task(newly_created))
+
+    service = TaskQueryService(repository)
+    default_items = await service.list_tasks(1)
+    updated_items = await service.list_tasks(1, sort="updated_desc")
+
+    assert [item["id"] for item in default_items] == ["task_newly_created", "task_old_but_updated"]
+    assert [item["id"] for item in updated_items] == ["task_old_but_updated", "task_newly_created"]
 
 
 async def test_task_list_and_trace_use_lightweight_queries(db_session) -> None:

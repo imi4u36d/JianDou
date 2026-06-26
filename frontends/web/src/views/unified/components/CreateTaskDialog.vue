@@ -51,7 +51,7 @@
 import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { fetchGenerationOptions } from "@/api/generation";
-import { createGenerationTask } from "@/features/tasks";
+import { createWorkflow } from "@/features/workflows";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
@@ -200,25 +200,22 @@ async function submitTask() {
     const textAnalysisModel = preferredModelValue(catalog.textAnalysisModels, "openai");
     const imageModel = preferredModelValue(catalog.imageModels, "openai");
     const videoModel = preferredModelValue(catalog.videoModels, "agnes");
-    const task = await createGenerationTask({
+    const workflow = await createWorkflow({
       title: taskTitle.value.trim(),
-      taskType: "video_generation",
-      assetType: "free",
-      creativePrompt: taskPrompt.value.trim() || taskTitle.value.trim(),
       transcriptText: taskPrompt.value.trim() || null,
       aspectRatio: taskAspectRatio.value,
-      imageSize: catalog.defaultImageSize || catalog.imageSizes?.[0]?.value || null,
+      stylePreset: catalog.defaultStylePreset || catalog.stylePresets?.[0]?.key || "cinematic",
       textAnalysisModel,
       imageModel,
       videoModel,
       videoSize: preferredVideoSizeValue(catalog, videoModel, taskAspectRatio.value),
-      videoDurationSeconds: catalog.defaultVideoDurationSeconds ?? "auto",
-      outputCount: "auto",
+      durationMode: "auto",
+      executionMode: "auto",
     });
     taskTitle.value = "";
     taskPrompt.value = "";
     taskStatusText.value = "创建成功";
-    emit("created", task.id);
+    emit("created", workflow.id);
   } catch (error) {
     taskStatusText.value = formatApiErrorMessage(error, "创建任务失败");
   } finally {

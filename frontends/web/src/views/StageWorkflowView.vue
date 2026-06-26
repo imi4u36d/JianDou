@@ -763,7 +763,7 @@
                             <div :id="`vsm-${version.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                               <button type="button" :disabled="!canSelectVideoVersion(version) || version.selected || busyActionKey === version.id" @click="handleSelectVideo(selectedCanvasClip.clipIndex, version.id)"><IconCheck size="xs" /><span>设为当前</span></button>
                               <button type="button" :disabled="!version.asset || busyActionKey === `reuse-${version.id}`" @click="handleReuseAsset(version.asset?.id || '', version.id)"><IconPlus size="xs" /><span>复用</span></button>
-                              <a v-if="version.downloadUrl" :href="version.downloadUrl" download target="_blank" rel="noopener noreferrer"><IconDownload size="xs" /><span>下载</span></a>
+                              <button v-if="version.downloadUrl" type="button" @click="handleDownloadMedia(version.downloadUrl, stageVersionDisplayTitle(version), 'video')"><IconDownload size="xs" /><span>下载</span></button>
                               <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${version.id}`" @click="handleDeleteStageVersion(version)"><IconDelete size="xs" /><span>删除</span></button>
                             </div>
                           </div>
@@ -804,7 +804,7 @@
                           </button>
                           <div :id="`vsm-card-${previewVideoVersion.id}`" popover class="workflow-more-menu__popover" @beforetoggle="positionVersionMenu">
                             <button type="button" :disabled="!previewVideoVersion.asset || busyActionKey === `reuse-${previewVideoVersion.id}`" @click="handleReuseAsset(previewVideoVersion.asset?.id || '', previewVideoVersion.id)"><IconPlus size="xs" /><span>复用</span></button>
-                            <a v-if="previewVideoVersion.downloadUrl" :href="previewVideoVersion.downloadUrl" download target="_blank" rel="noopener noreferrer"><IconDownload size="xs" /><span>下载</span></a>
+                            <button v-if="previewVideoVersion.downloadUrl" type="button" @click="handleDownloadMedia(previewVideoVersion.downloadUrl, stageVersionDisplayTitle(previewVideoVersion), 'video')"><IconDownload size="xs" /><span>下载</span></button>
                             <button type="button" class="workflow-menu-danger" :disabled="busyActionKey === `delete-${previewVideoVersion.id}`" @click="handleDeleteStageVersion(previewVideoVersion)"><IconDelete size="xs" /><span>删除</span></button>
                           </div>
                         </div>
@@ -852,9 +852,9 @@
                     </div>
                   </section>
                   <div class="final-result-card-v2__actions">
-                    <a class="workflow-icon-action workflow-icon-action-primary" :href="selectedWorkflow.finalResult.fileUrl" download target="_blank" rel="noopener noreferrer" title="下载成片" aria-label="下载成片">
+                    <button class="workflow-icon-action workflow-icon-action-primary" type="button" title="下载成片" aria-label="下载成片" @click="handleDownloadMedia(selectedWorkflow.finalResult.fileUrl, selectedWorkflow.finalResult.title, 'video')">
                       <IconDownload size="xs" />
-                    </a>
+                    </button>
                   </div>
                 </div>
               </article>
@@ -977,6 +977,7 @@ import {
 import type { WorkflowCanvasStageKey, WorkflowCreateStageKey, WorkflowDetailRouteStageKey } from "@/features/workflows/summary";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { messageApi } from "@/composables/useMessage";
+import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import type {
   CreateWorkflowRequest,
@@ -2301,6 +2302,19 @@ async function handleReuseAsset(assetId: string, versionId: string) {
     messageApi.error(error instanceof Error ? error.message : "素材复用失败");
   } finally {
     busyActionKey.value = "";
+  }
+}
+
+async function handleDownloadMedia(url: string, title: string, mediaType: DownloadMediaKind) {
+  try {
+    const result = await downloadMedia({ url, title, mediaType });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
   }
 }
 

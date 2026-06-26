@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
 from backend.database import get_db
-from backend.errors import bad_gateway, bad_request, not_found
+from backend.errors import bad_gateway, bad_request, not_found, payment_required
 from backend.exceptions import GenerationProviderError
 from backend.schemas.workflow import (
     AdjustStoryboardRequest,
@@ -26,6 +26,7 @@ from backend.schemas.workflow import (
     WorkflowDetailResponse,
     WorkflowListResponse,
 )
+from backend.services.credit_service import InsufficientCreditsError
 from backend.services.workflow_service import WorkflowService, now_iso
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,8 @@ def _service(db: AsyncSession, request: Request | None = None) -> WorkflowServic
 async def _run_action(action):
     try:
         return await action()
+    except InsufficientCreditsError:
+        raise payment_required()
     except ValueError as exc:
         raise bad_request(str(exc)) from exc
     except GenerationProviderError as exc:
@@ -76,6 +79,21 @@ async def create_workflow(
     result = await _run_action(lambda: svc.create_workflow(payload.to_service_dict(), owner_user_id=user["id"]))
     if result is None:
         raise bad_request("Failed to create workflow")
+    if result.get("executionMode") == "auto":
+        result = await _run_action(
+            lambda: svc._update_auto_pilot_fields(
+                result["id"],
+                owner_user_id=user["id"],
+                auto_pilot_state="queued",
+            )
+        )
+        if result is None:
+            raise bad_request("Failed to start auto workflow")
+        runner = getattr(request.app.state, "auto_pilot_runner", None)
+        if runner is not None:
+            runner.enqueue(result["id"], user["id"])
+            result["queuePosition"] = runner.queue_position_of(result["id"])
+            result["queueSize"] = runner.queue_size()
     return result
 
 

@@ -32,6 +32,7 @@ async def list_material_assets(
     minRating: int | None = Query(default=None, ge=1, le=5),
     model: str | None = Query(default=None),
     clipIndex: int | None = Query(default=None, ge=0),
+    includeWorkflowArtifacts: bool = Query(default=False),
     offset: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=200),
 ):
@@ -46,6 +47,7 @@ async def list_material_assets(
         min_rating=minRating,
         model=model,
         clip_index=clipIndex,
+        include_workflow_artifacts=includeWorkflowArtifacts,
     )
 
 

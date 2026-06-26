@@ -148,7 +148,7 @@ function actorLabel(actor?: AdminInviteActor | null) {
   if (!actor) {
     return "-";
   }
-  return actor.displayName || actor.username;
+  return actor.username;
 }
 
 function statusLabel(status: InviteStatus) {

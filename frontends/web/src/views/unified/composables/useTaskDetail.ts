@@ -44,6 +44,7 @@ const taskStageStateLabels: Record<TaskStageState, string> = {
   done: "已完成",
   failed: "失败",
 };
+const COMPLETED_PREVIEW_POLL_LIMIT = 8;
 
 function withTaskStageLabels(items: Array<Omit<TaskStageDisplayItem, "stateLabel">>): TaskStageDisplayItem[] {
   return items.map((item) => ({ ...item, stateLabel: taskStageStateLabels[item.state] }));
@@ -135,6 +136,10 @@ function firstNonBlank(...values: Array<string | null | undefined>): string {
     if (normalized) return normalized;
   }
   return "";
+}
+
+function assetUrlKey(url: string): string {
+  return String(url ?? "").trim();
 }
 
 function listValue(value: unknown): unknown[] {
@@ -236,6 +241,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   const selectedTaskLoading = ref(false);
   const managingTaskId = ref("");
   const failureDetailsOpen = ref(false);
+  const completedPreviewPollCount = ref(0);
 
   const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
@@ -338,41 +344,73 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   const selectedTaskPreviewMedia = computed(() =>
     resolveTaskPreviewMedia(selectedTaskDetail.value ?? selectedTaskSummary.value)
   );
+  const selectedTaskAwaitingCompletedPreview = computed(() => {
+    const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
+    return status === "COMPLETED" && !selectedTaskPreviewMedia.value && completedPreviewPollCount.value < COMPLETED_PREVIEW_POLL_LIMIT;
+  });
 
   const selectedTaskResultItems = computed(() => {
     const items: Array<{ title: string; url: string }> = [];
+    const seenUrls = new Set<string>();
     const detail = selectedTaskDetail.value;
     if (!detail) return items;
+    const pushUnique = (title: string, url: string) => {
+      const key = assetUrlKey(url);
+      if (!key || seenUrls.has(key)) return;
+      seenUrls.add(key);
+      items.push({ title, url });
+    };
     for (const output of detail.outputs ?? []) {
       const url = firstNonBlank(output.downloadUrl, output.downloadPath, output.previewUrl, output.previewPath, output.remoteUrl);
-      if (url) items.push({ title: output.title || `结果 #${output.clipIndex || items.length + 1}`, url });
+      pushUnique(output.title || `结果 #${output.clipIndex || items.length + 1}`, url);
     }
     const latestJoinUrl = detail.monitoring?.latestJoinOutputUrl;
-    if (latestJoinUrl && !items.some((item) => item.url === latestJoinUrl)) {
-      items.push({ title: detail.monitoring?.latestJoinName || "最新拼接结果", url: latestJoinUrl });
-    }
+    pushUnique(detail.monitoring?.latestJoinName || "最新拼接结果", latestJoinUrl || "");
     const latestVideoUrl = detail.monitoring?.latestVideoOutputUrl;
-    if (latestVideoUrl && !items.some((item) => item.url === latestVideoUrl)) {
-      items.push({ title: "最新视频结果", url: latestVideoUrl });
-    }
+    pushUnique("最新视频结果", latestVideoUrl || "");
     return items;
+  });
+
+  const selectedTaskReferenceItems = computed(() => {
+    const detail = selectedTaskDetail.value;
+    if (!detail) return [];
+    const rows: Array<{ title: string; url: string; thumbnailUrl?: string | null }> = [];
+    const seenUrls = new Set<string>();
+    const pushUnique = (title: string, url: string, thumbnailUrl?: string | null) => {
+      const key = assetUrlKey(url);
+      if (!key || seenUrls.has(key)) return;
+      seenUrls.add(key);
+      rows.push({ title, url, thumbnailUrl });
+    };
+    if (detail.source?.fileUrl) {
+      pushUnique(detail.source.originalFileName || "参考图", detail.source.fileUrl, detail.source.thumbnailUrl);
+    }
+    for (const source of detail.sourceAssets ?? []) {
+      pushUnique(source.originalFileName || "参考图", source.fileUrl || "", source.thumbnailUrl);
+    }
+    for (const [index, url] of listValue(detail.requestSnapshot?.referenceImageUrls).entries()) {
+      pushUnique(`参考图 ${index + 1}`, String(url ?? ""), null);
+    }
+    for (const [index, url] of listValue(detail.executionContext?.referenceImageUrls).entries()) {
+      pushUnique(`参考图 ${index + 1}`, String(url ?? ""), null);
+    }
+    return rows;
   });
 
   const selectedTaskMaterialItems = computed(() => {
     const detail = selectedTaskDetail.value;
     if (!detail) return [];
     const rows: Array<{ title: string; url: string }> = [];
+    const seenUrls = new Set(selectedTaskResultItems.value.map((item) => assetUrlKey(item.url)).filter(Boolean));
+    const pushUnique = (title: string, url: string) => {
+      const key = assetUrlKey(url);
+      if (!key || seenUrls.has(key)) return;
+      seenUrls.add(key);
+      rows.push({ title, url });
+    };
     for (const material of detail.materials ?? []) {
       const url = firstNonBlank(material.fileUrl, material.previewUrl, material.thumbnailUrl);
-      if (url) rows.push({ title: material.title || material.id || "任务素材", url });
-    }
-    if (detail.source?.fileUrl) {
-      rows.push({ title: detail.source.originalFileName || "来源素材", url: detail.source.fileUrl });
-    }
-    for (const source of detail.sourceAssets ?? []) {
-      if (source.fileUrl && !rows.some((item) => item.url === source.fileUrl)) {
-        rows.push({ title: source.originalFileName || "来源素材", url: source.fileUrl });
-      }
+      pushUnique(material.title || material.id || "任务素材", url);
     }
     return rows;
   });
@@ -440,7 +478,15 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
       if (trace) {
         selectedTaskTrace.value = [...trace].reverse();
       }
-      if (!isActiveTaskStatus(detail.status)) {
+      if (selectedTaskPreviewMedia.value) {
+        completedPreviewPollCount.value = 0;
+      }
+      if (selectedTaskAwaitingCompletedPreview.value) {
+        completedPreviewPollCount.value += 1;
+        if (!detailPolling.active.value) {
+          void detailPolling.start(false);
+        }
+      } else if (!isActiveTaskStatus(detail.status)) {
         detailPolling.stop();
       }
     } catch (error) {
@@ -554,7 +600,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
 
   const detailPolling = usePolling(async () => {
     const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
-    if (!isActiveTaskStatus(status)) {
+    if (!isActiveTaskStatus(status) && !selectedTaskAwaitingCompletedPreview.value) {
       detailPolling.stop();
       return;
     }
@@ -565,6 +611,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
 
   watch(selectedTaskId, () => {
     failureDetailsOpen.value = false;
+    completedPreviewPollCount.value = 0;
   });
 
   return {
@@ -599,7 +646,9 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     selectedTaskFailureContext,
     selectedTaskThumbnailUrl,
     selectedTaskPreviewMedia,
+    selectedTaskAwaitingCompletedPreview,
     selectedTaskResultItems,
+    selectedTaskReferenceItems,
     selectedTaskMaterialItems,
     selectedTaskTracePreview,
     materialLibraryLink,

@@ -52,7 +52,6 @@
       <div class="user-page__table-scroll">
         <el-table v-loading="loading" :data="users" class="user-page__table">
           <el-table-column label="用户名" min-width="140" prop="username" />
-          <el-table-column label="显示名" min-width="140" prop="displayName" />
           <el-table-column label="角色" min-width="110">
             <template #default="{ row }">
               <el-tag :type="row.role === 'ADMIN' ? 'warning' : 'info'" effect="plain">
@@ -97,7 +96,14 @@
               <div class="user-page__actions">
                 <el-button link type="primary" title="编辑" aria-label="编辑" @click="openEditDialog(row)">编辑</el-button>
                 <el-button link type="warning" title="重置密码" aria-label="重置密码" @click="openPasswordDialog(row)">密码</el-button>
-                <el-button link type="primary" title="配置 Key" aria-label="配置 Key" @click="openModelKeyDialog(row)">
+                <el-button
+                  v-if="row.role === 'ADMIN'"
+                  link
+                  type="primary"
+                  title="配置 Key"
+                  aria-label="配置 Key"
+                  @click="openModelKeyDialog(row)"
+                >
                   Key
                 </el-button>
                 <el-button
@@ -141,9 +147,6 @@
       <el-form label-position="top">
         <el-form-item label="用户名">
           <el-input v-model.trim="editorForm.username" :disabled="editorMode === 'edit'" placeholder="3-32 位登录名" />
-        </el-form-item>
-        <el-form-item label="显示名">
-          <el-input v-model.trim="editorForm.displayName" placeholder="显示名" />
         </el-form-item>
         <el-form-item v-if="editorMode === 'create'" label="初始密码">
           <el-input v-model="editorForm.password" placeholder="8-72 位密码" show-password type="password" />
@@ -271,7 +274,6 @@ const editorMode = ref<"create" | "edit">("create");
 const editingUserId = ref<number | null>(null);
 const editorForm = reactive({
   username: "",
-  displayName: "",
   password: "",
   role: "USER" as UserRole,
   status: "ACTIVE" as UserStatus,
@@ -325,7 +327,6 @@ function formatModelKind(kind: string) {
 
 function resetEditorForm() {
   editorForm.username = "";
-  editorForm.displayName = "";
   editorForm.password = "";
   editorForm.role = "USER";
   editorForm.status = "ACTIVE";
@@ -380,7 +381,6 @@ function openEditDialog(user: AdminUser) {
   editorVisible.value = true;
   editingUserId.value = user.id;
   editorForm.username = user.username;
-  editorForm.displayName = user.displayName;
   editorForm.password = "";
   editorForm.role = user.role;
   editorForm.status = user.status;
@@ -394,6 +394,10 @@ function openPasswordDialog(user: AdminUser) {
 }
 
 async function openModelKeyDialog(user: AdminUser) {
+  if (user.role !== "ADMIN") {
+    ElMessage.warning("普通用户不支持配置模型 Key");
+    return;
+  }
   modelKeyUser.value = user;
   modelKeyDialogVisible.value = true;
   loadingModelConfig.value = true;
@@ -417,7 +421,6 @@ async function submitEditor() {
     if (editorMode.value === "create") {
       const payload: CreateAdminUserRequest = {
         username: editorForm.username,
-        displayName: editorForm.displayName,
         password: editorForm.password,
         role: editorForm.role,
         status: editorForm.status,
@@ -427,7 +430,6 @@ async function submitEditor() {
       ElMessage.success("用户创建成功");
     } else if (editingUserId.value != null) {
       const payload: UpdateAdminUserRequest = {
-        displayName: editorForm.displayName,
         role: editorForm.role,
         status: editorForm.status,
         taskConcurrencyLimit: editorForm.taskConcurrencyLimit

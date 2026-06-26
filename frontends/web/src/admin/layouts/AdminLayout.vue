@@ -40,7 +40,7 @@
 
       <div class="admin-layout__aside-footer">
         <div class="admin-layout__profile">
-          <strong>{{ currentUser?.displayName || currentUser?.username }}</strong>
+          <strong>{{ currentUser?.username }}</strong>
           <span>{{ currentUser?.username }} · {{ currentUser?.role }}</span>
         </div>
         <div class="admin-layout__footer-actions">
@@ -61,7 +61,7 @@
           <p>运营与系统管理</p>
         </div>
         <div class="admin-layout__header-meta">
-          <span>{{ currentUser?.displayName || currentUser?.username }}</span>
+          <span>{{ currentUser?.username }}</span>
           <el-tag effect="plain" type="success">{{ currentUser?.role || "ADMIN" }}</el-tag>
         </div>
       </header>

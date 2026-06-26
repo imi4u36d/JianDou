@@ -43,6 +43,14 @@ def forbidden(detail: str = "insufficient_permissions") -> HTTPException:
     )
 
 
+def payment_required(detail: str = "insufficient_credits") -> HTTPException:
+    """Return a 402 when the user's credit balance cannot cover the request."""
+    return HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail=detail,
+    )
+
+
 def conflict(detail: str) -> HTTPException:
     """Return a 409 for conflicting resource state."""
     return HTTPException(

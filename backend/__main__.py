@@ -105,7 +105,6 @@ async def _seed_db():
             now = _now()
             admin = SysUser(
                 username=settings.bootstrap_admin_username,
-                display_name=settings.bootstrap_admin_display_name,
                 password_hash=hash_password(settings.bootstrap_admin_password),
                 role="ADMIN",
                 status="ACTIVE",

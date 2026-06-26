@@ -17,6 +17,16 @@
             </span>
           </div>
         </div>
+        <button
+          v-if="selectedTaskIsVideoTask"
+          class="task-detail-header__workflow-btn"
+          type="button"
+          :title="linkedWorkflowId ? '查看阶段工作流' : '查找关联阶段工作流'"
+          @click="emit('openWorkflow', linkedWorkflowId)"
+        >
+          <IconWorkflow size="xs" />
+          <span>阶段工作流</span>
+        </button>
       </header>
 
       <section class="detail-stage-card" aria-label="任务阶段">
@@ -79,22 +89,107 @@
             <h3>结果预览</h3>
             <span class="surface-chip">{{ selectedTaskJoinProgressPercent }}%</span>
           </div>
-          <div class="task-result-preview">
-            <video
-              v-if="selectedTaskPreviewMedia?.type === 'video'"
-              :src="selectedTaskPreviewMedia.url"
-              :poster="selectedTaskPreviewMedia.posterUrl || undefined"
-              controls
-              playsinline
-              preload="metadata"
-              :aria-label="selectedTaskPreviewMedia.title"
-            ></video>
-            <img
-              v-else-if="selectedTaskPreviewMedia?.type === 'image'"
-              :src="selectedTaskPreviewMedia.url"
-              :alt="selectedTaskPreviewMedia.title || '任务结果预览'"
-            />
-            <div v-else>生成中</div>
+          <div
+            class="task-result-preview"
+            :class="{
+              'task-result-preview-loading': taskPreviewIsLoading,
+              'task-result-preview-with-references': selectedTaskReferenceItems.length > 0,
+            }"
+          >
+            <aside v-if="selectedTaskReferenceItems.length" class="task-reference-panel" aria-label="参考图">
+              <div class="task-reference-panel__head">
+                <span>参考图</span>
+                <small>{{ selectedTaskReferenceItems.length }} 张</small>
+              </div>
+              <div class="task-reference-stack">
+                <article
+                  v-for="(item, index) in selectedTaskReferenceItems"
+                  :key="`reference-${item.url}`"
+                  class="task-reference-card"
+                  :style="referenceCardStyle(index)"
+                >
+                  <button
+                    type="button"
+                    class="task-reference-card__preview"
+                    :aria-label="`预览${item.title}`"
+                    @click="openTaskPreviewItem(item.title, item.url)"
+                  >
+                    <img :src="item.thumbnailUrl || item.url" :alt="item.title" loading="lazy" />
+                  </button>
+                  <button
+                    class="task-reference-card__download"
+                    type="button"
+                    :aria-label="`下载${item.title}`"
+                    @click.stop="handleDownloadMedia(item.url, item.title, 'image')"
+                  >
+                    <IconDownload size="xs" />
+                  </button>
+                </article>
+              </div>
+            </aside>
+
+            <div class="task-result-preview__main">
+              <div v-if="selectedTaskPreviewMedia" class="task-result-preview__actions">
+                <button
+                  type="button"
+                  class="task-result-preview__action"
+                  @click="openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)"
+                >
+                  <IconImage v-if="selectedTaskPreviewMedia.type === 'image'" size="xs" />
+                  <IconVideo v-else size="xs" />
+                  预览
+                </button>
+                <button
+                  class="task-result-preview__action"
+                  type="button"
+                  @click="handleDownloadMedia(selectedTaskPreviewMedia.url, selectedTaskPreviewMedia.title || '任务结果', selectedTaskPreviewMedia.type)"
+                >
+                  <IconDownload size="xs" />
+                  下载
+                </button>
+              </div>
+              <video
+                v-if="selectedTaskPreviewMedia?.type === 'video'"
+                :src="selectedTaskPreviewMedia.url"
+                :poster="selectedTaskPreviewMedia.posterUrl || undefined"
+                controls
+                playsinline
+                preload="metadata"
+                :aria-label="selectedTaskPreviewMedia.title"
+                @loadstart="markTaskPreviewLoading"
+                @loadedmetadata="markTaskPreviewReady"
+                @loadeddata="markTaskPreviewReady"
+                @canplay="markTaskPreviewReady"
+                @error="markTaskPreviewFailed"
+              ></video>
+              <button
+                v-else-if="selectedTaskPreviewMedia?.type === 'image'"
+                type="button"
+                class="task-result-preview__image-button"
+                :aria-label="`预览${selectedTaskPreviewMedia.title || '任务结果'}`"
+                @click="openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)"
+              >
+                <img
+                  :src="selectedTaskPreviewMedia.url"
+                  :alt="selectedTaskPreviewMedia.title || '任务结果预览'"
+                  @load="markTaskPreviewReady"
+                  @error="markTaskPreviewFailed"
+                />
+              </button>
+              <div v-else-if="selectedTaskAwaitingCompletedPreview" class="task-result-preview__pending" role="status" aria-live="polite">
+                <IconLoading size="md" />
+                <span>加载预览中</span>
+              </div>
+              <div v-else>{{ selectedTaskActionTask?.status === "COMPLETED" ? "暂无可预览结果" : "生成中" }}</div>
+              <div v-if="taskPreviewIsLoading" class="task-result-preview__loading" role="status" aria-live="polite">
+                <IconLoading size="md" />
+                <span>加载预览中</span>
+              </div>
+              <div v-else-if="taskPreviewLoadState === 'failed'" class="task-result-preview__loading task-result-preview__loading-error">
+                <IconWarning size="sm" />
+                <span>预览加载失败</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -260,9 +355,11 @@
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import MaterialPreviewDialog from "@/components/materials/MaterialPreviewDialog.vue";
-import { IconChevronDown, IconDelete, IconDownload, IconImage, IconRefresh, IconVideo, IconWarning } from "@/components/icons";
+import { IconChevronDown, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
+import { messageApi } from "@/composables/useMessage";
+import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 import { useTaskDetail } from "../composables/useTaskDetail";
-import type { TaskListItem } from "@/types";
+import type { TaskDetail, TaskListItem, TaskMaterial } from "@/types";
 
 const props = defineProps<{
   selectedTaskId: string;
@@ -272,6 +369,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   deleted: [taskId: string];
+  openWorkflow: [workflowId: string];
 }>();
 
 const detail = useTaskDetail({
@@ -302,7 +400,9 @@ const {
   selectedTaskFailureReason,
   selectedTaskFailureContext,
   selectedTaskPreviewMedia,
+  selectedTaskAwaitingCompletedPreview,
   selectedTaskResultItems,
+  selectedTaskReferenceItems,
   selectedTaskMaterialItems,
   selectedTaskTracePreview,
   materialLibraryLink,
@@ -329,10 +429,42 @@ const {
   cancelConfirm,
 } = detail;
 
+async function handleDownloadMedia(url: string, title: string, mediaType: DownloadMediaKind) {
+  try {
+    const result = await downloadMedia({ url, title, mediaType });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
+  }
+}
+
 // 选中变化时重新加载详情
-import { onUnmounted, reactive, ref, watch } from "vue";
+import { computed, onUnmounted, reactive, ref, watch } from "vue";
 const traceListOpen = ref(false);
 const previewImageLoadFailed = ref(false);
+const taskPreviewLoadState = ref<"idle" | "loading" | "ready" | "failed">("idle");
+const taskPreviewMediaUrl = computed(() => selectedTaskPreviewMedia.value?.url || "");
+const selectedTaskTypeKey = computed(() => {
+  const task = selectedTask.value as TaskDetail | null;
+  return String(task?.requestSnapshot?.taskType || task?.taskType || "video_generation").trim() || "video_generation";
+});
+const selectedTaskIsVideoTask = computed(() => selectedTaskTypeKey.value === "video_generation");
+const linkedWorkflowId = computed(() => {
+  const task = selectedTask.value as TaskDetail | null;
+  const materials: TaskMaterial[] = task?.materials ?? [];
+  const materialWorkflowId = materials.find((item) => item.workflowId)?.workflowId;
+  if (materialWorkflowId) {
+    return materialWorkflowId;
+  }
+  const context = task?.executionContext ?? {};
+  const contextWorkflowId = context.workflowId;
+  return typeof contextWorkflowId === "string" ? contextWorkflowId : "";
+});
+const taskPreviewIsLoading = computed(() => Boolean(taskPreviewMediaUrl.value) && taskPreviewLoadState.value === "loading");
 const previewDialog = reactive({
   open: false,
   kind: "image" as "storyboard" | "image" | "video",
@@ -357,12 +489,42 @@ function openTaskPreviewItem(title: string, url: string) {
   previewDialog.open = true;
 }
 
+function referenceCardStyle(index: number) {
+  const direction = index % 2 === 0 ? -1 : 1;
+  return {
+    zIndex: String(20 - index),
+    transform: `translateX(${direction * Math.min(index, 3) * 5}px) rotate(${direction * Math.min(index + 1, 4) * 1.4}deg)`,
+  };
+}
+
 function closeTaskPreviewDialog() {
   previewDialog.open = false;
   previewDialog.title = "";
   previewDialog.url = "";
   previewImageLoadFailed.value = false;
 }
+
+function markTaskPreviewLoading() {
+  if (taskPreviewMediaUrl.value) {
+    taskPreviewLoadState.value = "loading";
+  }
+}
+
+function markTaskPreviewReady() {
+  if (taskPreviewMediaUrl.value) {
+    taskPreviewLoadState.value = "ready";
+  }
+}
+
+function markTaskPreviewFailed() {
+  if (taskPreviewMediaUrl.value) {
+    taskPreviewLoadState.value = "failed";
+  }
+}
+
+watch(taskPreviewMediaUrl, (url) => {
+  taskPreviewLoadState.value = url ? "loading" : "idle";
+}, { immediate: true });
 
 watch(() => props.selectedTaskId, () => {
   traceListOpen.value = false;
@@ -434,6 +596,74 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
+}
+
+.task-detail-header__workflow-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.05), 0 8px 22px rgba(20, 184, 166, 0.12);
+}
+
+.task-detail-header__workflow-btn::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    rgba(99, 102, 241, 0) 0%,
+    rgba(99, 102, 241, 0.18) 18%,
+    rgba(20, 184, 166, 0.42) 34%,
+    rgba(245, 158, 11, 0.34) 50%,
+    rgba(236, 72, 153, 0.36) 66%,
+    rgba(99, 102, 241, 0.2) 82%,
+    rgba(99, 102, 241, 0) 100%
+  );
+  background-size: 260% 100%;
+  animation: workflow-button-shine 2.6s linear infinite;
+}
+
+.task-detail-header__workflow-btn > svg,
+.task-detail-header__workflow-btn > span {
+  position: relative;
+  z-index: 1;
+}
+
+.task-detail-header__workflow-btn:hover {
+  background: var(--bg-soft);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 10px 28px rgba(99, 102, 241, 0.2);
+}
+
+@keyframes workflow-button-shine {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-detail-header__workflow-btn::before {
+    animation: none;
+    background-position: 50% 0;
+  }
 }
 
 .surface-chip-loading {
@@ -658,26 +888,231 @@ onUnmounted(() => {
 }
 
 .task-result-preview {
+  position: relative;
   border-radius: 10px;
   border: 1px solid rgba(99, 102, 241, 0.08);
   overflow: hidden;
   background: rgba(245, 247, 252, 0.72);
   min-height: clamp(260px, 36vw, 430px);
   display: grid;
+  grid-template-columns: 1fr;
   place-items: center;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
 
-.task-result-preview img,
-.task-result-preview video {
+.task-result-preview-with-references {
+  grid-template-columns: minmax(132px, 0.28fr) minmax(0, 1fr);
+  align-items: stretch;
+  place-items: stretch;
+}
+
+.task-reference-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-right: 1px solid rgba(99, 102, 241, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(238, 242, 255, 0.34));
+}
+
+.task-reference-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.task-reference-panel__head small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.task-reference-stack {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  min-height: 0;
+  padding: 4px 6px 24px;
+  overflow-y: auto;
+}
+
+.task-reference-card {
+  position: relative;
+  width: min(112px, 100%);
+  aspect-ratio: 4 / 5;
+  margin-top: -28px;
+  border-radius: 9px;
+  transform-origin: center top;
+  transition: transform 160ms ease, z-index 160ms ease;
+}
+
+.task-reference-card:first-child {
+  margin-top: 0;
+}
+
+.task-reference-card:hover,
+.task-reference-card:focus-within {
+  z-index: 40 !important;
+  transform: translateY(-5px) rotate(0deg) !important;
+}
+
+.task-reference-card__preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: inherit;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  cursor: zoom-in;
+}
+
+.task-reference-card__preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.task-reference-card__download {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent-indigo);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  opacity: 0.92;
+  transform: scale(1);
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.task-reference-card:hover .task-reference-card__download,
+.task-reference-card:focus-within .task-reference-card__download {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.task-reference-card__download:hover {
+  background: #eef2ff;
+}
+
+.task-result-preview__main {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: inherit;
+  overflow: hidden;
+}
+
+.task-result-preview__actions {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-result-preview__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text-strong);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+}
+
+.task-result-preview__action:hover {
+  background: #eef2ff;
+  color: var(--accent-blue);
+}
+
+.task-result-preview__image-button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: inherit;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.task-result-preview__loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 18px;
+  background: rgba(245, 247, 252, 0.82);
+  color: var(--accent-indigo);
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.task-result-preview__loading span {
+  color: var(--text-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.task-result-preview__loading-error {
+  color: var(--accent-danger);
+}
+
+.task-result-preview__pending {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: var(--accent-indigo);
+}
+
+.task-result-preview__pending span {
+  color: var(--text-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.task-result-preview__main img,
+.task-result-preview__main video {
   width: 100%;
   max-height: min(52vh, 420px);
   display: block;
   object-fit: contain;
 }
 
-.task-result-preview video {
+.task-result-preview__main video {
   aspect-ratio: 16 / 9;
   background: #111827;
 }
@@ -1113,6 +1548,41 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
+  .task-result-preview-with-references {
+    grid-template-columns: 1fr;
+  }
+
+  .task-reference-panel {
+    border-right: 0;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+  }
+
+  .task-reference-stack {
+    display: flex;
+    justify-content: flex-start;
+    min-height: 112px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 26px 16px 4px;
+  }
+
+  .task-reference-card {
+    flex: 0 0 86px;
+    width: 86px;
+    margin-top: 0;
+    margin-left: -18px;
+  }
+
+  .task-reference-card:first-child {
+    margin-left: 0;
+  }
+
+  .task-result-preview__actions {
+    left: 10px;
+    right: 10px;
+    justify-content: flex-end;
+  }
+
   .detail-overview {
     grid-template-columns: 1fr;
   }

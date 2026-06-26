@@ -9,7 +9,7 @@ export interface TaskPreviewMedia {
   posterUrl?: string;
 }
 
-const IMAGE_RESULT_TYPES = new Set(["image"]);
+const IMAGE_RESULT_TYPES = new Set(["image", "image_generation", "image_to_image", "character_sheet", "workspace_image"]);
 const PRIMARY_VIDEO_RESULT_TYPES = new Set(["video", "video_generation", "video_clip"]);
 const JOIN_VIDEO_RESULT_TYPES = new Set(["video_join", "join_video", "joined_video"]);
 const VIDEO_RESULT_TYPES = new Set([...PRIMARY_VIDEO_RESULT_TYPES, ...JOIN_VIDEO_RESULT_TYPES]);
@@ -67,10 +67,10 @@ function inferMediaType(mediaType: unknown, mimeType: unknown, url: string): Tas
   return "";
 }
 
-function taskOutputMediaType(output: TaskOutput, url: string): TaskPreviewMediaType | "" {
+function taskOutputMediaType(output: TaskOutput, url: string, fallbackType: TaskPreviewMediaType | "" = ""): TaskPreviewMediaType | "" {
   if (isVideoResultType(output.resultType)) return "video";
   if (isImageResultType(output.resultType)) return "image";
-  return inferMediaType("", output.mimeType, url);
+  return inferMediaType("", output.mimeType, url) || fallbackType;
 }
 
 function taskMaterialMediaType(material: TaskMaterial, url: string): TaskPreviewMediaType | "" {
@@ -106,11 +106,15 @@ function materialById(materials: TaskMaterial[] | undefined): Map<string, TaskMa
     .filter(([id]) => Boolean(id)));
 }
 
-function outputPreviewMedia(output: TaskOutput, materialsById?: Map<string, TaskMaterial>): TaskPreviewMedia | null {
+function outputPreviewMedia(
+  output: TaskOutput,
+  materialsById?: Map<string, TaskMaterial>,
+  fallbackType: TaskPreviewMediaType | "" = "",
+): TaskPreviewMedia | null {
   const linkedMaterial = materialsById?.get(normalizedText(output.materialAssetId));
   const url = firstNonBlankTaskValue(taskOutputUrl(output), linkedMaterial ? taskMaterialUrl(linkedMaterial) : "");
   if (!url) return null;
-  const type = taskOutputMediaType(output, url) || (linkedMaterial ? taskMaterialMediaType(linkedMaterial, url) : "");
+  const type = taskOutputMediaType(output, url, fallbackType) || (linkedMaterial ? taskMaterialMediaType(linkedMaterial, url) : "");
   if (!type) return null;
   return {
     type,
@@ -171,6 +175,22 @@ function firstPreviewFromMaterials(materials: TaskMaterial[] | undefined, prefer
 }
 
 function monitoringPreviewMedia(detail: TaskDetail): TaskPreviewMedia | null {
+  const taskType = normalizedTaskType(detail);
+  const monitoringImageUrls = Array.isArray(detail.monitoring?.latestImageOutputUrls) ? detail.monitoring.latestImageOutputUrls : [];
+  const contextImageUrls = Array.isArray(detail.executionContext?.latestImageOutputUrls) ? detail.executionContext.latestImageOutputUrls : [];
+  const latestImageUrl = firstNonBlankTaskValue(
+    detail.monitoring?.latestImageOutputUrl,
+    detail.executionContext?.latestImageOutputUrl,
+    monitoringImageUrls[monitoringImageUrls.length - 1],
+    contextImageUrls[contextImageUrls.length - 1],
+  );
+  if (taskType !== "video_generation" && latestImageUrl) {
+    return {
+      type: "image",
+      url: latestImageUrl,
+      title: "最新图片结果",
+    };
+  }
   const joinUrl = firstNonBlankTaskValue(detail.monitoring?.latestJoinOutputUrl);
   if (joinUrl) {
     return {
@@ -194,6 +214,7 @@ function detailOutputPreviewMedia(detail: TaskDetail): TaskPreviewMedia | null {
   const outputs = Array.isArray(detail.outputs) ? detail.outputs : [];
   const linkedMaterials = materialById(detail.materials);
   const taskType = normalizedTaskType(detail);
+  const preferredType: TaskPreviewMediaType = taskType === "video_generation" ? "video" : "image";
   const joinedVideoOutput = latestOutput(outputs, (output) => isJoinVideoResultType(output.resultType));
   const primaryVideoOutput = latestOutput(outputs, (output) => isPrimaryVideoResultType(output.resultType));
   const imageOutput = firstOutput(outputs, (output) => isImageResultType(output.resultType));
@@ -203,11 +224,12 @@ function detailOutputPreviewMedia(detail: TaskDetail): TaskPreviewMedia | null {
     : [imageOutput, primaryVideoOutput, joinedVideoOutput];
 
   for (const output of outputCandidates) {
-    const preview = output ? outputPreviewMedia(output, linkedMaterials) : null;
+    const preview = output ? outputPreviewMedia(output, linkedMaterials, taskType === "video_generation" ? "" : "image") : null;
     if (preview) return preview;
   }
 
-  return firstPreviewFromOutputs(outputs, taskType === "video_generation" ? "video" : "image", linkedMaterials);
+  return firstPreviewFromOutputs(outputs, preferredType, linkedMaterials)
+    ?? (taskType !== "video_generation" && outputs.length ? outputPreviewMedia(outputs[0], linkedMaterials, "image") : null);
 }
 
 export function resolveTaskPreviewMedia(task?: TaskListItem | TaskDetail | null): TaskPreviewMedia | null {

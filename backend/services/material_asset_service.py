@@ -71,11 +71,14 @@ class MaterialAssetService:
         min_rating: int | None = None,
         model: str | None = None,
         clip_index: int | None = None,
+        include_workflow_artifacts: bool = False,
     ) -> dict[str, Any]:
         filters = [
             BizMaterialAsset.owner_user_id == owner_user_id,
             BizMaterialAsset.is_deleted == 0,
         ]
+        if not include_workflow_artifacts:
+            filters.append(or_(BizMaterialAsset.workflow_id.is_(None), BizMaterialAsset.workflow_id == ""))
         if q and q.strip():
             pattern = f"%{q.strip()}%"
             filters.append(

@@ -10,9 +10,10 @@ COPY pyproject.toml uv.lock alembic.ini ./
 COPY backend/ backend/
 COPY config/ config/
 COPY migrations/ migrations/
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN pip install --no-cache-dir .
+
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 RUN mkdir -p /app/data /app/storage/uploads /app/storage/outputs /app/storage/temp

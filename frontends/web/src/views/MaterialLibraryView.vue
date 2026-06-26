@@ -28,6 +28,11 @@
             <IconClose size="xs" />
           </button>
         </label>
+        <label class="material-workflow-toggle" :class="{ 'material-workflow-toggle-active': filters.showWorkflowArtifacts }">
+          <input v-model="filters.showWorkflowArtifacts" type="checkbox" @change="loadAssets" />
+          <span class="material-workflow-toggle__track" aria-hidden="true"></span>
+          <span class="material-workflow-toggle__text">工作流产物</span>
+        </label>
         <span class="material-toolbar-divider"></span>
         <button
           class="material-toolbar-link"
@@ -200,10 +205,10 @@
                   <IconWorkflow size="xs" />
                   <span>工作流</span>
                 </RouterLink>
-                <a :href="asset.fileUrl" download target="_blank" rel="noopener noreferrer">
+                <button type="button" @click="handleDownloadAsset(asset)">
                   <IconDownload size="xs" />
                   <span>下载</span>
-                </a>
+                </button>
                 <button type="button" class="material-menu-danger" :disabled="busyActionKey === `delete-${asset.id}`" @click="handleDeleteAsset(asset)">
                   <IconLoading v-if="busyActionKey === `delete-${asset.id}`" size="xs" />
                   <IconDelete v-else size="xs" />
@@ -260,6 +265,7 @@ import type { AppSelectOption } from "@/components/common/app-select";
 import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
+import { downloadMedia, inferMediaDownloadKind, type DownloadMediaKind } from "@/utils/download";
 import { IconCheck, IconClose, IconDelete, IconDownload, IconImage, IconLoading, IconMore, IconPlus, IconSearch, IconSettings, IconUpload, IconVideo, IconWorkflow } from "@/components/icons";
 
 const route = useRoute();
@@ -317,6 +323,7 @@ const aspectRatioFilterOptions: AppSelectOption[] = [
 const filters = reactive({
   q: "",
   assetType: "",
+  showWorkflowArtifacts: false,
   model: "",
   aspectRatio: "",
   clipIndex: "",
@@ -347,7 +354,7 @@ const displayedAssets = computed(() => {
 
 const canUseBatchMode = computed(() => displayedAssets.value.length > 0);
 const activeFilterCount = computed(() => {
-  return [filters.assetType, filters.model.trim(), filters.aspectRatio, filters.clipIndex].filter(Boolean).length;
+  return [filters.assetType, filters.showWorkflowArtifacts, filters.model.trim(), filters.aspectRatio, filters.clipIndex].filter(Boolean).length;
 });
 const materialEmptyTitle = computed(() => (filters.q.trim() || activeFilterCount.value > 0 || activeLibraryTab.value !== "all" ? "没有匹配素材" : "暂无素材"));
 
@@ -361,6 +368,7 @@ function buildQuery(): MaterialAssetQuery {
   return {
     q: filters.q.trim() || undefined,
     assetType: filters.assetType as MaterialAssetQuery["assetType"],
+    includeWorkflowArtifacts: filters.showWorkflowArtifacts,
     model: filters.model.trim() || undefined,
     aspectRatio: filters.aspectRatio || undefined,
     clipIndex: filters.clipIndex ? Number(filters.clipIndex) : null,
@@ -405,6 +413,11 @@ function mediaTypeLabel(value?: string | null) {
     return "文本";
   }
   return "素材";
+}
+
+function assetDownloadKind(asset: MaterialAssetLibraryItem): DownloadMediaKind {
+  if (asset.mediaType === "image" || asset.mediaType === "video") return asset.mediaType;
+  return inferMediaDownloadKind(asset.fileUrl);
 }
 
 function assetSubtitle(asset: MaterialAssetLibraryItem) {
@@ -549,6 +562,7 @@ async function loadMoreAssets() {
 function resetFilters() {
   filters.q = "";
   filters.assetType = "";
+  filters.showWorkflowArtifacts = false;
   filters.model = "";
   filters.aspectRatio = "";
   filters.clipIndex = "";
@@ -708,6 +722,19 @@ async function handleReuseAsset(assetId: string) {
     messageApi.error(error instanceof Error ? error.message : "素材操作失败");
   } finally {
     busyActionKey.value = "";
+  }
+}
+
+async function handleDownloadAsset(asset: MaterialAssetLibraryItem) {
+  try {
+    const result = await downloadMedia({ url: asset.fileUrl, title: asset.title || asset.id, mediaType: assetDownloadKind(asset) });
+    if (result.target === "album") {
+      messageApi.success("已保存到相册");
+    } else if (result.target === "share") {
+      messageApi.info("已打开系统分享，可保存到相册");
+    }
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "下载失败");
   }
 }
 
@@ -921,6 +948,75 @@ watch(
 .material-search__clear:hover {
   background: rgba(99, 102, 241, 0.1);
   color: var(--accent-indigo);
+}
+
+.material-workflow-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.material-workflow-toggle:hover,
+.material-workflow-toggle-active {
+  background: #eef2ff;
+  color: var(--accent-blue);
+}
+
+.material-workflow-toggle input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.material-workflow-toggle__track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.material-workflow-toggle__track::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(20, 28, 36, 0.14);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.material-workflow-toggle input:checked + .material-workflow-toggle__track {
+  border-color: rgba(59, 130, 246, 0.22);
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-blue));
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.12);
+}
+
+.material-workflow-toggle input:checked + .material-workflow-toggle__track::after {
+  transform: translateX(16px);
+}
+
+.material-workflow-toggle input:focus-visible + .material-workflow-toggle__track {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
 .material-toolbar-link,
@@ -1499,7 +1595,7 @@ watch(
 
   .material-topbar__tools {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto auto;
     gap: 6px;
     align-items: center;
     min-width: 0;
@@ -1520,6 +1616,33 @@ watch(
     width: auto;
     min-width: 0;
     padding: 0 8px;
+  }
+
+  .material-workflow-toggle {
+    width: 34px;
+    min-height: 34px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .material-workflow-toggle__text {
+    display: none;
+  }
+
+  .material-workflow-toggle__track {
+    width: 30px;
+    height: 18px;
+  }
+
+  .material-workflow-toggle__track::after {
+    left: 3px;
+    top: 3px;
+    width: 10px;
+    height: 10px;
+  }
+
+  .material-workflow-toggle input:checked + .material-workflow-toggle__track::after {
+    transform: translateX(12px);
   }
 
   .material-toolbar-link,

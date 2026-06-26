@@ -49,7 +49,6 @@ class TaskListItemResponse(BaseModel):
     thumbnail_url: str = ""
     owner_user_id: int | None = None
     owner_username: str = ""
-    owner_display_name: str = ""
     owner_role: str = ""
 
 class TaskDetailResponse(BaseModel):
@@ -80,7 +79,6 @@ class TaskDetailResponse(BaseModel):
     active_worker_instance_id: str = ""
     owner_user_id: int | None = None
     owner_username: str = ""
-    owner_display_name: str = ""
     error_message: str | None = None
     editing_mode: str = ""
     trace: list = []

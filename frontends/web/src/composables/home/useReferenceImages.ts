@@ -321,8 +321,11 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
 
   function insertMention(label: string) {
     const mention = `@${label}`;
-    if (!promptText.value.includes(mention)) {
-      promptText.value = promptText.value.trim() ? `${promptText.value.trim()} ${mention} ` : `${mention} `;
+    const currentText = promptText.value;
+    if (/(^|\s)@$/.test(currentText)) {
+      promptText.value = currentText.replace(/(^|\s)@$/, `$1${mention} `);
+    } else if (!promptText.value.includes(mention)) {
+      promptText.value = currentText.trim() ? `${currentText.trim()} ${mention} ` : `${mention} `;
     }
     activeMenu.value = "";
     renderPromptEditor(promptText.value);

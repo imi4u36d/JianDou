@@ -24,7 +24,6 @@ async def _create_user_session(client, db_session_factory, *, username: str, rol
     async with db_session_factory() as session:
         user = SysUser(
             username=username,
-            display_name=username,
             password_hash=hash_password("test-password"),
             role=role,
             status=UserStatus.ACTIVE.value,

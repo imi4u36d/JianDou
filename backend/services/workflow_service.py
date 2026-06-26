@@ -268,6 +268,21 @@ class WorkflowService:
             is_deleted=0,
         )
         self.db.add(workflow)
+        if execution_mode == "auto" and owner_user_id:
+            from backend.services.credit_service import CreditService
+
+            try:
+                credit_charge = await CreditService(self.db).charge(
+                    owner_user_id,
+                    "VIDEO_GENERATION",
+                    workflow_id=workflow_id,
+                    reason="自动工作流创建扣费",
+                    commit=False,
+                )
+            except Exception:
+                await self.db.rollback()
+                raise
+            workflow.metadata_json = write_json_object({"creditCharge": credit_charge})
         await self.db.commit()
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 

@@ -23,6 +23,7 @@ from backend.models.task import (
     BizTaskStatusHistory,
     BizWorkerInstance,
 )
+from backend.models.user import SysUser
 from backend.services.provider_payload_sanitizer import ProviderPayloadSanitizer
 from backend.shared import now_iso, safe_int, string_value
 
@@ -499,6 +500,8 @@ class TaskRepository:
         async with self._session_scope() as session:
             task_rows = await self._query_task_summary_rows(session, owner_user_id, q, status, sort)
             task_ids = [row.task_id for row in task_rows]
+            owner_ids = sorted({row.owner_user_id for row in task_rows if row.owner_user_id})
+            owners = await self._owner_users_by_id(session, owner_ids)
             active_attempts = await self._active_attempts_by_task_id(session, task_ids)
             queue_positions = await self._queue_positions(session)
 
@@ -506,6 +509,7 @@ class TaskRepository:
         normalized_status = string_value(status).strip().upper()
         for row in task_rows:
             active_attempt = active_attempts.get(row.task_id, {})
+            owner = owners.get(row.owner_user_id)
             is_queued = row.task_id in queue_positions
             if normalized_status == "QUEUED" and not is_queued:
                 continue
@@ -549,9 +553,8 @@ class TaskRepository:
                     "failureClipIndex": None,
                     "thumbnailUrl": "",
                     "ownerUserId": row.owner_user_id,
-                    "ownerUsername": "",
-                    "ownerDisplayName": "",
-                    "ownerRole": "",
+                    "ownerUsername": owner.username if owner else None,
+                    "ownerRole": owner.role if owner else None,
                 }
             )
         return items
@@ -566,6 +569,7 @@ class TaskRepository:
             task = result.scalars().first()
             if task is None:
                 return None
+            owner = await self._owner_user_by_id(session, task.owner_user_id)
             attempts = await self._attempt_rows(session, task_id)
             active_attempt = next(
                 (row for row in attempts if string_value(row.get("status")) in ("RUNNING", "QUEUED", "PENDING")),
@@ -605,8 +609,9 @@ class TaskRepository:
             "currentStage": string_value(active_attempt.get("resumeFromStage")),
             "activeWorkerInstanceId": string_value(active_attempt.get("workerInstanceId")),
             "ownerUserId": task.owner_user_id,
-            "ownerUsername": "",
-            "ownerDisplayName": "",
+            "ownerUsername": owner.username if owner else None,
+            "ownerRole": owner.role if owner else None,
+            "ownerStatus": owner.status if owner else None,
             "errorMessage": task.error_message or "",
             "editingMode": task.editing_mode or "",
             "creativePrompt": task.creative_prompt or "",
@@ -860,7 +865,7 @@ class TaskRepository:
         if normalized_status and normalized_status != "QUEUED":
             stmt = stmt.where(BizTask.status == normalized_status)
 
-        normalized_sort = string_value(sort).strip().lower() or "updated_desc"
+        normalized_sort = string_value(sort).strip().lower() or "created_desc"
         if normalized_sort == "created_desc":
             stmt = stmt.order_by(desc(BizTask.create_time), desc(BizTask.id))
         elif normalized_sort == "progress_desc":
@@ -931,6 +936,18 @@ class TaskRepository:
             if task_id and task_id not in positions:
                 positions[task_id] = len(positions) + 1
         return positions
+
+    async def _owner_users_by_id(self, session: AsyncSession, user_ids: list[int]) -> dict[int, SysUser]:
+        if not user_ids:
+            return {}
+        result = await session.execute(select(SysUser).where(SysUser.id.in_(user_ids)))
+        return {user.id: user for user in result.scalars().all()}
+
+    async def _owner_user_by_id(self, session: AsyncSession, user_id: int | None) -> SysUser | None:
+        if not user_id:
+            return None
+        owners = await self._owner_users_by_id(session, [user_id])
+        return owners.get(user_id)
 
     async def _task_exists(self, session: AsyncSession, task_id: str, owner_user_id: int | None = None) -> bool:
         stmt = select(func.count()).select_from(BizTask).where(BizTask.task_id == task_id, BizTask.is_deleted == 0)

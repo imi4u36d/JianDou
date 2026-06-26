@@ -104,7 +104,6 @@ async def get_current_user(request: Request) -> dict | None:
     return {
         "id": user.id,
         "username": user.username,
-        "displayName": user.display_name,
         "role": normalize_role(user.role),
         "status": user.status,
     }

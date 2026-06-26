@@ -19,6 +19,7 @@ def _task(
     status: str,
     updated_at: str,
     progress: int = 0,
+    created_at: str | None = None,
 ) -> TaskRecord:
     return TaskRecord(
         id=task_id,
@@ -27,13 +28,40 @@ def _task(
         title=title,
         status=status,
         progress=progress,
-        created_at=updated_at,
+        created_at=created_at or updated_at,
         updated_at=updated_at,
         aspect_ratio="16:9",
         min_duration_seconds=5,
         max_duration_seconds=10,
         creative_prompt=f"{title} prompt",
     )
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_default_sort_uses_created_time_not_updated_time() -> None:
+    old_but_updated = _task(
+        "task_old_but_updated",
+        1,
+        "Old",
+        "PENDING",
+        "2026-01-03T00:00:00+00:00",
+        created_at="2026-01-01T00:00:00+00:00",
+    )
+    newly_created = _task(
+        "task_newly_created",
+        1,
+        "New",
+        "PENDING",
+        "2026-01-02T00:00:00+00:00",
+        created_at="2026-01-02T00:00:00+00:00",
+    )
+    service = TaskQueryService(_TaskQueryRepository([old_but_updated, newly_created]), TaskExecutionCoordinator())
+
+    default_items = await service.list_tasks(owner_user_id=1)
+    updated_items = await service.list_tasks(owner_user_id=1, sort="updated_desc")
+
+    assert [item["id"] for item in default_items] == ["task_newly_created", "task_old_but_updated"]
+    assert [item["id"] for item in updated_items] == ["task_old_but_updated", "task_newly_created"]
 
 
 @pytest.mark.asyncio

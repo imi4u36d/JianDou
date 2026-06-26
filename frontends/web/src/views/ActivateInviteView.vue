@@ -15,10 +15,6 @@
           <input v-model="username" autocomplete="username" placeholder="用户名" type="text" />
         </label>
         <label class="auth-form__field">
-          <span class="auth-form__field-label">显示名</span>
-          <input v-model="displayName" autocomplete="nickname" placeholder="显示名" type="text" />
-        </label>
-        <label class="auth-form__field">
           <span class="auth-form__field-label">密码</span>
           <div class="auth-form__password-wrap">
             <input
@@ -68,7 +64,6 @@ const router = useRouter();
 
 const code = ref(typeof route.query.code === "string" ? route.query.code : "");
 const username = ref("");
-const displayName = ref("");
 const password = ref("");
 const showPassword = ref(false);
 const submitting = ref(false);
@@ -92,7 +87,6 @@ async function handleSubmit() {
     await activateInviteAndStoreSession({
       code: code.value,
       username: username.value,
-      displayName: displayName.value,
       password: password.value
     });
     await router.replace(redirectTarget.value);
