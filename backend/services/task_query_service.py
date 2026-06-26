@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.config import settings
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
@@ -34,11 +35,13 @@ class TaskQueryService:
         self,
         task_repository: TaskRepository | None = None,
         execution_coordinator: TaskExecutionCoordinator | None = None,
+        cache: Any | None = None,
     ) -> None:
         self._task_repository: TaskRepository | None = task_repository
         self._execution_coordinator: TaskExecutionCoordinator = (
             execution_coordinator or TaskExecutionCoordinator()
         )
+        self._cache = cache
 
     @property
     def task_repository(self) -> TaskRepository:
@@ -49,6 +52,11 @@ class TaskQueryService:
     @task_repository.setter
     def task_repository(self, repo: TaskRepository) -> None:
         self._task_repository = repo
+
+    def _repo_method(self, name: str) -> Any | None:
+        if getattr(type(self.task_repository), name, None) is None:
+            return None
+        return getattr(self.task_repository, name)
 
     # ------------------------------------------------------------------
     # List tasks
@@ -62,6 +70,16 @@ class TaskQueryService:
         sort: str | None = None,
     ) -> list[dict[str, Any]]:
         """List tasks owned by the current user with filtering and sorting."""
+        list_task_summaries = self._repo_method("list_task_summaries")
+        if list_task_summaries:
+            cache_key = self._task_list_cache_key(owner_user_id, q, status, sort)
+            cached = await self._cache_get(cache_key)
+            if isinstance(cached, list):
+                return cached
+            items = await list_task_summaries(owner_user_id, q, status, sort)
+            await self._cache_set(cache_key, items, settings.task_list_cache_ttl_seconds)
+            return items
+
         tasks = await self.task_repository.find_all()
         self._execution_coordinator.recompute_queue_positions(tasks)
 
@@ -100,6 +118,16 @@ class TaskQueryService:
         limit: int = 20,
     ) -> dict[str, Any]:
         """List tasks for admin with pagination."""
+        list_task_summaries = self._repo_method("list_task_summaries")
+        if list_task_summaries:
+            items = await list_task_summaries(None, q, status, sort)
+            return {
+                "items": items[offset : offset + limit],
+                "total": len(items),
+                "offset": offset,
+                "limit": limit,
+            }
+
         tasks = await self.task_repository.find_all()
         self._execution_coordinator.recompute_queue_positions(tasks)
 
@@ -181,12 +209,26 @@ class TaskQueryService:
 
     async def get_task(self, task_id: str, owner_user_id: int) -> dict[str, Any]:
         """Get a single task by ID with owner check."""
+        find_detail_light = self._repo_method("find_detail_light")
+        if find_detail_light:
+            detail = await find_detail_light(task_id, owner_user_id)
+            if detail is None:
+                raise ValueError(f"Task not found: {task_id}")
+            return detail
+
         task = await self._require_owned_task(task_id, owner_user_id)
         self._execution_coordinator.recompute_queue_positions([task])
         return self._to_detail(task)
 
     async def admin_get_task(self, task_id: str) -> dict[str, Any]:
         """Get task detail without owner check (admin)."""
+        find_detail_light = self._repo_method("find_detail_light")
+        if find_detail_light:
+            detail = await find_detail_light(task_id)
+            if detail is None:
+                raise ValueError(f"Task not found: {task_id}")
+            return detail
+
         task = await self._require_task(task_id)
         self._execution_coordinator.recompute_queue_positions([task])
         return self._to_detail(task)
@@ -197,6 +239,16 @@ class TaskQueryService:
 
     async def get_trace(self, task_id: str, owner_user_id: int, limit: int = 50) -> list[dict[str, Any]]:
         """Get trace events for a task."""
+        get_task_trace = self._repo_method("get_task_trace")
+        if get_task_trace:
+            cache_key = self._task_trace_cache_key(owner_user_id, task_id, limit)
+            cached = await self._cache_get(cache_key)
+            if isinstance(cached, list):
+                return cached
+            trace = await get_task_trace(task_id, owner_user_id, limit)
+            await self._cache_set(cache_key, trace, settings.task_trace_cache_ttl_seconds)
+            return trace
+
         task = await self._require_owned_task(task_id, owner_user_id)
         if task.trace:
             return task.trace[-limit:]
@@ -222,11 +274,17 @@ class TaskQueryService:
 
     async def get_results(self, task_id: str, owner_user_id: int) -> list[dict[str, Any]]:
         """Get task results (outputs)."""
+        get_task_outputs_light = self._repo_method("get_task_outputs_light")
+        if get_task_outputs_light:
+            return await get_task_outputs_light(task_id, owner_user_id)
         task = await self._require_owned_task(task_id, owner_user_id)
         return list(task.outputs)
 
     async def get_materials(self, task_id: str, owner_user_id: int) -> list[dict[str, Any]]:
         """Get material assets for a task."""
+        get_task_materials_light = self._repo_method("get_task_materials_light")
+        if get_task_materials_light:
+            return await get_task_materials_light(task_id, owner_user_id)
         task = await self._require_owned_task(task_id, owner_user_id)
         return list(task.materials)
 
@@ -422,6 +480,37 @@ class TaskQueryService:
             "outputs": list(task.outputs),
             "sourceAssets": list(task.source_assets),
         }
+
+    async def invalidate_task_list_cache(self, owner_user_id: int | None = None) -> None:
+        if not self._cache:
+            return
+        if owner_user_id is None:
+            await self._cache.delete_prefix("task:list:")
+            return
+        await self._cache.delete_prefix(f"task:list:{owner_user_id}:")
+
+    async def _cache_get(self, key: str) -> Any | None:
+        if not self._cache:
+            return None
+        return await self._cache.get(key)
+
+    async def _cache_set(self, key: str, value: Any, ttl_seconds: int) -> None:
+        if not self._cache:
+            return
+        await self._cache.set(key, value, ttl_seconds)
+
+    @staticmethod
+    def _task_list_cache_key(owner_user_id: int, q: str | None, status: str | None, sort: str | None) -> str:
+        return (
+            f"task:list:{owner_user_id}:"
+            f"{string_value(q).strip().lower()}:"
+            f"{string_value(status).strip().lower()}:"
+            f"{string_value(sort).strip().lower()}"
+        )
+
+    @staticmethod
+    def _task_trace_cache_key(owner_user_id: int, task_id: str, limit: int) -> str:
+        return f"task:trace:{owner_user_id}:{task_id}:{limit}"
 
     @staticmethod
     def _task_comparator(sort: str | None):

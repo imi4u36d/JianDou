@@ -12,7 +12,7 @@ interface UsePollingOptions {
  * @param callback 要执行的回调
  * @param delayMs 轮询间隔（毫秒）
  */
-export function usePolling(callback: () => Promise<void> | void, delayMs: number, options: UsePollingOptions = {}) {
+export function usePolling(callback: () => Promise<void> | void, delayMs: number | (() => number), options: UsePollingOptions = {}) {
   const active = ref(false);
   const running = ref(false);
   const timer = ref<number | null>(null);
@@ -67,10 +67,11 @@ export function usePolling(callback: () => Promise<void> | void, delayMs: number
     if (!active.value || timer.value !== null) {
       return;
     }
+    const delay = typeof delayMs === "function" ? delayMs() : delayMs;
     timer.value = window.setTimeout(() => {
       timer.value = null;
       void run();
-    }, delayMs);
+    }, delay);
   }
 
   function handleVisibilityChange() {

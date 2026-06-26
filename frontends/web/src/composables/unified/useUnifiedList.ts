@@ -16,6 +16,8 @@ import type {
 } from "@/types/unified-task";
 
 const POLL_INTERVAL_MS = 5000;
+const IDLE_POLL_INTERVAL_MS = 15000;
+const ACTIVE_TASK_STATUSES = new Set(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
 
 /**
  * 状态排序优先级（用于 status_desc 排序）。
@@ -139,6 +141,8 @@ export function useUnifiedList() {
       .sort(compareItems);
   });
 
+  const hasActiveTasks = computed(() => tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status)));
+
   /**
    * 加载任务数据。
    */
@@ -167,8 +171,7 @@ export function useUnifiedList() {
     return items.value.find((item) => item.id === id);
   }
 
-  // 轮询：每 5 秒刷新一次
-  const polling = usePolling(load, POLL_INTERVAL_MS);
+  const polling = usePolling(load, () => (hasActiveTasks.value ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS));
 
   /**
    * 启动轮询。

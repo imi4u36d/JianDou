@@ -61,6 +61,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
             if start_worker:
                 await container.worker_runner.stop()
             await container.task_repository.close()
+            await container.json_cache.close()
 
     app = FastAPI(
         title="JianDou API",

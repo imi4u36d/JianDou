@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Any
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session_factory
@@ -22,6 +23,7 @@ from backend.models.task import (
     BizTaskStatusHistory,
     BizWorkerInstance,
 )
+from backend.services.provider_payload_sanitizer import ProviderPayloadSanitizer
 from backend.shared import now_iso, safe_int, string_value
 
 
@@ -152,6 +154,54 @@ def _material_from_row(row: BizMaterialAsset) -> dict[str, Any]:
     }
 
 
+def _material_from_row_without_metadata(row: BizMaterialAsset) -> dict[str, Any]:
+    file_url = row.public_url or row.remote_url or ""
+    preview_url = row.thumbnail_url or row.public_url or row.remote_url or ""
+    return {
+        "id": row.material_asset_id,
+        "materialAssetId": row.material_asset_id,
+        "ownerUserId": row.owner_user_id,
+        "taskId": row.task_id or "",
+        "workflowId": row.workflow_id or "",
+        "sourceTaskId": row.source_task_id or "",
+        "sourceMaterialId": row.source_material_id or "",
+        "kind": row.asset_role or "",
+        "assetRole": row.asset_role or "",
+        "stageType": row.stage_type or "",
+        "clipIndex": row.clip_index or 0,
+        "versionNo": row.version_no,
+        "selectedForNext": row.selected_for_next or 0,
+        "userRating": row.user_rating,
+        "ratingNote": row.rating_note or "",
+        "mediaType": row.media_type or "",
+        "title": row.title or "",
+        "originProvider": row.origin_provider or "",
+        "originModel": row.origin_model or "",
+        "remoteTaskId": row.remote_task_id or "",
+        "remoteAssetId": row.remote_asset_id or "",
+        "originalFileName": row.original_file_name or "",
+        "storedFileName": row.stored_file_name or "",
+        "fileExt": row.file_ext or "",
+        "storageProvider": row.storage_provider or "",
+        "mimeType": row.mime_type or "",
+        "sizeBytes": row.size_bytes or 0,
+        "sha256": row.sha256 or "",
+        "durationSeconds": row.duration_seconds or 0,
+        "width": row.width or 0,
+        "height": row.height or 0,
+        "hasAudio": bool(row.has_audio),
+        "storagePath": row.local_storage_path or "",
+        "localFilePath": row.local_file_path or "",
+        "fileUrl": file_url,
+        "previewUrl": preview_url,
+        "thumbnailUrl": row.thumbnail_url or "",
+        "thirdPartyUrl": row.third_party_url or "",
+        "remoteUrl": row.remote_url or "",
+        "metadata": {},
+        "createdAt": row.captured_at or row.create_time or "",
+    }
+
+
 def _record_from_biz_task(row: BizTask) -> TaskRecord:
     """Convert a BizTask ORM row into a TaskRecord."""
     request_snapshot = read_json_object(row.request_payload_json)
@@ -226,6 +276,14 @@ class TaskRepository:
         if self._session is not None:
             await self._session.close()
             self._session = None
+
+    @asynccontextmanager
+    async def _session_scope(self):
+        if self._session is not None:
+            yield self._session
+            return
+        async with async_session_factory() as session:
+            yield session
 
     # ------------------------------------------------------------------
     # Core CRUD
@@ -430,6 +488,306 @@ class TaskRepository:
         async with self._lock:
             return await self._load_task_record_without_lock(task_id)
 
+    async def list_task_summaries(
+        self,
+        owner_user_id: int | None = None,
+        q: str | None = None,
+        status: str | None = None,
+        sort: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return lightweight task list rows without loading heavy child collections."""
+        async with self._session_scope() as session:
+            task_rows = await self._query_task_summary_rows(session, owner_user_id, q, status, sort)
+            task_ids = [row.task_id for row in task_rows]
+            active_attempts = await self._active_attempts_by_task_id(session, task_ids)
+            queue_positions = await self._queue_positions(session)
+
+        items = []
+        normalized_status = string_value(status).strip().upper()
+        for row in task_rows:
+            active_attempt = active_attempts.get(row.task_id, {})
+            is_queued = row.task_id in queue_positions
+            if normalized_status == "QUEUED" and not is_queued:
+                continue
+            items.append(
+                {
+                    "id": row.task_id,
+                    "taskType": row.task_type or "video_generation",
+                    "title": row.title or "",
+                    "status": row.status or "",
+                    "progress": row.progress or 0,
+                    "createdAt": row.create_time or "",
+                    "updatedAt": row.update_time or "",
+                    "sourceFileName": row.source_file_name or "",
+                    "aspectRatio": row.aspect_ratio or "",
+                    "minDurationSeconds": row.min_duration_seconds or 0,
+                    "maxDurationSeconds": row.max_duration_seconds or 0,
+                    "retryCount": row.retry_count or 0,
+                    "startedAt": row.started_at,
+                    "finishedAt": row.finished_at,
+                    "completedOutputCount": row.output_count or 0,
+                    "taskSeed": row.task_seed,
+                    "effectRating": row.effect_rating,
+                    "effectRatingNote": row.effect_rating_note or "",
+                    "ratedAt": row.rated_at,
+                    "hasTranscript": False,
+                    "hasTimedTranscript": False,
+                    "sourceAssetCount": 0,
+                    "editingMode": row.editing_mode or "",
+                    "isQueued": is_queued,
+                    "queuePosition": queue_positions.get(row.task_id),
+                    "currentStage": string_value(active_attempt.get("resumeFromStage")),
+                    "activeWorkerInstanceId": string_value(active_attempt.get("workerInstanceId")),
+                    "plannedClipCount": 0,
+                    "renderedClipCount": 0,
+                    "diagnosisSeverity": "",
+                    "diagnosisCode": "",
+                    "diagnosisHint": "",
+                    "recommendedAction": "",
+                    "failureReason": row.error_message or "",
+                    "failureStage": "",
+                    "failureClipIndex": None,
+                    "thumbnailUrl": "",
+                    "ownerUserId": row.owner_user_id,
+                    "ownerUsername": "",
+                    "ownerDisplayName": "",
+                    "ownerRole": "",
+                }
+            )
+        return items
+
+    async def find_detail_light(self, task_id: str, owner_user_id: int | None = None) -> dict[str, Any] | None:
+        """Return task detail without provider request/response payloads or material metadata."""
+        async with self._session_scope() as session:
+            stmt = select(BizTask).where(BizTask.task_id == task_id, BizTask.is_deleted == 0)
+            if owner_user_id is not None:
+                stmt = stmt.where(BizTask.owner_user_id == owner_user_id)
+            result = await session.execute(stmt)
+            task = result.scalars().first()
+            if task is None:
+                return None
+            attempts = await self._attempt_rows(session, task_id)
+            active_attempt = next(
+                (row for row in attempts if string_value(row.get("status")) in ("RUNNING", "QUEUED", "PENDING")),
+                {},
+            )
+            queue_positions = await self._queue_positions(session)
+            status_history = await self._status_history_rows(session, task_id)
+            stage_runs = await self._stage_run_rows(session, task_id)
+            model_calls = await self._model_call_rows_light(session, task_id)
+            materials = await self.get_task_materials_light(task_id, owner_user_id, session=session)
+            outputs = await self.get_task_outputs_light(task_id, owner_user_id, session=session)
+
+        request_snapshot = read_json_object(task.request_payload_json)
+        execution_context = read_json_object(task.context_json)
+        return {
+            "id": task.task_id,
+            "taskType": task.task_type or "video_generation",
+            "title": task.title or "",
+            "status": task.status or "",
+            "progress": task.progress or 0,
+            "createdAt": task.create_time or "",
+            "updatedAt": task.update_time or "",
+            "sourceFileName": task.source_file_name or "",
+            "aspectRatio": task.aspect_ratio or "",
+            "minDurationSeconds": task.min_duration_seconds or 0,
+            "maxDurationSeconds": task.max_duration_seconds or 0,
+            "retryCount": task.retry_count or 0,
+            "startedAt": task.started_at,
+            "finishedAt": task.finished_at,
+            "completedOutputCount": task.output_count or 0,
+            "taskSeed": task.task_seed,
+            "effectRating": task.effect_rating,
+            "effectRatingNote": task.effect_rating_note or "",
+            "ratedAt": task.rated_at,
+            "isQueued": task.task_id in queue_positions,
+            "queuePosition": queue_positions.get(task.task_id),
+            "currentStage": string_value(active_attempt.get("resumeFromStage")),
+            "activeWorkerInstanceId": string_value(active_attempt.get("workerInstanceId")),
+            "ownerUserId": task.owner_user_id,
+            "ownerUsername": "",
+            "ownerDisplayName": "",
+            "errorMessage": task.error_message or "",
+            "editingMode": task.editing_mode or "",
+            "creativePrompt": task.creative_prompt or "",
+            "hasTranscript": bool(string_value(request_snapshot.get("transcriptText"))),
+            "hasTimedTranscript": False,
+            "sourceAssetCount": 0,
+            "transcriptPreview": string_value(request_snapshot.get("transcriptText"))[:220] or None,
+            "transcriptCueCount": 0,
+            "executionContext": execution_context,
+            "requestSnapshot": request_snapshot,
+            "storyboardScript": string_value(execution_context.get("analysisScriptText")),
+            "artifactDirectories": {},
+            "durationDiagnostics": [],
+            "plan": [],
+            "trace": [],
+            "statusHistory": status_history,
+            "attempts": attempts,
+            "stageRuns": stage_runs,
+            "modelCalls": model_calls,
+            "materials": materials,
+            "outputs": outputs,
+            "sourceAssets": [],
+        }
+
+    async def get_task_trace(self, task_id: str, owner_user_id: int, limit: int = 50) -> list[dict[str, Any]]:
+        async with self._session_scope() as session:
+            owned = await self._task_exists(session, task_id, owner_user_id)
+            if not owned:
+                raise ValueError(f"Task not found: {task_id}")
+            stmt = (
+                select(BizTaskStatusHistory)
+                .where(
+                    BizTaskStatusHistory.task_id == task_id,
+                    BizTaskStatusHistory.operator_type == "trace",
+                    BizTaskStatusHistory.is_deleted == 0,
+                )
+                .order_by(BizTaskStatusHistory.change_time.desc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            rows = list(reversed(result.scalars().all()))
+        return [
+            {
+                "traceId": r.task_status_history_id,
+                "timestamp": r.change_time or "",
+                "level": "",
+                "stage": r.stage or "",
+                "event": r.event or "",
+                "message": r.message or "",
+                "payload": read_json_object(r.payload_json),
+            }
+            for r in rows
+        ]
+
+    async def get_task_outputs_light(
+        self,
+        task_id: str,
+        owner_user_id: int | None = None,
+        session: AsyncSession | None = None,
+    ) -> list[dict[str, Any]]:
+        async def load(active_session: AsyncSession) -> list[dict[str, Any]]:
+            if owner_user_id is not None and not await self._task_exists(active_session, task_id, owner_user_id):
+                raise ValueError(f"Task not found: {task_id}")
+            stmt = (
+                select(
+                    BizTaskResult.task_result_id,
+                    BizTaskResult.task_id,
+                    BizTaskResult.result_type,
+                    BizTaskResult.clip_index,
+                    BizTaskResult.title,
+                    BizTaskResult.reason,
+                    BizTaskResult.source_model_call_id,
+                    BizTaskResult.material_asset_id,
+                    BizTaskResult.start_seconds,
+                    BizTaskResult.end_seconds,
+                    BizTaskResult.duration_seconds,
+                    BizTaskResult.preview_path,
+                    BizTaskResult.download_path,
+                    BizTaskResult.width,
+                    BizTaskResult.height,
+                    BizTaskResult.mime_type,
+                    BizTaskResult.size_bytes,
+                    BizTaskResult.remote_url,
+                    BizTaskResult.produced_at,
+                )
+                .where(BizTaskResult.task_id == task_id, BizTaskResult.is_deleted == 0)
+                .order_by(BizTaskResult.produced_at.asc())
+            )
+            result = await active_session.execute(stmt)
+            return [
+                {
+                    "resultId": r.task_result_id,
+                    "taskId": r.task_id,
+                    "resultType": r.result_type,
+                    "clipIndex": r.clip_index,
+                    "title": r.title or "",
+                    "reason": r.reason or "",
+                    "sourceModelCallId": r.source_model_call_id or "",
+                    "materialAssetId": r.material_asset_id or "",
+                    "startSeconds": r.start_seconds,
+                    "endSeconds": r.end_seconds,
+                    "durationSeconds": r.duration_seconds,
+                    "previewPath": r.preview_path or "",
+                    "downloadPath": r.download_path or "",
+                    "width": r.width or 0,
+                    "height": r.height or 0,
+                    "mimeType": r.mime_type or "",
+                    "sizeBytes": r.size_bytes or 0,
+                    "remoteUrl": r.remote_url or "",
+                    "extra": {},
+                    "producedAt": r.produced_at or "",
+                }
+                for r in result.all()
+            ]
+
+        if session is not None:
+            return await load(session)
+        async with self._session_scope() as scoped:
+            return await load(scoped)
+
+    async def get_task_materials_light(
+        self,
+        task_id: str,
+        owner_user_id: int | None = None,
+        session: AsyncSession | None = None,
+    ) -> list[dict[str, Any]]:
+        async def load(active_session: AsyncSession) -> list[dict[str, Any]]:
+            if owner_user_id is not None and not await self._task_exists(active_session, task_id, owner_user_id):
+                raise ValueError(f"Task not found: {task_id}")
+            stmt = (
+                select(
+                    BizMaterialAsset.material_asset_id,
+                    BizMaterialAsset.owner_user_id,
+                    BizMaterialAsset.task_id,
+                    BizMaterialAsset.workflow_id,
+                    BizMaterialAsset.source_task_id,
+                    BizMaterialAsset.source_material_id,
+                    BizMaterialAsset.asset_role,
+                    BizMaterialAsset.stage_type,
+                    BizMaterialAsset.clip_index,
+                    BizMaterialAsset.version_no,
+                    BizMaterialAsset.selected_for_next,
+                    BizMaterialAsset.user_rating,
+                    BizMaterialAsset.rating_note,
+                    BizMaterialAsset.media_type,
+                    BizMaterialAsset.title,
+                    BizMaterialAsset.origin_provider,
+                    BizMaterialAsset.origin_model,
+                    BizMaterialAsset.remote_task_id,
+                    BizMaterialAsset.remote_asset_id,
+                    BizMaterialAsset.original_file_name,
+                    BizMaterialAsset.stored_file_name,
+                    BizMaterialAsset.file_ext,
+                    BizMaterialAsset.storage_provider,
+                    BizMaterialAsset.mime_type,
+                    BizMaterialAsset.size_bytes,
+                    BizMaterialAsset.sha256,
+                    BizMaterialAsset.duration_seconds,
+                    BizMaterialAsset.width,
+                    BizMaterialAsset.height,
+                    BizMaterialAsset.has_audio,
+                    BizMaterialAsset.local_storage_path,
+                    BizMaterialAsset.local_file_path,
+                    BizMaterialAsset.public_url,
+                    BizMaterialAsset.thumbnail_url,
+                    BizMaterialAsset.third_party_url,
+                    BizMaterialAsset.remote_url,
+                    BizMaterialAsset.captured_at,
+                    BizMaterialAsset.create_time,
+                )
+                .where(BizMaterialAsset.task_id == task_id, BizMaterialAsset.is_deleted == 0)
+                .order_by(BizMaterialAsset.create_time.asc())
+            )
+            result = await active_session.execute(stmt)
+            return [_material_from_row_without_metadata(row) for row in result.all()]
+
+        if session is not None:
+            return await load(session)
+        async with self._session_scope() as scoped:
+            return await load(scoped)
+
     async def list_queued_task_ids(self, limit: int = 500) -> list[str]:
         async with self._lock:
             stmt = (
@@ -451,6 +809,287 @@ class TaskRepository:
                 if task_id and task_id not in seen:
                     seen.append(task_id)
             return seen
+
+    async def _query_task_summary_rows(
+        self,
+        session: AsyncSession,
+        owner_user_id: int | None,
+        q: str | None,
+        status: str | None,
+        sort: str | None,
+    ) -> list[Any]:
+        stmt = select(
+            BizTask.id,
+            BizTask.task_id,
+            BizTask.owner_user_id,
+            BizTask.task_type,
+            BizTask.title,
+            BizTask.status,
+            BizTask.progress,
+            BizTask.create_time,
+            BizTask.update_time,
+            BizTask.source_file_name,
+            BizTask.aspect_ratio,
+            BizTask.min_duration_seconds,
+            BizTask.max_duration_seconds,
+            BizTask.output_count,
+            BizTask.task_seed,
+            BizTask.effect_rating,
+            BizTask.effect_rating_note,
+            BizTask.rated_at,
+            BizTask.started_at,
+            BizTask.finished_at,
+            BizTask.retry_count,
+            BizTask.creative_prompt,
+            BizTask.editing_mode,
+            BizTask.error_message,
+        ).where(BizTask.is_deleted == 0)
+        if owner_user_id is not None:
+            stmt = stmt.where(BizTask.owner_user_id == owner_user_id)
+        keyword = string_value(q).strip()
+        if keyword:
+            like = f"%{keyword}%"
+            stmt = stmt.where(
+                or_(
+                    BizTask.title.ilike(like),
+                    BizTask.creative_prompt.ilike(like),
+                    BizTask.source_file_name.ilike(like),
+                )
+            )
+        normalized_status = string_value(status).strip().upper()
+        if normalized_status and normalized_status != "QUEUED":
+            stmt = stmt.where(BizTask.status == normalized_status)
+
+        normalized_sort = string_value(sort).strip().lower() or "updated_desc"
+        if normalized_sort == "created_desc":
+            stmt = stmt.order_by(desc(BizTask.create_time), desc(BizTask.id))
+        elif normalized_sort == "progress_desc":
+            stmt = stmt.order_by(desc(BizTask.progress), desc(BizTask.update_time), desc(BizTask.id))
+        elif normalized_sort == "status_desc":
+            status_priority = case(
+                (BizTask.status == "RENDERING", 1),
+                (BizTask.status == "PLANNING", 2),
+                (BizTask.status == "ANALYZING", 3),
+                (BizTask.status == "PENDING", 4),
+                (BizTask.status == "PAUSED", 5),
+                (BizTask.status == "COMPLETED", 6),
+                (BizTask.status == "FAILED", 7),
+                else_=99,
+            )
+            stmt = stmt.order_by(status_priority.asc(), desc(BizTask.update_time), desc(BizTask.id))
+        else:
+            stmt = stmt.order_by(desc(BizTask.update_time), desc(BizTask.id))
+        result = await session.execute(stmt)
+        return list(result.all())
+
+    async def _active_attempts_by_task_id(
+        self,
+        session: AsyncSession,
+        task_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        if not task_ids:
+            return {}
+        stmt = (
+            select(BizTaskAttempt)
+            .where(
+                BizTaskAttempt.task_id.in_(task_ids),
+                BizTaskAttempt.status.in_(("RUNNING", "QUEUED", "PENDING")),
+                BizTaskAttempt.is_deleted == 0,
+            )
+            .order_by(BizTaskAttempt.attempt_no.desc())
+        )
+        result = await session.execute(stmt)
+        active: dict[str, dict[str, Any]] = {}
+        for row in result.scalars().all():
+            if row.task_id in active:
+                continue
+            active[row.task_id] = {
+                "attemptId": row.task_attempt_id,
+                "status": row.status,
+                "resumeFromStage": row.resume_from_stage or "",
+                "workerInstanceId": row.worker_instance_id or "",
+            }
+        return active
+
+    async def _queue_positions(self, session: AsyncSession, limit: int = 500) -> dict[str, int]:
+        stmt = (
+            select(BizTaskAttempt.task_id)
+            .join(BizTask, BizTask.task_id == BizTaskAttempt.task_id)
+            .where(
+                BizTaskAttempt.status.in_(("QUEUED", "PENDING")),
+                BizTaskAttempt.is_deleted == 0,
+                BizTask.status == "PENDING",
+                BizTask.is_deleted == 0,
+            )
+            .order_by(BizTaskAttempt.queue_entered_at.asc(), BizTask.create_time.asc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        positions: dict[str, int] = {}
+        for row in result.all():
+            task_id = string_value(row[0])
+            if task_id and task_id not in positions:
+                positions[task_id] = len(positions) + 1
+        return positions
+
+    async def _task_exists(self, session: AsyncSession, task_id: str, owner_user_id: int | None = None) -> bool:
+        stmt = select(func.count()).select_from(BizTask).where(BizTask.task_id == task_id, BizTask.is_deleted == 0)
+        if owner_user_id is not None:
+            stmt = stmt.where(BizTask.owner_user_id == owner_user_id)
+        result = await session.execute(stmt)
+        return int(result.scalar_one() or 0) > 0
+
+    async def _attempt_rows(self, session: AsyncSession, task_id: str) -> list[dict[str, Any]]:
+        stmt = (
+            select(BizTaskAttempt)
+            .where(BizTaskAttempt.task_id == task_id, BizTaskAttempt.is_deleted == 0)
+            .order_by(BizTaskAttempt.attempt_no.desc())
+        )
+        result = await session.execute(stmt)
+        rows = []
+        for a in result.scalars().all():
+            rows.append(
+                {
+                    "attemptId": a.task_attempt_id,
+                    "taskId": a.task_id,
+                    "attemptNo": a.attempt_no,
+                    "triggerType": a.trigger_type or "",
+                    "status": a.status,
+                    "queueName": a.queue_name or "",
+                    "workerInstanceId": a.worker_instance_id or "",
+                    "queueEnteredAt": a.queue_entered_at,
+                    "queueLeftAt": a.queue_left_at,
+                    "claimedAt": a.claimed_at,
+                    "startedAt": a.started_at,
+                    "finishedAt": a.finished_at,
+                    "resumeFromStage": a.resume_from_stage or "",
+                    "resumeFromClipIndex": a.resume_from_clip_index or 0,
+                    "failureCode": a.failure_code or "",
+                    "failureMessage": a.failure_message or "",
+                    "payload": read_json_object(a.payload_json),
+                }
+            )
+        return rows
+
+    async def _status_history_rows(self, session: AsyncSession, task_id: str) -> list[dict[str, Any]]:
+        stmt = (
+            select(BizTaskStatusHistory)
+            .where(
+                BizTaskStatusHistory.task_id == task_id,
+                BizTaskStatusHistory.operator_type != "trace",
+                BizTaskStatusHistory.is_deleted == 0,
+            )
+            .order_by(BizTaskStatusHistory.change_time.asc())
+        )
+        result = await session.execute(stmt)
+        return [
+            {
+                "statusHistoryId": r.task_status_history_id,
+                "taskId": r.task_id,
+                "previousStatus": r.previous_status or "",
+                "nextStatus": r.current_status or "",
+                "progress": r.progress or 0,
+                "stage": r.stage or "",
+                "event": r.event or "",
+                "reason": r.message or "",
+                "operator": r.operator_type or "",
+                "changedAt": r.change_time or "",
+                "payload": read_json_object(r.payload_json),
+            }
+            for r in result.scalars().all()
+        ]
+
+    async def _stage_run_rows(self, session: AsyncSession, task_id: str) -> list[dict[str, Any]]:
+        stmt = (
+            select(BizTaskStageRun)
+            .where(BizTaskStageRun.task_id == task_id, BizTaskStageRun.is_deleted == 0)
+            .order_by(BizTaskStageRun.stage_seq.asc(), BizTaskStageRun.clip_index.asc())
+        )
+        result = await session.execute(stmt)
+        return [
+            {
+                "stageRunId": r.task_stage_run_id,
+                "taskId": r.task_id,
+                "attemptId": r.attempt_id or "",
+                "stageName": r.stage_name or "",
+                "stageSeq": r.stage_seq or 0,
+                "clipIndex": r.clip_index or 0,
+                "status": r.status or "",
+                "workerInstanceId": r.worker_instance_id or "",
+                "startedAt": r.started_at or "",
+                "finishedAt": r.finished_at,
+                "durationMs": r.duration_ms or 0,
+                "inputSummary": read_json_object(r.input_summary_json),
+                "outputSummary": read_json_object(r.output_summary_json),
+                "errorCode": r.error_code or "",
+                "errorMessage": r.error_message or "",
+            }
+            for r in result.scalars().all()
+        ]
+
+    async def _model_call_rows_light(self, session: AsyncSession, task_id: str) -> list[dict[str, Any]]:
+        stmt = (
+            select(
+                BizTaskModelCall.task_model_call_id,
+                BizTaskModelCall.task_id,
+                BizTaskModelCall.call_kind,
+                BizTaskModelCall.stage,
+                BizTaskModelCall.operation,
+                BizTaskModelCall.provider,
+                BizTaskModelCall.provider_model,
+                BizTaskModelCall.requested_model,
+                BizTaskModelCall.resolved_model,
+                BizTaskModelCall.model_name,
+                BizTaskModelCall.model_alias,
+                BizTaskModelCall.endpoint_host,
+                BizTaskModelCall.request_id,
+                BizTaskModelCall.http_status,
+                BizTaskModelCall.response_status_code,
+                BizTaskModelCall.success,
+                BizTaskModelCall.error_code,
+                BizTaskModelCall.error_message,
+                BizTaskModelCall.latency_ms,
+                BizTaskModelCall.duration_ms,
+                BizTaskModelCall.input_tokens,
+                BizTaskModelCall.output_tokens,
+                BizTaskModelCall.started_at,
+                BizTaskModelCall.finished_at,
+            )
+            .where(BizTaskModelCall.task_id == task_id, BizTaskModelCall.is_deleted == 0)
+            .order_by(BizTaskModelCall.create_time.asc())
+        )
+        result = await session.execute(stmt)
+        return [
+            {
+                "modelCallId": row.task_model_call_id,
+                "taskId": row.task_id,
+                "callKind": row.call_kind or "",
+                "stage": row.stage or "",
+                "operation": row.operation or "",
+                "provider": row.provider or "",
+                "providerModel": row.provider_model or "",
+                "requestedModel": row.requested_model or "",
+                "resolvedModel": row.resolved_model or "",
+                "modelName": row.model_name or "",
+                "modelAlias": row.model_alias or "",
+                "endpointHost": row.endpoint_host or "",
+                "requestId": row.request_id or "",
+                "requestPayload": {},
+                "responsePayload": {},
+                "httpStatus": row.http_status or 0,
+                "responseStatusCode": row.response_status_code or 0,
+                "success": row.success or 0,
+                "errorCode": row.error_code or "",
+                "errorMessage": row.error_message or "",
+                "latencyMs": row.latency_ms or 0,
+                "durationMs": row.duration_ms or 0,
+                "inputTokens": row.input_tokens or 0,
+                "outputTokens": row.output_tokens or 0,
+                "startedAt": row.started_at or "",
+                "finishedAt": row.finished_at or "",
+            }
+            for row in result.all()
+        ]
 
     async def claim_next_queued_task(self, worker_instance_id: str) -> str | None:
         async with self._lock:
@@ -969,8 +1608,8 @@ class TaskRepository:
             "model_alias": string_value(row.get("modelAlias", "")),
             "endpoint_host": string_value(row.get("endpointHost", "")),
             "request_id": string_value(row.get("requestId", "")),
-            "request_payload_json": write_json_object(row.get("requestPayload", {})),
-            "response_payload_json": write_json_object(row.get("responsePayload", {})),
+            "request_payload_json": write_json_object(ProviderPayloadSanitizer.sanitize(row.get("requestPayload", {}))),
+            "response_payload_json": write_json_object(ProviderPayloadSanitizer.sanitize(row.get("responsePayload", {}))),
             "http_status": safe_int(row.get("httpStatus"), 0),
             "response_status_code": safe_int(row.get("responseStatusCode", row.get("responseCode")), 0),
             "success": 1 if bool(row.get("success")) else 0,
@@ -1051,7 +1690,7 @@ class TaskRepository:
             return
         existing = await self._find_material_row(material_id)
         now = now_iso()
-        metadata = object_value(row.get("metadata", {}))
+        metadata = object_value(ProviderPayloadSanitizer.sanitize(row.get("metadata", {})))
         owner_user_id = _optional_int(row.get("ownerUserId"))
         if owner_user_id is None and task is not None:
             owner_user_id = task.owner_user_id
@@ -1116,7 +1755,7 @@ class TaskRepository:
             return
         existing = await self._find_worker_row(worker_id)
         now = now_iso()
-        metadata = object_value(row.get("metadata", {}))
+        metadata = object_value(ProviderPayloadSanitizer.sanitize(row.get("metadata", {})))
         if existing:
             existing.worker_type = string_value(row.get("workerType", existing.worker_type))
             existing.queue_name = string_value(row.get("queueName", existing.queue_name))

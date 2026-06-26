@@ -38,6 +38,22 @@ class AppContainer:
         return self.__dict__["_task_repository"]
 
     @property
+    def redis_client(self):
+        if "_redis_client" not in self.__dict__:
+            from backend.services.cache_service import create_redis_client
+
+            self.__dict__["_redis_client"] = create_redis_client()
+        return self.__dict__["_redis_client"]
+
+    @property
+    def json_cache(self):
+        if "_json_cache" not in self.__dict__:
+            from backend.services.cache_service import create_json_cache
+
+            self.__dict__["_json_cache"] = create_json_cache(self.redis_client)
+        return self.__dict__["_json_cache"]
+
+    @property
     def execution_coordinator(self) -> TaskExecutionCoordinator:
         if "_execution_coordinator" not in self.__dict__:
             from backend.services.task_execution_coordinator import TaskExecutionCoordinator
@@ -106,7 +122,7 @@ class AppContainer:
         if "_task_query_service" not in self.__dict__:
             from backend.services.task_query_service import TaskQueryService
             self.__dict__["_task_query_service"] = TaskQueryService(
-                self.task_repository, self.execution_coordinator
+                self.task_repository, self.execution_coordinator, self.json_cache
             )
         return self.__dict__["_task_query_service"]
 
@@ -285,6 +301,8 @@ class AppContainer:
         app.state.credential_repository = self.credential_repository
         app.state.execution_coordinator = self.execution_coordinator
         app.state.task_queue = self.task_queue
+        app.state.redis_client = self.redis_client
+        app.state.json_cache = self.json_cache
 
     # -- Model providers (lazy singletons) ----------------------------------
 

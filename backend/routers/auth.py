@@ -39,7 +39,7 @@ def _session_payload(user: dict) -> AuthSessionResponse:
 
 @router.post("/login", response_model=AuthSessionResponse)
 async def login(payload: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    check_auth_subject_rate_limit(request, "auth.login", payload.username, settings.auth_login_rate_limit)
+    await check_auth_subject_rate_limit(request, "auth.login", payload.username, settings.auth_login_rate_limit)
     auth_service = AuthService(db)
     try:
         user = await auth_service.login(payload.username, payload.password)
@@ -70,7 +70,7 @@ async def activate_invite(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    check_auth_subject_rate_limit(
+    await check_auth_subject_rate_limit(
         request,
         "auth.activate_invite",
         payload.code,

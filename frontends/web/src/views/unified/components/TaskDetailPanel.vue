@@ -244,7 +244,10 @@ const {
   selectedTaskShortArtifactDirectoryHint,
   selectedTaskArtifactDirectoryHint,
   selectedTaskStages,
+  selectedTaskIsActive,
   loadSelectedTaskDetails,
+  startDetailPolling,
+  stopDetailPolling,
   refreshSelectedTask,
   handlePause,
   handleTerminate,
@@ -260,10 +263,19 @@ const {
 } = detail;
 
 // 选中变化时重新加载详情
-import { watch } from "vue";
+import { onUnmounted, watch } from "vue";
 watch(() => props.selectedTaskId, () => {
-  void loadSelectedTaskDetails();
+  stopDetailPolling();
+  void loadSelectedTaskDetails({ includeTrace: true }).then(() => {
+    if (selectedTaskIsActive.value) {
+      startDetailPolling();
+    }
+  });
 }, { immediate: true });
+
+onUnmounted(() => {
+  stopDetailPolling();
+});
 </script>
 
 <style scoped>

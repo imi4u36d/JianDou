@@ -34,7 +34,8 @@ class ProviderPayloadSanitizer:
             sanitized: dict[str, Any] = {}
             for k, v in value.items():
                 child_key = str(k) if k is not None else ""
-                sanitized[child_key] = ProviderPayloadSanitizer._sanitize(child_key, v)
+                target_key = ProviderPayloadSanitizer._sanitized_key(child_key, v)
+                sanitized[target_key] = ProviderPayloadSanitizer._sanitize(child_key, v)
             return sanitized
         if isinstance(value, list):
             return [ProviderPayloadSanitizer._sanitize("", item) for item in value]
@@ -57,6 +58,12 @@ class ProviderPayloadSanitizer:
     def _is_base64_image_key(key: str) -> bool:
         normalized = (key or "").strip().replace("_", "").replace("-", "").lower()
         return normalized in ("b64json", "base64data", "base64", "imagebase64")
+
+    @staticmethod
+    def _sanitized_key(key: str, value: Any) -> str:
+        if isinstance(value, str) and ProviderPayloadSanitizer._is_base64_image_key(key):
+            return "base64ImageRedacted"
+        return key
 
     @staticmethod
     def _looks_like_base64(value: str) -> bool:

@@ -15,6 +15,17 @@ DEFAULT_BOOTSTRAP_ADMIN_PASSWORD = "admin123"
 class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./data/jiandou.db"
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_timeout: int = 30
+    db_pool_recycle: int = 1800
+
+    # Redis / shared cache
+    redis_url: str = ""
+    rate_limit_backend: str = "memory"
+    cache_backend: str = "memory"
+    task_list_cache_ttl_seconds: int = 3
+    task_trace_cache_ttl_seconds: int = 2
 
     # Server
     server_port: int = 8100
@@ -221,6 +232,18 @@ def validate_settings(s: Settings) -> list[_ValidationIssue]:
         for field, value in required_oss_fields.items():
             if not value:
                 _add(field, "must be set when storage_backend is 'aliyun_oss'", "error")
+
+    rate_limit_backend = (s.rate_limit_backend or "").strip().lower()
+    if rate_limit_backend not in {"memory", "redis"}:
+        _add("rate_limit_backend", "must be either 'memory' or 'redis'", "error")
+    if rate_limit_backend == "redis" and not s.redis_url:
+        _add("redis_url", "must be set when rate_limit_backend is 'redis'", "error")
+
+    cache_backend = (s.cache_backend or "").strip().lower()
+    if cache_backend not in {"memory", "redis"}:
+        _add("cache_backend", "must be either 'memory' or 'redis'", "error")
+    if cache_backend == "redis" and not s.redis_url:
+        _add("redis_url", "must be set when cache_backend is 'redis'", "error")
 
     return issues
 

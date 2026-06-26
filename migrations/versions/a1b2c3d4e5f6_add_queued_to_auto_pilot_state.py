@@ -20,6 +20,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     columns = _column_names(bind, "biz_stage_workflows")
     checks = _check_names(bind, "biz_stage_workflows")
+    is_mysql = bind.dialect.name == "mysql"
 
     # Use batch mode for SQLite compatibility; batch_alter_table transparently
     # rebuilds the table when the backend cannot alter constraints in place.
@@ -59,8 +60,8 @@ def upgrade() -> None:
                 sa.Column(
                     "auto_pilot_error_message",
                     sa.Text(),
-                    nullable=False,
-                    server_default="",
+                    nullable=is_mysql,
+                    server_default=None if is_mysql else "",
                     comment="Error message when auto-pilot entered failed state.",
                 )
             )
@@ -113,11 +114,14 @@ def upgrade() -> None:
             unique=False,
         )
 
+    if is_mysql and "auto_pilot_error_message" in _column_names(bind, "biz_stage_workflows"):
+        op.execute("UPDATE biz_stage_workflows SET auto_pilot_error_message = '' WHERE auto_pilot_error_message IS NULL")
+
     with op.batch_alter_table("biz_stage_workflows") as batch_op:
         batch_op.alter_column("execution_mode", existing_type=sa.String(32), server_default=None)
         batch_op.alter_column("auto_pilot_state", existing_type=sa.String(32), server_default=None)
         batch_op.alter_column("auto_pilot_next_stage", existing_type=sa.String(64), server_default=None)
-        batch_op.alter_column("auto_pilot_error_message", existing_type=sa.Text(), server_default=None)
+        batch_op.alter_column("auto_pilot_error_message", existing_type=sa.Text(), nullable=False, server_default=None)
         batch_op.alter_column("auto_pilot_started_at", existing_type=sa.String(32), server_default=None)
         batch_op.alter_column("auto_pilot_paused_at", existing_type=sa.String(32), server_default=None)
 

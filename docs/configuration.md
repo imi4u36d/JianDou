@@ -30,6 +30,20 @@ The `Settings` class provides two levels of validation:
 ## Database
 
 - `JIANDOU_DATABASE_URL`: async SQLAlchemy URL. SQLite works out of the box, for example `sqlite+aiosqlite:///./data/jiandou.db`.
+- `JIANDOU_DB_POOL_SIZE`: SQLAlchemy pool size for non-SQLite databases.
+- `JIANDOU_DB_MAX_OVERFLOW`: additional connections allowed beyond the pool size.
+- `JIANDOU_DB_POOL_TIMEOUT`: seconds to wait for a pooled connection.
+- `JIANDOU_DB_POOL_RECYCLE`: seconds before recycling pooled connections.
+
+For Docker Compose / MySQL deployments, use `mysql+asyncmy://jiandou:jiandou@mysql:3306/jiandou?charset=utf8mb4`.
+
+## Redis And Cache
+
+- `JIANDOU_REDIS_URL`: Redis connection URL, for example `redis://redis:6379/0`.
+- `JIANDOU_RATE_LIMIT_BACKEND`: `memory` or `redis`; Redis is recommended for multi-worker deployments.
+- `JIANDOU_CACHE_BACKEND`: `memory` or `redis`; Redis enables short TTL API response caching.
+- `JIANDOU_TASK_LIST_CACHE_TTL_SECONDS`: TTL for user task-list cache entries.
+- `JIANDOU_TASK_TRACE_CACHE_TTL_SECONDS`: TTL for task trace cache entries.
 
 ## Web, Cookies, And Public URLs
 

@@ -28,7 +28,7 @@ dependencies = [
     "httpx",
     "python-jose[cryptography]",
     "passlib[bcrypt]",
-    "bcrypt>=4.0,<5.1",
+    "bcrypt>=4.0,<4.1",
     "aiosqlite",
     "greenlet>=3.1.0",
     "click>=8.1",
@@ -36,6 +36,9 @@ dependencies = [
     "requests",
     "Pillow",
     "oss2>=2.19.1",
+    "asyncmy>=0.2.11",
+    "pymysql>=1.2.0",
+    "redis>=8.0.1",
 ]
 
 [project.scripts]

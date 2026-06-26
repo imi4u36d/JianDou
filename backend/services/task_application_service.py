@@ -79,6 +79,7 @@ class TaskApplicationServiceImpl:
             reference_asset_ids=_request_value(request, "reference_asset_ids", "referenceAssetIds"),
             asset_type=_request_value(request, "asset_type", "assetType"),
         )
+        await self._query_service.invalidate_task_list_cache(owner_user_id)
         return await self._query_service.get_task(task.id, owner_user_id)
 
     async def generate_creative_prompt(self, request: Any) -> dict[str, Any]:
@@ -173,30 +174,35 @@ class TaskApplicationServiceImpl:
         """Retry a failed task."""
         task = await self._query_service._require_owned_task(task_id, user_id)
         await self._command_service.retry(task)
+        await self._query_service.invalidate_task_list_cache(user_id)
         return await self._query_service.get_task(task.id, user_id)
 
     async def pause_task(self, task_id: str, user_id: int) -> dict[str, Any]:
         """Pause an active task."""
         task = await self._query_service._require_owned_task(task_id, user_id)
         await self._command_service.pause(task)
+        await self._query_service.invalidate_task_list_cache(user_id)
         return await self._query_service.get_task(task.id, user_id)
 
     async def continue_task(self, task_id: str, user_id: int) -> dict[str, Any]:
         """Continue a paused task."""
         task = await self._query_service._require_owned_task(task_id, user_id)
         await self._command_service.resume(task)
+        await self._query_service.invalidate_task_list_cache(user_id)
         return await self._query_service.get_task(task.id, user_id)
 
     async def terminate_task(self, task_id: str, user_id: int) -> dict[str, Any]:
         """Terminate a running task."""
         task = await self._query_service._require_owned_task(task_id, user_id)
         await self._command_service.terminate(task)
+        await self._query_service.invalidate_task_list_cache(user_id)
         return await self._query_service.get_task(task.id, user_id)
 
     async def admin_terminate_task(self, task_id: str) -> dict[str, Any]:
         """Admin-terminate a task (no owner check)."""
         task = await self._query_service._require_task(task_id)
         await self._command_service.terminate(task)
+        await self._query_service.invalidate_task_list_cache()
         return await self._query_service.admin_get_task(task.id)
 
     async def rate_task_effect(self, task_id: str, user_id: int, request: Any) -> dict[str, Any]:
@@ -205,12 +211,15 @@ class TaskApplicationServiceImpl:
         effect_rating = getattr(request, "effect_rating", None) if hasattr(request, "effect_rating") else getattr(request, "effectRating", None)
         effect_rating_note = getattr(request, "effect_rating_note", None) if hasattr(request, "effect_rating_note") else getattr(request, "effectRatingNote", None)
         await self._command_service.rate_effect(task, effect_rating=effect_rating, effect_rating_note=effect_rating_note)
+        await self._query_service.invalidate_task_list_cache(user_id)
         return await self._query_service.get_task(task.id, user_id)
 
     async def delete_task(self, task_id: str, user_id: int) -> dict[str, Any]:
         """Soft-delete a task."""
         task = await self._query_service._require_owned_task(task_id, user_id)
-        return await self._command_service.delete_task(task)
+        result = await self._command_service.delete_task(task)
+        await self._query_service.invalidate_task_list_cache(user_id)
+        return result
 
     # ------------------------------------------------------------------
     # Admin queries

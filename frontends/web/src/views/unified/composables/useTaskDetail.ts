@@ -27,6 +27,7 @@ import { getTaskStatusMeta } from "@/utils/presentation";
 import { resolveTaskPreviewMedia, resolveTaskThumbnailUrl } from "@/utils/task-preview";
 
 type TaskStageState = "pending" | "active" | "paused" | "done" | "failed";
+const ACTIVE_TASK_STATUSES = new Set<TaskStatus>(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
 
 interface TaskStageDisplayItem {
   key: string;
@@ -121,6 +122,10 @@ function taskTypeIcon(task?: Pick<TaskListItem, "taskType"> & { requestSnapshot?
     case "video_generation": return "video";
     default: return "task";
   }
+}
+
+function isActiveTaskStatus(status?: TaskStatus | null): boolean {
+  return Boolean(status && ACTIVE_TASK_STATUSES.has(status));
 }
 
 function firstNonBlank(...values: Array<string | null | undefined>): string {
@@ -417,7 +422,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
 
   // ── Data loading ──
 
-  async function loadSelectedTaskDetails(opts: { silent?: boolean } = {}) {
+  async function loadSelectedTaskDetails(opts: { silent?: boolean; includeTrace?: boolean } = {}) {
     if (!selectedTaskId.value) {
       selectedTaskDetail.value = null;
       selectedTaskTrace.value = [];
@@ -425,12 +430,18 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     }
     if (!opts.silent) selectedTaskLoading.value = true;
     try {
-      const [detail, trace] = await Promise.all([
-        fetchTask(selectedTaskId.value),
-        fetchTaskTrace(selectedTaskId.value, 120),
-      ]);
+      const previousStatus = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
+      const includeTrace = opts.includeTrace ?? (!opts.silent || isActiveTaskStatus(previousStatus));
+      const detailPromise = fetchTask(selectedTaskId.value);
+      const tracePromise = includeTrace ? fetchTaskTrace(selectedTaskId.value, 120) : Promise.resolve(null);
+      const [detail, trace] = await Promise.all([detailPromise, tracePromise]);
       selectedTaskDetail.value = detail;
-      selectedTaskTrace.value = [...trace].reverse();
+      if (trace) {
+        selectedTaskTrace.value = [...trace].reverse();
+      }
+      if (!isActiveTaskStatus(detail.status)) {
+        detailPolling.stop();
+      }
     } catch (error) {
       if (!opts.silent) {
         messageApi.error(error instanceof Error ? error.message : "任务详情加载失败");
@@ -540,7 +551,14 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
 
   // ── Polling for detail refresh ──
 
-  const detailPolling = usePolling(() => loadSelectedTaskDetails({ silent: true }), 5000);
+  const detailPolling = usePolling(async () => {
+    const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
+    if (!isActiveTaskStatus(status)) {
+      detailPolling.stop();
+      return;
+    }
+    await loadSelectedTaskDetails({ silent: true });
+  }, 5000);
 
   // ── Watch: reset failure details when selection changes ──
 
@@ -604,8 +622,9 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     stageStateClass,
     taskTypeIcon,
     taskThumbnailUrl: (task?: (TaskListItem | TaskDetail) | null) => taskThumbnailUrl(task),
+    selectedTaskIsActive: computed(() => isActiveTaskStatus(selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status)),
     // Polling
-    startDetailPolling: () => detailPolling.start(true),
+    startDetailPolling: () => detailPolling.start(false),
     stopDetailPolling: () => detailPolling.stop(),
   };
 }

@@ -1,0 +1,73 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: jiandou
+      MYSQL_USER: jiandou
+      MYSQL_PASSWORD: jiandou
+      MYSQL_ROOT_PASSWORD: jiandou-root
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ujiandou", "-pjiandou"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      JIANDOU_APP_ENV: dev
+      JIANDOU_EXECUTION_MODE: queue
+      JIANDOU_SERVER_ADDRESS: 0.0.0.0
+      JIANDOU_SERVER_PORT: 8000
+      JIANDOU_AUTO_MIGRATE: "true"
+      JIANDOU_DATABASE_URL: mysql+asyncmy://jiandou:jiandou@mysql:3306/jiandou?charset=utf8mb4
+      JIANDOU_REDIS_URL: redis://redis:6379/0
+      JIANDOU_RATE_LIMIT_BACKEND: redis
+      JIANDOU_CACHE_BACKEND: redis
+      JIANDOU_TASK_LIST_CACHE_TTL_SECONDS: 3
+      JIANDOU_TASK_TRACE_CACHE_TTL_SECONDS: 2
+      JIANDOU_DB_POOL_SIZE: 10
+      JIANDOU_DB_MAX_OVERFLOW: 20
+      JIANDOU_DB_POOL_TIMEOUT: 30
+      JIANDOU_DB_POOL_RECYCLE: 1800
+      JIANDOU_WEB_ORIGIN: http://127.0.0.1:8100
+      JIANDOU_TRUSTED_ORIGINS: http://localhost:8100
+      JIANDOU_COOKIE_SECURE: "false"
+      JIANDOU_PUBLIC_API_BASE_URL: /api/v3
+      JIANDOU_PUBLIC_STORAGE_BASE_URL: /storage
+      JIANDOU_PUBLIC_ADMIN_BASE_URL: /admin
+      JIANDOU_STORAGE_ROOT: /app/storage
+    ports:
+      - "8100:8000"
+    volumes:
+      - jiandou-storage:/app/storage
+    command: ["jiandou", "serve", "--host", "0.0.0.0", "--port", "8000"]
+
+volumes:
+  mysql-data:
+  redis-data:
+  jiandou-storage:

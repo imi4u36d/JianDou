@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import time
 from base64 import urlsafe_b64encode
 from collections import OrderedDict
@@ -22,6 +21,8 @@ from typing import Any, Optional
 
 import yaml
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
 from backend.config import settings
 from backend.domain.generation_run import GenerationModelKinds
@@ -1997,7 +1998,9 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
     """Persist and resolve per-user model API keys from sys_user_model_credential."""
 
     def __init__(self, database_url: str) -> None:
-        self._database_path = self._sqlite_path(database_url)
+        self._database_url = self._sync_database_url(database_url)
+        self._engine = create_engine(self._database_url, future=True)
+        self._dialect = make_url(self._database_url).get_backend_name()
 
     def find_runtime_api_key(self, user_id: int, preferred_scopes: list[str]) -> str:
         keys = self.find_api_keys_by_user_id(user_id)
@@ -2020,11 +2023,11 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
     def find_api_keys_by_user_id(self, user_id: int) -> dict[str, str]:
         self._ensure_table()
         keys: dict[str, str] = OrderedDict()
-        with sqlite3.connect(self._database_path) as conn:
+        with self._engine.connect() as conn:
             rows = conn.execute(
-                "select provider_key, encrypted_api_key from sys_user_model_credential where user_id = ?",
-                (user_id,),
-            ).fetchall()
+                text("select provider_key, encrypted_api_key from sys_user_model_credential where user_id = :user_id"),
+                {"user_id": user_id},
+            ).all()
         for provider_key, api_key in rows:
             key = _normalize(provider_key)
             valid_api_key = _unprotect_user_api_key(api_key)
@@ -2035,15 +2038,17 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
     def find_provider_configs_by_user_id(self, user_id: int) -> dict[str, RuntimeProviderConfig]:
         self._ensure_table()
         configs: dict[str, RuntimeProviderConfig] = OrderedDict()
-        with sqlite3.connect(self._database_path) as conn:
+        with self._engine.connect() as conn:
             rows = conn.execute(
-                """
+                text(
+                    """
                 select provider_key, base_url, task_base_url, extras_json
                 from sys_user_model_credential
-                where user_id = ?
-                """,
-                (user_id,),
-            ).fetchall()
+                where user_id = :user_id
+                """
+                ),
+                {"user_id": user_id},
+            ).all()
         for provider_key, base_url, task_base_url, extras_json in rows:
             key = _normalize(provider_key)
             if not key:
@@ -2065,30 +2070,37 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
             return
         self._ensure_table()
         now = datetime.now(UTC).isoformat()
-        with sqlite3.connect(self._database_path) as conn:
+        with self._engine.begin() as conn:
             for provider_key, api_key in normalized_updates.items():
                 protected_api_key = _protect_user_api_key(api_key)
                 if not protected_api_key:
                     continue
                 existing = conn.execute(
-                    "select id from sys_user_model_credential where user_id = ? and provider_key = ?",
-                    (user_id, provider_key),
+                    text("select id from sys_user_model_credential where user_id = :user_id and provider_key = :provider_key"),
+                    {"user_id": user_id, "provider_key": provider_key},
                 ).fetchone()
                 if existing:
                     conn.execute(
-                        "update sys_user_model_credential set encrypted_api_key = ?, updated_at = ? where id = ?",
-                        (protected_api_key, now, existing[0]),
+                        text("update sys_user_model_credential set encrypted_api_key = :api_key, updated_at = :updated_at where id = :id"),
+                        {"api_key": protected_api_key, "updated_at": now, "id": existing[0]},
                     )
                 else:
                     conn.execute(
-                        """
+                        text(
+                            """
                         insert into sys_user_model_credential
                             (user_id, provider_key, encrypted_api_key, created_at, updated_at)
-                        values (?, ?, ?, ?, ?)
+                        values (:user_id, :provider_key, :api_key, :created_at, :updated_at)
                         """,
-                            (user_id, provider_key, protected_api_key, now, now),
-                        )
-            conn.commit()
+                        ),
+                        {
+                            "user_id": user_id,
+                            "provider_key": provider_key,
+                            "api_key": protected_api_key,
+                            "created_at": now,
+                            "updated_at": now,
+                        },
+                    )
 
     def save_provider_configs(self, user_id: int, configs: dict[str, RuntimeProviderConfig]) -> None:
         normalized_updates = {
@@ -2100,51 +2112,56 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
             return
         self._ensure_table()
         now = datetime.now(UTC).isoformat()
-        with sqlite3.connect(self._database_path) as conn:
+        with self._engine.begin() as conn:
             for provider_key, config in normalized_updates.items():
                 existing = conn.execute(
-                    "select id from sys_user_model_credential where user_id = ? and provider_key = ?",
-                    (user_id, provider_key),
+                    text("select id from sys_user_model_credential where user_id = :user_id and provider_key = :provider_key"),
+                    {"user_id": user_id, "provider_key": provider_key},
                 ).fetchone()
                 extras_json = json.dumps(config.extras or {}, ensure_ascii=False, sort_keys=True)
                 if existing:
                     conn.execute(
-                        """
+                        text(
+                            """
                         update sys_user_model_credential
-                        set base_url = ?, task_base_url = ?, extras_json = ?, updated_at = ?
-                        where id = ?
+                        set base_url = :base_url, task_base_url = :task_base_url, extras_json = :extras_json, updated_at = :updated_at
+                        where id = :id
                         """,
-                        (
-                            _trim_to_empty(config.base_url),
-                            _trim_to_empty(config.task_base_url),
-                            extras_json,
-                            now,
-                            existing[0],
                         ),
+                        {
+                            "base_url": _trim_to_empty(config.base_url),
+                            "task_base_url": _trim_to_empty(config.task_base_url),
+                            "extras_json": extras_json,
+                            "updated_at": now,
+                            "id": existing[0],
+                        },
                     )
                 else:
                     conn.execute(
-                        """
+                        text(
+                            """
                         insert into sys_user_model_credential
                             (user_id, provider_key, encrypted_api_key, base_url, task_base_url, extras_json, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?, ?, ?)
+                        values (:user_id, :provider_key, :api_key, :base_url, :task_base_url, :extras_json, :created_at, :updated_at)
                         """,
-                        (
-                            user_id,
-                            provider_key,
-                            "",
-                            _trim_to_empty(config.base_url),
-                            _trim_to_empty(config.task_base_url),
-                            extras_json,
-                            now,
-                            now,
                         ),
+                        {
+                            "user_id": user_id,
+                            "provider_key": provider_key,
+                            "api_key": "",
+                            "base_url": _trim_to_empty(config.base_url),
+                            "task_base_url": _trim_to_empty(config.task_base_url),
+                            "extras_json": extras_json,
+                            "created_at": now,
+                            "updated_at": now,
+                        },
                     )
-            conn.commit()
 
     def _ensure_table(self) -> None:
-        with sqlite3.connect(self._database_path) as conn:
-            conn.execute(
+        if self._dialect != "sqlite":
+            return
+        with self._engine.begin() as conn:
+            conn.exec_driver_sql(
                 """
                 create table if not exists sys_user_model_credential (
                     id integer primary key autoincrement,
@@ -2159,20 +2176,19 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
                 )
                 """
             )
-            columns = {row[1] for row in conn.execute("pragma table_info(sys_user_model_credential)").fetchall()}
+            columns = {row[1] for row in conn.exec_driver_sql("pragma table_info(sys_user_model_credential)").all()}
             if "base_url" not in columns:
-                conn.execute("alter table sys_user_model_credential add column base_url text not null default ''")
+                conn.exec_driver_sql("alter table sys_user_model_credential add column base_url text not null default ''")
             if "task_base_url" not in columns:
-                conn.execute("alter table sys_user_model_credential add column task_base_url text not null default ''")
+                conn.exec_driver_sql("alter table sys_user_model_credential add column task_base_url text not null default ''")
             if "extras_json" not in columns:
-                conn.execute("alter table sys_user_model_credential add column extras_json text not null default '{}'")
-            conn.execute(
+                conn.exec_driver_sql("alter table sys_user_model_credential add column extras_json text not null default '{}'")
+            conn.exec_driver_sql(
                 """
                 create unique index if not exists ux_sys_user_model_credential_user_provider
                 on sys_user_model_credential(user_id, provider_key)
                 """
             )
-            conn.commit()
 
     @staticmethod
     def _decode_extras_json(raw: str | None) -> dict[str, str]:
@@ -2191,15 +2207,18 @@ class SqlAlchemyUserModelCredentialRepository(MybatisUserModelCredentialReposito
         return result
 
     @staticmethod
-    def _sqlite_path(database_url: str) -> str:
+    def _sync_database_url(database_url: str) -> str:
         from backend.config import PROJECT_ROOT
 
-        prefix = "sqlite+aiosqlite:///"
-        if database_url.startswith(prefix):
-            return database_url[len(prefix):]
-        if database_url.startswith("sqlite:///"):
-            return database_url[len("sqlite:///"):]
-        return str(PROJECT_ROOT / "data" / "jiandou.db")
+        if database_url.startswith("sqlite+aiosqlite:"):
+            return database_url.replace("sqlite+aiosqlite:", "sqlite:", 1)
+        if database_url.startswith("mysql+asyncmy:"):
+            return database_url.replace("mysql+asyncmy:", "mysql+pymysql:", 1)
+        if database_url.startswith("sqlite:"):
+            return database_url
+        if "://" not in database_url:
+            return "sqlite:///" + str(PROJECT_ROOT / "data" / "jiandou.db")
+        return database_url
 
 
 class _ProviderCatalogItem:
