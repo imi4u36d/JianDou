@@ -72,3 +72,24 @@ def test_task_outputs_and_missing_clip_indices_ignore_invalid_shapes() -> None:
 
     assert task_outputs(TaskWithCallableOutputs()) == [{"resultType": "video", "clipIndex": 1}]
     assert missing_clip_indices(4, [1, 3]) == [2, 4]
+
+
+def test_task_monitoring_snapshot_accepts_repository_path_fields() -> None:
+    task = TaskRecord(
+        id="task_monitoring_paths",
+        execution_context={"plannedClipCount": 1},
+        outputs=[
+            {"resultType": "video", "clipIndex": 1, "downloadPath": "/storage/clip-1.mp4"},
+            {
+                "resultType": "video_join",
+                "clipIndex": 10001,
+                "downloadPath": "/storage/join-1.mp4",
+                "extra": {"joinName": "join-1", "clipIndices": [1]},
+            },
+        ],
+    )
+
+    monitoring = task_monitoring_snapshot(task)
+
+    assert monitoring["latestVideoOutputUrl"] == "/storage/clip-1.mp4"
+    assert monitoring["latestJoinOutputUrl"] == "/storage/join-1.mp4"

@@ -53,7 +53,9 @@ def task_monitoring_snapshot(task: Any) -> dict[str, Any]:
         "resumeFromClipIndex": max(1, contiguous_count + 1),
         "latestVideoOutputUrl": first_non_blank(
             string_value(latest_video_output.get("downloadUrl")),
+            string_value(latest_video_output.get("downloadPath")),
             string_value(latest_video_output.get("previewUrl")),
+            string_value(latest_video_output.get("previewPath")),
         ),
         "latestJoinName": first_non_blank(
             string_value(ctx.get("latestJoinName")),
@@ -62,6 +64,9 @@ def task_monitoring_snapshot(task: Any) -> dict[str, Any]:
         "latestJoinOutputUrl": first_non_blank(
             string_value(ctx.get("latestJoinOutputUrl")),
             string_value(latest_join_output.get("downloadUrl")),
+            string_value(latest_join_output.get("downloadPath")),
+            string_value(latest_join_output.get("previewUrl")),
+            string_value(latest_join_output.get("previewPath")),
         ),
         "latestJoinClipIndex": safe_int(latest_join_output.get("clipIndex"), 0),
         "latestJoinClipIndices": _list_value(map_value(latest_join_output.get("extra")).get("clipIndices")),

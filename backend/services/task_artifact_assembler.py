@@ -17,7 +17,7 @@ from backend.domain.media_result import (
     thumbnail_candidate,
 )
 from backend.domain.task_record import TaskRecord
-from backend.domain.task_result_types import IMAGE, TEXT, VIDEO
+from backend.domain.task_result_types import IMAGE, TEXT, VIDEO, VIDEO_JOIN
 from backend.shared import first_non_blank, map_value, now_iso, string_value
 
 
@@ -56,6 +56,9 @@ def _bool_value(value: Any) -> bool:
 def _stable_id(prefix: str, *parts: str) -> str:
     seed = prefix + ":" + ":".join(parts)
     return prefix + "_" + uuid.uuid5(uuid.NAMESPACE_OID, seed).hex
+
+
+_JOIN_OUTPUT_CLIP_INDEX_BASE = 10000
 
 
 class _TaskArtifactNaming:
@@ -415,6 +418,94 @@ class TaskExecutionArtifactAssembler:
                 ),
                 "lastFrameUrl": resolved_last_frame_url,
                 "requestedLastFrameUrl": string_value(video_metadata.get("requestedLastFrameUrl")),
+            },
+            "createdAt": now_iso(),
+        }
+
+    def create_join_material(
+        self,
+        task: TaskRecord,
+        artifact: Any,
+        end_clip_index: int,
+        source_video_urls: list[str],
+        total_duration_seconds: float,
+    ) -> dict[str, Any]:
+        public_url = _artifact_public_url(artifact, "")
+        absolute_path = string_value(getattr(artifact, "absolute_path", ""))
+        if callable(getattr(artifact, "absolute_path", None)):
+            absolute_path = string_value(artifact.absolute_path())
+        file_name = file_name_from_url(public_url) if public_url else string_value(getattr(artifact, "file_name", ""))
+        if callable(getattr(artifact, "file_name", None)):
+            file_name = string_value(artifact.file_name())
+        clip_index = _JOIN_OUTPUT_CLIP_INDEX_BASE + max(1, end_clip_index)
+        metadata = {
+            "taskId": task.id,
+            "kind": VIDEO_JOIN,
+            "clipIndex": clip_index,
+            "joinName": _TaskArtifactNaming.join_name(end_clip_index),
+            "clipIndices": list(range(1, max(1, end_clip_index) + 1)),
+            "sourceVideoUrls": source_video_urls,
+        }
+        return self._create_material(
+            task,
+            {
+                "id": f"join_{task.id}_{end_clip_index}",
+                "result": {
+                    "modelInfo": {
+                        "provider": "local",
+                        "providerModel": "ffmpeg",
+                        "resolvedModel": "ffmpeg",
+                    }
+                },
+            },
+            VIDEO,
+            f"{task.title} 完整视频",
+            public_url,
+            public_url,
+            "video/mp4",
+            total_duration_seconds,
+            0,
+            0,
+            True,
+            clip_index,
+            VIDEO_JOIN,
+            metadata,
+            metadata,
+            "",
+        )
+
+    def create_join_result(
+        self,
+        task: TaskRecord,
+        join_material: dict[str, Any],
+        end_clip_index: int,
+        source_video_urls: list[str],
+        total_duration_seconds: float,
+    ) -> dict[str, Any]:
+        clip_index = _JOIN_OUTPUT_CLIP_INDEX_BASE + max(1, end_clip_index)
+        join_name = _TaskArtifactNaming.join_name(end_clip_index)
+        return {
+            "id": _stable_id("result", task.id, VIDEO_JOIN, str(end_clip_index)),
+            "resultType": VIDEO_JOIN,
+            "clipIndex": clip_index,
+            "title": f"{task.title} 完整视频",
+            "reason": "已按任务片段顺序完成视频拼接。",
+            "sourceModelCallId": "",
+            "materialAssetId": join_material.get("id"),
+            "startSeconds": 0.0,
+            "endSeconds": float(total_duration_seconds),
+            "durationSeconds": float(total_duration_seconds),
+            "previewUrl": string_value(join_material.get("previewUrl")),
+            "downloadUrl": string_value(join_material.get("fileUrl")),
+            "mimeType": "video/mp4",
+            "width": _int_value(join_material.get("width"), 0),
+            "height": _int_value(join_material.get("height"), 0),
+            "sizeBytes": self._file_size(self._resolve_absolute_path(string_value(join_material.get("fileUrl")))),
+            "remoteUrl": string_value(join_material.get("remoteUrl")),
+            "extra": {
+                "joinName": join_name,
+                "clipIndices": list(range(1, max(1, end_clip_index) + 1)),
+                "sourceVideoUrls": source_video_urls,
             },
             "createdAt": now_iso(),
         }

@@ -287,7 +287,7 @@ class TaskWorkerStatusStageService:
                 100,
                 TaskStage.PIPELINE,
                 "task.completed",
-                "任务已完成三视图与首尾关键帧生成。",
+                "任务生成流程已完成。",
                 {
                     "scriptRunId": string_value(script_run.get("id")),
                     "imageRunIds": image_run_ids,

@@ -13,6 +13,7 @@ Handles local media file operations using ffmpeg and PIL/Pillow:
 from __future__ import annotations
 
 import hashlib
+import mimetypes
 import os
 import shutil
 import subprocess
@@ -506,6 +507,38 @@ class LocalMediaArtifactService:
 
         encoded = base64.b64encode(source.read_bytes()).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
+
+    def publish_local_artifact(self, public_url: str, content_type: str = "", storage_key: str = "") -> str:
+        """Publish a local ``/storage`` artifact to the configured remote object store.
+
+        Video providers often require frame references that are reachable from
+        the public internet.  The local storage URL is still kept as the task's
+        durable artifact URL; this method returns a provider-compatible URL for
+        request payloads.
+        """
+        normalized = (public_url or "").strip()
+        if not normalized:
+            return ""
+        if self._is_http_url(normalized):
+            return normalized
+
+        abs_path = self._resolve_absolute_path(normalized)
+        if not abs_path:
+            return self._storage_properties.build_externally_accessible_url(normalized)
+
+        source = Path(abs_path).resolve()
+        if not source.is_file():
+            raise RuntimeError("source artifact does not exist")
+
+        if self._remote_object_store is not None and hasattr(self._remote_object_store, "put_object"):
+            key = (storage_key or "").strip()
+            if not key:
+                key = str(source.relative_to(self._storage_root.resolve())).replace("\\", "/")
+            mime = content_type or mimetypes.guess_type(source.name)[0] or "application/octet-stream"
+            stored = self._remote_object_store.put_object(key, source.read_bytes(), mime, source.name)
+            return str(getattr(stored, "public_url", "") or "")
+
+        return self._storage_properties.build_externally_accessible_url(normalized)
 
     def copy_artifact(self, source_public_url: str, relative_dir: str, file_name: str) -> StoredArtifact:
         """Copy a local storage artifact to a new location.

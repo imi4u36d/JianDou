@@ -46,6 +46,7 @@ from backend.services.task_execution_runtime_support import (
 from backend.services.task_render_stage_payloads import (
     RenderStageRequest,
 )
+from backend.services.task_video_stage_service import TaskVideoStageService
 from backend.services.task_worker_render_stage_service import TaskWorkerRenderStageService
 from backend.services.task_worker_status_stage_service import (
     TaskExecutionAbortedException,
@@ -172,6 +173,7 @@ class TaskWorkerPipelineHandler:
         storyboard_planner: TaskStoryboardPlannerStub | TaskStoryboardPlannerAdapter | None = None,
         status_stage_service: TaskWorkerStatusStageService | None = None,
         render_stage_service: TaskWorkerRenderStageService | None = None,
+        video_stage_service: TaskVideoStageService | None = None,
         join_stage_service: JoinOutputService | None = None,
     ) -> None:
         self._task_repository = task_repository
@@ -194,6 +196,15 @@ class TaskWorkerPipelineHandler:
             runtime_support=self._runtime_support,
             artifact_assembler=self._artifact_assembler,
             status_stage_service=self._status_stage_service,
+        )
+        self._video_stage_service = video_stage_service or TaskVideoStageService(
+            task_repository=task_repository,
+            execution_coordinator=self._execution_coordinator,
+            generation_application_service=self._generation_application_service,
+            runtime_support=self._runtime_support,
+            artifact_assembler=self._artifact_assembler,
+            status_stage_service=self._status_stage_service,
+            local_media_artifact_service=getattr(self._artifact_assembler, "_local_media_artifact_service", None),
         )
         self._join_stage_service = join_stage_service
 
@@ -461,6 +472,9 @@ class TaskWorkerPipelineHandler:
                 character_definitions=character_definitions,
             )
             render_result = await self._render_stage_service.render(task, run_context, render_request)
+            final_render_result = render_result
+            if not self._stop_before_video_generation(task):
+                final_render_result = await self._video_stage_service.render_missing_videos(task, run_context)
 
             await self._save_result(
                 self._status_stage_service.complete_task(
@@ -468,13 +482,13 @@ class TaskWorkerPipelineHandler:
                     run_context,
                     script_run,
                     render_result.image_run_ids,
-                    render_result.video_run_ids,
-                    render_result.clip_count,
-                    render_result.latest_video_output_url,
+                    final_render_result.video_run_ids,
+                    final_render_result.clip_count,
+                    final_render_result.latest_video_output_url,
                 )
             )
-            if self._join_stage_service and render_result.video_run_ids:
-                self._join_stage_service.schedule_join(task.id, render_result.clip_count)
+            if self._join_stage_service and final_render_result.video_run_ids:
+                self._join_stage_service.schedule_join(task.id, final_render_result.clip_count)
 
         except TaskExecutionAbortedException as ex:
             await self._save_result(self._status_stage_service.handle_abort(task, run_context, ex.task_status))
@@ -644,6 +658,9 @@ class TaskWorkerPipelineHandler:
 
     def _is_video_generation_task(self, task: TaskRecord) -> bool:
         return task.task_type is None or task.task_type == "video_generation"
+
+    def _stop_before_video_generation(self, task: TaskRecord) -> bool:
+        return bool((task.request_snapshot or {}).get("stopBeforeVideoGeneration"))
 
     def _existing_video_clip_indices(self, task: TaskRecord) -> list[int]:
         return existing_video_clip_indices(task.outputs)

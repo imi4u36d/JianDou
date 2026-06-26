@@ -183,8 +183,37 @@ class AppContainer:
                 artifact_assembler=TaskExecutionArtifactAssembler(
                     local_media_artifact_service=self.media_artifact_service,
                 ),
+                video_stage_service=self.task_video_stage_service,
             )
         return self.__dict__["_pipeline_handler"]
+
+    @property
+    def task_video_stage_service(self):
+        if "_task_video_stage_service" not in self.__dict__:
+            from backend.services.task_artifact_assembler import TaskExecutionArtifactAssembler
+            from backend.services.task_execution_runtime_support import TaskExecutionRuntimeSupport
+            from backend.services.task_video_stage_service import TaskVideoStageService
+            from backend.services.task_worker_status_stage_service import TaskWorkerStatusStageService
+
+            self.__dict__["_task_video_stage_service"] = TaskVideoStageService(
+                task_repository=self.task_repository,
+                execution_coordinator=self.execution_coordinator,
+                generation_application_service=self.generation_application_service,
+                runtime_support=TaskExecutionRuntimeSupport(
+                    task_repository=self.task_repository,
+                    model_resolver=self.model_resolver,
+                    local_media_artifact_service=self.media_artifact_service,
+                ),
+                artifact_assembler=TaskExecutionArtifactAssembler(
+                    local_media_artifact_service=self.media_artifact_service,
+                ),
+                status_stage_service=TaskWorkerStatusStageService(
+                    task_repository=self.task_repository,
+                    execution_coordinator=self.execution_coordinator,
+                ),
+                local_media_artifact_service=self.media_artifact_service,
+            )
+        return self.__dict__["_task_video_stage_service"]
 
     @property
     def worker_runner(self) -> TaskWorkerRunner:
@@ -249,6 +278,7 @@ class AppContainer:
         app.state.generation_application_service = self.generation_application_service
         app.state.generation_catalog_service = self.generation_catalog_service
         app.state.media_artifact_service = self.media_artifact_service
+        app.state.task_video_stage_service = self.task_video_stage_service
         app.state.task_worker_runner = self.worker_runner
         app.state.auto_pilot_runner = self.auto_pilot_runner
         app.state.task_repository = self.task_repository
