@@ -1,13 +1,3 @@
-FROM node:20-slim AS frontend-builder
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-COPY packages/ packages/
-COPY frontends/ frontends/
-RUN npm ci
-RUN npm run web:build
-
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -20,7 +10,6 @@ COPY pyproject.toml uv.lock alembic.ini ./
 COPY backend/ backend/
 COPY config/ config/
 COPY migrations/ migrations/
-COPY --from=frontend-builder /app/static/ static/
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN pip install --no-cache-dir .

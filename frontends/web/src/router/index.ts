@@ -21,6 +21,7 @@ import ForbiddenView from "@/views/ForbiddenView.vue";
 import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
+import StageWorkflowView from "@/views/StageWorkflowView.vue";
 import UnifiedTaskView from "@/views/UnifiedTaskView.vue";
 
 function normalizeRedirectTarget(value: unknown) {
@@ -96,14 +97,19 @@ const router = createRouter({
         },
         {
           path: "workflows",
-          redirect: "/tasks"
+          name: "workflows",
+          component: StageWorkflowView,
+          meta: {
+            title: "工作流"
+          }
         },
         {
           path: "workflows/:workflowId",
-          redirect: (to) => ({
-            path: "/tasks",
-            query: { selected: to.params.workflowId, kind: "task" }
-          })
+          name: "workflow-detail",
+          component: StageWorkflowView,
+          meta: {
+            title: "工作流"
+          }
         }
       ]
     },

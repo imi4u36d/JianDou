@@ -20,13 +20,26 @@
       </div>
 
       <TaskDetailPanel
-        v-else
+        v-else-if="effectiveSelectedKind === 'task'"
         :key="`task-${selectedId}`"
         :selected-task-id="selectedId"
         :tasks="list.tasks.value"
         :reload-tasks="list.load"
         @deleted="handleDeleted"
       />
+
+      <WorkflowDetailPanel
+        v-else-if="effectiveSelectedKind === 'workflow'"
+        :key="`workflow-${selectedId}`"
+        :selected-workflow-id="selectedId"
+        :reload-workflows="list.load"
+      />
+
+      <div v-else class="unified-detail-empty">
+        <div class="unified-detail-empty__content">
+          <h3>加载中</h3>
+        </div>
+      </div>
     </section>
 
     <button
@@ -54,11 +67,12 @@
  * 统一任务视图。
  * 所有创作均以任务形式管理。
  */
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useUnifiedList } from "@/composables/unified/useUnifiedList";
 import { useUnifiedSelection } from "@/composables/unified/useUnifiedSelection";
 import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
 import TaskDetailPanel from "./unified/components/TaskDetailPanel.vue";
+import WorkflowDetailPanel from "./unified/components/WorkflowDetailPanel.vue";
 import CreateTaskDialog from "./unified/components/CreateTaskDialog.vue";
 import { IconPlus } from "@/components/icons";
 import type { UnifiedListItem } from "@/types/unified-task";
@@ -66,6 +80,7 @@ import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { messageApi } from "@/composables/useMessage";
 import { deleteTask } from "@/api/tasks";
+import { deleteWorkflow } from "@/features/workflows";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 
 const list = useUnifiedList();
@@ -73,6 +88,8 @@ const selection = useUnifiedSelection();
 const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
 const selectedId = selection.selectedId;
+const selectedItem = computed(() => selectedId.value ? list.findItem(selectedId.value) : undefined);
+const effectiveSelectedKind = computed(() => selectedItem.value?.kind ?? selection.selectedKind.value ?? (list.loading.value ? "" : "task"));
 const createDialogOpen = ref(false);
 const managingId = ref("");
 
@@ -82,30 +99,35 @@ function handleSelect(item: UnifiedListItem) {
 
 async function handleDelete(item: UnifiedListItem) {
   if (managingId.value) return;
+  const isWorkflow = item.kind === "workflow";
   const authenticated = await requireAuth({
-    title: "登录后操作任务",
-    message: "删除后无法恢复，请先登录或使用邀请码注册。",
+    title: isWorkflow ? "登录后操作工作流" : "登录后操作任务",
+    message: isWorkflow ? "删除工作流后无法恢复，请先登录或使用邀请码注册。" : "删除后无法恢复，请先登录或使用邀请码注册。",
   });
   if (!authenticated) {
-    messageApi.error("登录后可继续操作任务");
+    messageApi.error(isWorkflow ? "登录后可继续操作工作流" : "登录后可继续操作任务");
     return;
   }
   const ok = await requestConfirm({
-    title: "删除任务",
-    message: `删除后无法恢复：${item.title || "未命名任务"}`,
+    title: isWorkflow ? "删除工作流" : "删除任务",
+    message: `删除后无法恢复：${item.title || (isWorkflow ? "未命名工作流" : "未命名任务")}`,
     confirmText: "删除",
   });
   if (!ok) return;
   managingId.value = item.id;
   try {
-    await deleteTask(item.id);
+    if (isWorkflow) {
+      await deleteWorkflow(item.id);
+    } else {
+      await deleteTask(item.id);
+    }
     if (selectedId.value === item.id) {
       selection.clearSelection();
     }
     await list.load();
-    messageApi.success("任务已删除");
+    messageApi.success(isWorkflow ? "工作流已删除" : "任务已删除");
   } catch (error) {
-    messageApi.error(error instanceof Error ? error.message : "删除任务失败");
+    messageApi.error(error instanceof Error ? error.message : (isWorkflow ? "删除工作流失败" : "删除任务失败"));
   } finally {
     managingId.value = "";
   }
@@ -140,6 +162,12 @@ onMounted(() => {
   selection.resolveKind(list.findItem);
   window.addEventListener("keydown", handleKeydown);
 });
+
+watch(
+  () => [selectedId.value, list.items.value.length],
+  () => selection.resolveKind(list.findItem),
+  { immediate: true }
+);
 
 onUnmounted(() => {
   list.stopPolling();

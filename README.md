@@ -53,7 +53,7 @@ Upload novel chapters, paste text, or enter a prompt — JianDou turns your word
 
 **Security & Deployment**
 - Rate limiting on auth endpoints, origin validation, encrypted API key storage.
-- Docker Compose deployment with app, MySQL 8.0, Redis 7, automatic migrations, seed data, and health checks.
+- Docker Compose deployment with a dedicated frontend gateway, backend app, MySQL 8.0, Redis 7, automatic migrations, seed data, and health checks.
 - Comprehensive configuration via environment variables and YAML files.
 
 ## Architecture
@@ -83,16 +83,24 @@ Each pipeline stage is independently configurable with its own provider and mode
 # 1. Prepare environment
 cp .env.docker.example .env.docker
 
-# 2. Build and run app + MySQL + Redis
+# 2. Build and run frontend + backend + MySQL + Redis
 docker compose up --build
 ```
 
 Docker Compose starts:
-- `app` on http://localhost:8100
+- `frontend` on http://localhost:8100, serving the Vue SPA and proxying API/storage requests
+- `app` on the internal Compose network at `app:8000`
 - `mysql:8.0` with database `jiandou`
 - `redis:7-alpine` for shared rate limiting and short-lived API cache
 
-The app container runs Alembic migrations and seed data on startup. Set `JIANDOU_AUTO_MIGRATE=false` to skip automatic migration and seeding.
+The `app` container runs Alembic migrations and seed data on startup. Set `JIANDOU_AUTO_MIGRATE=false` to skip automatic migration and seeding.
+
+For targeted rebuilds:
+
+```bash
+docker compose up -d --build frontend  # frontend-only changes
+docker compose up -d --build app       # backend/API changes
+```
 
 ### Option 2: Local Development
 

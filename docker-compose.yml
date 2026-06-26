@@ -61,11 +61,21 @@ services:
       JIANDOU_PUBLIC_STORAGE_BASE_URL: /storage
       JIANDOU_PUBLIC_ADMIN_BASE_URL: /admin
       JIANDOU_STORAGE_ROOT: /app/storage
-    ports:
-      - "8100:8000"
+    expose:
+      - "8000"
     volumes:
       - jiandou-storage:/app/storage
     command: ["jiandou", "serve", "--host", "0.0.0.0", "--port", "8000"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontends/web/Dockerfile
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "8100:80"
 
 volumes:
   mysql-data:

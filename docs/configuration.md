@@ -24,8 +24,18 @@ The `Settings` class provides two levels of validation:
 - `JIANDOU_APP_ENV`: `dev`, `prod`, or `production`. Production mode fails fast when unsafe defaults are used.
 - `JIANDOU_EXECUTION_MODE`: task execution mode, normally `queue`.
 - `JIANDOU_SERVER_ADDRESS`: bind address used by the CLI/container entrypoint.
-- `JIANDOU_SERVER_PORT`: bind port used by the CLI/container entrypoint.
+- `JIANDOU_SERVER_PORT`: bind port used by the CLI/container entrypoint. In Docker Compose this is the backend-internal port (`8000`); the public web entrypoint is the `frontend` service on host port `8100`.
 - `JIANDOU_AUTO_MIGRATE`: Docker entrypoint flag; `true` runs Alembic migrations on startup.
+
+## Docker Compose Topology
+
+The Docker deployment runs the web UI and backend as separate containers:
+
+- `frontend`: Nginx container exposed on `http://127.0.0.1:8100`; serves the Vue SPA and proxies backend paths.
+- `app`: FastAPI / worker container on the internal Compose network at `app:8000`; runs migrations and seed data on startup.
+- `mysql` and `redis`: stateful backing services using named Docker volumes.
+
+The frontend gateway proxies `/api/`, `/storage/`, and `/runtime-config.json` to `app:8000`, so browser requests remain same-origin at `:8100`.
 
 ## Database
 
@@ -50,9 +60,9 @@ For Docker Compose / MySQL deployments, use `mysql+asyncmy://jiandou:jiandou@mys
 - `JIANDOU_WEB_ORIGIN`: canonical frontend origin used for trusted state-changing API requests.
 - `JIANDOU_TRUSTED_ORIGINS`: comma-separated additional frontend origins.
 - `JIANDOU_COOKIE_SECURE`: set to `true` when serving over HTTPS.
-- `JIANDOU_PUBLIC_API_BASE_URL`: public API base path exposed to the frontend.
-- `JIANDOU_PUBLIC_STORAGE_BASE_URL`: public storage path exposed to the frontend.
-- `JIANDOU_PUBLIC_ADMIN_BASE_URL`: public admin path exposed to the frontend.
+- `JIANDOU_PUBLIC_API_BASE_URL`: public API base path exposed to the frontend. Keep `/api/v3` for the default frontend gateway.
+- `JIANDOU_PUBLIC_STORAGE_BASE_URL`: public storage path exposed to the frontend. Keep `/storage` for the default frontend gateway.
+- `JIANDOU_PUBLIC_ADMIN_BASE_URL`: public admin path exposed to the frontend. Keep `/admin` for the default frontend gateway.
 - `JIANDOU_STORAGE_PUBLIC_BASE_URL`: absolute public storage origin when storage is served outside the app.
 
 ## Auth And Security

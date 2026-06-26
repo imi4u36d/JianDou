@@ -4,7 +4,7 @@
  */
 import { ref, watch, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { UnifiedListItem } from "@/types/unified-task";
+import type { UnifiedListItem, UnifiedListItemKind } from "@/types/unified-task";
 
 const QUERY_SYNC_DELAY_MS = 160;
 
@@ -13,6 +13,7 @@ export function useUnifiedSelection() {
   const router = useRouter();
 
   const selectedId = ref("");
+  const selectedKind = ref<UnifiedListItemKind | "">("");
 
   let querySyncTimer: number | null = null;
 
@@ -21,12 +22,17 @@ export function useUnifiedSelection() {
    */
   function applyRouteQuery() {
     const rawSelected = route.query.selected;
+    const rawKind = route.query.kind;
 
     const nextId = Array.isArray(rawSelected)
       ? rawSelected[0] ?? ""
       : rawSelected ?? "";
+    const nextKind = Array.isArray(rawKind)
+      ? rawKind[0] ?? ""
+      : rawKind ?? "";
 
     selectedId.value = String(nextId).trim();
+    selectedKind.value = nextKind === "workflow" || nextKind === "task" ? nextKind : "";
   }
 
   /**
@@ -45,6 +51,9 @@ export function useUnifiedSelection() {
       }
       if (selectedId.value) {
         query.selected = selectedId.value;
+        if (selectedKind.value) {
+          query.kind = selectedKind.value;
+        }
       }
       router.replace({ query }).catch(() => {});
     }, QUERY_SYNC_DELAY_MS);
@@ -55,14 +64,16 @@ export function useUnifiedSelection() {
    */
   function selectItem(item: UnifiedListItem) {
     selectedId.value = item.id;
+    selectedKind.value = item.kind;
     syncToRoute();
   }
 
   /**
    * 通过 ID 选中（用于路由恢复）。
    */
-  function selectById(id: string) {
+  function selectById(id: string, kind?: UnifiedListItemKind) {
     selectedId.value = id;
+    selectedKind.value = kind ?? "";
   }
 
   /**
@@ -70,6 +81,7 @@ export function useUnifiedSelection() {
    */
   function clearSelection() {
     selectedId.value = "";
+    selectedKind.value = "";
     syncToRoute();
   }
 
@@ -78,12 +90,15 @@ export function useUnifiedSelection() {
    */
   function resolveKind(findItem: (id: string) => UnifiedListItem | undefined) {
     if (!selectedId.value) return;
-    findItem(selectedId.value);
+    const item = findItem(selectedId.value);
+    if (item) {
+      selectedKind.value = item.kind;
+    }
   }
 
   // 路由变化时重新应用 query
   watch(
-    () => route.query.selected,
+    () => [route.query.selected, route.query.kind],
     () => applyRouteQuery(),
     { immediate: true }
   );
@@ -97,6 +112,7 @@ export function useUnifiedSelection() {
 
   return {
     selectedId,
+    selectedKind,
     selectItem,
     selectById,
     clearSelection,

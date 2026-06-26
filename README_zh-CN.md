@@ -53,7 +53,7 @@
 
 **安全与部署**
 - 认证接口限流、来源校验、API Key 加密存储。
-- Docker Compose 部署，包含 app、MySQL 8.0、Redis 7、自动迁移、初始化 seed 和健康检查。
+- Docker Compose 部署，包含独立前端网关、后端 app、MySQL 8.0、Redis 7、自动迁移、初始化 seed 和健康检查。
 - 通过环境变量和 YAML 文件进行全面配置。
 
 ## 架构
@@ -83,16 +83,24 @@
 # 1. 准备环境
 cp .env.docker.example .env.docker
 
-# 2. 构建并启动 app + MySQL + Redis
+# 2. 构建并启动 frontend + backend + MySQL + Redis
 docker compose up --build
 ```
 
 Docker Compose 会启动：
-- `app`：访问 http://localhost:8100
+- `frontend`：访问 http://localhost:8100，负责 Vue SPA 静态站点和 API/storage 反向代理
+- `app`：仅在 Compose 内部网络通过 `app:8000` 提供后端服务
 - `mysql:8.0`：数据库名 `jiandou`
 - `redis:7-alpine`：用于共享限流和短 TTL API 缓存
 
 app 容器启动时会自动执行 Alembic 迁移和 seed 初始化。设置 `JIANDOU_AUTO_MIGRATE=false` 可跳过自动迁移和 seed。
+
+按服务重建：
+
+```bash
+docker compose up -d --build frontend  # 仅前端改动
+docker compose up -d --build app       # 后端/API 改动
+```
 
 ### 方式二：本地开发
 

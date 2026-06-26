@@ -6,9 +6,9 @@
     :aria-label="`查看${item.title}`"
     @click="$emit('select', item)"
   >
-    <span class="unified-list-item__badge unified-list-item__badge-task" aria-hidden="true">
+    <span class="unified-list-item__badge" :class="`unified-list-item__badge-${item.kind}`" aria-hidden="true">
       <img v-if="item.thumbnailUrl" :src="item.thumbnailUrl" alt="" class="unified-list-item__thumb" />
-      <AppIcon v-else name="task" size="sm" />
+      <AppIcon v-else :name="item.kind === 'workflow' ? 'workflow' : 'task'" size="sm" />
     </span>
     <span class="unified-list-item__body">
       <span class="unified-list-item__title">{{ item.title }}</span>
@@ -22,7 +22,7 @@
       <button
         type="button"
         class="unified-list-item__delete"
-        aria-label="删除任务"
+        :aria-label="item.kind === 'workflow' ? '删除工作流' : '删除任务'"
         title="删除"
         @click.stop="$emit('delete', item)"
       >
@@ -54,6 +54,23 @@ defineEmits<{
 
 const statusLabel = computed(() => {
   const s = props.item.status;
+  const autoPilotState = props.item.autoPilotState?.toLowerCase();
+  if (props.item.kind === "workflow") {
+    if (autoPilotState === "queued") return "自动排队";
+    if (autoPilotState === "running") return "自动执行";
+    if (autoPilotState === "paused") return "自动暂停";
+    if (autoPilotState === "failed") return "自动失败";
+    if (autoPilotState === "completed") return "已完成";
+    switch (s.toLowerCase()) {
+      case "draft": return "草稿";
+      case "ready": return "可生成";
+      case "running": return "执行中";
+      case "paused": return "已暂停";
+      case "completed": return "已完成";
+      case "failed": return "失败";
+      default: return s;
+    }
+  }
   switch (s.toLowerCase()) {
     case "pending": return "排队中";
     case "analyzing": return "分析中";
@@ -68,7 +85,7 @@ const statusLabel = computed(() => {
 
 const statusTone = computed(() => {
   const s = props.item.status;
-  if (["PENDING", "ANALYZING", "PLANNING", "RENDERING"].includes(s)) return "active";
+  if (["PENDING", "ANALYZING", "PLANNING", "RENDERING", "READY", "RUNNING", "DRAFT"].includes(s)) return "active";
   if (["COMPLETED"].includes(s)) return "done";
   if (["FAILED"].includes(s)) return "failed";
   if (["PAUSED"].includes(s)) return "paused";
@@ -128,6 +145,7 @@ const compactTime = computed(() => {
 }
 
 .unified-list-item__badge-task { background: rgba(99, 102, 241, 0.08); color: var(--accent-indigo); }
+.unified-list-item__badge-workflow { background: rgba(20, 184, 166, 0.12); color: #0f766e; }
 
 .unified-list-item__thumb {
   width: 100%;

@@ -7,8 +7,9 @@ import { computed, ref } from "vue";
 import { useAuthSessionState } from "@/auth/session";
 import { usePolling } from "@/composables/usePolling";
 import { fetchTasks } from "@/features/tasks";
+import { fetchWorkflows } from "@/features/workflows";
 import { messageApi } from "@/composables/useMessage";
-import type { TaskListItem } from "@/types";
+import type { TaskListItem, WorkflowSummary } from "@/types";
 import type {
   UnifiedListItem,
   UnifiedSortMode,
@@ -18,6 +19,8 @@ import type {
 const POLL_INTERVAL_MS = 5000;
 const IDLE_POLL_INTERVAL_MS = 15000;
 const ACTIVE_TASK_STATUSES = new Set(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
+const ACTIVE_WORKFLOW_STATUSES = new Set(["RUNNING"]);
+const ACTIVE_AUTO_PILOT_STATES = new Set(["queued", "running", "paused"]);
 
 /**
  * 状态排序优先级（用于 status_desc 排序）。
@@ -30,6 +33,9 @@ const STATUS_SORT_PRIORITY: Record<string, number> = {
   PAUSED: 5,
   COMPLETED: 5,
   FAILED: 6,
+  RUNNING: 1,
+  READY: 3,
+  DRAFT: 4,
 };
 
 /**
@@ -38,6 +44,7 @@ const STATUS_SORT_PRIORITY: Record<string, number> = {
 function normalizeTask(task: TaskListItem): UnifiedListItem {
   return {
     id: task.id,
+    kind: "task",
     title: task.title || "未命名任务",
     status: task.status,
     progress: Number(task.progress ?? 0),
@@ -47,6 +54,49 @@ function normalizeTask(task: TaskListItem): UnifiedListItem {
     thumbnailUrl: task.thumbnailUrl || null,
     currentStage: task.currentStage || undefined,
     task,
+  };
+}
+
+function normalizeWorkflowStatus(workflow: WorkflowSummary): string {
+  const autoPilotState = String(workflow.autoPilotState ?? "").trim().toLowerCase();
+  if (autoPilotState === "queued") return "READY";
+  if (autoPilotState === "running") return "RUNNING";
+  if (autoPilotState === "paused") return "PAUSED";
+  if (autoPilotState === "failed") return "FAILED";
+  if (autoPilotState === "completed") return "COMPLETED";
+  return String(workflow.status || "READY").trim().toUpperCase() || "READY";
+}
+
+function workflowProgress(workflow: WorkflowSummary): number {
+  const status = normalizeWorkflowStatus(workflow);
+  if (status === "COMPLETED") return 100;
+  if (status === "FAILED") return 0;
+  const stage = String(workflow.currentStage || "").trim().toLowerCase();
+  if (stage === "joined" || stage === "final") return 95;
+  if (stage === "video") return 75;
+  if (stage === "keyframe") return 55;
+  if (stage === "character") return 38;
+  if (stage === "storyboard") {
+    return workflow.storyboardVersionCount > 0 ? 25 : 10;
+  }
+  return status === "RUNNING" ? 20 : 5;
+}
+
+function normalizeWorkflow(workflow: WorkflowSummary): UnifiedListItem {
+  return {
+    id: workflow.id,
+    kind: "workflow",
+    title: workflow.title || "未命名工作流",
+    status: normalizeWorkflowStatus(workflow),
+    progress: workflowProgress(workflow),
+    createdAt: workflow.createdAt,
+    updatedAt: workflow.updatedAt,
+    aspectRatio: workflow.aspectRatio,
+    thumbnailUrl: null,
+    currentStage: workflow.currentStage || undefined,
+    executionMode: workflow.executionMode || undefined,
+    autoPilotState: workflow.autoPilotState || undefined,
+    workflow,
   };
 }
 
@@ -62,6 +112,7 @@ export function useUnifiedList() {
   const authState = useAuthSessionState();
 
   const tasks = ref<TaskListItem[]>([]);
+  const workflows = ref<WorkflowSummary[]>([]);
   const loading = ref(true);
 
   const searchText = ref("");
@@ -72,7 +123,10 @@ export function useUnifiedList() {
    * 将 tasks 归一化为 UnifiedListItem[]。
    */
   const items = computed<UnifiedListItem[]>(() => {
-    return tasks.value.map(normalizeTask);
+    return [
+      ...tasks.value.map(normalizeTask),
+      ...workflows.value.map(normalizeWorkflow),
+    ];
   });
 
   /**
@@ -81,10 +135,13 @@ export function useUnifiedList() {
   function matchesStatusFilter(item: UnifiedListItem): boolean {
     if (statusFilter.value === "all") return true;
     if (statusFilter.value === "active") {
+      if (item.kind === "workflow") {
+        return item.status !== "COMPLETED" && item.status !== "FAILED";
+      }
       return item.status === "PENDING" || item.status === "ANALYZING" || item.status === "PLANNING" || item.status === "RENDERING" || item.status === "PAUSED";
     }
     if (statusFilter.value === "pending") {
-      return item.status === "PENDING";
+      return item.kind === "workflow" ? item.status === "DRAFT" || item.status === "READY" : item.status === "PENDING";
     }
     if (statusFilter.value === "completed") {
       return item.status === "COMPLETED";
@@ -131,7 +188,9 @@ export function useUnifiedList() {
           item.status,
           item.currentStage,
           item.aspectRatio,
+          item.kind === "workflow" ? "工作流 阶段任务" : "任务",
           item.executionMode,
+          item.autoPilotState,
         ]
           .filter(Boolean)
           .join(" ")
@@ -141,7 +200,14 @@ export function useUnifiedList() {
       .sort(compareItems);
   });
 
-  const hasActiveTasks = computed(() => tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status)));
+  const hasActiveItems = computed(() =>
+    tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status))
+    || workflows.value.some((workflow) => {
+      const status = normalizeWorkflowStatus(workflow);
+      const autoPilotState = String(workflow.autoPilotState ?? "").trim().toLowerCase();
+      return ACTIVE_WORKFLOW_STATUSES.has(status) || ACTIVE_AUTO_PILOT_STATES.has(autoPilotState);
+    })
+  );
 
   /**
    * 加载任务数据。
@@ -149,12 +215,17 @@ export function useUnifiedList() {
   async function load() {
     if (!authState.isAuthenticated.value) {
       tasks.value = [];
+      workflows.value = [];
       loading.value = false;
       return;
     }
     try {
-      const fetchedTasks = await fetchTasks({ sort: sortMode.value });
+      const [fetchedTasks, fetchedWorkflows] = await Promise.all([
+        fetchTasks({ sort: sortMode.value }),
+        fetchWorkflows(),
+      ]);
       tasks.value = fetchedTasks;
+      workflows.value = fetchedWorkflows;
     } catch (error) {
       if (loading.value) {
         messageApi.error(error instanceof Error ? error.message : "列表加载失败");
@@ -171,7 +242,7 @@ export function useUnifiedList() {
     return items.value.find((item) => item.id === id);
   }
 
-  const polling = usePolling(load, () => (hasActiveTasks.value ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS));
+  const polling = usePolling(load, () => (hasActiveItems.value ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS));
 
   /**
    * 启动轮询。
@@ -189,6 +260,7 @@ export function useUnifiedList() {
 
   return {
     tasks,
+    workflows,
     items,
     loading,
     searchText,
