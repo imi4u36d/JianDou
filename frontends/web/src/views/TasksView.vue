@@ -318,7 +318,7 @@ const router = useRouter();
 
 type TaskSortMode = "status_desc" | "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc";
 
-const DEFAULT_SORT_MODE: TaskSortMode = "status_desc";
+const DEFAULT_SORT_MODE: TaskSortMode = "created_desc";
 const statusFilterOptions: Array<{ label: string; value: TaskStatus | "all" }> = [
   { label: "全部", value: "all" },
   { label: "进行中", value: "RENDERING" },
@@ -327,9 +327,9 @@ const statusFilterOptions: Array<{ label: string; value: TaskStatus | "all" }> =
   { label: "失败", value: "FAILED" },
 ];
 const sortModeOptions: AppSelectOption[] = [
+  { label: "最新创建", value: "created_desc" },
   { label: "智能优先", value: "status_desc" },
   { label: "最近更新", value: "updated_desc" },
-  { label: "最新创建", value: "created_desc" },
   { label: "进度最高", value: "progress_desc" },
   { label: "有脚本优先", value: "semantic_desc" },
 ];
@@ -377,12 +377,22 @@ function toTimestamp(value?: string | null) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function compareByUpdatedAtDesc(left: Pick<TaskListItem, "updatedAt">, right: Pick<TaskListItem, "updatedAt">) {
-  return toTimestamp(right.updatedAt) - toTimestamp(left.updatedAt);
+function compareByUpdatedAtDesc(
+  left: Pick<TaskListItem, "id" | "createdAt" | "updatedAt">,
+  right: Pick<TaskListItem, "id" | "createdAt" | "updatedAt">,
+) {
+  return toTimestamp(right.updatedAt) - toTimestamp(left.updatedAt)
+    || toTimestamp(right.createdAt) - toTimestamp(left.createdAt)
+    || right.id.localeCompare(left.id);
 }
 
-function compareByCreatedAtDesc(left: Pick<TaskListItem, "createdAt">, right: Pick<TaskListItem, "createdAt">) {
-  return toTimestamp(right.createdAt) - toTimestamp(left.createdAt);
+function compareByCreatedAtDesc(
+  left: Pick<TaskListItem, "id" | "createdAt" | "updatedAt">,
+  right: Pick<TaskListItem, "id" | "createdAt" | "updatedAt">,
+) {
+  return toTimestamp(right.createdAt) - toTimestamp(left.createdAt)
+    || toTimestamp(right.updatedAt) - toTimestamp(left.updatedAt)
+    || right.id.localeCompare(left.id);
 }
 
 function compareByStatus(left: TaskListItem, right: TaskListItem) {

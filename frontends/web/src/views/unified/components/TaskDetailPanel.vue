@@ -17,6 +17,16 @@
             </span>
           </div>
         </div>
+        <button
+          v-if="selectedTaskIsVideoTask"
+          class="task-detail-header__workflow-btn"
+          type="button"
+          :title="linkedWorkflowId ? '查看阶段工作流' : '查找关联阶段工作流'"
+          @click="emit('openWorkflow', linkedWorkflowId)"
+        >
+          <IconWorkflow size="xs" />
+          <span>阶段工作流</span>
+        </button>
       </header>
 
       <section class="detail-stage-card" aria-label="任务阶段">
@@ -345,11 +355,11 @@
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import MaterialPreviewDialog from "@/components/materials/MaterialPreviewDialog.vue";
-import { IconChevronDown, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconVideo, IconWarning } from "@/components/icons";
+import { IconChevronDown, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
 import { messageApi } from "@/composables/useMessage";
 import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 import { useTaskDetail } from "../composables/useTaskDetail";
-import type { TaskListItem } from "@/types";
+import type { TaskDetail, TaskListItem, TaskMaterial } from "@/types";
 
 const props = defineProps<{
   selectedTaskId: string;
@@ -359,6 +369,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   deleted: [taskId: string];
+  openWorkflow: [workflowId: string];
 }>();
 
 const detail = useTaskDetail({
@@ -437,6 +448,22 @@ const traceListOpen = ref(false);
 const previewImageLoadFailed = ref(false);
 const taskPreviewLoadState = ref<"idle" | "loading" | "ready" | "failed">("idle");
 const taskPreviewMediaUrl = computed(() => selectedTaskPreviewMedia.value?.url || "");
+const selectedTaskTypeKey = computed(() => {
+  const task = selectedTask.value as TaskDetail | null;
+  return String(task?.requestSnapshot?.taskType || task?.taskType || "video_generation").trim() || "video_generation";
+});
+const selectedTaskIsVideoTask = computed(() => selectedTaskTypeKey.value === "video_generation");
+const linkedWorkflowId = computed(() => {
+  const task = selectedTask.value as TaskDetail | null;
+  const materials: TaskMaterial[] = task?.materials ?? [];
+  const materialWorkflowId = materials.find((item) => item.workflowId)?.workflowId;
+  if (materialWorkflowId) {
+    return materialWorkflowId;
+  }
+  const context = task?.executionContext ?? {};
+  const contextWorkflowId = context.workflowId;
+  return typeof contextWorkflowId === "string" ? contextWorkflowId : "";
+});
 const taskPreviewIsLoading = computed(() => Boolean(taskPreviewMediaUrl.value) && taskPreviewLoadState.value === "loading");
 const previewDialog = reactive({
   open: false,
@@ -569,6 +596,74 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
+}
+
+.task-detail-header__workflow-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.05), 0 8px 22px rgba(20, 184, 166, 0.12);
+}
+
+.task-detail-header__workflow-btn::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    rgba(99, 102, 241, 0) 0%,
+    rgba(99, 102, 241, 0.18) 18%,
+    rgba(20, 184, 166, 0.42) 34%,
+    rgba(245, 158, 11, 0.34) 50%,
+    rgba(236, 72, 153, 0.36) 66%,
+    rgba(99, 102, 241, 0.2) 82%,
+    rgba(99, 102, 241, 0) 100%
+  );
+  background-size: 260% 100%;
+  animation: workflow-button-shine 2.6s linear infinite;
+}
+
+.task-detail-header__workflow-btn > svg,
+.task-detail-header__workflow-btn > span {
+  position: relative;
+  z-index: 1;
+}
+
+.task-detail-header__workflow-btn:hover {
+  background: var(--bg-soft);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 10px 28px rgba(99, 102, 241, 0.2);
+}
+
+@keyframes workflow-button-shine {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-detail-header__workflow-btn::before {
+    animation: none;
+    background-position: 50% 0;
+  }
 }
 
 .surface-chip-loading {

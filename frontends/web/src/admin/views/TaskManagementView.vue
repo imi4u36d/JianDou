@@ -329,7 +329,7 @@ const pageSize = ref(20);
 const filters = reactive({
   q: "",
   status: "" as TaskStatus | "",
-  sort: "updated_desc" as AdminTaskSortMode,
+  sort: "created_desc" as AdminTaskSortMode,
 });
 
 const statusOptions: Array<{ label: string; value: TaskStatus }> = [
@@ -343,8 +343,8 @@ const statusOptions: Array<{ label: string; value: TaskStatus }> = [
 ];
 
 const sortOptions: Array<{ label: string; value: AdminTaskSortMode }> = [
-  { label: "最近更新", value: "updated_desc" },
   { label: "最新创建", value: "created_desc" },
+  { label: "最近更新", value: "updated_desc" },
   { label: "进度优先", value: "progress_desc" },
   { label: "状态优先", value: "status_desc" },
 ];
@@ -830,7 +830,7 @@ async function deleteSelected() {
 function resetFilters() {
   filters.q = "";
   filters.status = "";
-  filters.sort = "updated_desc";
+  filters.sort = "created_desc";
   currentPage.value = 1;
   void loadTasks();
 }

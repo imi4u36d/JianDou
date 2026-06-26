@@ -6,6 +6,7 @@ status history, model calls, results, and materials queries.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from backend.config import settings
@@ -20,6 +21,16 @@ def _trimmed(value: str | None, fallback: str) -> str:
         return fallback
     v = value.strip()
     return v if v else fallback
+
+
+def _timestamp(value: str | None) -> float:
+    text = string_value(value).strip()
+    if not text:
+        return 0
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0
 
 
 class TaskQueryService:
@@ -513,23 +524,22 @@ class TaskQueryService:
     @staticmethod
     def _task_comparator(sort: str | None):
         """Return a sort key function based on the sort parameter."""
-        normalized = _trimmed(sort, "updated_desc").lower()
+        normalized = _trimmed(sort, "created_desc").lower()
 
         def sort_key(task: TaskRecord):
             if normalized == "created_desc":
-                return (0, string_value(task.created_at))
+                return (-_timestamp(task.created_at), string_value(task.id))
             if normalized == "progress_desc":
-                return (-task.progress, 0, string_value(task.updated_at))
+                return (-task.progress, -_timestamp(task.updated_at), string_value(task.id))
             if normalized == "semantic_desc":
                 score = 1 if task.has_timed_transcript or task.has_transcript else 0
-                return (-score, 0, string_value(task.updated_at))
+                return (-score, -_timestamp(task.updated_at), string_value(task.id))
             if normalized == "status_desc":
-                return (0, string_value(task.status), string_value(task.updated_at))
+                return (0, string_value(task.status), -_timestamp(task.updated_at), string_value(task.id))
             if normalized in ("effect_rating_desc", "rating_desc"):
                 rating = task.effect_rating if task.effect_rating is not None else float("-inf")
-                return (-rating, 0, string_value(task.updated_at))
-            # default: updated_desc
-            return (0, string_value(task.updated_at))
+                return (-rating, -_timestamp(task.updated_at), string_value(task.id))
+            return (-_timestamp(task.updated_at), string_value(task.id))
 
         return lambda t: (sort_key(t),)
 

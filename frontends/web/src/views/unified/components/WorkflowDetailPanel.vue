@@ -16,14 +16,37 @@
                 <strong class="workflow-summary-tag__value">{{ item.value }}</strong>
               </span>
             </div>
-            <button
-              class="btn-secondary btn-sm"
-              type="button"
-              :class="{ 'workflow-settings-btn-active': workflowSettingsOpen }"
-              @click="workflowSettingsOpen = !workflowSettingsOpen"
-            >
-              <IconSettings size="sm" />
-            </button>
+            <div class="workflow-canvas-header__actions">
+              <button
+                v-if="showReturnButton"
+                class="btn-secondary btn-sm"
+                type="button"
+                :title="returnButtonLabel"
+                @click="$emit('return')"
+              >
+                <IconTask size="sm" />
+                <span>{{ returnButtonLabel }}</span>
+              </button>
+              <button
+                v-if="canOpenResultView"
+                class="btn-secondary btn-sm workflow-task-view-btn"
+                type="button"
+                title="切换到任务视图"
+                @click="$emit('openResult')"
+              >
+                <IconVideo size="sm" />
+                <span>任务视图</span>
+              </button>
+              <button
+                class="btn-secondary btn-sm"
+                type="button"
+                title="工作流设置"
+                :class="{ 'workflow-settings-btn-active': workflowSettingsOpen }"
+                @click="workflowSettingsOpen = !workflowSettingsOpen"
+              >
+                <IconSettings size="sm" />
+              </button>
+            </div>
           </div>
           <section v-if="workflowSettingsOpen" class="workflow-header-settings">
             <form class="workflow-settings-stack" @submit.prevent="handleUpdateWorkflowSettings">
@@ -562,6 +585,8 @@ import {
   IconRefresh,
   IconSearch,
   IconSettings,
+  IconTask,
+  IconVideo,
   IconWarning,
 } from "@/components/icons";
 import { useWorkflowDetail } from "../composables/useWorkflowDetail";
@@ -573,6 +598,13 @@ import { watch, computed, ref } from "vue";
 const props = defineProps<{
   selectedWorkflowId: string;
   reloadWorkflows: () => Promise<void>;
+  showReturnButton?: boolean;
+  returnButtonLabel?: string;
+}>();
+
+defineEmits<{
+  openResult: [];
+  return: [];
 }>();
 
 const detail = useWorkflowDetail({
@@ -586,6 +618,14 @@ const autoPilot = useAutoPilot(() => props.selectedWorkflowId);
 
 // Extract execution mode from the workflow summary
 const executionMode = computed(() => detail.selectedWorkflow.value?.executionMode ?? detail.selectedWorkflow.value?.durationMode ?? "manual");
+const showReturnButton = computed(() => props.showReturnButton === true);
+const returnButtonLabel = computed(() => props.returnButtonLabel || "任务详情");
+const canOpenResultView = computed(() => {
+  if (showReturnButton.value) {
+    return false;
+  }
+  return Boolean(detail.selectedWorkflow.value);
+});
 
 // Show only the last 2 log entries
 const recentLog = computed(() => autoPilot.statusLog.value.slice(-1));
@@ -1091,6 +1131,66 @@ async function handleDownloadMedia(url: string, title: string, mediaType: Downlo
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
+}
+
+.workflow-canvas-header__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.workflow-task-view-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.05), 0 8px 22px rgba(20, 184, 166, 0.12);
+}
+
+.workflow-task-view-btn::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    rgba(99, 102, 241, 0) 0%,
+    rgba(99, 102, 241, 0.18) 18%,
+    rgba(20, 184, 166, 0.42) 34%,
+    rgba(245, 158, 11, 0.34) 50%,
+    rgba(236, 72, 153, 0.36) 66%,
+    rgba(99, 102, 241, 0.2) 82%,
+    rgba(99, 102, 241, 0) 100%
+  );
+  background-size: 260% 100%;
+  animation: workflow-task-view-button-shine 2.6s linear infinite;
+}
+
+.workflow-task-view-btn > svg,
+.workflow-task-view-btn > span {
+  position: relative;
+  z-index: 1;
+}
+
+.workflow-task-view-btn:hover {
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 10px 28px rgba(99, 102, 241, 0.2);
+}
+
+@keyframes workflow-task-view-button-shine {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-task-view-btn::before {
+    animation: none;
+    background-position: 50% 0;
+  }
 }
 
 .workflow-settings-btn-active {

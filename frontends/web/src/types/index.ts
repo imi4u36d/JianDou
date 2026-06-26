@@ -606,7 +606,14 @@ export interface TaskOutput {
  */
 export interface TaskMaterial {
   id: string;
+  taskId?: string | null;
+  workflowId?: string | null;
+  sourceTaskId?: string | null;
+  sourceMaterialId?: string | null;
+  stageType?: string | null;
+  clipIndex?: number | null;
   kind: "source" | "output" | string;
+  assetRole?: string | null;
   mediaType: "video" | "image" | "text" | string;
   title: string;
   fileUrl: string;

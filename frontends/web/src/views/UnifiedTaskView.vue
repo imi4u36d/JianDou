@@ -26,6 +26,7 @@
         :tasks="list.tasks.value"
         :reload-tasks="list.load"
         @deleted="handleDeleted"
+        @open-workflow="openTaskWorkflowStage"
       />
 
       <WorkflowResultPanel
@@ -37,9 +38,13 @@
 
       <WorkflowDetailPanel
         v-else-if="selectedDetailMode === 'workflow-stage'"
-        :key="`workflow-${selectedId}`"
-        :selected-workflow-id="selectedId"
+        :key="`workflow-${activeWorkflowDetailId}`"
+        :selected-workflow-id="activeWorkflowDetailId"
         :reload-workflows="list.load"
+        :show-return-button="Boolean(taskWorkflowOverrideId)"
+        return-button-label="任务详情"
+        @open-result="openSelectedWorkflowResult"
+        @return="openSelectedTaskDetail"
       />
 
       <div v-else class="unified-detail-empty">
@@ -75,6 +80,7 @@
  * 所有创作均以任务形式管理。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useUnifiedList } from "@/composables/unified/useUnifiedList";
 import { useUnifiedSelection } from "@/composables/unified/useUnifiedSelection";
 import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
@@ -94,34 +100,93 @@ import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 const list = useUnifiedList();
 const selection = useUnifiedSelection();
 const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
+const route = useRoute();
+const router = useRouter();
 
 const selectedId = selection.selectedId;
 const selectedItem = computed(() => selectedId.value ? list.findItem(selectedId.value) : undefined);
 const createDialogOpen = ref(false);
 const managingId = ref("");
 const workflowStageOverrideId = ref("");
+const taskWorkflowOverrideId = ref("");
+const activeWorkflowDetailId = computed(() => taskWorkflowOverrideId.value || selectedId.value);
 
 const selectedDetailMode = computed(() => {
+  if (taskWorkflowOverrideId.value) {
+    return "workflow-stage";
+  }
   const item = selectedItem.value;
   if (!item) {
     if (list.loading.value) return "";
-    return selection.selectedKind.value === "workflow" ? "workflow-stage" : "task";
+    return selection.selectedKind.value === "workflow" && route.query.view === "stage" ? "workflow-stage" : "task";
   }
   if (item.kind === "task") return "task";
-  if (item.status === "COMPLETED" && workflowStageOverrideId.value !== item.id) {
-    return "workflow-result";
-  }
-  return "workflow-stage";
+  return workflowStageOverrideId.value === item.id ? "workflow-stage" : "workflow-result";
 });
 
 function handleSelect(item: UnifiedListItem) {
   workflowStageOverrideId.value = "";
+  taskWorkflowOverrideId.value = "";
   selection.selectItem(item);
 }
 
 function openSelectedWorkflowStage() {
   if (selectedItem.value?.kind !== "workflow") return;
   workflowStageOverrideId.value = selectedItem.value.id;
+  syncWorkflowViewQuery("stage");
+}
+
+function openSelectedWorkflowResult() {
+  if (selectedItem.value?.kind !== "workflow") return;
+  workflowStageOverrideId.value = "";
+  syncWorkflowViewQuery("result");
+}
+
+function openTaskWorkflowStage(workflowId: string) {
+  const resolvedWorkflowId = resolveWorkflowIdForSelectedTask(workflowId);
+  if (!resolvedWorkflowId) {
+    messageApi.info("当前视频任务还没有找到关联的阶段工作流");
+    return;
+  }
+  taskWorkflowOverrideId.value = resolvedWorkflowId;
+  syncWorkflowViewQuery("stage");
+}
+
+function resolveWorkflowIdForSelectedTask(workflowId: string) {
+  const explicitId = String(workflowId || "").trim();
+  if (explicitId) {
+    return explicitId;
+  }
+  const item = selectedItem.value;
+  if (!item || item.kind !== "task") {
+    return "";
+  }
+  const task = item.task;
+  const title = String(task?.title || item.title || "").trim();
+  const taskCreatedAt = Date.parse(task?.createdAt || item.createdAt || "");
+  const candidates = list.workflows.value
+    .filter((workflow) => String(workflow.title || "").trim() === title)
+    .sort((left, right) => {
+      if (!Number.isFinite(taskCreatedAt)) {
+        return 0;
+      }
+      return Math.abs(Date.parse(left.createdAt || "") - taskCreatedAt) - Math.abs(Date.parse(right.createdAt || "") - taskCreatedAt);
+    });
+  return candidates[0]?.id || "";
+}
+
+function openSelectedTaskDetail() {
+  taskWorkflowOverrideId.value = "";
+  syncWorkflowViewQuery("task");
+}
+
+function syncWorkflowViewQuery(view: "result" | "stage" | "task") {
+  router.replace({
+    query: {
+      ...route.query,
+      view,
+    },
+  }).catch(() => {});
 }
 
 async function handleDelete(item: UnifiedListItem) {
@@ -150,6 +215,7 @@ async function handleDelete(item: UnifiedListItem) {
     }
     if (selectedId.value === item.id) {
       workflowStageOverrideId.value = "";
+      taskWorkflowOverrideId.value = "";
       selection.clearSelection();
     }
     await list.load();
@@ -164,6 +230,7 @@ async function handleDelete(item: UnifiedListItem) {
 function handleDeleted(taskId: string) {
   if (selectedId.value === taskId) {
     workflowStageOverrideId.value = "";
+    taskWorkflowOverrideId.value = "";
     selection.clearSelection();
   }
 }
@@ -175,6 +242,7 @@ function handleCreated(id: string) {
     const found = list.findItem(id);
     if (found) {
       workflowStageOverrideId.value = "";
+      taskWorkflowOverrideId.value = "";
       selection.selectItem(found);
     }
   });
@@ -183,6 +251,7 @@ function handleCreated(id: string) {
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Escape" && selectedId.value) {
     workflowStageOverrideId.value = "";
+    taskWorkflowOverrideId.value = "";
     selection.clearSelection();
   }
 }
@@ -197,6 +266,18 @@ onMounted(() => {
 watch(
   () => [selectedId.value, list.items.value.length],
   () => selection.resolveKind(list.findItem),
+  { immediate: true }
+);
+
+watch(
+  () => [route.query.view, selectedId.value, selectedItem.value?.kind],
+  () => {
+    if (selectedItem.value?.kind !== "workflow") {
+      workflowStageOverrideId.value = "";
+      return;
+    }
+    workflowStageOverrideId.value = route.query.view === "stage" ? selectedItem.value.id : "";
+  },
   { immediate: true }
 );
 

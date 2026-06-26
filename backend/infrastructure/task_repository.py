@@ -865,7 +865,7 @@ class TaskRepository:
         if normalized_status and normalized_status != "QUEUED":
             stmt = stmt.where(BizTask.status == normalized_status)
 
-        normalized_sort = string_value(sort).strip().lower() or "updated_desc"
+        normalized_sort = string_value(sort).strip().lower() or "created_desc"
         if normalized_sort == "created_desc":
             stmt = stmt.order_by(desc(BizTask.create_time), desc(BizTask.id))
         elif normalized_sort == "progress_desc":

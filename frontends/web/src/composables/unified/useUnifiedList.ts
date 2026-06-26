@@ -117,14 +117,16 @@ export function useUnifiedList() {
 
   const searchText = ref("");
   const statusFilter = ref<UnifiedStatusFilter>("all");
-  const sortMode = ref<UnifiedSortMode>("updated_desc");
+  const sortMode = ref<UnifiedSortMode>("created_desc");
 
   /**
    * 将 tasks 归一化为 UnifiedListItem[]。
    */
   const items = computed<UnifiedListItem[]>(() => {
     return [
-      ...tasks.value.map(normalizeTask),
+      ...tasks.value
+        .filter((task) => String(task.taskType || "").trim() !== "video_generation")
+        .map(normalizeTask),
       ...workflows.value.map(normalizeWorkflow),
     ];
   });
@@ -157,10 +159,14 @@ export function useUnifiedList() {
    */
   function compareItems(a: UnifiedListItem, b: UnifiedListItem): number {
     if (sortMode.value === "updated_desc") {
-      return toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt);
+      return toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt)
+        || toTimestamp(b.createdAt) - toTimestamp(a.createdAt)
+        || b.id.localeCompare(a.id);
     }
     if (sortMode.value === "created_desc") {
-      return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+      return toTimestamp(b.createdAt) - toTimestamp(a.createdAt)
+        || toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt)
+        || b.id.localeCompare(a.id);
     }
     if (sortMode.value === "progress_desc") {
       return b.progress - a.progress || toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt);
