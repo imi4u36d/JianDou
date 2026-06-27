@@ -15,13 +15,14 @@ This document records the current backend schema contract and the cleanup path. 
 
 ## Table Inventory
 
-The current schema has 18 tables. Keep table ownership narrow so new fields do not drift into the nearest large table.
+The current schema has 19 tables. Keep table ownership narrow so new fields do not drift into the nearest large table.
 
 | Table | Owner | Purpose | Cleanup direction |
 | --- | --- | --- | --- |
 | `sys_user` | Auth | Login identity, role, account status, user task concurrency. | Keep role/status constrained; later convert timestamps to typed datetime. |
 | `sys_invite_code` | Auth | Invite-code lifecycle and role assignment. | Keep append-like invite history; do not mix with user profile state. |
 | `sys_user_model_credential` | Auth/model config | Per-user encrypted provider credentials. | Keep one row per `user_id + provider_key`; never store platform secrets here. |
+| `sys_user_preference` | Auth/preferences | Durable per-user preference key-value storage. | Keep one row per `user_id + preference_key`; use for stable user defaults, not transient cache. |
 | `sys_credit_account` | Credit | Current credit balance per user. | Keep only current totals; historical changes belong in transactions. |
 | `sys_credit_rule` | Credit | Billable feature cost definitions. | Keep small and admin-managed. |
 | `sys_credit_transaction` | Credit | Append-only credit ledger. | Keep signed deltas and related run/task/workflow references; do not mutate history. |
@@ -234,6 +235,8 @@ JWT cookies are not the source of truth for authorization. Protected requests de
 `sys_user_model_credential` has a unique `user_id + provider_key` index. This matches the service upsert behavior and prevents duplicated provider credentials per user.
 
 `sys_user_model_credential.encrypted_api_key` stores user-scoped provider keys encrypted with a key derived from `JIANDOU_SECRET_KEY`. The repository can still read legacy plaintext rows so existing local deployments can migrate by re-saving credentials.
+
+`sys_user_preference` stores durable user defaults such as `generation.default_aspect_ratio`. The unique `user_id + preference_key` index keeps preference updates as upserts and avoids adding product-specific columns to `sys_user`.
 
 ## Credit Tables
 

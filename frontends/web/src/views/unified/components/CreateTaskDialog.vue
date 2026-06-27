@@ -50,8 +50,9 @@
  */
 import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
+import { useAuthSessionState } from "@/auth/session";
 import { fetchGenerationOptions } from "@/api/generation";
-import { createWorkflow } from "@/features/workflows";
+import { createWorkflow, saveDefaultAspectRatio } from "@/features/workflows";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import AppSelect from "@/components/common/AppSelect.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
@@ -90,10 +91,13 @@ function restoreFocus() {
 // ── Shared state ──
 const submitting = ref(false);
 const options = ref<GenerationOptionsResponse | null>(null);
+const authState = useAuthSessionState();
 
 onMounted(async () => {
   try {
-    options.value = await fetchGenerationOptions();
+    const catalog = await fetchGenerationOptions();
+    options.value = catalog;
+    taskAspectRatio.value ||= defaultTaskAspectRatio(catalog.defaultAspectRatio);
   } catch {
     // 静默处理
   }
@@ -118,7 +122,7 @@ onBeforeUnmount(restoreFocus);
 
 const taskTitle = ref("");
 const taskPrompt = ref("");
-const taskAspectRatio = ref("16:9");
+const taskAspectRatio = ref("");
 const taskStatusText = ref("");
 
 const isStatusError = computed(() => taskStatusText.value && !taskStatusText.value.includes("成功"));
@@ -129,6 +133,21 @@ const aspectRatioOptions = computed<AppSelectOption[]>(() => {
     typeof r === "string" ? { label: r, value: r } : r
   );
 });
+
+function defaultTaskAspectRatio(defaultAspectRatio?: string | null) {
+  const fallback = "16:9";
+  const preferred = defaultAspectRatio || fallback;
+  return aspectRatioOptions.value.some((item) => item.value === preferred) ? preferred : fallback;
+}
+
+watch(
+  taskAspectRatio,
+  (next, previous) => {
+    if (!previous || !next || next === previous) return;
+    if (!authState.isAuthenticated.value) return;
+    void saveDefaultAspectRatio(next).catch(() => undefined);
+  },
+);
 
 type ModelOption = {
   value: string;
@@ -197,6 +216,7 @@ async function submitTask() {
   try {
     const catalog = options.value ?? await fetchGenerationOptions();
     options.value = catalog;
+    taskAspectRatio.value ||= defaultTaskAspectRatio(catalog.defaultAspectRatio);
     const textAnalysisModel = preferredModelValue(catalog.textAnalysisModels, "openai");
     const imageModel = preferredModelValue(catalog.imageModels, "openai");
     const videoModel = preferredModelValue(catalog.videoModels, "agnes");

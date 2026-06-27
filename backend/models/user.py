@@ -26,6 +26,22 @@ class SysUser(Base):
     updated_at = Column(String(32), nullable=False, comment="ISO timestamp when the account was last updated.")
 
 
+class SysUserPreference(Base):
+    __tablename__ = "sys_user_preference"
+    __table_args__ = (
+        Index("ux_sys_user_preference_user_key", "user_id", "preference_key", unique=True),
+        Index("ix_sys_user_preference_user", "user_id"),
+        {"comment": "Per-user durable preference key-value storage."},
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="Internal numeric primary key.")
+    user_id = Column(Integer, nullable=False, comment="Owner sys_user.id.")
+    preference_key = Column(String(128), nullable=False, comment="Stable preference key, e.g. generation.default_aspect_ratio.")
+    preference_value = Column(String(2048), nullable=False, comment="Serialized preference value.")
+    created_at = Column(String(32), nullable=False, comment="ISO timestamp when the preference was created.")
+    updated_at = Column(String(32), nullable=False, comment="ISO timestamp when the preference was last updated.")
+
+
 class SysUserModelCredential(Base):
     __tablename__ = "sys_user_model_credential"
     __table_args__ = (

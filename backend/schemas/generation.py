@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
+
+from backend.schemas.common import _to_camel
 
 
 class GenerationOptionsResponse(BaseModel):
@@ -20,6 +22,24 @@ class GenerationOptionsResponse(BaseModel):
     default_video_size: str | None = None
     default_video_duration_seconds: int | None = None
     default_text_analysis_model: str | None = None
+
+
+class GenerationAspectRatioPreferenceRequest(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(validation_alias=_to_camel),
+        populate_by_name=True,
+    )
+
+    aspect_ratio: str
+
+
+class GenerationAspectRatioPreferenceResponse(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(serialization_alias=_to_camel),
+        populate_by_name=True,
+    )
+
+    aspect_ratio: str
 
 
 class GenerationRunRequest(BaseModel):
