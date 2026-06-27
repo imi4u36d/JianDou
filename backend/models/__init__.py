@@ -14,5 +14,5 @@ from backend.models.task import (  # noqa: F401
     BizTaskStatusHistory,
     BizWorkerInstance,
 )
-from backend.models.user import SysUser  # noqa: F401
+from backend.models.user import SysUser, SysUserPreference  # noqa: F401
 from backend.models.workflow import BizStageVersion, BizStageWorkflow  # noqa: F401

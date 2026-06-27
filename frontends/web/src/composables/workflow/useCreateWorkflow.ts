@@ -1,7 +1,8 @@
 import { computed, reactive, ref, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
+import { useAuthSessionState } from "@/auth/session";
 import { formatApiErrorMessage } from "@/utils/api-error";
-import { createWorkflow, uploadText } from "@/features/workflows";
+import { createWorkflow, saveDefaultAspectRatio, uploadText } from "@/features/workflows";
 import type { CreateWorkflowRequest } from "@/types";
 import { useWorkflowOptions } from "./useWorkflowOptions";
 
@@ -22,6 +23,7 @@ interface CreateReviewSection {
 
 export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   const { valueOptionLabel, keyOptionLabel, syncVideoSizeSelection, options } = opts;
+  const authState = useAuthSessionState();
 
   const creatingWorkflow = ref(false);
   const createComposerVisible = ref(false);
@@ -37,7 +39,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   const createForm = reactive({
     title: "",
     transcriptText: "",
-    aspectRatio: "16:9",
+    aspectRatio: "",
     stylePreset: "",
     textAnalysisModel: "",
     imageModel: "",
@@ -55,6 +57,12 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   const videoSizeOptions = computed(() =>
     opts.filterVideoSizeOptions(opts.catalogVideoSizeOptions.value, createForm.videoModel, createForm.aspectRatio)
   );
+
+  function defaultWorkflowAspectRatio(defaultAspectRatio?: string | null) {
+    const fallback = "16:9";
+    const preferred = defaultAspectRatio || fallback;
+    return aspectRatioOptions.value.some((item) => item.value === preferred) ? preferred : fallback;
+  }
 
   function parseStoryboardDurationSeconds(value?: string | null): number | null {
     if (value === undefined || value === null) return null;
@@ -183,7 +191,7 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     options,
     (next) => {
       if (!next) return;
-      createForm.aspectRatio ||= next.defaultAspectRatio || "16:9";
+      createForm.aspectRatio ||= defaultWorkflowAspectRatio(next.defaultAspectRatio);
       createForm.stylePreset ||= next.defaultStylePreset || stylePresetOptions.value[0]?.key || "";
       createForm.textAnalysisModel ||= next.defaultTextAnalysisModel || textModelOptions.value[0]?.value || "";
       createForm.imageModel ||= next.defaultImageModel || imageModelOptions.value[0]?.value || "";
@@ -191,6 +199,15 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
       syncVideoSizeSelection(createForm, next.defaultVideoSize);
     },
     { immediate: true }
+  );
+
+  watch(
+    () => createForm.aspectRatio,
+    (next, previous) => {
+      if (!previous || !next || next === previous) return;
+      if (!authState.isAuthenticated.value) return;
+      void saveDefaultAspectRatio(next).catch(() => undefined);
+    }
   );
 
   function readTextFile(file: File): Promise<string> {

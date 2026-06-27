@@ -54,6 +54,14 @@ class AppContainer:
         return self.__dict__["_json_cache"]
 
     @property
+    def user_generation_preferences(self):
+        if "_user_generation_preferences" not in self.__dict__:
+            from backend.services.user_generation_preferences import UserGenerationPreferenceService
+
+            self.__dict__["_user_generation_preferences"] = UserGenerationPreferenceService()
+        return self.__dict__["_user_generation_preferences"]
+
+    @property
     def execution_coordinator(self) -> TaskExecutionCoordinator:
         if "_execution_coordinator" not in self.__dict__:
             from backend.services.task_execution_coordinator import TaskExecutionCoordinator
@@ -140,7 +148,9 @@ class AppContainer:
         if "_task_application_service" not in self.__dict__:
             from backend.services.task_application_service import TaskApplicationServiceImpl
             self.__dict__["_task_application_service"] = TaskApplicationServiceImpl(
-                self.task_query_service, self.task_command_service
+                self.task_query_service,
+                self.task_command_service,
+                self.user_generation_preferences,
             )
         return self.__dict__["_task_application_service"]
 
@@ -303,6 +313,7 @@ class AppContainer:
         app.state.task_queue = self.task_queue
         app.state.redis_client = self.redis_client
         app.state.json_cache = self.json_cache
+        app.state.user_generation_preferences = self.user_generation_preferences
 
     # -- Model providers (lazy singletons) ----------------------------------
 

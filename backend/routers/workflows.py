@@ -51,6 +51,15 @@ async def _run_action(action):
         raise bad_gateway(str(exc) or exc.__class__.__name__) from exc
 
 
+async def _save_aspect_ratio_preference(request: Request, user_id: int, aspect_ratio: str | None) -> None:
+    normalized = str(aspect_ratio or "").strip()
+    if not normalized:
+        return
+    preference_service = getattr(request.app.state, "user_generation_preferences", None)
+    if preference_service is not None:
+        await preference_service.set_default_aspect_ratio(user_id, normalized)
+
+
 # ------------------------------------------------------------------
 # Workflow CRUD
 # ------------------------------------------------------------------
@@ -79,6 +88,7 @@ async def create_workflow(
     result = await _run_action(lambda: svc.create_workflow(payload.to_service_dict(), owner_user_id=user["id"]))
     if result is None:
         raise bad_request("Failed to create workflow")
+    await _save_aspect_ratio_preference(request, user["id"], result.get("aspectRatio"))
     if result.get("executionMode") == "auto":
         result = await _run_action(
             lambda: svc._update_auto_pilot_fields(
@@ -250,6 +260,7 @@ async def update_workflow_settings(
     )
     if result is None:
         raise not_found("workflow")
+    await _save_aspect_ratio_preference(request, user["id"], result.get("aspectRatio"))
     return result
 
 

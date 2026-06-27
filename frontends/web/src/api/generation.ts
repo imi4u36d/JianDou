@@ -16,6 +16,7 @@ type UnknownRecord = Record<string, unknown>;
 
 const CATALOG_ENDPOINT = "/api/v3/generation/catalog";
 const RUNS_ENDPOINT = "/api/v3/generation/runs";
+const ASPECT_RATIO_PREFERENCE_ENDPOINT = "/api/v3/generation/preferences/aspect-ratio";
 /**
  * 处理RUNDETAILSENDPOINT。
  * @param runId 运行标识值
@@ -312,6 +313,14 @@ async function waitForRunResult(runId: string, initialRun?: unknown) {
 export async function fetchGenerationOptions() {
   const raw = await getJson<unknown>(CATALOG_ENDPOINT);
   return normalizeOptions(raw);
+}
+
+/**
+ * 保存当前用户默认画幅。
+ * @param aspectRatio 画幅比例
+ */
+export async function saveDefaultAspectRatio(aspectRatio: string) {
+  await postJson(ASPECT_RATIO_PREFERENCE_ENDPOINT, { aspectRatio });
 }
 
 export async function generateMediaFromText(payload: GenerateMediaRequest) {

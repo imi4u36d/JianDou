@@ -38,9 +38,11 @@ class TaskApplicationServiceImpl:
         self,
         query_service: TaskQueryService,
         command_service: TaskCommandService,
+        preference_service: Any | None = None,
     ) -> None:
         self._query_service = query_service
         self._command_service = command_service
+        self._preference_service = preference_service
 
     # ------------------------------------------------------------------
     # Create / Generate
@@ -79,6 +81,8 @@ class TaskApplicationServiceImpl:
             reference_asset_ids=_request_value(request, "reference_asset_ids", "referenceAssetIds"),
             asset_type=_request_value(request, "asset_type", "assetType"),
         )
+        if self._preference_service is not None:
+            await self._preference_service.set_default_aspect_ratio(owner_user_id, task.aspect_ratio)
         await self._query_service.invalidate_task_list_cache(owner_user_id)
         return await self._query_service.get_task(task.id, owner_user_id)
 

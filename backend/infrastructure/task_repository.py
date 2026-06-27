@@ -287,6 +287,7 @@ class TaskRepository:
 
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
+        self._uses_external_session = session is not None
         self._lock = asyncio.Lock()
 
     @property
@@ -302,7 +303,7 @@ class TaskRepository:
 
     @asynccontextmanager
     async def _session_scope(self):
-        if self._session is not None:
+        if self._uses_external_session and self._session is not None:
             yield self._session
             return
         async with async_session_factory() as session:

@@ -1,4 +1,4 @@
-export { fetchGenerationOptions } from "@/api/generation";
+export { fetchGenerationOptions, saveDefaultAspectRatio } from "@/api/generation";
 export { fetchMaterialAssets, reuseMaterialAsset } from "@/api/material-assets";
 export { uploadText } from "@/api/tasks";
 export {

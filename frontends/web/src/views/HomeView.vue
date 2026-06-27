@@ -420,7 +420,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComputedRef } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { useAuthSessionState } from "@/auth/session";
-import { createGenerationTask } from "@/features/home";
+import { createGenerationTask, saveDefaultAspectRatio } from "@/features/home";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { formatTaskStatus } from "@/utils/task";
 
@@ -593,7 +593,13 @@ function handleDocumentKeydown(event: KeyboardEvent) {
 }
 
 function selectRatio(value: RatioOptionValue) {
+  if (form.value.aspectRatio === value) {
+    return;
+  }
   form.value.aspectRatio = value;
+  if (authState.isAuthenticated.value) {
+    void saveDefaultAspectRatio(value).catch(() => undefined);
+  }
 }
 
 async function openCreditDialog() {
@@ -679,6 +685,9 @@ async function submitImageGeneration() {
     transcriptText: "",
     stopBeforeVideoGeneration: false,
   });
+  if (authState.isAuthenticated.value) {
+    void saveDefaultAspectRatio(form.value.aspectRatio).catch(() => undefined);
+  }
   createdTaskId.value = task.id;
   showTaskToast(task.id);
   statusText.value = "已提交";
