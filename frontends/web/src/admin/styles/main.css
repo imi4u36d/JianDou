@@ -43,6 +43,23 @@
   --jd-radius-control: 7px;
   --jd-shadow-card: 0 1px 2px rgba(23, 32, 42, 0.05), 0 12px 30px rgba(23, 32, 42, 0.06);
   --jd-shadow-focus: 0 0 0 3px rgba(15, 159, 143, 0.14);
+  --jd-button-glass-bg: rgba(255, 255, 255, 0.48);
+  --jd-button-glass-bg-bottom: rgba(255, 255, 255, 0.24);
+  --jd-button-glass-bg-hover: rgba(255, 255, 255, 0.64);
+  --jd-button-glass-bg-hover-bottom: rgba(255, 255, 255, 0.34);
+  --jd-button-glass-border: rgba(255, 255, 255, 0.64);
+  --jd-button-glass-highlight: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.38) 30%,
+    rgba(255, 255, 255, 0.08) 54%,
+    rgba(255, 255, 255, 0.32) 100%
+  );
+  --jd-button-glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(23, 32, 42, 0.08),
+    0 8px 24px rgba(23, 32, 42, 0.1),
+    0 2px 6px rgba(23, 32, 42, 0.06);
 }
 
 * {
@@ -97,6 +114,33 @@ select {
   font-weight: 720;
 }
 
+.el-button:not(.is-link) {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--jd-button-glass-border);
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: var(--jd-button-glass-border);
+  --el-button-active-bg-color: transparent;
+  --el-button-active-border-color: rgba(255, 255, 255, 0.58);
+  background:
+    var(--jd-button-glass-highlight),
+    linear-gradient(180deg, var(--jd-button-glass-bg), var(--jd-button-glass-bg-bottom));
+  background-blend-mode: screen, normal;
+  backdrop-filter: blur(22px) saturate(1.7) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7) brightness(1.05);
+  box-shadow: var(--jd-button-glass-shadow);
+}
+
+.el-button:not(.is-link):hover {
+  background:
+    var(--jd-button-glass-highlight),
+    linear-gradient(180deg, var(--jd-button-glass-bg-hover), var(--jd-button-glass-bg-hover-bottom));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(23, 32, 42, 0.08),
+    0 12px 28px rgba(23, 32, 42, 0.13),
+    0 3px 10px rgba(23, 32, 42, 0.08);
+}
+
 .el-button--small {
   min-height: 30px;
   padding: 7px 10px;
@@ -104,19 +148,20 @@ select {
 }
 
 .el-button--primary {
-  --el-button-bg-color: var(--jd-accent);
-  --el-button-border-color: var(--jd-accent);
-  --el-button-hover-bg-color: #0b877a;
-  --el-button-hover-border-color: #0b877a;
-  --el-button-active-bg-color: #087267;
-  --el-button-active-border-color: #087267;
+  --jd-button-glass-bg: rgba(15, 159, 143, 0.18);
+  --jd-button-glass-bg-bottom: rgba(15, 159, 143, 0.08);
+  --jd-button-glass-bg-hover: rgba(15, 159, 143, 0.26);
+  --jd-button-glass-bg-hover-bottom: rgba(15, 159, 143, 0.12);
+  --el-button-text-color: var(--jd-accent);
+  --el-button-hover-text-color: #0b877a;
+  --el-button-active-text-color: #087267;
 }
 
 .el-button.is-plain:not(.el-button--primary) {
-  --el-button-bg-color: #ffffff;
-  --el-button-border-color: var(--jd-border-strong);
-  --el-button-hover-bg-color: var(--jd-accent-soft);
-  --el-button-hover-border-color: rgba(15, 159, 143, 0.34);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--jd-button-glass-border);
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: var(--jd-button-glass-border);
   --el-button-hover-text-color: var(--jd-accent);
 }
 

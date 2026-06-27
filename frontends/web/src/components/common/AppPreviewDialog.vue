@@ -3,12 +3,18 @@
     <Transition name="app-preview-dialog-fade">
       <div
         v-if="open"
+        ref="overlayRef"
         class="app-preview-dialog-overlay"
         role="dialog"
         aria-modal="true"
         aria-labelledby="app-preview-dialog-title"
+        tabindex="-1"
         @click.self="emit('close')"
         @keydown.esc.stop.prevent="emit('close')"
+        @keydown.left.stop.prevent="handlePrevious"
+        @keydown.right.stop.prevent="handleNext"
+        @touchstart.passive="handleTouchStart"
+        @touchend.passive="handleTouchEnd"
       >
         <div class="app-preview-dialog" :class="{ 'app-preview-dialog-wide': widePanel }">
           <div class="app-preview-dialog__head">
@@ -70,6 +76,29 @@
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div v-else class="app-preview-dialog__markdown" v-html="html"></div>
           </slot>
+
+          <button
+            v-if="showNavigation"
+            type="button"
+            class="app-preview-dialog__nav app-preview-dialog__nav-prev"
+            :disabled="!canPrevious"
+            aria-label="预览上一个素材"
+            title="上一个"
+            @click="handlePrevious"
+          >
+            <IconChevronDown size="sm" />
+          </button>
+          <button
+            v-if="showNavigation"
+            type="button"
+            class="app-preview-dialog__nav app-preview-dialog__nav-next"
+            :disabled="!canNext"
+            aria-label="预览下一个素材"
+            title="下一个"
+            @click="handleNext"
+          >
+            <IconChevronDown size="sm" />
+          </button>
         </div>
       </div>
     </Transition>
@@ -77,8 +106,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { IconClose, IconDownload, IconImage, IconLoading, IconVideo } from "@/components/icons";
+import { computed, nextTick, ref, watch } from "vue";
+import { IconChevronDown, IconClose, IconDownload, IconImage, IconLoading, IconVideo } from "@/components/icons";
 import { messageApi } from "@/composables/useMessage";
 import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 
@@ -92,20 +121,30 @@ const props = withDefaults(defineProps<{
   imageLoadFailed?: boolean;
   showDownload?: boolean;
   wide?: boolean;
+  showNavigation?: boolean;
+  canPrevious?: boolean;
+  canNext?: boolean;
 }>(), {
   subtitle: "",
   html: "",
   url: "",
   imageLoadFailed: false,
   showDownload: true,
+  showNavigation: false,
+  canPrevious: false,
+  canNext: false,
 });
 
 const emit = defineEmits<{
   close: [];
   imageError: [];
+  previous: [];
+  next: [];
 }>();
 
+const overlayRef = ref<HTMLElement | null>(null);
 const mediaLoadState = ref<"idle" | "loading" | "ready">("idle");
+const touchStart = ref<{ x: number; y: number } | null>(null);
 const hasPreviewMedia = computed(() => props.open && Boolean(props.url) && (props.kind === "image" || props.kind === "video"));
 const mediaLoading = computed(() => hasPreviewMedia.value && mediaLoadState.value === "loading");
 const downloadUrl = computed(() => props.showDownload ? String(props.url ?? "").trim() : "");
@@ -142,12 +181,56 @@ async function handleDownload() {
   }
 }
 
+function handlePrevious() {
+  if (props.showNavigation && props.canPrevious) {
+    emit("previous");
+  }
+}
+
+function handleNext() {
+  if (props.showNavigation && props.canNext) {
+    emit("next");
+  }
+}
+
+function handleTouchStart(event: TouchEvent) {
+  const touch = event.touches[0];
+  if (!touch) return;
+  touchStart.value = { x: touch.clientX, y: touch.clientY };
+}
+
+function handleTouchEnd(event: TouchEvent) {
+  const start = touchStart.value;
+  const touch = event.changedTouches[0];
+  touchStart.value = null;
+  if (!start || !touch || !props.showNavigation) return;
+  const deltaX = touch.clientX - start.x;
+  const deltaY = touch.clientY - start.y;
+  if (Math.abs(deltaX) < 56 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) {
+    return;
+  }
+  if (deltaX > 0) {
+    handlePrevious();
+  } else {
+    handleNext();
+  }
+}
+
 watch(
   () => [props.open, props.kind, props.url],
   () => {
     mediaLoadState.value = hasPreviewMedia.value ? "loading" : "idle";
   },
   { immediate: true },
+);
+
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return;
+    await nextTick();
+    overlayRef.value?.focus({ preventScroll: true });
+  },
 );
 </script>
 
@@ -159,22 +242,79 @@ watch(
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(10, 10, 20, 0.25);
-  backdrop-filter: blur(40px) saturate(2);
+  background: var(--glass-overlay-bg);
+  backdrop-filter: var(--glass-overlay-blur);
+  -webkit-backdrop-filter: var(--glass-overlay-blur);
+}
+
+.app-preview-dialog-overlay:focus {
+  outline: none;
 }
 
 .app-preview-dialog {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(980px, calc(100vw - 48px));
   max-height: min(86vh, 960px);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: var(--glass-panel-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  background: var(--glass-panel-bg);
+  box-shadow: var(--glass-panel-shadow);
+  backdrop-filter: var(--glass-panel-blur);
+  -webkit-backdrop-filter: var(--glass-panel-blur);
+}
+
+.app-preview-dialog__nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-strong);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+  transform: translateY(-50%);
+  backdrop-filter: blur(22px) saturate(1.5);
+  transition: opacity 150ms ease, transform 150ms ease, background 150ms ease;
+}
+
+.app-preview-dialog__nav:hover:not(:disabled) {
+  background: rgba(238, 242, 255, 0.94);
+  color: var(--accent-blue);
+}
+
+.app-preview-dialog__nav:disabled {
+  cursor: not-allowed;
+  opacity: 0.32;
+}
+
+.app-preview-dialog__nav :deep(svg) {
+  width: 18px;
+  height: 18px;
+}
+
+.app-preview-dialog__nav-prev {
+  left: 14px;
+}
+
+.app-preview-dialog__nav-prev :deep(svg) {
+  transform: rotate(90deg);
+}
+
+.app-preview-dialog__nav-next {
+  right: 14px;
+}
+
+.app-preview-dialog__nav-next :deep(svg) {
+  transform: rotate(-90deg);
 }
 
 .app-preview-dialog-wide {
@@ -372,6 +512,19 @@ watch(
 
   .app-preview-dialog__fallback {
     min-height: 260px;
+  }
+
+  .app-preview-dialog__nav {
+    width: 38px;
+    height: 38px;
+  }
+
+  .app-preview-dialog__nav-prev {
+    left: 8px;
+  }
+
+  .app-preview-dialog__nav-next {
+    right: 8px;
   }
 }
 </style>

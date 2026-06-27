@@ -4,7 +4,8 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import Text, pool
+from sqlalchemy.dialects import mysql
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -24,13 +25,19 @@ def _database_url() -> str:
     return option_url or settings.database_url
 
 
+def _compare_type(context, inspected_column, metadata_column, inspected_type, metadata_type) -> bool | None:
+    if context.dialect.name == "mysql" and isinstance(inspected_type, mysql.LONGTEXT) and isinstance(metadata_type, Text):
+        return False
+    return None
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        compare_type=True,
+        compare_type=_compare_type,
         compare_server_default=True,
     )
 
@@ -42,7 +49,7 @@ def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        compare_type=True,
+        compare_type=_compare_type,
         compare_server_default=True,
     )
 

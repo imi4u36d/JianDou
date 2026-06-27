@@ -1,33 +1,35 @@
 <template>
-  <Transition name="app-confirm-fade">
-    <div
-      v-if="open"
-      class="app-confirm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="app-confirm-title"
-      aria-describedby="app-confirm-message"
-      @click.self="emit('cancel')"
-      @keydown.esc.stop.prevent="emit('cancel')"
-    >
-      <div class="app-confirm__panel">
-        <div class="app-confirm__icon" :class="`app-confirm__icon-${tone}`" aria-hidden="true">
-          <IconWarning v-if="tone === 'danger'" size="sm" />
-          <IconInfo v-else size="sm" />
-        </div>
-        <div class="app-confirm__body">
-          <h3 id="app-confirm-title">{{ title }}</h3>
-          <p id="app-confirm-message">{{ message }}</p>
-        </div>
-        <div class="app-confirm__actions">
-          <button ref="cancelButtonRef" type="button" class="app-confirm__cancel" @click="emit('cancel')">{{ cancelText }}</button>
-          <button type="button" class="app-confirm__confirm" :class="`app-confirm__confirm-${tone}`" @click="emit('confirm')">
-            {{ confirmText }}
-          </button>
+  <Teleport to="body">
+    <Transition name="app-confirm-fade">
+      <div
+        v-if="open"
+        class="app-confirm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="app-confirm-title"
+        aria-describedby="app-confirm-message"
+        @click.self="emit('cancel')"
+        @keydown.esc.stop.prevent="emit('cancel')"
+      >
+        <div class="app-confirm__panel">
+          <div class="app-confirm__icon" :class="`app-confirm__icon-${tone}`" aria-hidden="true">
+            <IconWarning v-if="tone === 'danger'" size="sm" />
+            <IconInfo v-else size="sm" />
+          </div>
+          <div class="app-confirm__body">
+            <h3 id="app-confirm-title">{{ title }}</h3>
+            <p id="app-confirm-message">{{ message }}</p>
+          </div>
+          <div class="app-confirm__actions">
+            <button ref="cancelButtonRef" type="button" class="app-confirm__cancel" @click="emit('cancel')">{{ cancelText }}</button>
+            <button type="button" class="app-confirm__confirm" :class="`app-confirm__confirm-${tone}`" @click="emit('confirm')">
+              {{ confirmText }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

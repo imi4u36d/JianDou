@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -7,19 +8,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
 from backend.database import get_db
-from backend.errors import not_found
+from backend.errors import bad_request, conflict, not_found, service_unavailable
 from backend.schemas.material import (
+    CreateMaterialFavoriteFolderRequest,
     MaterialAssetDeleteResult,
+    MaterialFavoriteAssetIdsRequest,
+    MaterialFavoriteFolder,
+    MaterialFavoriteFolderDeleteResult,
+    MaterialFavoriteFolderList,
     RateMaterialAssetRequest,
+    RenameMaterialFavoriteFolderRequest,
 )
 from backend.services.material_asset_service import MaterialAssetService
+from backend.services.material_favorite_service import MaterialFavoriteService
 from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/api/v3/material-assets", tags=["material-assets"])
+logger = logging.getLogger(__name__)
 
 
 def _service(db: AsyncSession) -> MaterialAssetService:
     return MaterialAssetService(db)
+
+
+def _favorite_service(request: Request) -> MaterialFavoriteService:
+    redis_client = getattr(request.app.state, "redis_client", None)
+    if redis_client is None:
+        raise service_unavailable("redis_unavailable")
+    return MaterialFavoriteService(redis_client)
+
+
+async def _verify_owned_asset_ids(db: AsyncSession, owner_user_id: int, asset_ids: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for asset_id in asset_ids:
+        value = asset_id.strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        asset = await _service(db).get_asset(owner_user_id, value)
+        if asset is None:
+            raise not_found("material_asset")
+        cleaned.append(value)
+    return cleaned
 
 
 @router.get("")
@@ -60,6 +91,88 @@ async def create_material_asset(
     return await _service(db).create_asset(user["id"], title="素材", mediaType="text", assetType="free")
 
 
+@router.get("/favorite-folders", response_model=MaterialFavoriteFolderList)
+async def list_material_favorite_folders(request: Request):
+    user = await require_user(request)
+    folders = await _favorite_service(request).list_folders(user["id"])
+    return MaterialFavoriteFolderList(folders=folders)
+
+
+@router.post("/favorite-folders", response_model=MaterialFavoriteFolder)
+async def create_material_favorite_folder(
+    payload: CreateMaterialFavoriteFolderRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await require_user(request)
+    name = payload.name.strip()
+    if not name:
+        raise bad_request("favorite_folder_name_required")
+    asset_ids = await _verify_owned_asset_ids(db, user["id"], payload.asset_ids)
+    try:
+        return await _favorite_service(request).create_folder(user["id"], name=name, asset_ids=asset_ids)
+    except ValueError as exc:
+        if str(exc) == "favorite_folder_name_exists":
+            raise conflict("favorite_folder_name_exists") from exc
+        raise
+
+
+@router.patch("/favorite-folders/{folder_id}", response_model=MaterialFavoriteFolder)
+async def rename_material_favorite_folder(
+    folder_id: str,
+    payload: RenameMaterialFavoriteFolderRequest,
+    request: Request,
+):
+    user = await require_user(request)
+    name = payload.name.strip()
+    if not name:
+        raise bad_request("favorite_folder_name_required")
+    try:
+        folder = await _favorite_service(request).rename_folder(user["id"], folder_id, name=name)
+    except ValueError as exc:
+        if str(exc) == "favorite_folder_name_exists":
+            raise conflict("favorite_folder_name_exists") from exc
+        raise
+    if folder is None:
+        raise not_found("material_favorite_folder")
+    return folder
+
+
+@router.delete("/favorite-folders/{folder_id}", response_model=MaterialFavoriteFolderDeleteResult)
+async def delete_material_favorite_folder(folder_id: str, request: Request):
+    user = await require_user(request)
+    deleted = await _favorite_service(request).delete_folder(user["id"], folder_id)
+    if not deleted:
+        raise not_found("material_favorite_folder")
+    return MaterialFavoriteFolderDeleteResult(deleted=True, folder_id=folder_id)
+
+
+@router.post("/favorite-folders/{folder_id}/assets", response_model=MaterialFavoriteFolder)
+async def add_material_favorite_assets(
+    folder_id: str,
+    payload: MaterialFavoriteAssetIdsRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await require_user(request)
+    asset_ids = await _verify_owned_asset_ids(db, user["id"], payload.asset_ids)
+    if not asset_ids:
+        raise bad_request("favorite_asset_ids_required")
+    folder = await _favorite_service(request).add_assets(user["id"], folder_id, asset_ids)
+    if folder is None:
+        raise not_found("material_favorite_folder")
+    return folder
+
+
+@router.delete("/favorite-folders/{folder_id}/assets/{asset_id}", response_model=MaterialFavoriteFolder)
+async def remove_material_favorite_asset(folder_id: str, asset_id: str, request: Request):
+    user = await require_user(request)
+    folder = await _favorite_service(request).remove_asset(user["id"], folder_id, asset_id)
+    if folder is None:
+        raise not_found("material_favorite_folder")
+    return folder
+
+
 @router.get("/{asset_id}")
 async def get_material_asset(
     asset_id: str,
@@ -83,6 +196,12 @@ async def delete_material_asset(
     deleted = await _service(db).delete_asset(user["id"], asset_id)
     if not deleted:
         raise not_found("material_asset")
+    redis_client = getattr(request.app.state, "redis_client", None)
+    if redis_client is not None:
+        try:
+            await MaterialFavoriteService(redis_client).remove_asset_from_all(user["id"], asset_id)
+        except Exception as exc:
+            logger.warning("Failed to remove deleted material asset from favorites: %s", exc)
     return MaterialAssetDeleteResult(deleted=True, asset_id=asset_id)
 
 

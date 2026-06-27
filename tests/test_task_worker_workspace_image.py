@@ -113,15 +113,58 @@ async def test_workspace_image_task_records_actual_size_when_request_is_auto() -
     await handler._process_workspace_image_task(
         task,
         TaskWorkerExecutionContext("worker_1", "test_worker", "queue"),
-        [0, 0],
+        [2160, 3840],
     )
 
-    assert generation_service.requests[0]["input"]["width"] == 0
-    assert generation_service.requests[0]["input"]["height"] == 0
+    assert generation_service.requests[0]["input"]["width"] == 2160
+    assert generation_service.requests[0]["input"]["height"] == 3840
     assert "画面比例：9:16" in generation_service.requests[0]["input"]["prompt"]
     assert "2160x3840" in generation_service.requests[0]["input"]["prompt"]
-    assert task.execution_context["imageSize"] == "864x1821"
-    assert task.execution_context["actualImageSize"] == "864x1821"
+    assert task.execution_context["imageSize"] == "2160x3840"
+    assert task.execution_context["actualImageSize"] == "2160x3840"
+
+
+@pytest.mark.asyncio
+async def test_workspace_image_task_instructs_nine_by_twenty_when_request_is_auto() -> None:
+    repository = _RecordingRepository()
+    generation_service = _RecordingGenerationService()
+    media_service = _PublishingMediaService()
+    coordinator = TaskExecutionCoordinator()
+    handler = TaskWorkerPipelineHandler(
+        task_repository=repository,
+        execution_coordinator=coordinator,
+        generation_application_service=generation_service,
+        runtime_support=TaskExecutionRuntimeSupport(local_media_artifact_service=media_service),
+        artifact_assembler=TaskExecutionArtifactAssembler(media_service),
+    )
+    task = TaskRecord(
+        id="task_workspace_9_20",
+        owner_user_id=12,
+        title="Workspace Image",
+        task_type="image_generation",
+        status=TaskStatus.PENDING.value,
+        aspect_ratio="9:20",
+        creative_prompt="A clean product render",
+        request_snapshot={
+            "textAnalysisModel": "gpt-5.5",
+            "imageModel": "gpt-image-2",
+            "creativePrompt": "A clean product render",
+            "outputCount": {"auto": False, "count": 1},
+        },
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+
+    await handler._process_workspace_image_task(
+        task,
+        TaskWorkerExecutionContext("worker_1", "test_worker", "queue"),
+        [1728, 3840],
+    )
+
+    assert generation_service.requests[0]["input"]["width"] == 1728
+    assert generation_service.requests[0]["input"]["height"] == 3840
+    assert "画面比例：9:20" in generation_service.requests[0]["input"]["prompt"]
+    assert "1728x3840" in generation_service.requests[0]["input"]["prompt"]
 
 
 class _RecordingRepository:

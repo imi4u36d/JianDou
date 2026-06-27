@@ -714,7 +714,7 @@ onUnmounted(() => {
 .detail-stage-card {
   padding: 12px;
   border: var(--glass-border);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.64);
   box-shadow: var(--shadow-soft);
 }
@@ -904,7 +904,7 @@ onUnmounted(() => {
 
 .detail-section-card {
   padding: 16px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.66);
   border: var(--glass-border);
   box-shadow: var(--shadow-soft);
@@ -926,7 +926,7 @@ onUnmounted(() => {
 
 .task-result-preview {
   position: relative;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(99, 102, 241, 0.08);
   overflow: hidden;
   background: rgba(245, 247, 252, 0.72);
@@ -1503,7 +1503,7 @@ onUnmounted(() => {
 .detail-actions-card {
   padding: 12px;
   border: var(--glass-border);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.64);
   box-shadow: var(--shadow-soft);
 }

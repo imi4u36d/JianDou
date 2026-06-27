@@ -100,25 +100,30 @@ async function handleSubmit() {
 
 <style scoped>
 .auth-screen {
+  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 52%, #f4fbf7 100%);
+  overflow: hidden;
+  background: var(--glass-overlay-bg);
+  backdrop-filter: var(--glass-overlay-blur);
+  -webkit-backdrop-filter: var(--glass-overlay-blur);
 }
 
 .auth-screen__panel {
+  position: relative;
+  z-index: 1;
   width: min(410px, 100%);
   display: grid;
   gap: 20px;
   padding: 22px;
   border-radius: 22px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow:
-    0 16px 38px rgba(99, 102, 241, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(40px) saturate(2.0);
+  border: var(--glass-panel-border);
+  background: var(--glass-panel-bg);
+  box-shadow: var(--glass-panel-shadow);
+  backdrop-filter: var(--glass-panel-blur);
+  -webkit-backdrop-filter: var(--glass-panel-blur);
 }
 
 .auth-screen__hero {
@@ -206,16 +211,26 @@ async function handleSubmit() {
   width: 34px;
   min-height: 34px;
   padding: 0;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 11px;
-  background: rgba(238, 242, 255, 0.92);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.16)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(99, 102, 241, 0.1));
   color: var(--text-body);
+  backdrop-filter: blur(20px) saturate(1.7);
+  -webkit-backdrop-filter: blur(20px) saturate(1.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
+    0 6px 16px rgba(15, 23, 42, 0.1);
   line-height: 0;
   cursor: pointer;
 }
 
 .auth-form__password-toggle:hover {
-  background: #e0e7ff;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.2)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(99, 102, 241, 0.14));
   color: var(--accent-blue);
 }
 
@@ -242,14 +257,23 @@ async function handleSubmit() {
   justify-content: center;
   gap: 8px;
   min-height: 48px;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 14px;
-  background: var(--bg-accent);
-  color: #fff;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.08) 52%, rgba(255, 255, 255, 0.24)),
+    linear-gradient(180deg, rgba(99, 102, 241, 0.22), rgba(99, 102, 241, 0.1));
+  color: var(--accent-blue);
   font-weight: 800;
+  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
   cursor: pointer;
-  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
+    0 12px 28px rgba(99, 102, 241, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.08);
   transition:
+    background 180ms ease,
     box-shadow 180ms ease,
     transform 180ms ease,
     opacity 180ms ease;
@@ -263,7 +287,14 @@ async function handleSubmit() {
 .auth-form__submit:hover:not(:disabled),
 .auth-form__submit:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.22);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.12) 52%, rgba(255, 255, 255, 0.28)),
+    linear-gradient(180deg, rgba(99, 102, 241, 0.3), rgba(99, 102, 241, 0.14));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
+    0 16px 34px rgba(99, 102, 241, 0.18),
+    0 4px 12px rgba(15, 23, 42, 0.1);
 }
 
 .auth-form__submit:disabled {

@@ -1425,6 +1425,35 @@ export interface MaterialAssetPage {
   nextOffset: number | null;
 }
 
+export interface MaterialFavoriteFolder {
+  id: string;
+  name: string;
+  assetIds: string[];
+  createdAt: string;
+}
+
+export interface MaterialFavoriteFolderList {
+  folders: MaterialFavoriteFolder[];
+}
+
+export interface CreateMaterialFavoriteFolderRequest {
+  name: string;
+  assetIds?: string[];
+}
+
+export interface RenameMaterialFavoriteFolderRequest {
+  name: string;
+}
+
+export interface MaterialFavoriteAssetIdsRequest {
+  assetIds: string[];
+}
+
+export interface MaterialFavoriteFolderDeleteResult {
+  deleted: boolean;
+  folderId: string;
+}
+
 export interface CreateMaterialGenerationRequest {
   assetType: Exclude<MaterialAssetType, "workflow">;
   title: string;

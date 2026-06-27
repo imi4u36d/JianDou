@@ -68,6 +68,12 @@
 
   /* ── Liquid Glass parameters ── */
   --glass-blur: blur(40px) saturate(2.0) brightness(1.02);
+  --glass-overlay-bg: rgba(10, 10, 20, 0.25);
+  --glass-overlay-blur: blur(40px) saturate(2);
+  --glass-panel-bg: rgba(255, 255, 255, 0.9);
+  --glass-panel-border: 1px solid rgba(255, 255, 255, 0.72);
+  --glass-panel-shadow: 0 22px 58px rgba(15, 23, 42, 0.16);
+  --glass-panel-blur: blur(40px) saturate(1.8);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
   --glass-inner-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.03);
   --glass-border: 1px solid rgba(255, 255, 255, 0.5);
@@ -90,21 +96,52 @@
 
   /* ── Button system (matches the public-share like action) ── */
   --button-radius: var(--radius-full);
-  --button-bg: #eef2ff;
-  --button-bg-hover: rgba(99, 102, 241, 0.16);
-  --button-border: rgba(99, 102, 241, 0.16);
+  --button-bg: rgba(255, 255, 255, 0.42);
+  --button-bg-bottom: rgba(255, 255, 255, 0.22);
+  --button-bg-hover: rgba(255, 255, 255, 0.58);
+  --button-bg-hover-bottom: rgba(255, 255, 255, 0.32);
+  --button-border: rgba(255, 255, 255, 0.6);
   --button-color: var(--accent-blue);
-  --button-shadow: none;
-  --button-focus-ring: 0 0 0 2px rgba(99, 102, 241, 0.18);
-  --button-danger-bg: rgba(229, 72, 101, 0.08);
-  --button-danger-bg-hover: rgba(229, 72, 101, 0.14);
-  --button-danger-border: rgba(229, 72, 101, 0.16);
-  --button-warning-bg: rgba(217, 119, 6, 0.1);
-  --button-warning-bg-hover: rgba(217, 119, 6, 0.16);
-  --button-warning-border: rgba(217, 119, 6, 0.18);
-  --button-neutral-bg: rgba(248, 250, 252, 0.92);
-  --button-neutral-bg-hover: rgba(226, 232, 240, 0.88);
-  --button-neutral-border: rgba(15, 23, 42, 0.08);
+  --button-highlight: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.4) 28%,
+    rgba(255, 255, 255, 0.08) 52%,
+    rgba(255, 255, 255, 0.32) 100%
+  );
+  --button-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
+    inset 1px 0 0 rgba(255, 255, 255, 0.34),
+    inset -1px 0 0 rgba(255, 255, 255, 0.16),
+    0 10px 28px rgba(15, 23, 42, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+  --button-shadow-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
+    inset 1px 0 0 rgba(255, 255, 255, 0.42),
+    inset -1px 0 0 rgba(255, 255, 255, 0.2),
+    0 14px 34px rgba(15, 23, 42, 0.16),
+    0 4px 12px rgba(15, 23, 42, 0.1);
+  --button-focus-ring:
+    0 0 0 1px rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(99, 102, 241, 0.18),
+    var(--button-shadow);
+  --button-danger-bg: rgba(229, 72, 101, 0.14);
+  --button-danger-bg-bottom: rgba(229, 72, 101, 0.08);
+  --button-danger-bg-hover: rgba(229, 72, 101, 0.2);
+  --button-danger-bg-hover-bottom: rgba(229, 72, 101, 0.11);
+  --button-danger-border: rgba(255, 255, 255, 0.55);
+  --button-warning-bg: rgba(217, 119, 6, 0.16);
+  --button-warning-bg-bottom: rgba(217, 119, 6, 0.08);
+  --button-warning-bg-hover: rgba(217, 119, 6, 0.22);
+  --button-warning-bg-hover-bottom: rgba(217, 119, 6, 0.12);
+  --button-warning-border: rgba(255, 255, 255, 0.55);
+  --button-neutral-bg: rgba(255, 255, 255, 0.42);
+  --button-neutral-bg-bottom: rgba(255, 255, 255, 0.2);
+  --button-neutral-bg-hover: rgba(255, 255, 255, 0.58);
+  --button-neutral-bg-hover-bottom: rgba(255, 255, 255, 0.32);
+  --button-neutral-border: rgba(255, 255, 255, 0.62);
 
   /* ── Scrollbar ── */
   --scrollbar-track: rgba(0, 0, 0, 0.03);
@@ -491,16 +528,24 @@ textarea:focus-visible {
   /* ── Buttons ── */
   .jd-button {
     display: inline-flex;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
     border-radius: var(--button-radius);
     cursor: pointer;
     border: 1px solid var(--button-border);
-    background: var(--button-bg);
+    background:
+      var(--button-highlight),
+      linear-gradient(180deg, var(--button-bg), var(--button-bg-bottom));
+    background-blend-mode: screen, normal;
     color: var(--button-color);
     font-weight: 800;
     text-decoration: none;
+    backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
     box-shadow: var(--button-shadow);
     transition:
       transform 180ms ease,
@@ -544,57 +589,75 @@ textarea:focus-visible {
   }
 
   .jd-button--primary {
-    --button-bg: #eef2ff;
-    --button-bg-hover: rgba(99, 102, 241, 0.16);
-    --button-border: rgba(99, 102, 241, 0.16);
+    --button-bg: rgba(99, 102, 241, 0.18);
+    --button-bg-bottom: rgba(99, 102, 241, 0.08);
+    --button-bg-hover: rgba(99, 102, 241, 0.26);
+    --button-bg-hover-bottom: rgba(99, 102, 241, 0.12);
+    --button-border: rgba(255, 255, 255, 0.58);
     --button-color: var(--accent-blue);
   }
 
   .jd-button--secondary {
     --button-bg: var(--button-neutral-bg);
+    --button-bg-bottom: var(--button-neutral-bg-bottom);
     --button-bg-hover: var(--button-neutral-bg-hover);
+    --button-bg-hover-bottom: var(--button-neutral-bg-hover-bottom);
     --button-border: var(--button-neutral-border);
     --button-color: var(--text-strong);
   }
 
   .jd-button--ghost {
-    --button-bg: transparent;
-    --button-bg-hover: rgba(99, 102, 241, 0.1);
-    --button-border: transparent;
+    --button-bg: rgba(255, 255, 255, 0.18);
+    --button-bg-bottom: rgba(255, 255, 255, 0.08);
+    --button-bg-hover: rgba(255, 255, 255, 0.42);
+    --button-bg-hover-bottom: rgba(255, 255, 255, 0.2);
+    --button-border: rgba(255, 255, 255, 0.34);
     --button-color: var(--text-body);
   }
 
   .jd-button--warning {
     --button-bg: var(--button-warning-bg);
+    --button-bg-bottom: var(--button-warning-bg-bottom);
     --button-bg-hover: var(--button-warning-bg-hover);
+    --button-bg-hover-bottom: var(--button-warning-bg-hover-bottom);
     --button-border: var(--button-warning-border);
     --button-color: var(--accent-warning);
   }
 
   .jd-button--danger {
     --button-bg: var(--button-danger-bg);
+    --button-bg-bottom: var(--button-danger-bg-bottom);
     --button-bg-hover: var(--button-danger-bg-hover);
+    --button-bg-hover-bottom: var(--button-danger-bg-hover-bottom);
     --button-border: var(--button-danger-border);
     --button-color: var(--accent-danger);
   }
 
   .jd-button--accent {
-    --button-bg: #ecfdf5;
-    --button-bg-hover: rgba(16, 185, 129, 0.16);
-    --button-border: rgba(16, 185, 129, 0.16);
+    --button-bg: rgba(16, 185, 129, 0.16);
+    --button-bg-bottom: rgba(16, 185, 129, 0.08);
+    --button-bg-hover: rgba(16, 185, 129, 0.22);
+    --button-bg-hover-bottom: rgba(16, 185, 129, 0.12);
+    --button-border: rgba(255, 255, 255, 0.55);
     --button-color: var(--accent-lime);
   }
 
   .jd-button:hover:not(:disabled) {
     transform: translateY(-1px);
     border-color: var(--button-border);
-    background: var(--button-bg-hover);
+    background:
+      var(--button-highlight),
+      linear-gradient(180deg, var(--button-bg-hover), var(--button-bg-hover-bottom));
     color: var(--button-color);
-    box-shadow: var(--button-shadow);
+    box-shadow: var(--button-shadow-hover);
   }
 
   .jd-button:active:not(:disabled) {
     transform: scale(0.97);
+    box-shadow:
+      inset 0 2px 6px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      0 4px 14px rgba(15, 23, 42, 0.1);
   }
 
   .jd-button:focus-visible {

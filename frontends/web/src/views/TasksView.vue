@@ -1205,7 +1205,7 @@ onUnmounted(() => {
 .tasks-view {
   height: 100%;
   min-height: 0;
-  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 48%, #f4f5f7 100%);
+  background: var(--bg-base);
   color: var(--text-strong);
   padding: 18px 22px 18px 18px;
   overflow: hidden;

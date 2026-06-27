@@ -167,10 +167,16 @@ function applyTemplate(template: PromptTemplate) {
 
 <style scoped>
 .prompt-template-gallery {
+  --prompt-template-edge: 2px;
+  --prompt-template-card-width: 132px;
+  --prompt-template-card-ratio: 132 / 178;
+  --prompt-template-image-scale: 1.08;
   display: grid;
   gap: 12px;
   width: min(100%, 1180px);
   margin: 0 auto;
+  min-width: 0;
+  overflow: visible;
 }
 
 .prompt-template-gallery__head,
@@ -206,24 +212,35 @@ function applyTemplate(template: PromptTemplate) {
   gap: 10px;
   min-width: 0;
   overflow-x: auto;
-  padding: 2px 2px 10px;
+  margin-inline: calc(var(--prompt-template-edge) * -1);
+  padding: 2px var(--prompt-template-edge) 0;
   scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--prompt-template-edge);
+  scrollbar-color: rgba(15, 23, 42, 0.12) transparent;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .prompt-template-gallery__rail::-webkit-scrollbar {
-  height: 8px;
+  height: 4px;
+}
+
+.prompt-template-gallery__rail::-webkit-scrollbar-track,
+.prompt-template-gallery__rail::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .prompt-template-gallery__rail::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(15, 23, 42, 0.16);
 }
 
 .prompt-template-card {
   position: relative;
   flex: 0 0 auto;
-  width: 132px;
-  height: 178px;
+  width: var(--prompt-template-card-width);
+  aspect-ratio: var(--prompt-template-card-ratio);
   overflow: hidden;
   padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -240,11 +257,13 @@ function applyTemplate(template: PromptTemplate) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center center;
+  transform: scale(var(--prompt-template-image-scale));
   transition: transform 180ms ease;
 }
 
 .prompt-template-card:hover img {
-  transform: scale(1.04);
+  transform: scale(1.12);
 }
 
 .prompt-template-card__meta {
@@ -355,9 +374,22 @@ function applyTemplate(template: PromptTemplate) {
 }
 
 @media (max-width: 720px) {
+  .prompt-template-gallery {
+    --prompt-template-edge: max(14px, env(safe-area-inset-left));
+    --prompt-template-card-width: clamp(112px, 36vw, 136px);
+    width: 100%;
+  }
+
+  .prompt-template-gallery__head {
+    padding-inline: var(--prompt-template-edge);
+  }
+
+  .prompt-template-gallery__rail {
+    gap: 8px;
+  }
+
   .prompt-template-card {
-    width: 112px;
-    height: 150px;
+    border-radius: 9px;
   }
 
   .prompt-template-preview__body {

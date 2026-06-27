@@ -2,6 +2,8 @@ catalog:
   aspect_ratios:
     "9:16":
       label: "竖版 9:16"
+    "9:20":
+      label: "竖版 9:20"
     "16:9":
       label: "横版 16:9"
     "4:3":
@@ -46,6 +48,46 @@ catalog:
       label: "4K 9:16 · 2160x3840"
       width: 2160
       height: 3840
+    "864x1920":
+      label: "1K 9:20 · 864x1920"
+      width: 864
+      height: 1920
+    "1296x2880":
+      label: "2K 9:20 · 1296x2880"
+      width: 1296
+      height: 2880
+    "1728x3840":
+      label: "4K 9:20 · 1728x3840"
+      width: 1728
+      height: 3840
+    "3808x1632":
+      label: "最高 21:9 · 3808x1632"
+      width: 3808
+      height: 1632
+    "3504x2336":
+      label: "最高 3:2 · 3504x2336"
+      width: 3504
+      height: 2336
+    "2336x3504":
+      label: "最高 2:3 · 2336x3504"
+      width: 2336
+      height: 3504
+    "3264x2448":
+      label: "最高 4:3 · 3264x2448"
+      width: 3264
+      height: 2448
+    "768x1024":
+      label: "1K 3:4 · 768x1024"
+      width: 768
+      height: 1024
+    "1536x2048":
+      label: "2K 3:4 · 1536x2048"
+      width: 1536
+      height: 2048
+    "2448x3264":
+      label: "最高 3:4 · 2448x3264"
+      width: 2448
+      height: 3264
     "1024x1024":
       label: "1K 1:1 · 1024x1024"
       width: 1024
