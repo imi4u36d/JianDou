@@ -5,8 +5,10 @@ import "./styles/tailwind.css";
 import { loadRuntimeConfig } from "./api/runtime-config";
 import { ensureAuthSession, installAuthClientBridge } from "./auth/session";
 import { openAuthModal } from "./auth/modal";
+import { installPageZoomGuard } from "./utils/page-zoom";
 
 async function bootstrap() {
+  installPageZoomGuard();
   await loadRuntimeConfig();
   installAuthClientBridge(() => {
     if (router.currentRoute.value.path === "/login" || router.currentRoute.value.path === "/activate") {
