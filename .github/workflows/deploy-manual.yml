@@ -1,0 +1,90 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "部署环境名称"
+        type: choice
+        required: true
+        default: production
+        options:
+          - production
+          - staging
+      deploy_branch:
+        description: "部署分支"
+        required: true
+        default: main
+      compose_file:
+        description: "docker compose 文件路径"
+        required: true
+        default: docker-compose.yml
+      deploy_target:
+        description: "发布目标"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - app
+          - frontend
+          - mysql
+          - redis
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target_environment }}
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+          timeout: 10m
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+
+            PROJECT_DIR="${{ secrets.DEPLOY_PROJECT_DIR }}"
+            BRANCH="${{ github.event.inputs.deploy_branch }}"
+            COMPOSE_FILE="${{ github.event.inputs.compose_file }}"
+            TARGET="${{ github.event.inputs.deploy_target }}"
+
+            if [ -z "$PROJECT_DIR" ]; then
+              echo "Missing secret: DEPLOY_PROJECT_DIR"
+              exit 1
+            fi
+
+            cd "$PROJECT_DIR"
+
+            # Always use latest code from origin.
+            git fetch --all --prune
+            git checkout "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            if [ "$TARGET" = "all" ]; then
+              docker compose -f "$COMPOSE_FILE" pull app frontend mysql redis
+              docker compose -f "$COMPOSE_FILE" up -d mysql redis
+              docker compose -f "$COMPOSE_FILE" up -d --build app frontend
+            elif [ "$TARGET" = "app" ]; then
+              docker compose -f "$COMPOSE_FILE" pull app
+              docker compose -f "$COMPOSE_FILE" up -d --build app
+            elif [ "$TARGET" = "frontend" ]; then
+              docker compose -f "$COMPOSE_FILE" pull frontend
+              docker compose -f "$COMPOSE_FILE" up -d --build frontend
+            elif [ "$TARGET" = "mysql" ]; then
+              docker compose -f "$COMPOSE_FILE" pull mysql
+              docker compose -f "$COMPOSE_FILE" up -d mysql
+            elif [ "$TARGET" = "redis" ]; then
+              docker compose -f "$COMPOSE_FILE" pull redis
+              docker compose -f "$COMPOSE_FILE" up -d redis
+            else
+              echo "Unknown deploy target: $TARGET"
+              exit 1
+            fi
+
+            # Reclaim unused images after rebuild.
+            docker image prune -f
