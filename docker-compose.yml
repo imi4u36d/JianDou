@@ -54,8 +54,8 @@ services:
       JIANDOU_DB_MAX_OVERFLOW: 20
       JIANDOU_DB_POOL_TIMEOUT: 30
       JIANDOU_DB_POOL_RECYCLE: 1800
-      JIANDOU_WEB_ORIGIN: https://jiandou.org,http://127.0.0.1:8100
-      JIANDOU_TRUSTED_ORIGINS: https://jiandou.org,http://localhost:8100,http://127.0.0.1:8100
+      JIANDOU_WEB_ORIGIN: https://jiandou.org,http://jiandou.org,http://127.0.0.1:8100
+      JIANDOU_TRUSTED_ORIGINS: https://jiandou.org,http://jiandou.org,http://localhost:8100,http://127.0.0.1:8100
       JIANDOU_COOKIE_SECURE: "true"
       JIANDOU_PUBLIC_API_BASE_URL: /api/v3
       JIANDOU_PUBLIC_STORAGE_BASE_URL: /storage
@@ -75,7 +75,7 @@ services:
       app:
         condition: service_healthy
     ports:
-      - "8100:80"
+      - "80:80"
 
 volumes:
   mysql-data:
