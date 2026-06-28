@@ -1,30 +1,15 @@
-name: Manual Deploy
+name: Deploy Main
 
 on:
-  workflow_dispatch:
-    inputs:
-      deploy_branch:
-        description: "部署分支"
-        required: true
-        default: main
-      compose_file:
-        description: "docker compose 文件路径"
-        required: true
-        default: docker-compose.yml
-      deploy_target:
-        description: "发布目标"
-        type: choice
-        required: true
-        default: all
-        options:
-          - all
-          - app
-          - frontend
-          - mysql
-          - redis
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
 
 jobs:
   deploy:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server
@@ -40,9 +25,9 @@ jobs:
             set -euo pipefail
 
             PROJECT_DIR="${{ secrets.DEPLOY_PROJECT_DIR }}"
-            BRANCH="${{ github.event.inputs.deploy_branch }}"
-            COMPOSE_FILE="${{ github.event.inputs.compose_file }}"
-            TARGET="${{ github.event.inputs.deploy_target }}"
+            BRANCH="main"
+            COMPOSE_FILE="docker-compose.yml"
+            TARGET="all"
 
             if [ -z "$PROJECT_DIR" ]; then
               echo "Missing secret: DEPLOY_PROJECT_DIR"
