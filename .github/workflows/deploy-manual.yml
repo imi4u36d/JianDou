@@ -3,14 +3,6 @@ name: Manual Deploy
 on:
   workflow_dispatch:
     inputs:
-      target_environment:
-        description: "部署环境名称"
-        type: choice
-        required: true
-        default: production
-        options:
-          - production
-          - staging
       deploy_branch:
         description: "部署分支"
         required: true
@@ -34,7 +26,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.target_environment }}
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
