@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
       openai: {
         label: "OpenAI GPT-5.5",
         modelVersion: "gpt-5.5",
-        endpoint: "http://ec2-3-115-6-106.ap-northeast-1.compute.amazonaws.com:3030/v1",
+        endpoint: "http://13.193.130.243:3030/v1",
         apiKey: "",
       },
     },

@@ -1,8 +1,13 @@
 <template>
   <section class="auth-screen">
+    <AuthCarouselBackground />
     <div class="auth-screen__panel">
-      <div class="auth-screen__hero">
-        <h1>进入工作台</h1>
+      <div class="auth-screen__brand">
+        <img alt="煎豆" class="auth-screen__logo" src="/brand/jiandou-mark.svg" />
+        <div>
+          <h1>欢迎回来</h1>
+          <p>继续你的内容创作之旅</p>
+        </div>
       </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
@@ -53,6 +58,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loginAndStoreSession } from "@/auth/session";
 import { messageApi } from "@/composables/useMessage";
+import AuthCarouselBackground from "@/components/auth/AuthCarouselBackground.vue";
 import { IconEye, IconEyeOff, IconLoading } from "@/components/icons";
 
 const route = useRoute();
@@ -71,7 +77,7 @@ function normalizeRedirectTarget(value: unknown) {
 }
 
 const redirectTarget = computed(() => normalizeRedirectTarget(route.query.redirect));
-const redirectHint = computed(() => redirectTarget.value === "/tasks" ? "" : redirectTarget.value);
+const redirectHint = computed(() => (redirectTarget.value === "/tasks" ? "" : redirectTarget.value));
 const activateLink = computed(() => ({
   path: "/activate",
   query: redirectHint.value ? { redirect: redirectHint.value } : undefined
@@ -101,45 +107,50 @@ async function handleSubmit() {
   place-items: center;
   padding: 24px;
   overflow: hidden;
-  background: var(--glass-overlay-bg);
-  backdrop-filter: var(--glass-overlay-blur);
-  -webkit-backdrop-filter: var(--glass-overlay-blur);
+  isolation: isolate;
+  background: var(--bg-base);
 }
 
 .auth-screen__panel {
   position: relative;
   z-index: 1;
-  width: min(410px, 100%);
+  width: min(460px, 100%);
   display: grid;
-  gap: 20px;
-  padding: 22px;
-  border-radius: 22px;
-  border: var(--glass-panel-border);
+  gap: 22px;
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.68);
   background: var(--glass-panel-bg);
-  box-shadow: var(--glass-panel-shadow);
+  box-shadow:
+    var(--glass-panel-shadow),
+    var(--glass-sheen);
   backdrop-filter: var(--glass-panel-blur);
   -webkit-backdrop-filter: var(--glass-panel-blur);
+  max-width: calc(100% - 28px);
 }
 
-.auth-screen__hero {
-  padding: 0 2px;
-  text-align: center;
+.auth-screen__brand {
+  display: grid;
+  gap: 10px;
+  text-align: left;
 }
 
-.auth-screen__hero h1 {
+.auth-screen__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.auth-screen__brand h1 {
   margin: 0;
-  font-family: inherit;
-  font-size: clamp(1.5rem, 4vw, 1.9rem);
-  line-height: 1.12;
-  letter-spacing: 0;
+  line-height: 1.15;
   color: var(--text-strong);
+  font-size: clamp(1.45rem, 4vw, 1.9rem);
+  letter-spacing: 0.01em;
 }
 
-.auth-screen__hero p {
-  margin: 16px 0 0;
-  max-width: 30rem;
+.auth-screen__brand p {
+  margin: 6px 0 0;
   color: var(--text-body);
-  line-height: 1.8;
 }
 
 .auth-form {
@@ -164,28 +175,28 @@ async function handleSubmit() {
   clip: rect(0, 0, 0, 0);
 }
 
-.auth-form__field span:not(.auth-form__field-label) {
-  color: var(--text-body);
-  font-size: 0.88rem;
-}
-
 .auth-form__field input {
   width: 100%;
   min-height: 48px;
   padding: 0 14px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.78));
   color: var(--text-strong);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
-    background 180ms ease;
+    background 180ms ease,
+    transform 180ms ease;
 }
 
 .auth-form__field input:focus {
-  border-color: rgba(99, 102, 241, 0.5);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.64);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 0 1px rgba(99, 102, 241, 0.36),
+    0 0 0 4px rgba(99, 102, 241, 0.18);
 }
 
 .auth-form__password-wrap {
@@ -220,11 +231,11 @@ async function handleSubmit() {
     0 6px 16px rgba(15, 23, 42, 0.1);
   line-height: 0;
   cursor: pointer;
-}
-
-.auth-form__password-toggle :deep(svg) {
-  width: 16px;
-  height: 16px;
+  transition:
+    color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
 }
 
 .auth-form__password-toggle:hover {
@@ -232,28 +243,16 @@ async function handleSubmit() {
     linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.2)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(99, 102, 241, 0.14));
   color: var(--accent-blue);
+  transform: translateY(-50%) scale(1.02);
+}
+
+.auth-form__password-toggle :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .auth-form__field input::placeholder {
   color: #9aa5ad;
-}
-
-.auth-form__hint,
-.auth-form__error,
-.auth-form__footer {
-  font-size: 0.88rem;
-}
-
-.auth-form__hint {
-  color: var(--text-body);
-}
-
-.auth-form__error {
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 111, 145, 0.18);
-  background: rgba(255, 111, 145, 0.12);
-  color: var(--accent-danger);
 }
 
 .auth-form__submit {
@@ -308,7 +307,7 @@ async function handleSubmit() {
 }
 
 .auth-form__footer {
-  margin: 0;
+  margin: 2px 0 0;
   color: var(--text-muted);
   text-align: center;
 }
@@ -334,15 +333,8 @@ async function handleSubmit() {
   .auth-screen__panel {
     gap: 16px;
     padding: 18px;
-  }
-
-  .auth-screen__hero {
-    padding: 4px 2px;
-  }
-
-  .auth-screen__hero h1 {
-    max-width: none;
-    font-size: clamp(1.5rem, 8vw, 1.9rem);
+    border-radius: var(--radius-lg);
+    max-width: 100%;
   }
 }
 </style>
