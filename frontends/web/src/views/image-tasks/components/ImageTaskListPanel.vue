@@ -352,6 +352,12 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: auto;
   padding-right: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.image-task-list::-webkit-scrollbar {
+  display: none;
 }
 
 .image-task-list__footer {

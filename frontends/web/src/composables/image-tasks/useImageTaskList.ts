@@ -11,18 +11,58 @@ import type { ImageTaskListItem, ImageTaskStatusFilter } from "@/types/image-tas
 
 const POLL_INTERVAL_MS = 5000;
 const IDLE_POLL_INTERVAL_MS = 15000;
-const DEFAULT_PAGE_SIZE = 10;
-const MIN_PAGE_SIZE = 4;
-const MAX_PAGE_SIZE = 30;
+const DEFAULT_PAGE_SIZE = 20;
+const MIN_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 20;
 const IMAGE_TASK_EXCLUDE_TYPE = "video_generation";
 const ACTIVE_TASK_STATUSES = new Set(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
+const RUNNING_TASK_STATUSES = new Set(["PENDING", "ANALYZING", "PLANNING", "RENDERING"]);
+const RECENT_SPEED_SAMPLE_SIZE = 5;
 
-function normalizeTask(task: TaskListItem): ImageTaskListItem {
+function timeValue(raw?: string | null): number | null {
+  if (!raw) return null;
+  const value = new Date(raw).getTime();
+  return Number.isNaN(value) ? null : value;
+}
+
+function clampProgress(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function completedDuration(task: TaskListItem): { finishedAt: number; duration: number } | null {
+  if (task.status !== "COMPLETED") return null;
+  const startedAt = timeValue(task.startedAt);
+  const finishedAt = timeValue(task.finishedAt) ?? timeValue(task.updatedAt);
+  if (startedAt == null || finishedAt == null || finishedAt <= startedAt) return null;
+  return { finishedAt, duration: finishedAt - startedAt };
+}
+
+function averageRecentDuration(tasks: TaskListItem[]) {
+  const recentDurations = tasks
+    .map(completedDuration)
+    .filter((item): item is { finishedAt: number; duration: number } => item !== null)
+    .sort((a, b) => b.finishedAt - a.finishedAt)
+    .slice(0, RECENT_SPEED_SAMPLE_SIZE)
+    .map((item) => item.duration);
+  if (recentDurations.length === 0) return null;
+  return recentDurations.reduce((total, duration) => total + duration, 0) / recentDurations.length;
+}
+
+function estimatedTaskProgress(task: TaskListItem, averageDuration: number | null, now: number) {
+  if (task.status === "COMPLETED") return 100;
+  const rawProgress = clampProgress(Number(task.progress ?? 0));
+  if (!averageDuration || !RUNNING_TASK_STATUSES.has(task.status)) return rawProgress;
+  const startedAt = timeValue(task.startedAt);
+  if (startedAt == null || now <= startedAt) return rawProgress;
+  return Math.max(1, Math.min(99, Math.round(((now - startedAt) / averageDuration) * 100)));
+}
+
+function normalizeTask(task: TaskListItem, averageDuration: number | null, now: number): ImageTaskListItem {
   return {
     id: task.id,
     title: task.title || "未命名任务",
     status: task.status,
-    progress: Number(task.progress ?? 0),
+    progress: estimatedTaskProgress(task, averageDuration, now),
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     startedAt: task.startedAt,
@@ -63,7 +103,11 @@ export function useImageTaskList() {
   const searchText = ref("");
   const statusFilter = ref<ImageTaskStatusFilter>("all");
 
-  const items = computed<ImageTaskListItem[]>(() => tasks.value.map(normalizeTask));
+  const recentAverageDuration = computed(() => averageRecentDuration(tasks.value));
+  const items = computed<ImageTaskListItem[]>(() => {
+    const now = Date.now();
+    return tasks.value.map((task) => normalizeTask(task, recentAverageDuration.value, now));
+  });
   const filteredItems = computed<ImageTaskListItem[]>(() => items.value);
 
   const hasActiveItems = computed(() => tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status)));

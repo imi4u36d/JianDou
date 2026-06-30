@@ -20,17 +20,16 @@
         <IconImage v-else size="sm" />
       </span>
       <span class="image-task-list-item__body">
-        <span class="image-task-list-item__title-row">
-          <span
-            class="image-task-list-item__title"
-            :title="item.title"
-          >
-            <span class="image-task-list-item__title-text">{{ item.title }}</span>
-          </span>
+        <span
+          class="image-task-list-item__title"
+          :title="item.title"
+        >
+          <span class="image-task-list-item__title-text">{{ item.title }}</span>
+        </span>
+        <span class="image-task-list-item__meta-row">
           <span class="image-task-list-item__status" :class="`image-task-list-item__status-${statusTone}`">{{ statusLabel }}</span>
           <span class="image-task-list-item__meta-tag" :title="`运行耗时：${elapsedLabel}`">{{ elapsedLabel }}</span>
         </span>
-        <span class="image-task-list-item__progress" aria-hidden="true"><i :style="{ width: `${item.progress}%` }"></i></span>
       </span>
     </button>
     <span class="image-task-list-item__side">
@@ -69,10 +68,11 @@ defineEmits<{
 const statusLabel = computed(() => {
   const s = props.item.status;
   switch (s.toLowerCase()) {
-    case "pending": return "进行中";
-    case "analyzing": return "分析中";
-    case "planning": return "编排中";
-    case "rendering": return "生成中";
+    case "pending":
+    case "analyzing":
+    case "planning":
+    case "rendering":
+      return `${Math.max(0, Math.min(99, Math.round(props.item.progress)))}%`;
     case "paused": return "已暂停";
     case "completed": return "已完成";
     case "failed": return "失败";
@@ -213,7 +213,7 @@ onUnmounted(() => {
 
 .image-task-list-item__body {
   display: grid;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
   flex: 1;
 }
@@ -237,11 +237,10 @@ onUnmounted(() => {
   display: block;
 }
 
-.image-task-list-item__title-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px 72px;
+.image-task-list-item__meta-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -288,29 +287,13 @@ onUnmounted(() => {
 }
 
 .image-task-list-item__status {
-  width: 58px;
+  min-width: 46px;
 }
 
 .image-task-list-item__status-active { color: var(--accent-indigo); font-weight: 600; }
 .image-task-list-item__status-done { color: var(--accent-lime); }
 .image-task-list-item__status-failed { color: var(--accent-danger); }
 .image-task-list-item__status-paused { color: var(--accent-warning); }
-
-.image-task-list-item__progress {
-  display: block;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--bg-softer);
-  overflow: hidden;
-}
-
-.image-task-list-item__progress i {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--accent-indigo);
-  transition: width 0.3s;
-}
 
 .image-task-list-item__side {
   display: flex;

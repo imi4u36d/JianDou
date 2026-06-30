@@ -28,6 +28,8 @@
         :selected-task-id="detailSelectedId"
         :tasks="list.tasks.value"
         :reload-tasks="list.load"
+        detail-mode="image-task"
+        :show-result-materials="false"
         @deleted="handleDeleted"
       />
     </section>
@@ -184,6 +186,21 @@ watch(selectedId, (nextId) => {
   min-height: 0;
   min-width: 0;
   overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.image-task-detail-area::-webkit-scrollbar {
+  display: none;
+}
+
+.image-task-detail-area :deep(.task-detail-panel) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.image-task-detail-area :deep(.task-detail-panel::-webkit-scrollbar) {
+  display: none;
 }
 
 .image-task-detail-empty {

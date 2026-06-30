@@ -4,78 +4,80 @@
       <h3>选择任务</h3>
     </section>
 
-    <section v-else class="task-detail-content" aria-labelledby="task-detail-title">
-      <header class="task-detail-header">
-        <div>
-          <h2 id="task-detail-title">{{ selectedTask?.title || "任务详情" }}</h2>
-          <div class="task-detail-header__meta">
-            <span class="surface-chip">{{ selectedTaskTypeLabel }}</span>
-            <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
-            <span class="surface-chip">{{ selectedTaskHeaderAspectRatio }}</span>
-            <span class="surface-chip">{{ selectedTaskJoinProgressPercent }}%</span>
-            <span v-if="selectedTaskLoading" class="surface-chip surface-chip-loading">
-              <IconRefresh size="xs" />
-            </span>
+    <section v-else class="task-detail-content" :class="{ 'task-detail-content-image': imageTaskDisplay }" aria-labelledby="task-detail-title">
+      <section class="task-detail-summary" :class="{ 'task-detail-summary-image': imageTaskDisplay }">
+        <header class="task-detail-header">
+          <div>
+            <h2 id="task-detail-title">{{ selectedTask?.title || "任务详情" }}</h2>
+            <div class="task-detail-header__meta">
+              <span class="surface-chip">{{ selectedTaskTypeLabel }}</span>
+              <span class="surface-chip">{{ selectedTaskStageLabel }}</span>
+              <span class="surface-chip">{{ selectedTaskHeaderAspectRatio }}</span>
+              <span class="surface-chip">{{ selectedTaskJoinProgressPercent }}%</span>
+              <span v-if="selectedTaskLoading" class="surface-chip surface-chip-loading">
+                <IconRefresh size="xs" />
+              </span>
+            </div>
           </div>
-        </div>
-        <button
-          v-if="selectedTaskIsVideoTask"
-          class="task-detail-header__workflow-btn"
-          type="button"
-          :title="linkedWorkflowId ? '查看阶段工作流' : '查找关联阶段工作流'"
-          @click="emit('openWorkflow', linkedWorkflowId)"
-        >
-          <IconWorkflow size="xs" />
-          <span>阶段工作流</span>
-        </button>
-      </header>
+          <button
+            v-if="selectedTaskIsVideoTask"
+            class="task-detail-header__workflow-btn"
+            type="button"
+            :title="linkedWorkflowId ? '查看阶段工作流' : '查找关联阶段工作流'"
+            @click="emit('openWorkflow', linkedWorkflowId)"
+          >
+            <IconWorkflow size="xs" />
+            <span>阶段工作流</span>
+          </button>
+        </header>
 
-      <section class="detail-stage-card" aria-label="任务阶段">
-        <div class="detail-stage-line">
-          <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
-            <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
-            <span class="detail-stage-line__copy">
-              <strong>{{ stage.label }}</strong>
-              <small>{{ stage.stateLabel }}</small>
-            </span>
+        <section class="detail-stage-card" aria-label="任务阶段">
+          <div class="detail-stage-line">
+            <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
+              <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
+              <span class="detail-stage-line__copy">
+                <strong>{{ stage.label }}</strong>
+                <small>{{ stage.stateLabel }}</small>
+              </span>
+            </div>
           </div>
+        </section>
+
+        <div class="detail-actions detail-actions-card" aria-label="任务操作">
+          <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+            <IconRefresh size="xs" />
+            刷新
+          </button>
+          <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="openPromptDialog">
+            <IconText size="xs" />
+            提示词
+          </button>
+          <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+            <IconRefresh size="xs" />
+            重试
+          </button>
+          <button v-if="selectedTaskActionTask?.status === 'COMPLETED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+            <IconRefresh size="xs" />
+            重新生成
+          </button>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+            <span class="jd-button__pause" aria-hidden="true"></span>
+            暂停
+          </button>
+          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+            <IconRefresh size="xs" />
+            继续
+          </button>
+          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm jd-button--warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+            <IconWarning size="xs" />
+            终止
+          </button>
+          <button v-if="selectedTaskActionTask" class="jd-button jd-button--sm jd-button--danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+            <IconDelete size="xs" />
+            删除
+          </button>
         </div>
       </section>
-
-      <div class="detail-actions detail-actions-card" aria-label="任务操作">
-        <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
-          <IconRefresh size="xs" />
-          刷新
-        </button>
-        <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="openPromptDialog">
-          <IconText size="xs" />
-          提示词
-        </button>
-        <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
-          <IconRefresh size="xs" />
-          重试
-        </button>
-        <button v-if="selectedTaskActionTask?.status === 'COMPLETED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
-          <IconRefresh size="xs" />
-          重新生成
-        </button>
-        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
-          <span class="jd-button__pause" aria-hidden="true"></span>
-          暂停
-        </button>
-        <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
-          <IconRefresh size="xs" />
-          继续
-        </button>
-        <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm jd-button--warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
-          <IconWarning size="xs" />
-          终止
-        </button>
-        <button v-if="selectedTaskActionTask" class="jd-button jd-button--sm jd-button--danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
-          <IconDelete size="xs" />
-          删除
-        </button>
-      </div>
 
       <section v-if="selectedTaskFailureReason" class="task-failure-card" :class="{ 'task-failure-card-open': failureDetailsOpen }">
         <button type="button" class="task-failure-card__summary" :aria-expanded="failureDetailsOpen" @click="failureDetailsOpen = !failureDetailsOpen">
@@ -210,7 +212,7 @@
 
       </div>
 
-      <section v-if="selectedTaskResultItems.length || selectedTaskMaterialItems.length" class="detail-section detail-section-card">
+      <section v-if="showResultMaterials && (selectedTaskResultItems.length || selectedTaskMaterialItems.length)" class="detail-section detail-section-card">
         <div class="detail-section__head">
           <h3>结果素材</h3>
           <RouterLink class="surface-chip detail-material-link" :to="materialLibraryLink">素材库</RouterLink>
@@ -342,7 +344,12 @@ const props = defineProps<{
   selectedTaskId: string;
   tasks: TaskListItem[];
   reloadTasks: () => Promise<void>;
+  detailMode?: "default" | "image-task";
+  showResultMaterials?: boolean;
 }>();
+
+const showResultMaterials = computed(() => props.showResultMaterials !== false);
+const imageTaskDisplay = computed(() => props.detailMode === "image-task");
 
 const emit = defineEmits<{
   deleted: [taskId: string];
@@ -610,6 +617,28 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+.task-detail-content-image {
+  align-content: start;
+  gap: 14px;
+}
+
+.task-detail-summary {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.task-detail-summary-image {
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid rgba(202, 170, 92, 0.42);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.96) inset,
+    0 14px 34px rgba(15, 23, 42, 0.07);
+}
+
 .task-detail-header {
   display: flex;
   align-items: flex-start;
@@ -627,6 +656,19 @@ onUnmounted(() => {
   backdrop-filter: blur(32px) saturate(1.8);
 }
 
+.task-detail-summary-image .task-detail-header {
+  position: static;
+  top: auto;
+  z-index: auto;
+  padding: 0 0 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .task-detail-header h2 {
   margin: 0;
   font-size: 1.15rem;
@@ -636,11 +678,35 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
+.task-detail-summary-image .task-detail-header h2 {
+  font-size: clamp(1.08rem, 1.35vw, 1.32rem);
+  line-height: 1.35;
+  font-weight: 780;
+}
+
 .task-detail-header__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
+}
+
+.task-detail-summary-image .task-detail-header__meta {
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.task-detail-summary-image .task-detail-header__meta .surface-chip {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+  font-size: 0.75rem;
+  font-weight: 760;
+  letter-spacing: 0;
 }
 
 .task-detail-header__workflow-btn {
@@ -727,10 +793,32 @@ onUnmounted(() => {
   box-shadow: var(--shadow-soft);
 }
 
+.task-detail-summary-image .detail-stage-card {
+  padding: 6px 2px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.task-detail-summary-image .detail-stage-card::-webkit-scrollbar {
+  display: none;
+}
+
 .detail-stage-line {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
+}
+
+.task-detail-summary-image .detail-stage-line {
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 0;
+  min-width: 520px;
+  align-items: center;
 }
 
 .detail-stage-line__item {
@@ -743,6 +831,60 @@ onUnmounted(() => {
   border: 1px solid rgba(80, 90, 110, 0.08);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.54);
+}
+
+.task-detail-summary-image .detail-stage-line__item {
+  position: relative;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.task-detail-summary-image .detail-stage-line__item::before {
+  content: "";
+  position: absolute;
+  left: 32px;
+  right: calc(100% - 32px);
+  top: 31px;
+  height: 2px;
+  background: rgba(99, 102, 241, 0.28);
+}
+
+.task-detail-summary-image .detail-stage-line__item:not(:first-child)::before {
+  left: -50%;
+  right: calc(100% - 32px);
+}
+
+.task-detail-summary-image .detail-stage-line__item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 32px;
+  right: -50%;
+  top: 31px;
+  height: 2px;
+  background: rgba(99, 102, 241, 0.28);
+}
+
+.task-detail-summary-image .detail-stage-line__item-pending::before,
+.task-detail-summary-image .detail-stage-line__item-pending::after {
+  background: rgba(148, 163, 184, 0.24);
+}
+
+.task-detail-summary-image .detail-stage-line__item-active {
+  z-index: 1;
+}
+
+.task-detail-summary-image .detail-stage-line__item-active .detail-stage-line__copy,
+.task-detail-summary-image .detail-stage-line__item-paused .detail-stage-line__copy,
+.task-detail-summary-image .detail-stage-line__item-failed .detail-stage-line__copy {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 10px;
+  background: rgba(245, 246, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.08);
 }
 
 .detail-stage-line__item-done {
@@ -768,6 +910,25 @@ onUnmounted(() => {
   border-radius: 50%;
   flex-shrink: 0;
   border: 2px solid var(--text-muted);
+}
+
+.task-detail-summary-image .detail-stage-line__dot {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  background: #fff;
+}
+
+.task-detail-summary-image .detail-stage-line__dot.task-stage-row--done::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: translateY(-1px) rotate(-45deg);
 }
 
 .detail-stage-line__dot.task-stage-row--done {
@@ -810,6 +971,12 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+.task-detail-summary-image .detail-stage-line__copy {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
 .detail-stage-line__copy strong {
   font-size: 0.78rem;
   font-weight: 600;
@@ -819,9 +986,19 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.task-detail-summary-image .detail-stage-line__copy strong {
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
 .detail-stage-line__copy small {
   font-size: 0.68rem;
   color: var(--text-muted);
+}
+
+.task-detail-summary-image .detail-stage-line__copy small {
+  font-size: 0.74rem;
+  font-weight: 650;
 }
 
 @keyframes task-stage-dot-breathe {
@@ -1514,6 +1691,18 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.64);
   box-shadow: var(--shadow-soft);
+}
+
+.task-detail-summary-image .detail-actions {
+  justify-content: flex-end;
+}
+
+.task-detail-summary-image .detail-actions-card {
+  padding: 8px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .task-prompt-dialog {

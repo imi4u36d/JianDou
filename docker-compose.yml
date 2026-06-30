@@ -76,6 +76,8 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+    volumes:
+      - jiandou-storage:/usr/share/nginx/storage:ro
 
 volumes:
   mysql-data:
