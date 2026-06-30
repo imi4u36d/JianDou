@@ -358,7 +358,7 @@
 <script setup lang="ts">
 /**
  * 任务详情面板组件。
- * 从 TasksView 提取，展示选中任务的详情、监控和操作。
+ * 展示统一任务列表中选中任务的详情、监控和操作。
  */
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";

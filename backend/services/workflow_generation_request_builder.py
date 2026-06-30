@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.domain.enums import WorkflowStage
+from backend.domain.generation_run import DEFAULT_OPENAI_IMAGE_MODEL
 from backend.models.workflow import BizStageWorkflow
 
 STAGE_STORYBOARD = WorkflowStage.STORYBOARD.value
@@ -21,6 +22,10 @@ def _trim(value: Any, fallback: str = "") -> str:
 class WorkflowGenerationRequestBuilder:
     """Build generation-service request payloads for workflow stages."""
 
+    @staticmethod
+    def image_model(wf: BizStageWorkflow) -> str:
+        return _trim(wf.image_model, DEFAULT_OPENAI_IMAGE_MODEL)
+
     def build_storyboard_request(self, wf: BizStageWorkflow) -> dict[str, Any]:
         return {
             "kind": "script",
@@ -30,9 +35,6 @@ class WorkflowGenerationRequestBuilder:
             },
             "model": {
                 "textAnalysisModel": _trim(wf.text_analysis_model),
-            },
-            "options": {
-                "visualStyle": _trim(wf.style_preset, "cinematic"),
             },
             "auth": {
                 "userId": wf.owner_user_id,
@@ -71,10 +73,7 @@ class WorkflowGenerationRequestBuilder:
             "input": input_payload,
             "model": {
                 "textAnalysisModel": wf.text_analysis_model,
-                "providerModel": wf.image_model,
-            },
-            "options": {
-                "stylePreset": wf.style_preset,
+                "providerModel": self.image_model(wf),
             },
             "storage": {
                 "relativeDir": f"tasks/{workflow_id}/running",
@@ -115,7 +114,7 @@ class WorkflowGenerationRequestBuilder:
             f"{base_prompt} "
             "This is the opening frame of a new shot that continues from the "
             "previous shot's final frame. Preserve the same character identity, "
-            "scene lighting, and visual style from the reference image while "
+            "and scene lighting from the reference image while "
             "advancing to the new composition described above."
         )
         # Combine tail frame + character sheets into a single reference list.
@@ -134,10 +133,7 @@ class WorkflowGenerationRequestBuilder:
             "input": input_payload,
             "model": {
                 "textAnalysisModel": wf.text_analysis_model,
-                "providerModel": wf.image_model,
-            },
-            "options": {
-                "stylePreset": wf.style_preset,
+                "providerModel": self.image_model(wf),
             },
             "storage": {
                 "relativeDir": f"tasks/{workflow_id}/running",
@@ -198,10 +194,7 @@ class WorkflowGenerationRequestBuilder:
             "input": input_payload,
             "model": {
                 "textAnalysisModel": wf.text_analysis_model,
-                "providerModel": wf.image_model,
-            },
-            "options": {
-                "stylePreset": wf.style_preset,
+                "providerModel": self.image_model(wf),
             },
             "storage": {
                 "relativeDir": f"tasks/{workflow_id}/running",
@@ -251,9 +244,6 @@ class WorkflowGenerationRequestBuilder:
                 "textAnalysisModel": wf.text_analysis_model,
                 "providerModel": wf.video_model,
             },
-            "options": {
-                "stylePreset": wf.style_preset,
-            },
             "metadata": {
                 "workflowId": workflow_id,
                 "stage": STAGE_VIDEO,
@@ -279,7 +269,7 @@ class WorkflowGenerationRequestBuilder:
     @staticmethod
     def keyframe_prompt(wf: BizStageWorkflow, clip: dict[str, Any]) -> str:
         return (
-            f"{wf.style_preset} cinematic keyframe, aspect ratio {wf.aspect_ratio}. "
+            f"Keyframe, aspect ratio {wf.aspect_ratio}. "
             f"Shot: {clip.get('shotLabel', '')}. "
             f"Start frame: {clip.get('startFrame', '')}. "
             f"End frame: {clip.get('endFrame', '')}. "
@@ -290,7 +280,7 @@ class WorkflowGenerationRequestBuilder:
     @staticmethod
     def video_prompt(wf: BizStageWorkflow, clip: dict[str, Any]) -> str:
         return (
-            f"{wf.style_preset} short drama video clip. "
+            "Video clip. "
             f"Shot: {clip.get('shotLabel', '')}. "
             f"Scene action: {clip.get('scene', '')}. "
             f"Start frame: {clip.get('startFrame', '')}. "

@@ -106,9 +106,22 @@ class TaskApplicationServiceImpl:
         q: str | None = None,
         status: str | None = None,
         sort: str | None = None,
-    ) -> list[dict[str, Any]]:
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """List tasks owned by the user."""
-        return await self._query_service.list_tasks(user_id, q, status, sort)
+        return await self._query_service.list_tasks(
+            user_id,
+            q,
+            status,
+            sort,
+            task_type=task_type,
+            exclude_task_type=exclude_task_type,
+            offset=offset,
+            limit=limit,
+        )
 
     async def admin_list_tasks(
         self,

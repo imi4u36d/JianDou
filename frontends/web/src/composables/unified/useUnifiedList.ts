@@ -1,46 +1,22 @@
 /**
- * 统一列表组合式逻辑。
- * 拉取任务，归一化为 UnifiedListItem[]，
- * 提供统一的搜索、筛选、排序能力。
+ * 图片任务列表组合式逻辑。
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useAuthSessionState } from "@/auth/session";
 import { usePolling } from "@/composables/usePolling";
-import { fetchTasks } from "@/features/tasks";
-import { fetchWorkflows } from "@/features/workflows";
+import { fetchTaskPage } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
 import type { TaskListItem, WorkflowSummary } from "@/types";
-import type {
-  UnifiedListItem,
-  UnifiedSortMode,
-  UnifiedStatusFilter,
-} from "@/types/unified-task";
+import type { UnifiedListItem, UnifiedStatusFilter } from "@/types/unified-task";
 
 const POLL_INTERVAL_MS = 5000;
 const IDLE_POLL_INTERVAL_MS = 15000;
+const DEFAULT_PAGE_SIZE = 10;
+const MIN_PAGE_SIZE = 4;
+const MAX_PAGE_SIZE = 30;
+const IMAGE_TASK_EXCLUDE_TYPE = "video_generation";
 const ACTIVE_TASK_STATUSES = new Set(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
-const ACTIVE_WORKFLOW_STATUSES = new Set(["RUNNING"]);
-const ACTIVE_AUTO_PILOT_STATES = new Set(["queued", "running", "paused"]);
 
-/**
- * 状态排序优先级（用于 status_desc 排序）。
- */
-const STATUS_SORT_PRIORITY: Record<string, number> = {
-  RENDERING: 1,
-  PLANNING: 2,
-  ANALYZING: 3,
-  PENDING: 4,
-  PAUSED: 5,
-  COMPLETED: 5,
-  FAILED: 6,
-  RUNNING: 1,
-  READY: 3,
-  DRAFT: 4,
-};
-
-/**
- * 将 TaskListItem 归一化为 UnifiedListItem。
- */
 function normalizeTask(task: TaskListItem): UnifiedListItem {
   return {
     id: task.id,
@@ -57,55 +33,19 @@ function normalizeTask(task: TaskListItem): UnifiedListItem {
   };
 }
 
-function normalizeWorkflowStatus(workflow: WorkflowSummary): string {
-  const autoPilotState = String(workflow.autoPilotState ?? "").trim().toLowerCase();
-  if (autoPilotState === "queued") return "READY";
-  if (autoPilotState === "running") return "RUNNING";
-  if (autoPilotState === "paused") return "PAUSED";
-  if (autoPilotState === "failed") return "FAILED";
-  if (autoPilotState === "completed") return "COMPLETED";
-  return String(workflow.status || "READY").trim().toUpperCase() || "READY";
-}
-
-function workflowProgress(workflow: WorkflowSummary): number {
-  const status = normalizeWorkflowStatus(workflow);
-  if (status === "COMPLETED") return 100;
-  if (status === "FAILED") return 0;
-  const stage = String(workflow.currentStage || "").trim().toLowerCase();
-  if (stage === "joined" || stage === "final") return 95;
-  if (stage === "video") return 75;
-  if (stage === "keyframe") return 55;
-  if (stage === "character") return 38;
-  if (stage === "storyboard") {
-    return workflow.storyboardVersionCount > 0 ? 25 : 10;
+function mergeTasks(currentTasks: TaskListItem[], nextTasks: TaskListItem[]) {
+  const currentMap = new Map(currentTasks.map((task) => [task.id, task]));
+  const merged = [...currentTasks];
+  for (const task of nextTasks) {
+    const current = currentMap.get(task.id);
+    if (current) {
+      Object.assign(current, task);
+    } else {
+      currentMap.set(task.id, task);
+      merged.push(task);
+    }
   }
-  return status === "RUNNING" ? 20 : 5;
-}
-
-function normalizeWorkflow(workflow: WorkflowSummary): UnifiedListItem {
-  return {
-    id: workflow.id,
-    kind: "workflow",
-    title: workflow.title || "未命名工作流",
-    status: normalizeWorkflowStatus(workflow),
-    progress: workflowProgress(workflow),
-    createdAt: workflow.createdAt,
-    updatedAt: workflow.updatedAt,
-    aspectRatio: workflow.aspectRatio,
-    thumbnailUrl: null,
-    currentStage: workflow.currentStage || undefined,
-    executionMode: workflow.executionMode || undefined,
-    autoPilotState: workflow.autoPilotState || undefined,
-    workflow,
-  };
-}
-
-/**
- * 解析时间戳用于排序比较。
- */
-function toTimestamp(value?: string | null): number {
-  const timestamp = value ? new Date(value).getTime() : Number.NaN;
-  return Number.isFinite(timestamp) ? timestamp : 0;
+  return merged;
 }
 
 export function useUnifiedList() {
@@ -114,154 +54,124 @@ export function useUnifiedList() {
   const tasks = ref<TaskListItem[]>([]);
   const workflows = ref<WorkflowSummary[]>([]);
   const loading = ref(true);
+  const loadingMore = ref(false);
+  const total = ref(0);
+  const pageSize = ref(DEFAULT_PAGE_SIZE);
+  let requestSerial = 0;
+  let reloadTimer: number | null = null;
 
   const searchText = ref("");
   const statusFilter = ref<UnifiedStatusFilter>("all");
-  const sortMode = ref<UnifiedSortMode>("created_desc");
 
-  /**
-   * 将 tasks 归一化为 UnifiedListItem[]。
-   */
-  const items = computed<UnifiedListItem[]>(() => {
-    return [
-      ...tasks.value
-        .filter((task) => String(task.taskType || "").trim() !== "video_generation")
-        .map(normalizeTask),
-      ...workflows.value.map(normalizeWorkflow),
-    ];
-  });
+  const items = computed<UnifiedListItem[]>(() => tasks.value.map(normalizeTask));
+  const filteredItems = computed<UnifiedListItem[]>(() => items.value);
 
-  /**
-   * 判断 item 是否匹配当前状态筛选。
-   */
-  function matchesStatusFilter(item: UnifiedListItem): boolean {
-    if (statusFilter.value === "all") return true;
-    if (statusFilter.value === "active") {
-      if (item.kind === "workflow") {
-        return item.status !== "COMPLETED" && item.status !== "FAILED";
-      }
-      return item.status === "PENDING" || item.status === "ANALYZING" || item.status === "PLANNING" || item.status === "RENDERING" || item.status === "PAUSED";
-    }
-    if (statusFilter.value === "pending") {
-      return item.kind === "workflow" ? item.status === "DRAFT" || item.status === "READY" : item.status === "PENDING";
-    }
-    if (statusFilter.value === "completed") {
-      return item.status === "COMPLETED";
-    }
-    if (statusFilter.value === "failed") {
-      return item.status === "FAILED";
-    }
-    return true;
-  }
+  const hasActiveItems = computed(() => tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status)));
+  const hasMore = computed(() => tasks.value.length < total.value);
 
-  /**
-   * 排序比较函数。
-   */
-  function compareItems(a: UnifiedListItem, b: UnifiedListItem): number {
-    if (sortMode.value === "updated_desc") {
-      return toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt)
-        || toTimestamp(b.createdAt) - toTimestamp(a.createdAt)
-        || b.id.localeCompare(a.id);
+  async function load(options: { mode?: "reset" | "append" | "refresh"; silent?: boolean } = {}) {
+    const mode = options.mode ?? (tasks.value.length ? "refresh" : "reset");
+    if (mode === "append" && (loading.value || loadingMore.value || !hasMore.value)) {
+      return;
     }
-    if (sortMode.value === "created_desc") {
-      return toTimestamp(b.createdAt) - toTimestamp(a.createdAt)
-        || toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt)
-        || b.id.localeCompare(a.id);
-    }
-    if (sortMode.value === "progress_desc") {
-      return b.progress - a.progress || toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt);
-    }
-    if (sortMode.value === "status_desc") {
-      const pa = STATUS_SORT_PRIORITY[a.status] ?? 99;
-      const pb = STATUS_SORT_PRIORITY[b.status] ?? 99;
-      if (pa !== pb) return pa - pb;
-      return toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt);
-    }
-    return 0;
-  }
-
-  /**
-   * 筛选 + 排序后的最终列表。
-   */
-  const filteredItems = computed<UnifiedListItem[]>(() => {
-    const keyword = searchText.value.trim().toLowerCase();
-    return items.value
-      .filter((item) => {
-        if (!matchesStatusFilter(item)) return false;
-        if (!keyword) return true;
-        const haystack = [
-          item.title,
-          item.status,
-          item.currentStage,
-          item.aspectRatio,
-          item.kind === "workflow" ? "工作流 阶段任务" : "任务",
-          item.executionMode,
-          item.autoPilotState,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(keyword);
-      })
-      .sort(compareItems);
-  });
-
-  const hasActiveItems = computed(() =>
-    tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status))
-    || workflows.value.some((workflow) => {
-      const status = normalizeWorkflowStatus(workflow);
-      const autoPilotState = String(workflow.autoPilotState ?? "").trim().toLowerCase();
-      return ACTIVE_WORKFLOW_STATUSES.has(status) || ACTIVE_AUTO_PILOT_STATES.has(autoPilotState);
-    })
-  );
-
-  /**
-   * 加载任务数据。
-   */
-  async function load() {
     if (!authState.isAuthenticated.value) {
       tasks.value = [];
       workflows.value = [];
+      total.value = 0;
       loading.value = false;
+      loadingMore.value = false;
       return;
     }
+    const requestId = ++requestSerial;
+    const offset = mode === "append" ? tasks.value.length : 0;
+    const limit = mode === "refresh" ? Math.max(tasks.value.length, pageSize.value) : pageSize.value;
+    if (mode === "append") {
+      loadingMore.value = true;
+    } else if (!options.silent) {
+      loading.value = mode === "reset" || tasks.value.length === 0;
+    }
     try {
-      const [fetchedTasks, fetchedWorkflows] = await Promise.all([
-        fetchTasks({ sort: sortMode.value }),
-        fetchWorkflows(),
-      ]);
-      tasks.value = fetchedTasks;
-      workflows.value = fetchedWorkflows;
+      const page = await fetchTaskPage({
+        q: searchText.value.trim() || undefined,
+        status: statusFilter.value,
+        sort: "created_desc",
+        excludeTaskType: IMAGE_TASK_EXCLUDE_TYPE,
+        offset,
+        limit,
+      });
+      if (requestId !== requestSerial) {
+        return;
+      }
+      total.value = page.total;
+      tasks.value = mode === "append" ? mergeTasks(tasks.value, page.items) : page.items;
     } catch (error) {
-      if (loading.value) {
-        messageApi.error(error instanceof Error ? error.message : "列表加载失败");
+      if (!options.silent && loading.value) {
+        messageApi.error(error instanceof Error ? error.message : "任务列表加载失败");
       }
     } finally {
-      loading.value = false;
+      if (requestId === requestSerial) {
+        loading.value = false;
+        loadingMore.value = false;
+      }
     }
   }
 
-  /**
-   * 根据 ID 查找项。
-   */
+  function loadMore() {
+    void load({ mode: "append" });
+  }
+
+  function setPageSize(value: number) {
+    const normalized = Math.max(MIN_PAGE_SIZE, Math.min(MAX_PAGE_SIZE, Math.round(value)));
+    if (!Number.isFinite(normalized) || normalized === pageSize.value) {
+      return;
+    }
+    const previousPageSize = pageSize.value;
+    const hasLoadedItems = tasks.value.length > 0;
+    pageSize.value = normalized;
+    if (
+      hasLoadedItems
+      && normalized > previousPageSize
+      && tasks.value.length < normalized
+      && !loading.value
+      && !loadingMore.value
+    ) {
+      void load({ mode: "refresh", silent: true });
+    }
+  }
+
+  function scheduleReload() {
+    if (reloadTimer !== null) {
+      window.clearTimeout(reloadTimer);
+    }
+    reloadTimer = window.setTimeout(() => {
+      reloadTimer = null;
+      void load({ mode: "reset" });
+    }, 260);
+  }
+
   function findItem(id: string): UnifiedListItem | undefined {
     return items.value.find((item) => item.id === id);
   }
 
-  const polling = usePolling(load, () => (hasActiveItems.value ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS));
+  const polling = usePolling(
+    () => load({ mode: "refresh", silent: true }),
+    () => (hasActiveItems.value ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS),
+  );
 
-  /**
-   * 启动轮询。
-   */
+  watch([searchText, statusFilter], () => {
+    scheduleReload();
+  });
+
   function startPolling() {
     polling.start(true);
   }
 
-  /**
-   * 停止轮询。
-   */
   function stopPolling() {
     polling.stop();
+    if (reloadTimer !== null) {
+      window.clearTimeout(reloadTimer);
+      reloadTimer = null;
+    }
   }
 
   return {
@@ -269,11 +179,14 @@ export function useUnifiedList() {
     workflows,
     items,
     loading,
+    loadingMore,
     searchText,
     statusFilter,
-    sortMode,
     filteredItems,
+    hasMore,
     load,
+    loadMore,
+    setPageSize,
     findItem,
     startPolling,
     stopPolling,

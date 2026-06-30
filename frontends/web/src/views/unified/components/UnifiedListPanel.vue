@@ -1,5 +1,5 @@
 <template>
-  <aside class="unified-list-panel">
+  <aside ref="panelRef" class="unified-list-panel" @scroll.passive="handleScroll">
     <label class="unified-search-field" aria-label="搜索">
       <IconSearch class="unified-search-field__icon" size="sm" aria-hidden="true" />
       <input v-model="searchText" type="search" placeholder="搜索任务" />
@@ -27,16 +27,12 @@
       </button>
     </div>
 
-    <label class="unified-sort-field" aria-label="排序">
-      <AppSelect v-model="sortMode" :options="sortModeOptions" variant="toolbar" compact />
-    </label>
-
     <div v-if="loading" class="unified-loading">加载中</div>
 
     <div v-else-if="filteredItems.length === 0" class="unified-empty">
       <h3>{{ isFilterActive ? "没有匹配项" : "暂无任务" }}</h3>
       <p v-if="isFilterActive">调整筛选后再试</p>
-      <p v-else>点击"新建"开始创作</p>
+      <p v-else>图片任务会在这里显示</p>
     </div>
 
     <div v-else class="unified-list">
@@ -48,6 +44,10 @@
         @select="$emit('select', $event)"
         @delete="$emit('delete', $event)"
       />
+      <div v-if="loadingMore || hasMore" class="unified-list__footer">
+        <span ref="loadMoreSentinelRef" class="unified-list__sentinel" aria-hidden="true"></span>
+        <span v-if="loadingMore" class="unified-list__loading-more">加载中</span>
+      </div>
     </div>
   </aside>
 </template>
@@ -56,46 +56,127 @@
 /**
  * 统一列表面板组件。
  */
-import { computed } from "vue";
-import AppSelect from "@/components/common/AppSelect.vue";
-import type { AppSelectOption } from "@/components/common/app-select";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import UnifiedListItem from "./UnifiedListItem.vue";
 import type { UnifiedListItem as UnifiedListItemType } from "@/types/unified-task";
-import type { UnifiedSortMode, UnifiedStatusFilter } from "@/types/unified-task";
+import type { UnifiedStatusFilter } from "@/types/unified-task";
 
-defineProps<{
+const props = defineProps<{
   filteredItems: UnifiedListItemType[];
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
   selectedId: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   select: [item: UnifiedListItemType];
   delete: [item: UnifiedListItemType];
+  loadMore: [];
+  pageSizeChange: [size: number];
 }>();
 
 const searchText = defineModel<string>("searchText", { required: true });
 const statusFilter = defineModel<UnifiedStatusFilter>("statusFilter", { required: true });
-const sortMode = defineModel<UnifiedSortMode>("sortMode", { required: true });
 
 const isFilterActive = computed(() => searchText.value.trim().length > 0 || statusFilter.value !== "all");
 
 const statusFilterOptions: Array<{ label: string; value: UnifiedStatusFilter }> = [
   { label: "全部", value: "all" },
   { label: "进行中", value: "active" },
-  { label: "排队", value: "pending" },
   { label: "已完成", value: "completed" },
   { label: "失败", value: "failed" },
 ];
 
-const sortModeOptions: AppSelectOption[] = [
-  { label: "最新创建", value: "created_desc" },
-  { label: "最近更新", value: "updated_desc" },
-  { label: "进度最高", value: "progress_desc" },
-  { label: "状态优先", value: "status_desc" },
-];
+const panelRef = ref<HTMLElement | null>(null);
+const loadMoreSentinelRef = ref<HTMLElement | null>(null);
+let resizeObserver: ResizeObserver | null = null;
+let intersectionObserver: IntersectionObserver | null = null;
+let lastEmittedPageSize = 0;
+
+function emitViewportPageSize() {
+  const panel = panelRef.value;
+  if (!panel) return;
+  const styles = window.getComputedStyle(panel);
+  const rowGap = Number.parseFloat(styles.rowGap || styles.gap || "12") || 12;
+  const searchHeight = panel.querySelector<HTMLElement>(".unified-search-field")?.offsetHeight ?? 40;
+  const filterHeight = panel.querySelector<HTMLElement>(".unified-filter-strip")?.offsetHeight ?? 34;
+  const listItemHeight = panel.querySelector<HTMLElement>(".unified-list-item")?.offsetHeight ?? 62;
+  const listGap = Number.parseFloat(window.getComputedStyle(panel.querySelector<HTMLElement>(".unified-list") ?? panel).rowGap || "4") || 4;
+  const availableHeight = panel.clientHeight - searchHeight - filterHeight - rowGap * 2;
+  const rowHeight = listItemHeight + listGap;
+  const nextPageSize = Math.max(4, Math.floor(availableHeight / rowHeight));
+  if (Number.isFinite(nextPageSize) && nextPageSize !== lastEmittedPageSize) {
+    lastEmittedPageSize = nextPageSize;
+    emit("pageSizeChange", nextPageSize);
+  }
+}
+
+function handleScroll(event: Event) {
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return;
+  const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+  if (distanceToBottom <= 96) {
+    emit("loadMore");
+  }
+}
+
+function observeLoadMoreSentinel() {
+  intersectionObserver?.disconnect();
+  intersectionObserver = null;
+  const panel = panelRef.value;
+  const sentinel = loadMoreSentinelRef.value;
+  if (!panel || !sentinel || typeof IntersectionObserver === "undefined") {
+    return;
+  }
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting && props.hasMore && !props.loading && !props.loadingMore) {
+        emit("loadMore");
+      }
+    },
+    {
+      root: panel,
+      rootMargin: "120px 0px",
+      threshold: 0,
+    },
+  );
+  intersectionObserver.observe(sentinel);
+}
+
+onMounted(async () => {
+  await nextTick();
+  emitViewportPageSize();
+  observeLoadMoreSentinel();
+  if (panelRef.value && typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(() => {
+      emitViewportPageSize();
+      observeLoadMoreSentinel();
+    });
+    resizeObserver.observe(panelRef.value);
+  }
+});
+
+watch(
+  () => [props.filteredItems.length, props.hasMore, props.loading, props.loadingMore],
+  async () => {
+    await nextTick();
+    emitViewportPageSize();
+    observeLoadMoreSentinel();
+  },
+  { flush: "post" },
+);
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  intersectionObserver?.disconnect();
+  intersectionObserver = null;
+});
+
 </script>
 
 <style scoped>
@@ -224,11 +305,6 @@ const sortModeOptions: AppSelectOption[] = [
   color: white;
 }
 
-.unified-sort-field {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .unified-loading,
 .unified-empty {
   display: grid;
@@ -253,5 +329,47 @@ const sortModeOptions: AppSelectOption[] = [
 .unified-list {
   display: grid;
   gap: 4px;
+}
+
+.unified-list__footer {
+  display: flex;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 0 2px;
+  position: relative;
+}
+
+.unified-list__sentinel {
+  position: absolute;
+  top: -120px;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.unified-list__load-more {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent-indigo);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.unified-list__load-more:hover:not(:disabled),
+.unified-list__load-more:focus-visible {
+  border-color: rgba(79, 70, 229, 0.26);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+}
+
+.unified-list__load-more:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 </style>

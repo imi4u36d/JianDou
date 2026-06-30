@@ -224,7 +224,6 @@ async function submitTask() {
       title: taskTitle.value.trim(),
       transcriptText: taskPrompt.value.trim() || null,
       aspectRatio: taskAspectRatio.value,
-      stylePreset: catalog.defaultStylePreset || catalog.stylePresets?.[0]?.key || "cinematic",
       textAnalysisModel,
       imageModel,
       videoModel,

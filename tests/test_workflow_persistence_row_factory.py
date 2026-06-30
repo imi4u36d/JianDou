@@ -17,7 +17,6 @@ def _workflow() -> BizStageWorkflow:
         title="Factory Workflow",
         transcript_text="",
         aspect_ratio="16:9",
-        style_preset="cinematic",
         text_analysis_model="",
         image_model="",
         video_model="",

@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { useAuthSessionState } from "@/auth/session";
 import { usePolling } from "@/composables/usePolling";
-import { fetchTasks } from "@/features/home";
+import { fetchTaskPage } from "@/features/home";
 import { formatTaskStatus } from "@/utils/task";
 import type { TaskListItem, TaskStatus } from "@/types";
 
@@ -52,8 +52,13 @@ export function useActiveTasks() {
       return;
     }
     try {
-      const tasks = await fetchTasks({ sort: "updated_desc" });
-      activeTasks.value = tasks
+      const page = await fetchTaskPage({
+        sort: "updated_desc",
+        excludeTaskType: "video_generation",
+        offset: 0,
+        limit: 30,
+      });
+      activeTasks.value = page.items
         .filter((task) => ACTIVE_TASK_STATUSES.has(task.status))
         .sort((left, right) => taskTimestamp(right.updatedAt || right.createdAt) - taskTimestamp(left.updatedAt || left.createdAt))
         .slice(0, 12);

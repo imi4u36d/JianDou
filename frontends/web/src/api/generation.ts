@@ -128,7 +128,6 @@ function normalizeOptions(raw: unknown): GenerationOptionsResponse {
   return {
     aspectRatios: Array.isArray(record.aspectRatios) ? (record.aspectRatios as GenerationOptionsResponse["aspectRatios"]) : [],
     defaultAspectRatio: asString(record.defaultAspectRatio) || null,
-    stylePresets: Array.isArray(record.stylePresets) ? (record.stylePresets as GenerationOptionsResponse["stylePresets"]) : [],
     imageSizes: Array.isArray(record.imageSizes) ? (record.imageSizes as GenerationOptionsResponse["imageSizes"]) : [],
     textAnalysisModels: Array.isArray(record.textAnalysisModels)
       ? (record.textAnalysisModels as GenerationOptionsResponse["textAnalysisModels"])
@@ -144,7 +143,6 @@ function normalizeOptions(raw: unknown): GenerationOptionsResponse {
     videoDurations: Array.isArray(record.videoDurations)
       ? (record.videoDurations as GenerationOptionsResponse["videoDurations"])
       : [],
-    defaultStylePreset: asString(record.defaultStylePreset) || null,
     defaultImageSize: asString(record.defaultImageSize) || undefined,
     defaultVideoSize: asString(record.defaultVideoSize) || undefined,
     defaultVideoDurationSeconds: asNumber(record.defaultVideoDurationSeconds) ? Math.trunc(asNumber(record.defaultVideoDurationSeconds) as number) : undefined,
@@ -177,9 +175,6 @@ function buildRunPayload(payload: GenerateMediaRequest): UnknownRecord {
       providerModel: payload.providerModel || undefined,
       textAnalysisModel: payload.textAnalysisModel || undefined,
     },
-    options: {
-      stylePreset: payload.stylePreset || undefined,
-    },
   };
 }
 
@@ -210,7 +205,6 @@ function normalizeMediaRunResult(rawRun: unknown, requestPayload: GenerateMediaR
     version: Math.trunc(asNumber((asRecord(run.input) ?? {}).version) ?? requestPayload.version),
     outputUrl,
     thumbnailUrl: asString(resultRecord.thumbnailUrl) || null,
-    stylePreset: asString((asRecord(run.options) ?? {}).stylePreset) || requestPayload.stylePreset || null,
     providerModel: asString(modelInfo.providerModel) || requestPayload.providerModel || null,
     mimeType: asString(resultRecord.mimeType) || null,
     width: asNumber(resultRecord.width),

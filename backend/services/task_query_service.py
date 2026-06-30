@@ -79,15 +79,55 @@ class TaskQueryService:
         q: str | None = None,
         status: str | None = None,
         sort: str | None = None,
-    ) -> list[dict[str, Any]]:
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """List tasks owned by the current user with filtering and sorting."""
+        is_paginated = offset is not None or limit is not None
+        page_offset = max(0, offset or 0)
+        page_limit = max(1, limit or 10)
         list_task_summaries = self._repo_method("list_task_summaries")
         if list_task_summaries:
-            cache_key = self._task_list_cache_key(owner_user_id, q, status, sort)
+            cache_key = self._task_list_cache_key(
+                owner_user_id,
+                q,
+                status,
+                sort,
+                task_type,
+                exclude_task_type,
+                page_offset if is_paginated else None,
+                page_limit if is_paginated else None,
+            )
             cached = await self._cache_get(cache_key)
-            if isinstance(cached, list):
+            if isinstance(cached, (list, dict)):
                 return cached
-            items = await list_task_summaries(owner_user_id, q, status, sort)
+            items = await list_task_summaries(
+                owner_user_id,
+                q,
+                status,
+                sort,
+                task_type=task_type,
+                exclude_task_type=exclude_task_type,
+                offset=page_offset if is_paginated else None,
+                limit=page_limit if is_paginated else None,
+            )
+            if is_paginated:
+                count_task_summaries = self._repo_method("count_task_summaries")
+                total = (
+                    await count_task_summaries(owner_user_id, q, status, task_type, exclude_task_type)
+                    if count_task_summaries
+                    else len(items)
+                )
+                result: dict[str, Any] = {
+                    "items": items,
+                    "total": total,
+                    "offset": page_offset,
+                    "limit": page_limit,
+                }
+                await self._cache_set(cache_key, result, settings.task_list_cache_ttl_seconds)
+                return result
             await self._cache_set(cache_key, items, settings.task_list_cache_ttl_seconds)
             return items
 
@@ -114,11 +154,34 @@ class TaskQueryService:
                 t for t in filtered
                 if self._matches_status(t, status)
             ]
+        if task_type:
+            allowed = self._type_set(task_type)
+            filtered = [t for t in filtered if t.task_type in allowed]
+        if exclude_task_type:
+            excluded = self._type_set(exclude_task_type)
+            filtered = [t for t in filtered if t.task_type not in excluded]
 
         # Sort
         filtered.sort(key=self._task_comparator(sort))
 
+        total = len(filtered)
+        if is_paginated:
+            filtered = filtered[page_offset : page_offset + page_limit]
+            return {
+                "items": [self._to_list_item(t) for t in filtered],
+                "total": total,
+                "offset": page_offset,
+                "limit": page_limit,
+            }
+
         return [self._to_list_item(t) for t in filtered]
+
+    def _type_set(self, value: str | None) -> set[str]:
+        return {
+            item.strip()
+            for item in string_value(value).split(",")
+            if item.strip()
+        }
 
     async def admin_list_tasks(
         self,
@@ -131,10 +194,12 @@ class TaskQueryService:
         """List tasks for admin with pagination."""
         list_task_summaries = self._repo_method("list_task_summaries")
         if list_task_summaries:
-            items = await list_task_summaries(None, q, status, sort)
+            items = await list_task_summaries(None, q, status, sort, offset=offset, limit=limit)
+            count_task_summaries = self._repo_method("count_task_summaries")
+            total = await count_task_summaries(None, q, status) if count_task_summaries else len(items)
             return {
-                "items": items[offset : offset + limit],
-                "total": len(items),
+                "items": items,
+                "total": total,
                 "offset": offset,
                 "limit": limit,
             }
@@ -509,12 +574,25 @@ class TaskQueryService:
         await self._cache.set(key, value, ttl_seconds)
 
     @staticmethod
-    def _task_list_cache_key(owner_user_id: int, q: str | None, status: str | None, sort: str | None) -> str:
+    def _task_list_cache_key(
+        owner_user_id: int,
+        q: str | None,
+        status: str | None,
+        sort: str | None,
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> str:
         return (
             f"task:list:{owner_user_id}:"
             f"{string_value(q).strip().lower()}:"
             f"{string_value(status).strip().lower()}:"
-            f"{string_value(sort).strip().lower()}"
+            f"{string_value(sort).strip().lower()}:"
+            f"{string_value(task_type).strip().lower()}:"
+            f"{string_value(exclude_task_type).strip().lower()}:"
+            f"{offset if offset is not None else 'all'}:"
+            f"{limit if limit is not None else 'all'}"
         )
 
     @staticmethod
@@ -559,4 +637,8 @@ class TaskQueryService:
         normalized = status_filter.strip().upper()
         if normalized == "QUEUED":
             return task.is_queued
+        if normalized == "ACTIVE":
+            return task.status in ("PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED")
+        if normalized == "PENDING":
+            return task.status == "PENDING"
         return task.status == normalized

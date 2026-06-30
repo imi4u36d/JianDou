@@ -19,7 +19,6 @@ class CreateWorkflowRequest(WorkflowRequestModel):
     title: str
     transcript_text: str | None = None
     aspect_ratio: str | None = None
-    style_preset: str | None = None
     text_analysis_model: str | None = None
     image_model: str | None = None
     video_model: str | None = None
@@ -54,9 +53,15 @@ class WorkflowSummaryResponse(BaseModel):
     queue_size: int | None = None
 
 
+class WorkflowListPageResponse(BaseModel):
+    items: list[WorkflowSummaryResponse] = []
+    total: int = 0
+    offset: int = 0
+    limit: int = 10
+
+
 class UpdateWorkflowSettingsRequest(WorkflowRequestModel):
     aspect_ratio: str | None = None
-    style_preset: str | None = None
     text_analysis_model: str | None = None
     image_model: str | None = None
     video_model: str | None = None
@@ -101,7 +106,6 @@ class WorkflowDetailResponse(BaseModel):
     current_stage: str = ""
     aspect_ratio: str = ""
     transcript_text: str | None = None
-    style_preset: str | None = None
     video_size: str | None = None
     duration_mode: str | None = None
     min_duration_seconds: int | None = None

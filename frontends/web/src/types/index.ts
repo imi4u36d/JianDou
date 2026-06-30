@@ -190,7 +190,6 @@ export interface GenerateCreativePromptResponse {
  */
 export interface GenerateScriptRequest {
   text: string;
-  visualStyle?: string | null;
   textAnalysisModel?: string | null;
 }
 
@@ -200,7 +199,6 @@ export interface GenerateScriptRequest {
 export interface GenerateScriptResponse {
   id: string;
   sourceText: string;
-  visualStyle: string;
   outputFormat?: "markdown";
   scriptMarkdown: string;
   markdownFilePath?: string | null;
@@ -300,16 +298,6 @@ export interface VideoModelUsageResponse {
 }
 
 /**
- * 生成风格预设选项接口定义。
- */
-export interface GenerationStylePresetOption {
-  key: string;
-  label: string;
-  description?: string;
-  mediaKinds?: GenerationMediaKind[];
-}
-
-/**
  * 生成AspectRatio选项接口定义。
  */
 export interface GenerationAspectRatioOption {
@@ -354,7 +342,6 @@ export interface GenerationVideoDurationOption {
 export interface GenerationOptionsResponse {
   aspectRatios?: GenerationAspectRatioOption[];
   defaultAspectRatio?: string | null;
-  stylePresets: GenerationStylePresetOption[];
   imageSizes: GenerationImageSizeOption[];
   videoModels: GenerationVideoModelInfo[];
   defaultVideoModel?: string | null;
@@ -364,7 +351,6 @@ export interface GenerationOptionsResponse {
   defaultImageModel?: string | null;
   videoSizes: GenerationVideoSizeOption[];
   videoDurations: GenerationVideoDurationOption[];
-  defaultStylePreset?: string | null;
   defaultImageSize?: string;
   defaultVideoSize?: string;
   defaultVideoDurationSeconds?: number | null;
@@ -389,7 +375,6 @@ export interface AdminModelConfigSummary {
  */
 export interface AdminModelConfigDefaults {
   aspectRatio: string;
-  stylePreset: string;
   imageSize: string;
   videoSize: string;
   videoDurationSeconds: number;
@@ -483,7 +468,6 @@ export interface GenerateMediaRequest {
   prompt: string;
   mediaKind: GenerationMediaKind;
   version: number;
-  stylePreset?: string | null;
   textAnalysisModel?: string | null;
   providerModel?: string | null;
   imageSize?: string;
@@ -535,7 +519,6 @@ export interface GenerateMediaResponse {
   version: number;
   outputUrl: string;
   thumbnailUrl?: string | null;
-  stylePreset?: string | null;
   providerModel?: string | null;
   mimeType?: string | null;
   width?: number | null;
@@ -568,9 +551,15 @@ export interface RateTaskEffectRequest {
  */
 export interface TaskFilters {
   q?: string;
-  status?: TaskStatus | "all";
+  status?: TaskStatus | "all" | "active" | "pending" | "completed" | "failed";
   sort?: "updated_desc" | "created_desc" | "progress_desc" | "semantic_desc" | "status_desc" | "effect_rating_desc";
+  taskType?: string;
+  excludeTaskType?: string;
+  offset?: number;
+  limit?: number;
 }
+
+export type TaskPaginatedResponse = AdminPaginatedResponse<TaskListItem>;
 
 /**
  * 任务输出接口定义。
@@ -796,7 +785,6 @@ export interface TaskRequestSnapshot {
   creativePrompt?: string | null;
   aspectRatio?: string | null;
   imageSize?: string | null;
-  stylePreset?: string | null;
   textAnalysisModel?: string | null;
   imageModel?: string | null;
   videoModel?: string | null;
@@ -1143,7 +1131,6 @@ export interface CreateWorkflowRequest {
   title: string;
   transcriptText?: string | null;
   aspectRatio: string;
-  stylePreset?: string | null;
   textAnalysisModel: string;
   imageModel: string;
   videoModel: string;
@@ -1159,7 +1146,6 @@ export interface CreateWorkflowRequest {
 
 export interface UpdateWorkflowSettingsRequest {
   aspectRatio: string;
-  stylePreset: string;
   textAnalysisModel: string;
   imageModel: string;
   videoModel: string;
@@ -1357,6 +1343,16 @@ export interface WorkflowSummary {
   errorMessage?: string | null;
 }
 
+export type WorkflowPaginatedResponse = AdminPaginatedResponse<WorkflowSummary>;
+
+export interface WorkflowFilters {
+  q?: string;
+  status?: "all" | "active" | "ready" | "done" | string;
+  sort?: "updated_desc" | "created_desc" | "status_desc";
+  offset?: number;
+  limit?: number;
+}
+
 export interface WorkflowDeleteResult {
   workflowId: string;
   deleted: boolean;
@@ -1367,7 +1363,6 @@ export interface WorkflowDetail {
   title: string;
   transcriptText?: string | null;
   aspectRatio: string;
-  stylePreset?: string | null;
   textAnalysisModel: string;
   imageModel: string;
   videoModel: string;

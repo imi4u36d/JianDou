@@ -80,11 +80,11 @@ function taskMaterialMediaType(material: TaskMaterial, url: string): TaskPreview
 
 export function taskOutputUrl(output: TaskOutput): string {
   return firstNonBlankTaskValue(
-    output.previewUrl,
-    output.previewPath,
     output.downloadUrl,
     output.downloadPath,
     output.remoteUrl,
+    output.previewUrl,
+    output.previewPath,
   );
 }
 
@@ -94,6 +94,10 @@ export function taskMaterialUrl(material: TaskMaterial): string {
 
 function taskOutputDownloadUrl(output: TaskOutput): string {
   return firstNonBlankTaskValue(output.downloadUrl, output.downloadPath, output.previewUrl, output.previewPath, output.remoteUrl);
+}
+
+function taskOutputOriginalUrl(output: TaskOutput): string {
+  return firstNonBlankTaskValue(output.downloadUrl, output.downloadPath, output.remoteUrl);
 }
 
 function outputPosterUrl(output: TaskOutput): string {
@@ -113,13 +117,14 @@ function outputPreviewMedia(
   fallbackType: TaskPreviewMediaType | "" = "",
 ): TaskPreviewMedia | null {
   const linkedMaterial = materialsById?.get(normalizedText(output.materialAssetId));
-  const url = firstNonBlankTaskValue(taskOutputUrl(output), linkedMaterial ? taskMaterialUrl(linkedMaterial) : "");
+  const linkedMaterialUrl = linkedMaterial ? taskMaterialUrl(linkedMaterial) : "";
+  const url = firstNonBlankTaskValue(taskOutputOriginalUrl(output), linkedMaterialUrl, taskOutputUrl(output));
   if (!url) return null;
   const type = taskOutputMediaType(output, url, fallbackType) || (linkedMaterial ? taskMaterialMediaType(linkedMaterial, url) : "");
   if (!type) return null;
   return {
     type,
-    url: type === "video" ? taskOutputDownloadUrl(output) || (linkedMaterial ? taskMaterialUrl(linkedMaterial) : "") || url : url,
+    url: type === "video" ? taskOutputDownloadUrl(output) || linkedMaterialUrl || url : url,
     posterUrl: type === "video" ? firstNonBlankTaskValue(outputPosterUrl(output), linkedMaterial?.thumbnailUrl) : undefined,
     title: output.title || "任务结果",
     materialAssetId: firstNonBlankTaskValue(output.materialAssetId, linkedMaterial?.id),

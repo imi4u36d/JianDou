@@ -241,9 +241,9 @@
                   <IconPlus v-else size="xs" />
                   <span>{{ busyActionKey === `reuse-${asset.id}` ? "复用中" : "复用" }}</span>
                 </button>
-                <RouterLink v-if="asset.workflowId" :to="`/workflows/${asset.workflowId}`">
+                <RouterLink v-if="asset.workflowId" :to="`/videos/${asset.workflowId}`">
                   <IconWorkflow size="xs" />
-                  <span>工作流</span>
+                  <span>视频</span>
                 </RouterLink>
                 <button type="button" @click="handleDownloadAsset(asset)">
                   <IconDownload size="xs" />
@@ -1203,7 +1203,7 @@ async function handleReuseAsset(assetId: string) {
   try {
     const workflow = await reuseMaterialAsset(assetId, { mode: "clone" });
     await loadAssets();
-    await router.push(`/workflows/${workflow.id}`);
+    await router.push(`/videos/${workflow.id}`);
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "素材操作失败");
   } finally {

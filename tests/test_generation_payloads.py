@@ -76,14 +76,12 @@ def test_build_media_model_info_includes_optional_rewrite_and_vision_models() ->
 
 
 def test_script_prompt_builders_preserve_existing_text_shape() -> None:
-    user_prompt = build_script_user_prompt("source text", "noir")
-    adjust_prompt = build_script_adjust_user_prompt("source text", "noir", "script md", "make it shorter")
+    user_prompt = build_script_user_prompt("source text")
+    adjust_prompt = build_script_adjust_user_prompt("source text", "script md", "make it shorter")
 
     assert "source text" in user_prompt
-    assert "noir" in user_prompt
     assert "system prompt" in user_prompt
     assert "source text" in adjust_prompt
-    assert "noir" in adjust_prompt
     assert "make it shorter" in adjust_prompt
     assert adjust_prompt.endswith("script md")
 

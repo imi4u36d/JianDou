@@ -1,13 +1,13 @@
 <template>
   <section class="workflow-canvas-view" :class="{ 'workflow-canvas-view-detail': selectedWorkflowId }">
-    <aside class="workflow-project-drawer">
+    <aside ref="workflowProjectDrawerRef" class="workflow-project-drawer">
       <label class="workflow-search-box">
         <IconSearch class="workflow-search-box__icon" size="sm" aria-hidden="true" />
         <input
           ref="workflowSearchInput"
           v-model="workflowSearch"
           type="search"
-          placeholder="搜索工作流"
+          placeholder="搜索视频"
         />
         <button
           v-if="workflowSearch"
@@ -20,7 +20,7 @@
         </button>
       </label>
 
-      <div class="workflow-filter-strip" aria-label="工作流筛选">
+      <div class="workflow-filter-strip" aria-label="视频筛选">
         <button
           v-for="item in workflowFilterOptions"
           :key="item.value"
@@ -45,26 +45,17 @@
           <IconEmpty size="2xl" />
         </div>
         <p class="workflow-empty-state__text">
-          {{ workflows.length ? "没有匹配工作流" : "暂无工作流" }}
+          {{ workflows.length ? "没有匹配视频" : "暂无视频" }}
         </p>
-        <p class="workflow-empty-state__hint">
-          {{ workflows.length ? "调整筛选后再试" : "新建画布开始创作" }}
-        </p>
+        <p v-if="workflows.length" class="workflow-empty-state__hint">调整筛选后再试</p>
       </div>
 
-      <div v-else class="workflow-project-list">
-        <button
-          class="workflow-new-tile"
-          type="button"
-          :disabled="creatingWorkflow || loadingOptions"
-          @click="startCreateWorkflow"
-        >
-          <span aria-hidden="true">
-            <IconLoading v-if="creatingWorkflow" size="sm" />
-            <IconPlus v-else size="sm" />
-          </span>
-          <strong>{{ creatingWorkflow ? "创建中" : "新建" }}</strong>
-        </button>
+      <div
+        v-else
+        ref="workflowProjectListRef"
+        class="workflow-project-list"
+        @scroll.passive="handleWorkflowListScroll"
+      >
         <article
           v-for="item in filteredWorkflows"
           :key="item.id"
@@ -74,7 +65,7 @@
           <button
             type="button"
             class="workflow-nav-item__main"
-            :aria-label="`打开工作流 ${item.title}`"
+            :aria-label="`打开视频 ${item.title}`"
             @click="openWorkflow(item.id, workflowSummaryCanvasStage(item))"
           >
             <span class="workflow-nav-item__dot" :class="{ 'workflow-nav-item__dot-active': item.id === selectedWorkflowId }"></span>
@@ -98,21 +89,32 @@
             </div>
           </div>
         </article>
+        <div v-if="loadingMoreWorkflows || hasMoreWorkflows" class="workflow-project-list__footer">
+          <span ref="workflowLoadMoreSentinelRef" class="workflow-project-list__sentinel" aria-hidden="true"></span>
+          <span v-if="loadingMoreWorkflows" class="workflow-project-list__loading">加载中</span>
+        </div>
       </div>
     </aside>
 
     <section class="workflow-canvas-main">
-      <section v-if="createComposerVisible" class="workflow-create-board">
+      <section v-if="showCreateComposer" class="workflow-create-board">
         <div class="workflow-create-shell">
-          <form class="workflow-composer-card workflow-composer-card-chat" @submit.prevent="handleCreateWorkflow">
+          <form
+            class="workflow-video-composer"
+            :class="{
+              'workflow-video-composer-active': createForm.transcriptText.trim().length > 0,
+              'workflow-video-composer-submitting': creatingWorkflow,
+            }"
+            @submit.prevent="handleCreateWorkflow"
+          >
             <button
               type="button"
-              class="workflow-composer-upload"
+              class="workflow-video-composer__upload"
               :disabled="uploadingCreateText"
               @click="createTextFileInput?.click()"
             >
               <span><IconUpload size="md" /></span>
-              <small>{{ uploadingCreateText ? "上传中" : "导入正文" }}</small>
+              <small>{{ uploadingCreateText ? "上传中" : "导入脚本" }}</small>
             </button>
             <input
               ref="createTextFileInput"
@@ -122,22 +124,18 @@
               @change="handleCreateTextFileChange"
             />
 
-            <div class="workflow-composer-fields">
-              <label class="workflow-composer-title-field workflow-composer-title-field-chat">
-                <span>画布标题</span>
-                <input v-model="createForm.title" required placeholder="画布标题" />
-              </label>
-              <label class="workflow-composer-body-field workflow-composer-body-field-chat">
-                <span>正文 / 创作输入</span>
+            <div class="workflow-video-composer__body">
+              <label class="workflow-video-composer__prompt">
                 <textarea
                   v-model="createForm.transcriptText"
-                  rows="8"
-                  placeholder="粘贴正文、剧情设定或脚本"
+                  rows="5"
+                  placeholder="描述你想生成的视频，或粘贴剧情设定 / 分镜脚本"
                 ></textarea>
               </label>
             </div>
 
-            <div class="workflow-composer-toolbar workflow-composer-toolbar-chat">
+            <div class="workflow-video-composer__footer">
+              <div class="workflow-video-composer__toolbar">
               <div class="workflow-create-menu">
                 <button
                   type="button"
@@ -176,10 +174,6 @@
                 </button>
                 <div v-if="createComposerMenu === 'output'" class="workflow-create-popover workflow-create-popover-grid">
                   <label class="workflow-field">
-                    <span>视觉风格</span>
-                    <AppSelect v-model="createForm.stylePreset" :options="stylePresetSelectOptions" />
-                  </label>
-                  <label class="workflow-field">
                     <span>画幅</span>
                     <AppSelect v-model="createForm.aspectRatio" :options="aspectRatioSelectOptions" />
                   </label>
@@ -216,7 +210,7 @@
                 </div>
               </div>
 
-              <div class="workflow-create-menu">
+              <div class="workflow-create-menu workflow-create-menu-optional">
                 <button
                   type="button"
                   class="tool-pill tool-pill-interactive"
@@ -237,21 +231,16 @@
                   </label>
                 </div>
               </div>
-
-              <span class="composer-required-count">必填 {{ createReviewConfiguredCount }} / {{ createReviewRequiredItems.length }}</span>
-            </div>
-
-            <div class="workflow-composer-footer">
-              <div class="workflow-composer-meta">
-                <span>{{ createTranscriptCharacterCount > 0 ? `${createTranscriptCharacterCount} 字` : "等待正文输入" }}</span>
               </div>
-              <div class="workflow-composer-actions">
-                <button class="jd-button jd-button--secondary jd-button--sm" type="button" :disabled="creatingWorkflow" @click="closeCreateReview">取消</button>
+
+              <div class="workflow-video-composer__meta">
+                <span>{{ createTranscriptCharacterCount > 0 ? `${createTranscriptCharacterCount} 字` : "等待输入" }}</span>
+                <button v-if="selectedWorkflowId" class="workflow-video-composer__cancel" type="button" :disabled="creatingWorkflow" @click="closeCreateReview">取消</button>
                 <button
-                  class="workflow-composer-submit workflow-composer-submit-inline"
+                  class="workflow-video-composer__submit"
                   type="submit"
-                  :disabled="creatingWorkflow || !canSubmitCreateReview"
-                  :title="canSubmitCreateReview ? '创建画布' : '请先补全必填项'"
+                  :disabled="creatingWorkflow || !canSubmitVideoComposer"
+                  :title="canSubmitVideoComposer ? '生成视频' : '请先输入内容并补全视频参数'"
                 >
                   <IconLoading v-if="creatingWorkflow" size="xs" />
                   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -262,7 +251,6 @@
               </div>
             </div>
           </form>
-
         </div>
       </section>
 
@@ -307,7 +295,6 @@
                 <label class="workflow-field"><span>文本模型</span><AppSelect v-model="workflowSettingsDraft.textAnalysisModel" :options="textModelSelectOptions" /></label>
                 <label class="workflow-field"><span>关键帧模型</span><AppSelect v-model="workflowSettingsDraft.imageModel" :options="imageModelSelectOptions" /></label>
                 <label class="workflow-field"><span>视频模型</span><AppSelect v-model="workflowSettingsDraft.videoModel" :options="videoModelSelectOptions" /></label>
-                <label class="workflow-field"><span>视觉风格</span><AppSelect v-model="workflowSettingsDraft.stylePreset" :options="stylePresetSelectOptions" /></label>
                 <label class="workflow-field"><span>画幅</span><AppSelect v-model="workflowSettingsDraft.aspectRatio" :options="aspectRatioSelectOptions" /></label>
                 <label class="workflow-field"><span>输出尺寸</span><AppSelect v-model="workflowSettingsDraft.videoSize" :options="workflowSettingsVideoSizeSelectOptions" /></label>
                 <label class="workflow-field workflow-field-compact"><span>关键帧 Seed</span><input v-model="workflowSettingsDraft.keyframeSeed" class="field-input" type="number" min="0" placeholder="自动" /></label>
@@ -879,9 +866,6 @@
         </section>
       </template>
 
-      <section v-else class="surface-panel workflow-panel workflow-empty-large workflow-empty-prompt">
-        <h2>选择画布</h2>
-      </section>
     </section>
   </section>
 
@@ -948,7 +932,6 @@ import {
   deleteStageVersion,
   deleteWorkflow,
   fetchWorkflow,
-  fetchWorkflows,
   finalizeWorkflow,
   generateKeyframe,
   generateKeyframeFrame,
@@ -1073,16 +1056,23 @@ const imagePreview = useImagePreview();
 const characterAssetPickerState = useCharacterAssetPicker();
 
 const {
-  loadingOptions, options, aspectRatioOptions, stylePresetOptions,
+  loadingOptions, options, aspectRatioOptions,
   textModelOptions, imageModelOptions, videoModelOptions, catalogVideoSizeOptions,
-  filterVideoSizeOptions, syncVideoSizeSelection, valueOptionLabel, keyOptionLabel, loadOptions,
+  filterVideoSizeOptions, syncVideoSizeSelection, valueOptionLabel, loadOptions,
 } = workflowOptions;
 
 const {
-  loadingWorkflows, workflowSearch, workflowFilter, workflowSearchInput, workflows,
-  filteredWorkflows, focusWorkflowSearch, clearWorkflowSearch,
-  workflowCompletionPercentage, loadWorkflows,
+  loadingWorkflows, loadingMoreWorkflows, workflowSearch, workflowFilter, workflowSearchInput, workflows,
+  filteredWorkflows, hasMoreWorkflows, focusWorkflowSearch, clearWorkflowSearch,
+  workflowCompletionPercentage, loadWorkflows, loadMoreWorkflows, setWorkflowPageSize,
 } = workflowList;
+
+const workflowProjectListRef = ref<HTMLElement | null>(null);
+const workflowProjectDrawerRef = ref<HTMLElement | null>(null);
+const workflowLoadMoreSentinelRef = ref<HTMLElement | null>(null);
+let workflowListResizeObserver: ResizeObserver | null = null;
+let workflowListIntersectionObserver: IntersectionObserver | null = null;
+let lastWorkflowPageSize = 0;
 
 const workflowFilterOptions = [
   { label: "全部", value: "all" },
@@ -1090,6 +1080,17 @@ const workflowFilterOptions = [
   { label: "可继续", value: "ready" },
   { label: "已完成", value: "done" },
 ] as const;
+
+const showCreateComposer = computed(() => false);
+const canSubmitVideoComposer = computed(() => Boolean(
+  createForm.transcriptText.trim()
+  && createForm.textAnalysisModel
+  && createForm.imageModel
+  && createForm.videoModel
+  && createForm.aspectRatio
+  && createForm.videoSize
+  && isStoryboardDurationConfigured.value
+));
 
 function toAppSelectOptions<T extends { label: string; value: unknown }>(items: T[]): AppSelectOption[] {
   return items.map((item) => ({
@@ -1103,9 +1104,6 @@ const imageModelSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOpt
 const videoModelSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOptions(videoModelOptions.value));
 const aspectRatioSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOptions(aspectRatioOptions.value));
 const videoSizeSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOptions(videoSizeOptions.value));
-const stylePresetSelectOptions = computed<AppSelectOption[]>(() =>
-  stylePresetOptions.value.map((item) => ({ label: item.label, value: item.key }))
-);
 
 const {
   creatingWorkflow, createComposerVisible, createComposerMenu, createStatusText,
@@ -1115,8 +1113,7 @@ const {
   normalizedStoryboardManualDurationSeconds, storyboardManualDurationValidationMessage,
   isStoryboardDurationConfigured, createTranscriptCharacterCount, createModelMenuLabel,
   createOutputMenuLabel, createDurationMenuLabel, createSeedMenuLabel,
-  createReviewSections, createReviewRequiredItems, createReviewConfiguredCount,
-  canSubmitCreateReview, toggleCreateComposerMenu,
+  toggleCreateComposerMenu,
   startCreateWorkflow,
   closeCreateReview: closeCreateReviewBase,
   handleCreateTextFileChange, handleCreateWorkflow: handleCreateWorkflowBase,
@@ -1158,7 +1155,6 @@ const storyboardAdjustmentDrafts = reactive<Record<string, string>>({});
 const workflowSettingsOpen = ref(false);
 const workflowSettingsDraft = reactive({
   aspectRatio: "16:9",
-  stylePreset: "",
   textAnalysisModel: "",
   imageModel: "",
   videoModel: "",
@@ -1346,9 +1342,6 @@ const workflowSettingsValidationMessage = computed(() => {
   }
   if (!workflowSettingsDraft.imageModel) {
     return "请选择关键帧模型";
-  }
-  if (!workflowSettingsDraft.stylePreset) {
-    return "请选择视觉风格";
   }
   if (!workflowSettingsDraft.aspectRatio) {
     return "请选择画幅";
@@ -1543,7 +1536,7 @@ function selectCanvasClip(clipIndex: number) {
   selectedCanvasClipIndex.value = clipIndex;
 }
 
-// valueOptionLabel, keyOptionLabel are imported from @/composables/workflow/useWorkflowOptions
+// valueOptionLabel is imported from @/composables/workflow/useWorkflowOptions
 
 // normalizeModelName, resolveVideoSizeAspectRatio, compareVideoSizeByArea,
 // filterVideoSizeOptions, syncVideoSizeSelection
@@ -1799,7 +1792,7 @@ async function closeCreateReview() {
   createComposerMenu.value = "";
   selectedWorkflow.value = null;
   if (selectedWorkflowId.value) {
-    await router.push("/workflows");
+    await router.push("/videos");
   }
 }
 
@@ -1812,7 +1805,6 @@ function syncWorkflowSettingsDraft(workflow: WorkflowDetail) {
     : workflow.maxDurationSeconds;
   const durationMode = workflow.durationMode === "manual" ? "manual" : "auto";
   workflowSettingsDraft.aspectRatio = workflow.aspectRatio || "16:9";
-  workflowSettingsDraft.stylePreset = workflow.stylePreset || "";
   workflowSettingsDraft.textAnalysisModel = workflow.textAnalysisModel || "";
   workflowSettingsDraft.imageModel = workflow.imageModel || "";
   workflowSettingsDraft.videoModel = workflow.videoModel || "";
@@ -1868,11 +1860,11 @@ function openWorkflow(workflowId: string, preferredStage?: string | null) {
   const nextStage = normalizeWorkflowCanvasStage(preferredStage) ?? normalizeWorkflowDetailStage(route.query.stage) ?? activeCreateStage.value;
   activeCanvasStage.value = nextStage;
   if (nextStage === "final") {
-    void router.push(`/workflows/${workflowId}`);
+    void router.push(`/videos/${workflowId}`);
     return;
   }
   void router.push({
-    path: `/workflows/${workflowId}`,
+    path: `/videos/${workflowId}`,
     query: { stage: nextStage },
   });
 }
@@ -1945,11 +1937,11 @@ async function reloadCurrentWorkflow() {
 
 function buildCreatePayload(): CreateWorkflowRequest {
   const fixedDurationSeconds = storyboardDurationMode.value === "manual" ? normalizedStoryboardManualDurationSeconds.value : null;
+  const title = createForm.title.trim() || createForm.transcriptText.trim().slice(0, 32) || "未命名视频";
   return {
-    title: createForm.title.trim(),
+    title,
     transcriptText: createForm.transcriptText.trim() || null,
     aspectRatio: createForm.aspectRatio,
-    stylePreset: createForm.stylePreset || null,
     textAnalysisModel: createForm.textAnalysisModel,
     imageModel: createForm.imageModel,
     videoModel: createForm.videoModel,
@@ -1965,7 +1957,6 @@ function buildCreatePayload(): CreateWorkflowRequest {
 function buildWorkflowSettingsPayload(): UpdateWorkflowSettingsRequest {
   return {
     aspectRatio: workflowSettingsDraft.aspectRatio,
-    stylePreset: workflowSettingsDraft.stylePreset,
     textAnalysisModel: workflowSettingsDraft.textAnalysisModel,
     imageModel: workflowSettingsDraft.imageModel,
     videoModel: workflowSettingsDraft.videoModel,
@@ -2216,7 +2207,7 @@ async function handleDeleteWorkflow(workflow: WorkflowSummary) {
     const result: WorkflowDeleteResult = await deleteWorkflow(workflow.id);
     if (result.deleted && selectedWorkflowId.value === workflow.id) {
       selectedWorkflow.value = null;
-      await router.push("/workflows");
+      await router.push("/videos");
     }
     await loadWorkflows();
   } catch (error) {
@@ -2413,17 +2404,6 @@ watch(
 );
 
 watch(
-  () => route.query.create,
-  (createFlag) => {
-    if (String(createFlag || "") !== "1") {
-      return;
-    }
-    startCreateWorkflow();
-  },
-  { immediate: true }
-);
-
-watch(
   () => selectedWorkflowId.value,
   (workflowId) => {
     if (!workflowId) {
@@ -2437,18 +2417,96 @@ watch(
   { immediate: true }
 );
 
+function emitWorkflowViewportPageSize() {
+  const list = workflowProjectListRef.value;
+  const drawer = workflowProjectDrawerRef.value;
+  if (!list && !drawer) return;
+  const item = list?.querySelector<HTMLElement>(".workflow-nav-item");
+  const searchHeight = drawer?.querySelector<HTMLElement>(".workflow-search-box")?.offsetHeight ?? 40;
+  const filterHeight = drawer?.querySelector<HTMLElement>(".workflow-filter-strip")?.offsetHeight ?? 40;
+  const styles = window.getComputedStyle(list ?? drawer!);
+  const gap = Number.parseFloat(styles.rowGap || styles.gap || "4") || 4;
+  const itemHeight = item?.offsetHeight || 56;
+  const availableHeight = list?.clientHeight ?? Math.max(0, (drawer?.clientHeight ?? window.innerHeight) - searchHeight - filterHeight - gap * 3);
+  const nextPageSize = Math.max(4, Math.floor(availableHeight / (itemHeight + gap)));
+  if (Number.isFinite(nextPageSize) && nextPageSize !== lastWorkflowPageSize) {
+    lastWorkflowPageSize = nextPageSize;
+    setWorkflowPageSize(nextPageSize);
+  }
+}
+
+function handleWorkflowListScroll(event: Event) {
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return;
+  const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+  if (distanceToBottom <= 96) {
+    loadMoreWorkflows();
+  }
+}
+
+function observeWorkflowLoadMoreSentinel() {
+  workflowListIntersectionObserver?.disconnect();
+  workflowListIntersectionObserver = null;
+  const list = workflowProjectListRef.value;
+  const sentinel = workflowLoadMoreSentinelRef.value;
+  if (!list || !sentinel || typeof IntersectionObserver === "undefined") {
+    return;
+  }
+  workflowListIntersectionObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting && hasMoreWorkflows.value && !loadingWorkflows.value && !loadingMoreWorkflows.value) {
+        loadMoreWorkflows();
+      }
+    },
+    {
+      root: list,
+      rootMargin: "120px 0px",
+      threshold: 0,
+    },
+  );
+  workflowListIntersectionObserver.observe(sentinel);
+}
+
+watch(
+  () => [filteredWorkflows.value.length, hasMoreWorkflows.value, loadingWorkflows.value, loadingMoreWorkflows.value],
+  async () => {
+    await nextTick();
+    emitWorkflowViewportPageSize();
+    observeWorkflowLoadMoreSentinel();
+  },
+  { flush: "post" },
+);
+
 onMounted(async () => {
   document.addEventListener("pointerdown", handleWorkflowMenuPointerDown);
   document.addEventListener("keydown", handleWorkflowMenuKeydown);
   window.addEventListener("keydown", handleImagePreviewKeydown);
   await loadOptions();
+  await nextTick();
+  emitWorkflowViewportPageSize();
   await loadWorkflows();
+  await nextTick();
+  emitWorkflowViewportPageSize();
+  observeWorkflowLoadMoreSentinel();
+  const resizeTarget = workflowProjectDrawerRef.value ?? workflowProjectListRef.value;
+  if (resizeTarget && typeof ResizeObserver !== "undefined") {
+    workflowListResizeObserver = new ResizeObserver(() => {
+      emitWorkflowViewportPageSize();
+      observeWorkflowLoadMoreSentinel();
+    });
+    workflowListResizeObserver.observe(resizeTarget);
+  }
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", handleWorkflowMenuPointerDown);
   document.removeEventListener("keydown", handleWorkflowMenuKeydown);
   window.removeEventListener("keydown", handleImagePreviewKeydown);
+  workflowListResizeObserver?.disconnect();
+  workflowListResizeObserver = null;
+  workflowListIntersectionObserver?.disconnect();
+  workflowListIntersectionObserver = null;
 });
 </script>
 
@@ -2734,63 +2792,17 @@ onBeforeUnmount(() => {
   overflow: auto;
 }
 
-.workflow-new-tile {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 8px 10px;
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.68);
-  color: var(--text-strong);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.workflow-new-tile:hover,
-.workflow-new-tile:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(99, 102, 241, 0.28);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.06);
-}
-
-.workflow-new-tile:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.workflow-new-tile span {
+.workflow-project-list__footer {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, rgba(139, 212, 80, 0.18), rgba(99, 102, 241, 0.14));
-  color: var(--accent-blue);
-  line-height: 0;
+  min-height: 34px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
-.workflow-new-tile span :deep(svg) {
-  width: 16px;
-  height: 16px;
-}
-
-.workflow-new-tile strong {
-  min-width: 0;
-  color: var(--text-strong);
-  font-size: 0.88rem;
-  font-weight: 780;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.workflow-project-list__sentinel {
+  width: 1px;
+  height: 1px;
 }
 
 .workflow-nav-item {
@@ -3220,6 +3232,223 @@ onBeforeUnmount(() => {
   width: min(100%, 1120px);
   margin: 0 auto;
   padding: 12px 0 32px;
+}
+
+@property --workflow-video-composer-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes workflow-video-composer-focus-border {
+  to {
+    --workflow-video-composer-border-angle: 360deg;
+  }
+}
+
+.workflow-video-composer {
+  --workflow-video-composer-border-angle: 0deg;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 16px 22px;
+  width: min(100%, 1120px);
+  min-height: 188px;
+  padding: 22px 68px 22px 24px;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.96) inset,
+    0 10px 26px rgba(20, 28, 36, 0.045);
+  overflow: visible;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.workflow-video-composer::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: 0;
+  padding: 2px;
+  border-radius: 20px;
+  background: conic-gradient(
+    from var(--workflow-video-composer-border-angle),
+    rgba(139, 92, 246, 0.78),
+    rgba(59, 130, 246, 0.78),
+    rgba(6, 182, 212, 0.68),
+    rgba(34, 197, 94, 0.58),
+    rgba(250, 204, 21, 0.66),
+    rgba(236, 72, 153, 0.78),
+    rgba(139, 92, 246, 0.78)
+  );
+  opacity: 0.14;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: workflow-video-composer-focus-border 14s linear infinite;
+  pointer-events: none;
+  transition: opacity 240ms ease, filter 240ms ease;
+}
+
+.workflow-video-composer-active::before,
+.workflow-video-composer:focus-within::before {
+  opacity: 0.92;
+  filter:
+    drop-shadow(0 0 11px rgba(99, 102, 241, 0.2))
+    drop-shadow(0 0 22px rgba(59, 130, 246, 0.13));
+}
+
+.workflow-video-composer-submitting {
+  transform: translateY(-1px);
+}
+
+.workflow-video-composer > * {
+  position: relative;
+  z-index: 1;
+}
+
+.workflow-video-composer__upload {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  width: 78px;
+  min-height: 98px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent-blue);
+  cursor: pointer;
+  transform: rotate(-5deg);
+  transition:
+    border-color 220ms ease,
+    background 220ms ease,
+    color 220ms ease,
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.workflow-video-composer__upload:hover:not(:disabled),
+.workflow-video-composer__upload:focus-visible {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: rgba(238, 242, 255, 0.45);
+  transform: rotate(-2deg) translateY(-1px);
+}
+
+.workflow-video-composer__upload span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: currentColor;
+}
+
+.workflow-video-composer__upload small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.workflow-video-composer__body {
+  min-width: 0;
+}
+
+.workflow-video-composer__prompt {
+  display: block;
+  min-height: 98px;
+}
+
+.workflow-video-composer__prompt textarea {
+  width: 100%;
+  min-height: 108px;
+  max-height: 280px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-strong);
+  font-size: 1.02rem;
+  line-height: 1.72;
+  resize: vertical;
+}
+
+.workflow-video-composer__prompt textarea:focus,
+.workflow-video-composer__prompt textarea:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.workflow-video-composer__prompt textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.workflow-video-composer__footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.workflow-video-composer__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.workflow-video-composer__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.workflow-video-composer__cancel {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: 0 12px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-body);
+  cursor: pointer;
+}
+
+.workflow-video-composer__submit {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent-indigo);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.22);
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.workflow-video-composer__submit:hover:not(:disabled),
+.workflow-video-composer__submit:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.28);
+}
+
+.workflow-video-composer__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 .workflow-create-hero {

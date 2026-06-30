@@ -35,7 +35,6 @@ class BizStageWorkflow(Base):
     transcript_text = Column(Text, nullable=True, comment="Source transcript or creative brief for storyboard generation.")
     global_prompt = Column(Text, nullable=True, comment="Optional global prompt applied across stages.")
     aspect_ratio = Column(String(32), nullable=False, comment="Target aspect ratio such as 16:9, 9:16, or 1:1.")
-    style_preset = Column(String(128), nullable=False, comment="Visual style preset key.")
     text_analysis_model = Column(String(128), nullable=False, comment="Configured text model key for storyboard planning.")
     image_model = Column(String(128), nullable=False, comment="Configured image model key for keyframes.")
     video_model = Column(String(128), nullable=False, comment="Configured video model key for clip generation.")

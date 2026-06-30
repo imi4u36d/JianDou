@@ -452,10 +452,6 @@ class TaskRequestSnapshotFactory:
                 getattr(request, "imageSize", None),
                 "",
             ),
-            style_preset=first_non_blank(
-                self._model_resolver_value("catalog.defaults", "style_preset", "cinematic"),
-                "cinematic",
-            ),
             text_analysis_model=_trimmed(
                 getattr(request, "text_analysis_model", None) if hasattr(request, "text_analysis_model") else
                 getattr(request, "textAnalysisModel", None),

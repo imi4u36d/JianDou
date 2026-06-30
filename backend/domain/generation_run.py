@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-2"
+
 
 class GenerationRunKinds:
     PROBE = "probe"

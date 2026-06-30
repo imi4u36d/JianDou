@@ -32,7 +32,6 @@ def _task(**overrides: Any) -> TaskRecord:
             "textAnalysisModel": "text-model",
             "imageModel": "image-model",
             "videoModel": "video-model",
-            "stylePreset": "noir",
         },
         "created_at": "2026-01-01T00:00:00+00:00",
         "updated_at": "2026-01-01T00:00:00+00:00",
@@ -112,6 +111,22 @@ def test_build_image_request_keeps_single_reference_url_whole() -> None:
     assert request["input"]["frameRole"] == "last"
     assert request["storage"]["fileStem"] == "clip3-last"
     assert request["auth"] == {"userId": "11"}
+
+
+def test_build_image_request_defaults_missing_image_model_to_gpt_image_2() -> None:
+    support = TaskExecutionRuntimeSupport()
+    task = _task(request_snapshot={"textAnalysisModel": "text-model", "videoModel": "video-model"})
+
+    request = support.build_image_run_request(
+        task,
+        clip_index=1,
+        prompt="A frame",
+        width=1280,
+        height=720,
+        reference_image_url="",
+    )
+
+    assert request["model"]["providerModel"] == "gpt-image-2"
 
 
 def test_build_workspace_image_request_converts_storage_references_to_data_uri() -> None:

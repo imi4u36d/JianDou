@@ -49,7 +49,6 @@ function normalizeResponse(
   return {
     id: (raw?.id || "").trim() || `${Date.now()}`,
     sourceText: (raw?.sourceText || "").trim() || requestPayload.text.trim(),
-    visualStyle: (raw?.visualStyle || "").trim() || requestPayload.visualStyle?.trim() || "AI 自动决策",
     outputFormat: raw?.outputFormat || "markdown",
     scriptMarkdown: (raw?.scriptMarkdown || "").trim(),
     markdownFilePath: (raw?.markdownFilePath || "").trim() || null,
@@ -77,7 +76,6 @@ function simplifyGenerationRun(raw: UnknownRecord | null | undefined, payload: G
   return {
     id: asString(run.id) || asString(scriptResult.runId) || `${Date.now()}`,
     sourceText: asString(scriptResult.sourceText) || payload.text,
-    visualStyle: asString(scriptResult.visualStyle) || asString(metadata.visualStyle) || payload.visualStyle?.trim() || "AI 自动决策",
     scriptMarkdown: asString(scriptResult.scriptMarkdown) || asString(metadata.scriptMarkdown) || "",
     markdownFilePath: asString(scriptResult.markdownPath) || null,
     markdownFileUrl: asString(scriptResult.markdownUrl) || null,
@@ -146,9 +144,6 @@ export async function generateScriptFromText(payload: GenerateScriptRequest) {
     },
     model: {
       textAnalysisModel: payload.textAnalysisModel?.trim() || undefined,
-    },
-    options: {
-      visualStyle: payload.visualStyle?.trim() || undefined,
     },
     metadata: { source: "frontend-script" },
   };

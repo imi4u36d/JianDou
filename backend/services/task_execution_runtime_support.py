@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from backend.domain.enums import TaskStatus
+from backend.domain.generation_run import DEFAULT_OPENAI_IMAGE_MODEL
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_artifact_assembler import _TaskArtifactNaming
@@ -171,7 +172,6 @@ class TaskExecutionRuntimeSupport:
             "kind": GenerationRunKinds.SCRIPT,
             "input": {"text": source_text},
             "model": {"textAnalysisModel": self._text_analysis_model(task)},
-            "options": {"visualStyle": "AI 自动决策"},
             "storage": {
                 "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
                 "fileName": _TaskArtifactNaming.storyboard_file_name(task, "md"),
@@ -221,7 +221,6 @@ class TaskExecutionRuntimeSupport:
                 "textAnalysisModel": self._text_analysis_model(task),
                 "providerModel": image_model,
             },
-            "options": {"stylePreset": self._style_preset(task)},
             "storage": {
                 "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
                 "fileStem": f"clip{max(1, clip_index)}-{normalized_frame_role}",
@@ -265,7 +264,6 @@ class TaskExecutionRuntimeSupport:
                 "textAnalysisModel": self._text_analysis_model(task),
                 "providerModel": image_model,
             },
-            "options": {"stylePreset": self._style_preset(task)},
             "storage": {
                 "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
                 "fileStem": f"character{max(1, character_index)}-sheet",
@@ -324,7 +322,6 @@ class TaskExecutionRuntimeSupport:
                 "textAnalysisModel": self._text_analysis_model(task),
                 "providerModel": image_model,
             },
-            "options": {"stylePreset": self._style_preset(task)},
             "storage": {
                 "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
                 "fileStem": "workspace-image" if output_index <= 1 else f"workspace-image-{output_index}",
@@ -375,7 +372,6 @@ class TaskExecutionRuntimeSupport:
                 "textAnalysisModel": self._text_analysis_model(task),
                 "providerModel": self._video_model(task),
             },
-            "options": {"stylePreset": self._style_preset(task)},
             "storage": {
                 "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
                 "fileStem": f"clip{max(1, clip_index)}",
@@ -404,7 +400,8 @@ class TaskExecutionRuntimeSupport:
         return self._required_snapshot_model(task, "textAnalysisModel", "文本模型")
 
     def _image_model(self, task: TaskRecord) -> str:
-        return self._required_snapshot_model(task, "imageModel", "关键帧模型")
+        snapshot = task.request_snapshot or {}
+        return first_non_blank(string_value(snapshot.get("imageModel", "")), DEFAULT_OPENAI_IMAGE_MODEL)
 
     def _video_model(self, task: TaskRecord) -> str:
         return self._required_snapshot_model(task, "videoModel", "视频模型")
@@ -415,11 +412,6 @@ class TaskExecutionRuntimeSupport:
         if configured:
             return configured
         raise ValueError(f"任务缺少必选模型：{label}（{field_name}）")
-
-    def _style_preset(self, task: TaskRecord) -> str:
-        snapshot = task.request_snapshot or {}
-        configured = string_value(snapshot.get("stylePreset", ""))
-        return configured if configured else "cinematic"
 
     def _task_seed(self, task: TaskRecord) -> int | None:
         snapshot = task.request_snapshot or {}

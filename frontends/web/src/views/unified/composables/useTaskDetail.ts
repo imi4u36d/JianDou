@@ -1,6 +1,6 @@
 /**
  * 任务详情组合式逻辑。
- * 从 TasksView 中提取，管理任务详情的加载、展示和操作。
+ * 管理统一任务详情的加载、展示和操作。
  */
 import { computed, ref, watch } from "vue";
 import { requireAuth } from "@/auth/modal";

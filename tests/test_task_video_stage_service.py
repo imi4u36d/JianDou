@@ -129,7 +129,6 @@ def _video_task(clip_count: int = 2) -> TaskRecord:
             "textAnalysisModel": "gpt-5.5",
             "imageModel": "gpt-image-2",
             "videoModel": "agnes-video-v2.0",
-            "stylePreset": "cinematic",
         },
         execution_context={
             "plannedClipCount": clip_count,

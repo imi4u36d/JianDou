@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
@@ -24,6 +24,7 @@ from backend.schemas.workflow import (
     WorkflowActionResponse,
     WorkflowDeleteResult,
     WorkflowDetailResponse,
+    WorkflowListPageResponse,
     WorkflowListResponse,
 )
 from backend.services.credit_service import InsufficientCreditsError
@@ -65,15 +66,20 @@ async def _save_aspect_ratio_preference(request: Request, user_id: int, aspect_r
 # ------------------------------------------------------------------
 
 
-@router.get("", response_model=WorkflowListResponse)
+@router.get("", response_model=WorkflowListResponse | WorkflowListPageResponse)
 async def list_workflows(
     request: Request,
+    q: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
+    offset: int | None = Query(default=None, ge=0),
+    limit: int | None = Query(default=None, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-) -> list[dict[str, Any]]:
+) -> list[dict[str, Any]] | dict[str, Any]:
     """List all workflows for the current user."""
     user = await require_user(request)
     svc = _service(db, request)
-    return await svc.list_workflows(owner_user_id=user["id"])
+    return await svc.list_workflows(owner_user_id=user["id"], q=q, status=status, sort=sort, offset=offset, limit=limit)
 
 
 @router.post("", response_model=WorkflowDetailResponse)

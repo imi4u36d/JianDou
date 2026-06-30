@@ -38,7 +38,6 @@ async def test_render_generates_character_sheet_before_keyframes_and_references_
             "textAnalysisModel": "gpt-5.5",
             "imageModel": "gpt-image-2",
             "videoModel": "agnes-video-v2.0",
-            "stylePreset": "cinematic",
             "seed": 42,
         },
         created_at="2026-01-01T00:00:00+00:00",

@@ -149,7 +149,6 @@ async def test_create_script_run_uses_single_text_model_pass(tmp_path) -> None:
         {
             "input": {"text": "雨夜里，修表师收到一块停在十年前的怀表。"},
             "model": {"textAnalysisModel": "gpt-5.5"},
-            "options": {"visualStyle": "电影感"},
         },
     )
 

@@ -92,7 +92,7 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
   const {
-    loadingOptions, aspectRatioOptions, stylePresetOptions,
+    loadingOptions, aspectRatioOptions,
     textModelOptions, imageModelOptions, videoModelOptions, catalogVideoSizeOptions,
     filterVideoSizeOptions, syncVideoSizeSelection, valueOptionLabel, loadOptions,
   } = workflowOptions;
@@ -126,7 +126,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   const workflowSettingsOpen = ref(false);
   const workflowSettingsDraft = reactive({
     aspectRatio: "16:9",
-    stylePreset: "",
     textAnalysisModel: "",
     imageModel: "",
     videoModel: "",
@@ -144,9 +143,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   const imageModelSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOptions(imageModelOptions.value));
   const videoModelSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOptions(videoModelOptions.value));
   const aspectRatioSelectOptions = computed<AppSelectOption[]>(() => toAppSelectOptions(aspectRatioOptions.value));
-  const stylePresetSelectOptions = computed<AppSelectOption[]>(() =>
-    stylePresetOptions.value.map((item) => ({ label: item.label, value: item.key }))
-  );
   const workflowSettingsVideoSizeOptions = computed(() =>
     filterVideoSizeOptions(catalogVideoSizeOptions.value, workflowSettingsDraft.videoModel, workflowSettingsDraft.aspectRatio)
   );
@@ -244,7 +240,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   const workflowSettingsValidationMessage = computed(() => {
     if (!workflowSettingsDraft.textAnalysisModel) return "请选择文本模型";
     if (!workflowSettingsDraft.imageModel) return "请选择关键帧模型";
-    if (!workflowSettingsDraft.stylePreset) return "请选择视觉风格";
     if (!workflowSettingsDraft.aspectRatio) return "请选择画幅";
     if (!workflowSettingsDraft.videoModel) return "请选择视频模型";
     if (!workflowSettingsDraft.videoSize) return "请选择输出尺寸";
@@ -430,7 +425,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     const minDur = workflow.minDurationSeconds ?? 5;
     const maxDur = workflow.maxDurationSeconds ?? 12;
     workflowSettingsDraft.aspectRatio = workflow.aspectRatio || "16:9";
-    workflowSettingsDraft.stylePreset = workflow.stylePreset || "";
     workflowSettingsDraft.textAnalysisModel = workflow.textAnalysisModel || "";
     workflowSettingsDraft.imageModel = workflow.imageModel || "";
     workflowSettingsDraft.videoModel = workflow.videoModel || "";
@@ -473,7 +467,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   function buildWorkflowSettingsPayload(): UpdateWorkflowSettingsRequest {
     return {
       aspectRatio: workflowSettingsDraft.aspectRatio,
-      stylePreset: workflowSettingsDraft.stylePreset,
       textAnalysisModel: workflowSettingsDraft.textAnalysisModel,
       imageModel: workflowSettingsDraft.imageModel,
       videoModel: workflowSettingsDraft.videoModel,
@@ -791,7 +784,6 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     imageModelSelectOptions,
     videoModelSelectOptions,
     aspectRatioSelectOptions,
-    stylePresetSelectOptions,
     workflowSettingsVideoSizeSelectOptions,
     // Image preview
     imagePreviewOverlayRef,

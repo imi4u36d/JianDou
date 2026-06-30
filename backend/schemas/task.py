@@ -51,6 +51,16 @@ class TaskListItemResponse(BaseModel):
     owner_username: str = ""
     owner_role: str = ""
 
+
+class TaskListPageResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=camel_alias, populate_by_name=True)
+
+    items: list[TaskListItemResponse] = []
+    total: int = 0
+    offset: int = 0
+    limit: int = 10
+
+
 class TaskDetailResponse(BaseModel):
     model_config = ConfigDict(alias_generator=camel_alias, populate_by_name=True)
 

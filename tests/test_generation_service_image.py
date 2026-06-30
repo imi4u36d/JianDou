@@ -41,6 +41,24 @@ async def test_image_run_keeps_generated_artifact_urls_local(monkeypatch, tmp_pa
     assert metadata["providerRemoteSourceUrl"] == "https://provider.example/image.png"
 
 
+@pytest.mark.asyncio
+async def test_image_run_defaults_missing_provider_model_to_gpt_image_2(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(settings, "storage_root", str(tmp_path))
+    factory = _LocalImageFactory(GenerationRunSupport())
+
+    run = await factory.create_image_run(
+        "run_image_missing_model",
+        {
+            "input": {"prompt": "雨夜社区药箱", "width": 1, "height": 1, "frameRole": "first"},
+            "model": {"textAnalysisModel": "gpt-5.5", "providerModel": ""},
+            "storage": {"relativeDir": "tasks/task_image/running", "fileStem": "clip1-first"},
+            "metadata": {"relatedTaskId": "task_image"},
+        },
+    )
+
+    assert run["result"]["metadata"]["providerModel"] == "gpt-image-2"
+
+
 class _LocalImageFactory(GenerationRunFactory):
     def __init__(self, support: GenerationRunSupport) -> None:
         super().__init__(

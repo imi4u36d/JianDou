@@ -11,6 +11,7 @@ import type {
   TaskDetail,
   TaskFilters,
   TaskListItem,
+  TaskPaginatedResponse,
   SeedanceTaskQueryResult,
   TaskTraceEvent,
   UploadResponse,
@@ -46,7 +47,7 @@ export function generateCreativePrompt(payload: GenerateCreativePromptRequest) {
  * 获取任务。
  * @param filters 筛选条件值
  */
-export function fetchTasks(filters?: TaskFilters) {
+export function fetchAllTasks(filters?: TaskFilters) {
   const params = new URLSearchParams();
   if (filters?.q?.trim()) {
     params.set("q", filters.q.trim());
@@ -57,8 +58,40 @@ export function fetchTasks(filters?: TaskFilters) {
   if (filters?.sort?.trim()) {
     params.set("sort", filters.sort.trim());
   }
+  if (filters?.taskType?.trim()) {
+    params.set("taskType", filters.taskType.trim());
+  }
+  if (filters?.excludeTaskType?.trim()) {
+    params.set("excludeTaskType", filters.excludeTaskType.trim());
+  }
   const query = params.toString();
   return getJson<TaskListItem[]>(query ? `/tasks?${query}` : "/tasks");
+}
+
+/**
+ * 分页获取任务。
+ * @param filters 筛选和分页条件值
+ */
+export function fetchTaskPage(filters: TaskFilters & { offset: number; limit: number }) {
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) {
+    params.set("q", filters.q.trim());
+  }
+  if (filters.status && filters.status !== "all") {
+    params.set("status", filters.status);
+  }
+  if (filters.sort?.trim()) {
+    params.set("sort", filters.sort.trim());
+  }
+  if (filters.taskType?.trim()) {
+    params.set("taskType", filters.taskType.trim());
+  }
+  if (filters.excludeTaskType?.trim()) {
+    params.set("excludeTaskType", filters.excludeTaskType.trim());
+  }
+  params.set("offset", String(filters.offset));
+  params.set("limit", String(filters.limit));
+  return getJson<TaskPaginatedResponse>(`/tasks?${params.toString()}`);
 }
 
 /**

@@ -53,7 +53,6 @@
               <label class="workflow-field"><span>文本模型</span><AppSelect v-model="workflowSettingsDraft.textAnalysisModel" :options="textModelSelectOptions" /></label>
               <label class="workflow-field"><span>关键帧模型</span><AppSelect v-model="workflowSettingsDraft.imageModel" :options="imageModelSelectOptions" /></label>
               <label class="workflow-field"><span>视频模型</span><AppSelect v-model="workflowSettingsDraft.videoModel" :options="videoModelSelectOptions" /></label>
-              <label class="workflow-field"><span>视觉风格</span><AppSelect v-model="workflowSettingsDraft.stylePreset" :options="stylePresetSelectOptions" /></label>
               <label class="workflow-field"><span>画幅</span><AppSelect v-model="workflowSettingsDraft.aspectRatio" :options="aspectRatioSelectOptions" /></label>
               <label class="workflow-field"><span>输出尺寸</span><AppSelect v-model="workflowSettingsDraft.videoSize" :options="workflowSettingsVideoSizeSelectOptions" /></label>
               <p v-if="workflowSettingsValidationMessage" class="workflow-error">{{ workflowSettingsValidationMessage }}</p>
@@ -811,7 +810,6 @@ const {
   imageModelSelectOptions,
   videoModelSelectOptions,
   aspectRatioSelectOptions,
-  stylePresetSelectOptions,
   workflowSettingsVideoSizeSelectOptions,
   imagePreviewOverlayRef,
   imagePreviewState,

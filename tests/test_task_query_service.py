@@ -97,6 +97,37 @@ async def test_admin_list_tasks_includes_all_owners_and_sorts_by_progress() -> N
 
 
 @pytest.mark.asyncio
+async def test_list_tasks_paginated_delegates_offset_limit_to_repository() -> None:
+    repo = _TaskSummaryRepository(
+        [
+            {"id": f"task_{index:02d}", "ownerUserId": 1, "title": f"Task {index:02d}"}
+            for index in range(25)
+        ]
+    )
+    service = TaskQueryService(repo, TaskExecutionCoordinator())
+
+    result = await service.list_tasks(owner_user_id=1, sort="created_desc", offset=10, limit=10)
+
+    assert result["total"] == 25
+    assert result["offset"] == 10
+    assert result["limit"] == 10
+    assert [item["id"] for item in result["items"]] == [f"task_{index:02d}" for index in range(10, 20)]
+    assert repo.list_calls == [
+        {
+            "owner_user_id": 1,
+            "q": None,
+            "status": None,
+            "sort": "created_desc",
+            "task_type": None,
+            "exclude_task_type": None,
+            "offset": 10,
+            "limit": 10,
+        }
+    ]
+    assert repo.count_calls == [{"owner_user_id": 1, "q": None, "status": None, "task_type": None, "exclude_task_type": None}]
+
+
+@pytest.mark.asyncio
 async def test_get_task_enforces_owner_boundary() -> None:
     task = _task("task_private", 1, "Private", "PENDING", "2026-01-01T00:01:00+00:00")
     service = TaskQueryService(_TaskQueryRepository([task]), TaskExecutionCoordinator())
@@ -148,3 +179,54 @@ class _TaskQueryRepository:
 
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"Unexpected repository call: {name}")
+
+
+class _TaskSummaryRepository:
+    def __init__(self, items: list[dict[str, Any]]) -> None:
+        self.items = items
+        self.list_calls: list[dict[str, Any]] = []
+        self.count_calls: list[dict[str, Any]] = []
+
+    async def list_task_summaries(
+        self,
+        owner_user_id: int | None = None,
+        q: str | None = None,
+        status: str | None = None,
+        sort: str | None = None,
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        self.list_calls.append(
+            {
+                "owner_user_id": owner_user_id,
+                "q": q,
+                "status": status,
+                "sort": sort,
+                "task_type": task_type,
+                "exclude_task_type": exclude_task_type,
+                "offset": offset,
+                "limit": limit,
+            }
+        )
+        start = offset or 0
+        end = start + limit if limit is not None else None
+        return self.items[start:end]
+
+    async def count_task_summaries(
+        self,
+        owner_user_id: int | None = None,
+        q: str | None = None,
+        status: str | None = None,
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+    ) -> int:
+        self.count_calls.append({
+            "owner_user_id": owner_user_id,
+            "q": q,
+            "status": status,
+            "task_type": task_type,
+            "exclude_task_type": exclude_task_type,
+        })
+        return len(self.items)

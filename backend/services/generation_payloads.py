@@ -103,28 +103,20 @@ def build_negative_prompt(media_kind: str) -> str:
     return f" {video_only}"
 
 
-def build_script_user_prompt(source_text: str, visual_style: str) -> str:
-    style_line = (
-        ""
-        if not visual_style or visual_style.strip().lower() == "ai  "
-        else f"  {visual_style}"
-    )
-    return f"  \n{style_line}\n\n【 】：\n{source_text}\n\n---\n\n  system prompt     。"
+def build_script_user_prompt(source_text: str) -> str:
+    return f"  \n\n【 】：\n{source_text}\n\n---\n\n  system prompt     。"
 
 
 def build_script_adjust_user_prompt(
-    source_text: str, visual_style: str, source_script: str, adjustment_prompt: str
+    source_text: str, source_script: str, adjustment_prompt: str
 ) -> str:
-    style_line = ""
-    if visual_style and visual_style.strip().lower() != "ai  ":
-        style_line = f"  {visual_style}"
     requirement = (
         f"  \n{adjustment_prompt.strip()}"
         if adjustment_prompt and adjustment_prompt.strip()
         else ""
     )
     source_section = source_text if source_text else ""
-    return f"  {source_section}\n{style_line}\n{requirement}\n\n{source_script}"
+    return f"  {source_section}\n{requirement}\n\n{source_script}"
 
 
 def _string_value(value: Any) -> str:

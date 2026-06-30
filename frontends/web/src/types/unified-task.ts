@@ -30,5 +30,5 @@ export interface UnifiedListItem {
 /**
  * 统一列表的筛选状态。
  */
-export type UnifiedStatusFilter = "all" | "active" | "pending" | "completed" | "failed";
+export type UnifiedStatusFilter = "all" | "active" | "completed" | "failed";
 export type UnifiedSortMode = "updated_desc" | "created_desc" | "progress_desc" | "status_desc";

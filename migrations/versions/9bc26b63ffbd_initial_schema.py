@@ -168,7 +168,6 @@ def upgrade() -> None:
     sa.Column('transcript_text', sa.Text(), nullable=True, comment='Source transcript or creative brief for storyboard generation.'),
     sa.Column('global_prompt', sa.Text(), nullable=True, comment='Optional global prompt applied across stages.'),
     sa.Column('aspect_ratio', sa.String(length=32), nullable=False, comment='Target aspect ratio such as 16:9, 9:16, or 1:1.'),
-    sa.Column('style_preset', sa.String(length=128), nullable=False, comment='Visual style preset key.'),
     sa.Column('text_analysis_model', sa.String(length=128), nullable=False, comment='Configured text model key for storyboard planning.'),
     sa.Column('image_model', sa.String(length=128), nullable=False, comment='Configured image model key for keyframes.'),
     sa.Column('video_model', sa.String(length=128), nullable=False, comment='Configured video model key for clip generation.'),

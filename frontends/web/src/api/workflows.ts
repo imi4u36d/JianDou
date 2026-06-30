@@ -9,6 +9,8 @@ import type {
   UpdateWorkflowSettingsRequest,
   WorkflowDeleteResult,
   WorkflowDetail,
+  WorkflowFilters,
+  WorkflowPaginatedResponse,
   WorkflowSummary,
 } from "@/types";
 
@@ -16,8 +18,24 @@ export function createWorkflow(payload: CreateWorkflowRequest) {
   return postJson<WorkflowDetail>("/workflows", payload);
 }
 
-export function fetchWorkflows() {
+export function fetchAllWorkflows() {
   return getJson<WorkflowSummary[]>("/workflows");
+}
+
+export function fetchWorkflowPage(params: WorkflowFilters & { offset: number; limit: number }) {
+  const search = new URLSearchParams();
+  if (params.q?.trim()) {
+    search.set("q", params.q.trim());
+  }
+  if (params.status && params.status !== "all") {
+    search.set("status", params.status);
+  }
+  if (params.sort?.trim()) {
+    search.set("sort", params.sort.trim());
+  }
+  search.set("offset", String(params.offset));
+  search.set("limit", String(params.limit));
+  return getJson<WorkflowPaginatedResponse>(`/workflows?${search.toString()}`);
 }
 
 export function fetchWorkflow(workflowId: string) {

@@ -203,7 +203,6 @@ class WorkflowViewMapper:
             "title": wf.title,
             "transcriptText": wf.transcript_text,
             "aspectRatio": wf.aspect_ratio,
-            "stylePreset": wf.style_preset,
             "textAnalysisModel": wf.text_analysis_model,
             "imageModel": wf.image_model,
             "videoModel": wf.video_model,

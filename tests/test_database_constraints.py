@@ -311,7 +311,6 @@ async def test_workflow_rejects_unknown_status(db_session):
             owner_user_id=1,
             title="Invalid workflow",
             aspect_ratio="16:9",
-            style_preset="cinematic",
             text_analysis_model="text-model",
             image_model="image-model",
             video_model="video-model",

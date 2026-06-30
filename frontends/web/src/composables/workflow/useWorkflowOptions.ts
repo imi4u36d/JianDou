@@ -10,7 +10,6 @@ export function useWorkflowOptions() {
     { value: "16:9", label: "16:9" },
     { value: "9:16", label: "9:16" },
   ]);
-  const stylePresetOptions = computed(() => options.value?.stylePresets ?? []);
   const textModelOptions = computed(() => options.value?.textAnalysisModels ?? []);
   const imageModelOptions = computed(() => options.value?.imageModels ?? []);
   const videoModelOptions = computed(() => options.value?.videoModels ?? []);
@@ -78,11 +77,6 @@ export function useWorkflowOptions() {
     return opts.find((item) => item.value === value)?.label || value;
   }
 
-  function keyOptionLabel<T extends { key: string; label: string }>(opts: T[], value?: string | null, fallback = "-"): string {
-    if (!value) return fallback;
-    return opts.find((item) => item.key === value)?.label || value;
-  }
-
   async function loadOptions() {
     loadingOptions.value = true;
     try {
@@ -98,7 +92,6 @@ export function useWorkflowOptions() {
     loadingOptions,
     options,
     aspectRatioOptions,
-    stylePresetOptions,
     textModelOptions,
     imageModelOptions,
     videoModelOptions,
@@ -109,7 +102,6 @@ export function useWorkflowOptions() {
     filterVideoSizeOptions,
     syncVideoSizeSelection,
     valueOptionLabel,
-    keyOptionLabel,
     loadOptions,
   };
 }

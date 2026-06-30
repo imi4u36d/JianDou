@@ -59,6 +59,54 @@ describe("resolveTaskPreviewMedia", () => {
     expect(preview).toMatchObject({ type: "image", url: "/storage/workspace-image.png" });
   });
 
+  it("uses original image result urls instead of thumbnails for task detail previews", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      taskType: "image_generation",
+      requestSnapshot: { taskType: "image_generation" },
+      outputs: [
+        output({
+          resultType: "image",
+          previewUrl: "/storage/thumbs/workspace-image.jpg",
+          thumbnailUrl: "/storage/thumbs/workspace-image.jpg",
+          downloadUrl: "/storage/workspace-image.png",
+        }),
+      ],
+    }));
+
+    expect(preview).toMatchObject({ type: "image", url: "/storage/workspace-image.png" });
+  });
+
+  it("uses linked material originals ahead of image output thumbnails", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      taskType: "image_generation",
+      requestSnapshot: { taskType: "image_generation" },
+      outputs: [
+        output({
+          resultType: "image",
+          materialAssetId: "asset_image",
+          previewUrl: "/storage/thumbs/asset-image.jpg",
+        }),
+      ],
+      materials: [
+        {
+          id: "asset_image",
+          kind: "output",
+          mediaType: "image",
+          title: "图片结果",
+          publicUrl: "/storage/asset-image.png",
+          fileUrl: "/storage/asset-image.png",
+          thumbnailUrl: "/storage/thumbs/asset-image.jpg",
+        },
+      ],
+    }));
+
+    expect(preview).toMatchObject({
+      type: "image",
+      url: "/storage/asset-image.png",
+      materialAssetId: "asset_image",
+    });
+  });
+
   it("treats workspace image result types as image previews even without an image extension", () => {
     const preview = resolveTaskPreviewMedia(task({
       taskType: "image_to_image",

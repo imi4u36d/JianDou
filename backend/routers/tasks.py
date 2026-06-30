@@ -19,6 +19,7 @@ from backend.schemas.task import (
     TaskDeleteResult,
     TaskDetailResponse,
     TaskListItemResponse,
+    TaskListPageResponse,
 )
 from backend.services.credit_service import InsufficientCreditsError
 
@@ -59,15 +60,28 @@ async def get_seedance_task_result(remote_task_id: str, request: Request):
 
 # ── 任务 CRUD ────────────────────────────────────────────────────────────
 
-@router.get("", response_model=list[TaskListItemResponse])
+@router.get("", response_model=list[TaskListItemResponse] | TaskListPageResponse)
 async def list_tasks(
     request: Request,
     q: str | None = Query(default=None),
     status: str | None = Query(default=None),
     sort: str | None = Query(default=None),
+    task_type: str | None = Query(default=None, alias="taskType"),
+    exclude_task_type: str | None = Query(default=None, alias="excludeTaskType"),
+    offset: int | None = Query(default=None, ge=0),
+    limit: int | None = Query(default=None, ge=1, le=100),
 ):
     user_id = await _uid(request)
-    return await _svc(request).list_tasks(user_id, q=q, status=status, sort=sort)
+    return await _svc(request).list_tasks(
+        user_id,
+        q=q,
+        status=status,
+        sort=sort,
+        task_type=task_type,
+        exclude_task_type=exclude_task_type,
+        offset=offset,
+        limit=limit,
+    )
 
 
 @router.post("/generation", response_model=TaskDetailResponse)

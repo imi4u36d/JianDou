@@ -111,20 +111,31 @@ const router = createRouter({
           redirect: "/tasks"
         },
         {
-          path: "workflows",
-          name: "workflows",
+          path: "videos",
+          name: "videos",
           component: StageWorkflowView,
           meta: {
-            title: "工作流"
+            title: "视频"
           }
         },
         {
-          path: "workflows/:workflowId",
-          name: "workflow-detail",
+          path: "videos/:workflowId",
+          name: "video-detail",
           component: StageWorkflowView,
           meta: {
-            title: "工作流"
+            title: "视频"
           }
+        },
+        {
+          path: "workflows",
+          redirect: "/videos"
+        },
+        {
+          path: "workflows/:workflowId",
+          redirect: (to) => ({
+            path: `/videos/${String(to.params.workflowId || "")}`,
+            query: to.query,
+          })
         }
       ]
     },

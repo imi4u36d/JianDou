@@ -16,13 +16,6 @@ catalog:
       label: "竖版 2:3"
     "21:9":
       label: "超宽 21:9"
-  style_presets:
-    cinematic:
-      label: "电影写实"
-      description: "贴近真实影视剧照与镜头语言"
-    drama:
-      label: "短剧冲突"
-      description: "更强调人物冲突和情绪推进"
   image_sizes:
     "1280x720":
       label: "1K 16:9 · 1280x720"

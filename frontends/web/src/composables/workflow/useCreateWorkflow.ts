@@ -22,7 +22,7 @@ interface CreateReviewSection {
 }
 
 export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
-  const { valueOptionLabel, keyOptionLabel, syncVideoSizeSelection, options } = opts;
+  const { valueOptionLabel, syncVideoSizeSelection, options } = opts;
   const authState = useAuthSessionState();
 
   const creatingWorkflow = ref(false);
@@ -40,7 +40,6 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     title: "",
     transcriptText: "",
     aspectRatio: "",
-    stylePreset: "",
     textAnalysisModel: "",
     imageModel: "",
     videoModel: "",
@@ -50,7 +49,6 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
   });
 
   const aspectRatioOptions = computed(() => opts.aspectRatioOptions.value);
-  const stylePresetOptions = computed(() => opts.stylePresetOptions.value);
   const textModelOptions = computed(() => opts.textModelOptions.value);
   const imageModelOptions = computed(() => opts.imageModelOptions.value);
   const videoModelOptions = computed(() => opts.videoModelOptions.value);
@@ -160,7 +158,6 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
       title: "关键帧",
       items: [
         { key: "imageModel", label: "关键帧模型", valueLabel: valueOptionLabel(imageModelOptions.value, createForm.imageModel, "未设置"), configured: Boolean(createForm.imageModel), required: true },
-        { key: "stylePreset", label: "风格预设", valueLabel: keyOptionLabel(stylePresetOptions.value, createForm.stylePreset, "未设置"), configured: Boolean(createForm.stylePreset), required: true },
         { key: "aspectRatio", label: "画幅", valueLabel: valueOptionLabel(aspectRatioOptions.value, createForm.aspectRatio, "未设置"), configured: Boolean(createForm.aspectRatio), required: true },
         { key: "keyframeSeed", label: "关键帧 Seed", valueLabel: createForm.keyframeSeed === "" ? "自动" : createForm.keyframeSeed, configured: true, required: false },
       ],
@@ -192,7 +189,6 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
     (next) => {
       if (!next) return;
       createForm.aspectRatio ||= defaultWorkflowAspectRatio(next.defaultAspectRatio);
-      createForm.stylePreset ||= next.defaultStylePreset || stylePresetOptions.value[0]?.key || "";
       createForm.textAnalysisModel ||= next.defaultTextAnalysisModel || textModelOptions.value[0]?.value || "";
       createForm.imageModel ||= next.defaultImageModel || imageModelOptions.value[0]?.value || "";
       createForm.videoModel ||= next.defaultVideoModel || videoModelOptions.value[0]?.value || "";
@@ -247,7 +243,6 @@ export function useCreateWorkflow(opts: ReturnType<typeof useWorkflowOptions>) {
       title: createForm.title.trim(),
       transcriptText: createForm.transcriptText.trim() || null,
       aspectRatio: createForm.aspectRatio,
-      stylePreset: createForm.stylePreset || null,
       textAnalysisModel: createForm.textAnalysisModel,
       imageModel: createForm.imageModel,
       videoModel: createForm.videoModel,

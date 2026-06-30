@@ -15,7 +15,6 @@ def _workflow() -> BizStageWorkflow:
         title="Mapper Workflow",
         transcript_text="story",
         aspect_ratio="16:9",
-        style_preset="cinematic",
         text_analysis_model="text",
         image_model="image",
         video_model="video",

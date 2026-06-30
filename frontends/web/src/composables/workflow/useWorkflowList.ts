@@ -1,7 +1,7 @@
-import { ref, computed } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { messageApi } from "@/composables/useMessage";
-import { fetchWorkflows } from "@/features/workflows";
+import { fetchWorkflowPage } from "@/features/workflows";
 import type { WorkflowSummary } from "@/types";
 
 type WorkflowProgressSource = object & Partial<Pick<
@@ -9,12 +9,21 @@ type WorkflowProgressSource = object & Partial<Pick<
   "storyboardVersionCount" | "characterSheetCount" | "selectedCharacterSheetCount" | "characterSheetVersionCount" | "keyframeVersionCount" | "videoVersionCount"
 >>;
 
+const DEFAULT_PAGE_SIZE = 10;
+const MIN_PAGE_SIZE = 4;
+const MAX_PAGE_SIZE = 30;
+
 export function useWorkflowList() {
   const loadingWorkflows = ref(false);
+  const loadingMoreWorkflows = ref(false);
   const workflowSearch = ref("");
   const workflowFilter = ref<"all" | "active" | "ready" | "done">("all");
   const workflowSearchInput = ref<HTMLInputElement | null>(null);
   const workflows = ref<WorkflowSummary[]>([]);
+  const workflowTotal = ref(0);
+  const workflowPageSize = ref(DEFAULT_PAGE_SIZE);
+  let requestSerial = 0;
+  let reloadTimer: number | null = null;
 
   function workflowCompletionPercentage(workflow: WorkflowProgressSource): number {
     const storyboardCount = Number(workflow.storyboardVersionCount ?? 0);
@@ -28,35 +37,8 @@ export function useWorkflowList() {
     return Math.round((completed / total) * 100);
   }
 
-  function matchesWorkflowFilter(item: WorkflowSummary) {
-    if (workflowFilter.value === "all") {
-      return true;
-    }
-    const stage = String(item.currentStage || "").toLowerCase();
-    const status = String(item.status || "").toLowerCase();
-    const progress = workflowCompletionPercentage(item);
-    if (workflowFilter.value === "done") {
-      return stage === "final" || stage === "joined" || progress >= 100 || status === "completed";
-    }
-    if (workflowFilter.value === "ready") {
-      return ["storyboard", "character", "keyframe", "video"].includes(stage) && progress > 0 && progress < 100;
-    }
-    return progress === 0 || ["pending", "running", "processing", "created"].includes(status);
-  }
-
-  const filteredWorkflows = computed(() => {
-    const keyword = workflowSearch.value.trim().toLowerCase();
-    return workflows.value.filter((item) => {
-      if (!matchesWorkflowFilter(item)) {
-        return false;
-      }
-      if (!keyword) {
-        return true;
-      }
-      const haystack = [item.title, item.status, item.currentStage, item.aspectRatio].join(" ").toLowerCase();
-      return haystack.includes(keyword);
-    });
-  });
+  const filteredWorkflows = computed(() => workflows.value);
+  const hasMoreWorkflows = computed(() => workflows.value.length < workflowTotal.value);
 
   function focusWorkflowSearch() {
     workflowSearchInput.value?.focus();
@@ -66,36 +48,127 @@ export function useWorkflowList() {
     workflowSearch.value = "";
   }
 
-  async function loadWorkflows() {
+  function mergeWorkflows(currentWorkflows: WorkflowSummary[], nextWorkflows: WorkflowSummary[]) {
+    const currentMap = new Map(currentWorkflows.map((workflow) => [workflow.id, workflow]));
+    const merged = [...currentWorkflows];
+    for (const workflow of nextWorkflows) {
+      const current = currentMap.get(workflow.id);
+      if (current) {
+        Object.assign(current, workflow);
+      } else {
+        currentMap.set(workflow.id, workflow);
+        merged.push(workflow);
+      }
+    }
+    return merged;
+  }
+
+  async function loadWorkflows(options: { mode?: "reset" | "append" | "refresh"; silent?: boolean } = {}) {
+    const mode = options.mode ?? (workflows.value.length ? "refresh" : "reset");
+    if (mode === "append" && (loadingWorkflows.value || loadingMoreWorkflows.value || !hasMoreWorkflows.value)) {
+      return;
+    }
     const authenticated = await requireAuth({
-      title: "登录后查看工作流",
-      message: "阶段工作流只展示你的个人数据，请先登录或使用邀请码注册。",
+      title: "登录后查看视频",
+      message: "视频任务只展示你的个人数据，请先登录或使用邀请码注册。",
     });
     if (!authenticated) {
       workflows.value = [];
-      messageApi.warning("登录后可查看阶段工作流。");
+      workflowTotal.value = 0;
+      if (!options.silent) {
+        messageApi.warning("登录后可查看视频任务。");
+      }
       return;
     }
-    loadingWorkflows.value = true;
+    const requestId = ++requestSerial;
+    const offset = mode === "append" ? workflows.value.length : 0;
+    const limit = mode === "refresh" ? Math.max(workflows.value.length, workflowPageSize.value) : workflowPageSize.value;
+    if (mode === "append") {
+      loadingMoreWorkflows.value = true;
+    } else if (!options.silent) {
+      loadingWorkflows.value = mode === "reset" || workflows.value.length === 0;
+    }
     try {
-      workflows.value = await fetchWorkflows();
+      const page = await fetchWorkflowPage({
+        q: workflowSearch.value.trim() || undefined,
+        status: workflowFilter.value,
+        sort: "created_desc",
+        offset,
+        limit,
+      });
+      if (requestId !== requestSerial) {
+        return;
+      }
+      workflowTotal.value = page.total;
+      workflows.value = mode === "append" ? mergeWorkflows(workflows.value, page.items) : page.items;
     } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "工作流列表加载失败");
+      if (!options.silent) {
+        messageApi.error(error instanceof Error ? error.message : "视频列表加载失败");
+      }
     } finally {
-      loadingWorkflows.value = false;
+      if (requestId === requestSerial) {
+        loadingWorkflows.value = false;
+        loadingMoreWorkflows.value = false;
+      }
     }
   }
 
+  function loadMoreWorkflows() {
+    void loadWorkflows({ mode: "append" });
+  }
+
+  function setWorkflowPageSize(value: number) {
+    const normalized = Math.max(MIN_PAGE_SIZE, Math.min(MAX_PAGE_SIZE, Math.round(value)));
+    if (!Number.isFinite(normalized) || normalized === workflowPageSize.value) {
+      return;
+    }
+    const previousPageSize = workflowPageSize.value;
+    const hasLoadedItems = workflows.value.length > 0;
+    workflowPageSize.value = normalized;
+    if (
+      hasLoadedItems
+      && normalized > previousPageSize
+      && workflows.value.length < normalized
+      && !loadingWorkflows.value
+      && !loadingMoreWorkflows.value
+    ) {
+      void loadWorkflows({ mode: "refresh", silent: true });
+    }
+  }
+
+  function scheduleReload() {
+    if (reloadTimer !== null) {
+      window.clearTimeout(reloadTimer);
+    }
+    reloadTimer = window.setTimeout(() => {
+      reloadTimer = null;
+      void loadWorkflows({ mode: "reset" });
+    }, 260);
+  }
+
+  watch([workflowSearch, workflowFilter], scheduleReload);
+
+  onBeforeUnmount(() => {
+    if (reloadTimer !== null) {
+      window.clearTimeout(reloadTimer);
+      reloadTimer = null;
+    }
+  });
+
   return {
     loadingWorkflows,
+    loadingMoreWorkflows,
     workflowSearch,
     workflowFilter,
     workflowSearchInput,
     workflows,
     filteredWorkflows,
+    hasMoreWorkflows,
     focusWorkflowSearch,
     clearWorkflowSearch,
     workflowCompletionPercentage,
     loadWorkflows,
+    loadMoreWorkflows,
+    setWorkflowPageSize,
   };
 }

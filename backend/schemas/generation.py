@@ -9,7 +9,6 @@ from backend.schemas.common import _to_camel
 
 class GenerationOptionsResponse(BaseModel):
     aspect_ratios: list = []
-    style_presets: list = []
     image_sizes: list = []
     video_sizes: list = []
     video_durations: list = []
@@ -17,7 +16,6 @@ class GenerationOptionsResponse(BaseModel):
     image_models: list = []
     video_models: list = []
     default_aspect_ratio: str | None = None
-    default_style_preset: str | None = None
     default_image_size: str | None = None
     default_video_size: str | None = None
     default_video_duration_seconds: int | None = None

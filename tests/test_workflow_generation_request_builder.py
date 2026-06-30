@@ -14,7 +14,6 @@ def _workflow() -> BizStageWorkflow:
         title="Builder Workflow",
         transcript_text="Once upon a time",
         aspect_ratio="16:9",
-        style_preset="cinematic",
         text_analysis_model="text-model",
         image_model="image-model",
         video_model="video-model",
@@ -45,7 +44,7 @@ def test_builder_creates_storyboard_request() -> None:
     assert request["kind"] == "script"
     assert request["input"]["text"] == "Once upon a time"
     assert request["model"]["textAnalysisModel"] == "text-model"
-    assert request["options"]["visualStyle"] == "cinematic"
+    assert "options" not in request
     assert request["auth"]["userId"] == 42
 
 
@@ -77,6 +76,23 @@ def test_builder_creates_keyframe_request_and_prompt() -> None:
         "variantKind": "keyframe",
     }
     assert "Scene action: warehouse" in prompt
+
+
+def test_builder_defaults_missing_image_model_to_gpt_image_2() -> None:
+    workflow = _workflow()
+    workflow.image_model = ""
+
+    request, _ = WorkflowGenerationRequestBuilder().build_keyframe_request(
+        workflow,
+        workflow_id="wf_builder",
+        clip_index=1,
+        width=1824,
+        height=1024,
+        character=None,
+        clip={"shotLabel": "镜头 1"},
+    )
+
+    assert request["model"]["providerModel"] == "gpt-image-2"
 
 
 def test_builder_creates_start_keyframe_from_previous_tail_request() -> None:
@@ -153,5 +169,5 @@ def test_builder_creates_video_request_with_existing_prompt_shape() -> None:
         "stage": "video",
         "clipIndex": 2,
     }
-    assert "short drama video clip" in prompt
+    assert prompt.startswith("Video clip.")
     assert "Start frame: turns back" in prompt

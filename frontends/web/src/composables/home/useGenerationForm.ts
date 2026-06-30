@@ -41,9 +41,16 @@ const modeOptions: ModeOption[] = [
   {
     value: "image",
     kind: "image",
-    label: "OpenAI 图片生成",
+    label: "图片",
     description: "使用 OpenAI 图片模型生成或参考图再创作",
     iconName: "image",
+  },
+  {
+    value: "video",
+    kind: "video",
+    label: "视频",
+    description: "创建阶段化视频任务",
+    iconName: "video",
   },
 ];
 
@@ -263,7 +270,7 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
 
   const selectedMode = computed(() => modeOptions.find((item) => item.value === selectedModeValue.value) ?? modeOptions[0]);
 
-  const promptLabel = computed(() => "图片提示词");
+  const promptLabel = computed(() => selectedMode.value.kind === "video" ? "视频提示词" : "图片提示词");
 
   const showPromptPlaceholder = computed(() => !promptText.value.trim());
 
@@ -402,6 +409,9 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
   const parsedManualSeed = computed(() => parseSeed(seedInput.value));
 
   const seedCapabilityHint = computed(() => {
+    if (selectedMode.value.kind === "video") {
+      return "视频任务会使用当前画幅创建阶段工作流。";
+    }
     if (selectedMode.value.kind === "image" && !selectedImageModelOption.value?.supportsSeed) {
       return "当前图片模型未声明支持种子，提交时不会传 seed。";
     }
@@ -489,6 +499,10 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
     () => {
       if (selectedMode.value.kind === "image") {
         form.value.imageSize = null;
+        return;
+      }
+      if (form.value.aspectRatio !== "16:9" && form.value.aspectRatio !== "9:16") {
+        form.value.aspectRatio = videoAspectRatio(form.value.aspectRatio);
       }
     },
     { immediate: true },

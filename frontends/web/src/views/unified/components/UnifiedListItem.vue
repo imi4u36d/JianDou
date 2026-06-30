@@ -6,10 +6,6 @@
     :aria-label="`查看${item.title}`"
     @click="$emit('select', item)"
   >
-    <span class="unified-list-item__badge" :class="`unified-list-item__badge-${item.kind}`" aria-hidden="true">
-      <img v-if="item.thumbnailUrl" :src="item.thumbnailUrl" alt="" class="unified-list-item__thumb" />
-      <AppIcon v-else :name="item.kind === 'workflow' ? 'workflow' : 'task'" size="sm" />
-    </span>
     <span class="unified-list-item__body">
       <span class="unified-list-item__title-row">
         <span
@@ -44,7 +40,6 @@
  * 统一任务列表行组件。
  */
 import { computed } from "vue";
-import { AppIcon } from "@/components/icons";
 import IconDelete from "@/components/icons/IconDelete.vue";
 import type { UnifiedListItem } from "@/types/unified-task";
 
@@ -78,7 +73,7 @@ const statusLabel = computed(() => {
     }
   }
   switch (s.toLowerCase()) {
-    case "pending": return "排队中";
+    case "pending": return "进行中";
     case "analyzing": return "分析中";
     case "planning": return "编排中";
     case "rendering": return "生成中";
@@ -138,25 +133,6 @@ const compactTime = computed(() => {
 .unified-list-item-active {
   background: rgba(99, 102, 241, 0.06);
   border-color: var(--accent-indigo);
-}
-
-.unified-list-item__badge {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.unified-list-item__badge-task { background: rgba(99, 102, 241, 0.08); color: var(--accent-indigo); }
-.unified-list-item__badge-workflow { background: rgba(20, 184, 166, 0.12); color: #0f766e; }
-
-.unified-list-item__thumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .unified-list-item__body {

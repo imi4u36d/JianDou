@@ -977,7 +977,6 @@ class AdminModelConfigResponse:
     @dataclass
     class Defaults:
         default_aspect_ratio: str
-        style_preset: str
         image_size: str
         video_size: str
         video_duration_seconds: int
@@ -1111,7 +1110,6 @@ class AdminModelConfigService:
     def _read_defaults(self) -> AdminModelConfigResponse.Defaults:
         return AdminModelConfigResponse.Defaults(
             default_aspect_ratio=self._model_resolver.value("pipeline", "default_aspect_ratio", "9:16"),
-            style_preset=self._model_resolver.value("catalog.defaults", "style_preset", "cinematic"),
             image_size=self._model_resolver.value("catalog.defaults", "image_size", "1024x1024"),
             video_size=self._model_resolver.value("catalog.defaults", "video_size", "720*1280"),
             video_duration_seconds=self._model_resolver.int_value("catalog.defaults", "video_duration_seconds", 8),
@@ -1582,7 +1580,6 @@ class UserModelConfigService:
     def _read_defaults(self) -> AdminModelConfigResponse.Defaults:
         return AdminModelConfigResponse.Defaults(
             default_aspect_ratio=self._model_resolver.value("pipeline", "default_aspect_ratio", "9:16"),
-            style_preset=self._model_resolver.value("catalog.defaults", "style_preset", "cinematic"),
             image_size=self._model_resolver.value("catalog.defaults", "image_size", "1024x1024"),
             video_size=self._model_resolver.value("catalog.defaults", "video_size", "720*1280"),
             video_duration_seconds=self._model_resolver.int_value("catalog.defaults", "video_duration_seconds", 8),

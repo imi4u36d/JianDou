@@ -11,10 +11,11 @@ import logging
 import re
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.domain.enums import AutoPilotState, WorkflowStage, WorkflowStatus
+from backend.domain.generation_run import DEFAULT_OPENAI_IMAGE_MODEL
 from backend.domain.json_payloads import read_json_object, write_json_object
 from backend.domain.workflow_storyboard_plan import parse_workflow_storyboard_markdown
 from backend.models.task import BizMaterialAsset
@@ -245,7 +246,7 @@ class WorkflowService:
             else max(safe_int(request.get("maxDurationSeconds", min_dur)), min_dur)
         )
         text_model = trim(request.get("textAnalysisModel"), "")
-        image_model = trim(request.get("imageModel"), "")
+        image_model = trim(request.get("imageModel"), DEFAULT_OPENAI_IMAGE_MODEL)
         video_model = trim(request.get("videoModel"), "")
         execution_mode = trim(request.get("executionMode"), "manual")
         if execution_mode not in ("auto", "manual"):
@@ -258,7 +259,6 @@ class WorkflowService:
             title=trim(request.get("title"), "未命名工作流"),
             transcript_text=trim(request.get("transcriptText"), ""),
             aspect_ratio=aspect_ratio,
-            style_preset=trim(request.get("stylePreset"), "cinematic"),
             text_analysis_model=text_model,
             image_model=image_model,
             video_model=video_model,
@@ -328,7 +328,6 @@ class WorkflowService:
             title=title,
             transcript_text="",
             aspect_ratio=aspect_ratio,
-            style_preset="cinematic",
             text_analysis_model="",
             image_model="",
             video_model="",
@@ -371,15 +370,29 @@ class WorkflowService:
     async def list_workflows(
         self,
         owner_user_id: int | None = None,
-    ) -> list[dict[str, Any]]:
+        q: str | None = None,
+        status: str | None = None,
+        sort: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """List user's workflows with version counts."""
+        is_paginated = offset is not None or limit is not None
+        page_offset = max(0, offset or 0)
+        page_limit = max(1, limit or 10)
         stmt = (
             select(BizStageWorkflow)
             .where(BizStageWorkflow.is_deleted == 0)
-            .order_by(BizStageWorkflow.update_time.desc())
         )
+        count_stmt = select(func.count()).select_from(BizStageWorkflow).where(BizStageWorkflow.is_deleted == 0)
         if owner_user_id is not None:
             stmt = stmt.where(BizStageWorkflow.owner_user_id == owner_user_id)
+            count_stmt = count_stmt.where(BizStageWorkflow.owner_user_id == owner_user_id)
+        stmt = self._apply_workflow_list_filters(stmt, q, status)
+        count_stmt = self._apply_workflow_list_filters(count_stmt, q, status)
+        stmt = self._apply_workflow_list_sort(stmt, sort)
+        if is_paginated:
+            stmt = stmt.offset(page_offset).limit(page_limit)
         result = await self.db.execute(stmt)
         workflows = result.scalars().all()
 
@@ -387,7 +400,62 @@ class WorkflowService:
         for wf in workflows:
             versions = await self._list_stage_versions(wf.workflow_id)
             rows.append(self._view_mapper.to_workflow_summary(wf, versions))
+        if is_paginated:
+            total_result = await self.db.execute(count_stmt)
+            return {
+                "items": rows,
+                "total": int(total_result.scalar_one() or 0),
+                "offset": page_offset,
+                "limit": page_limit,
+            }
         return rows
+
+    def _apply_workflow_list_filters(self, stmt: Any, q: str | None, status: str | None):
+        keyword = trim(q or "")
+        if keyword:
+            like = f"%{keyword}%"
+            stmt = stmt.where(
+                or_(
+                    BizStageWorkflow.title.ilike(like),
+                    BizStageWorkflow.status.ilike(like),
+                    BizStageWorkflow.current_stage.ilike(like),
+                    BizStageWorkflow.aspect_ratio.ilike(like),
+                    BizStageWorkflow.execution_mode.ilike(like),
+                    BizStageWorkflow.auto_pilot_state.ilike(like),
+                )
+            )
+        normalized_status = trim(status or "").lower()
+        if not normalized_status or normalized_status == "all":
+            return stmt
+        if normalized_status == "active":
+            return stmt.where(
+                or_(
+                    BizStageWorkflow.auto_pilot_state.in_(("queued", "running", "paused")),
+                    BizStageWorkflow.status.in_(("DRAFT", "READY", "RUNNING", "PAUSED")),
+                )
+            )
+        if normalized_status == "ready":
+            return stmt.where(
+                BizStageWorkflow.current_stage.in_(("storyboard", "keyframe", "video")),
+                BizStageWorkflow.status.in_(("DRAFT", "READY", "RUNNING", "PAUSED")),
+            )
+        if normalized_status == "done":
+            return stmt.where(
+                or_(
+                    BizStageWorkflow.status == "COMPLETED",
+                    BizStageWorkflow.current_stage == "joined",
+                    BizStageWorkflow.auto_pilot_state == "completed",
+                )
+            )
+        return stmt.where(BizStageWorkflow.status == normalized_status.upper())
+
+    def _apply_workflow_list_sort(self, stmt: Any, sort: str | None):
+        normalized_sort = trim(sort or "").lower() or "created_desc"
+        if normalized_sort == "updated_desc":
+            return stmt.order_by(BizStageWorkflow.update_time.desc(), BizStageWorkflow.id.desc())
+        if normalized_sort == "status_desc":
+            return stmt.order_by(BizStageWorkflow.status.asc(), BizStageWorkflow.update_time.desc(), BizStageWorkflow.id.desc())
+        return stmt.order_by(BizStageWorkflow.create_time.desc(), BizStageWorkflow.id.desc())
 
     async def get_workflow(
         self,
@@ -458,11 +526,10 @@ class WorkflowService:
             else max(safe_int(request.get("maxDurationSeconds"), min_dur), min_dur)
         )
         text_model = trim(request.get("textAnalysisModel"), "")
-        image_model = trim(request.get("imageModel"), "")
+        image_model = trim(request.get("imageModel"), DEFAULT_OPENAI_IMAGE_MODEL)
         video_model = trim(request.get("videoModel"), "")
         await self._validate_generation_models(wf.owner_user_id, text_model, image_model, video_model)
         wf.aspect_ratio = aspect_ratio
-        wf.style_preset = trim(request.get("stylePreset"), "cinematic")
         wf.text_analysis_model = text_model
         wf.image_model = image_model
         wf.video_model = video_model

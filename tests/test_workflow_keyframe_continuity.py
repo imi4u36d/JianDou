@@ -49,7 +49,6 @@ def _workflow(**overrides) -> BizStageWorkflow:
         "title": "Continuity Workflow",
         "transcript_text": "story",
         "aspect_ratio": "16:9",
-        "style_preset": "cinematic",
         "text_analysis_model": "text-model",
         "image_model": "image-model",
         "video_model": "video-model",

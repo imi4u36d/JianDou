@@ -40,8 +40,6 @@ class GenerationCatalogService:
         return {
             "aspectRatios": self._aspect_ratio_options(self._section(catalog, "aspect_ratios")),
             "defaultAspectRatio": defaults.get("aspect_ratio", "16:9"),
-            "stylePresets": self._style_preset_options(self._section(catalog, "style_presets")),
-            "defaultStylePreset": defaults.get("style_preset"),
             "imageSizes": image_sizes,
             "defaultImageSize": defaults.get("image_size", image_sizes[0]["value"] if image_sizes else None),
             "textAnalysisModels": text_models,
@@ -157,14 +155,3 @@ class GenerationCatalogService:
             durations.append({"value": seconds, "label": label})
         durations.sort(key=lambda item: item["value"])
         return durations
-
-    @staticmethod
-    def _style_preset_options(style_presets: dict[str, Any]) -> list[dict[str, Any]]:
-        presets: list[dict[str, Any]] = []
-        for key, value in style_presets.items():
-            item: dict[str, Any] = {"key": key}
-            if isinstance(value, dict):
-                item["label"] = value.get("label", key)
-                item["description"] = value.get("description", "")
-            presets.append(item)
-        return presets

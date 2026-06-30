@@ -518,10 +518,24 @@ class TaskRepository:
         q: str | None = None,
         status: str | None = None,
         sort: str | None = None,
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Return lightweight task list rows without loading heavy child collections."""
         async with self._session_scope() as session:
-            task_rows = await self._query_task_summary_rows(session, owner_user_id, q, status, sort)
+            task_rows = await self._query_task_summary_rows(
+                session,
+                owner_user_id,
+                q,
+                status,
+                sort,
+                task_type,
+                exclude_task_type,
+                offset,
+                limit,
+            )
             task_ids = [row.task_id for row in task_rows]
             owner_ids = sorted({row.owner_user_id for row in task_rows if row.owner_user_id})
             owners = await self._owner_users_by_id(session, owner_ids)
@@ -581,6 +595,21 @@ class TaskRepository:
                 }
             )
         return items
+
+    async def count_task_summaries(
+        self,
+        owner_user_id: int | None = None,
+        q: str | None = None,
+        status: str | None = None,
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+    ) -> int:
+        """Return the number of task summary rows matching the lightweight list filters."""
+        async with self._session_scope() as session:
+            stmt = select(func.count()).select_from(BizTask).where(BizTask.is_deleted == 0)
+            stmt = self._apply_task_summary_filters(stmt, owner_user_id, q, status, task_type, exclude_task_type)
+            result = await session.execute(stmt)
+            return int(result.scalar_one() or 0)
 
     async def find_detail_light(self, task_id: str, owner_user_id: int | None = None) -> dict[str, Any] | None:
         """Return task detail without provider request/response payloads or material metadata."""
@@ -845,6 +874,10 @@ class TaskRepository:
         q: str | None,
         status: str | None,
         sort: str | None,
+        task_type: str | None,
+        exclude_task_type: str | None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> list[Any]:
         stmt = select(
             BizTask.id,
@@ -872,6 +905,24 @@ class TaskRepository:
             BizTask.editing_mode,
             BizTask.error_message,
         ).where(BizTask.is_deleted == 0)
+        stmt = self._apply_task_summary_filters(stmt, owner_user_id, q, status, task_type, exclude_task_type)
+        stmt = self._apply_task_summary_sort(stmt, sort)
+        if offset is not None:
+            stmt = stmt.offset(max(0, offset))
+        if limit is not None:
+            stmt = stmt.limit(max(1, limit))
+        result = await session.execute(stmt)
+        return list(result.all())
+
+    def _apply_task_summary_filters(
+        self,
+        stmt: Any,
+        owner_user_id: int | None,
+        q: str | None,
+        status: str | None,
+        task_type: str | None = None,
+        exclude_task_type: str | None = None,
+    ) -> Any:
         if owner_user_id is not None:
             stmt = stmt.where(BizTask.owner_user_id == owner_user_id)
         keyword = string_value(q).strip()
@@ -885,9 +936,37 @@ class TaskRepository:
                 )
             )
         normalized_status = string_value(status).strip().upper()
-        if normalized_status and normalized_status != "QUEUED":
+        if normalized_status == "QUEUED":
+            queued_task_ids = (
+                select(BizTaskAttempt.task_id)
+                .where(
+                    BizTaskAttempt.status.in_(("QUEUED", "PENDING")),
+                    BizTaskAttempt.is_deleted == 0,
+                )
+            )
+            stmt = stmt.where(BizTask.status == "PENDING", BizTask.task_id.in_(queued_task_ids))
+        elif normalized_status == "ACTIVE":
+            stmt = stmt.where(BizTask.status.in_(("PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED")))
+        elif normalized_status == "PENDING":
+            stmt = stmt.where(BizTask.status == "PENDING")
+        elif normalized_status:
             stmt = stmt.where(BizTask.status == normalized_status)
+        task_types = self._task_type_values(task_type)
+        if task_types:
+            stmt = stmt.where(BizTask.task_type.in_(task_types))
+        excluded_task_types = self._task_type_values(exclude_task_type)
+        if excluded_task_types:
+            stmt = stmt.where(BizTask.task_type.notin_(excluded_task_types))
+        return stmt
 
+    def _task_type_values(self, value: str | None) -> list[str]:
+        return [
+            item.strip()
+            for item in string_value(value).split(",")
+            if item.strip()
+        ]
+
+    def _apply_task_summary_sort(self, stmt: Any, sort: str | None) -> Any:
         normalized_sort = string_value(sort).strip().lower() or "created_desc"
         if normalized_sort == "created_desc":
             stmt = stmt.order_by(desc(BizTask.create_time), desc(BizTask.id))
@@ -907,8 +986,7 @@ class TaskRepository:
             stmt = stmt.order_by(status_priority.asc(), desc(BizTask.update_time), desc(BizTask.id))
         else:
             stmt = stmt.order_by(desc(BizTask.update_time), desc(BizTask.id))
-        result = await session.execute(stmt)
-        return list(result.all())
+        return stmt
 
     async def _active_attempts_by_task_id(
         self,

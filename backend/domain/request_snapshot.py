@@ -80,7 +80,6 @@ class GenerationRequestSnapshot:
     creative_prompt: str = ""
     aspect_ratio: str = ""
     image_size: str = ""
-    style_preset: str = "cinematic"
     text_analysis_model: str = ""
     image_model: str = ""
     video_model: str = ""
@@ -102,7 +101,6 @@ class GenerationRequestSnapshot:
             creative_prompt="",
             aspect_ratio="",
             image_size="",
-            style_preset="cinematic",
             text_analysis_model="",
             image_model="",
             video_model="",
@@ -127,7 +125,6 @@ class GenerationRequestSnapshot:
             creative_prompt=_string_value(data.get("creativePrompt"), ""),
             aspect_ratio=_string_value(data.get("aspectRatio"), ""),
             image_size=_string_value(data.get("imageSize"), ""),
-            style_preset=_string_value(data.get("stylePreset"), "cinematic"),
             text_analysis_model=_string_value(data.get("textAnalysisModel"), ""),
             image_model=_string_value(data.get("imageModel"), ""),
             video_model=_string_value(data.get("videoModel"), ""),
@@ -149,7 +146,6 @@ class GenerationRequestSnapshot:
             "creativePrompt": self.creative_prompt,
             "aspectRatio": self.aspect_ratio,
             "imageSize": self.image_size,
-            "stylePreset": self.style_preset,
             "textAnalysisModel": self.text_analysis_model,
             "imageModel": self.image_model,
             "videoModel": self.video_model,

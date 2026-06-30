@@ -17,6 +17,7 @@ from urllib.parse import urlencode, urlparse
 import httpx
 import yaml
 
+from backend.domain.generation_run import DEFAULT_OPENAI_IMAGE_MODEL
 from backend.services.generation_service import GenerationProviderException
 from backend.services.model_config_service import (
     GenerationModelKinds,
@@ -1450,7 +1451,7 @@ class OpenAiImageModelProvider:
         profile: MediaProviderProfile,
         request: ImageGenerationRequest,
     ) -> RemoteImageGenerationResult:
-        provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
+        provider_model = self._required_provider_model(profile, request)
         size = self._requested_image_size(request)
         request_body: dict[str, Any] = {
             "model": provider_model,
@@ -1486,7 +1487,7 @@ class OpenAiImageModelProvider:
         request: ImageGenerationRequest,
         reference_image_urls: list[str],
     ) -> RemoteImageGenerationResult:
-        provider_model = self._blank_to(profile.config.provider_model, request.requested_model)
+        provider_model = self._required_provider_model(profile, request)
         size = self._requested_image_size(request)
         files = await self._reference_urls_to_file_parts(reference_image_urls, profile.config.timeout_seconds)
         if not files:
@@ -1652,6 +1653,19 @@ class OpenAiImageModelProvider:
         if normalized == "image/webp":
             return "webp"
         return "png"
+
+    @staticmethod
+    def _required_provider_model(
+        profile: MediaProviderProfile,
+        request: ImageGenerationRequest,
+    ) -> str:
+        provider_model = OpenAiImageModelProvider._blank_to(
+            profile.config.provider_model if profile and profile.config else "",
+            request.requested_model,
+        )
+        if provider_model:
+            return provider_model
+        return DEFAULT_OPENAI_IMAGE_MODEL
 
     @staticmethod
     def _blank_to(primary: str, fallback: str) -> str:

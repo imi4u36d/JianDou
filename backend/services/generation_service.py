@@ -28,7 +28,12 @@ from datetime import UTC, datetime, timezone
 from typing import Any, Optional
 
 from backend.config import settings
-from backend.domain.generation_run import GenerationModelKinds, GenerationRunKinds, GenerationRunStatuses
+from backend.domain.generation_run import (
+    DEFAULT_OPENAI_IMAGE_MODEL,
+    GenerationModelKinds,
+    GenerationRunKinds,
+    GenerationRunStatuses,
+)
 from backend.infrastructure.generation_run_store import LocalGenerationRunStore
 from backend.services.generation_artifacts import (
     GenerationArtifactStore,
@@ -617,7 +622,6 @@ class GenerationRunFactory:
     async def create_script_run(self, run_id: str, request: dict[str, Any]) -> dict[str, Any]:
         _user_id = self._user_id_from_request(request)
         source_text = self._support.nested_value(request, "input", "text", "")
-        visual_style = self._support.nested_value(request, "options", "visualStyle", "")
         requested_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel",
@@ -627,7 +631,7 @@ class GenerationRunFactory:
         if not source_text.strip():
             raise ValueError("")
 
-        prompt = self._build_script_user_prompt(source_text, visual_style)
+        prompt = self._build_script_user_prompt(source_text)
         call_chain: list[dict[str, Any]] = []
         provider_interactions: list[dict[str, Any]] = []
 
@@ -693,7 +697,6 @@ class GenerationRunFactory:
         )
 
         metadata = {
-            "visualStyle": visual_style,
             "draftScriptMarkdown": draft_script_markdown,
             "scriptMarkdown": script_markdown,
             "reviewApplied": review_applied,
@@ -715,7 +718,6 @@ class GenerationRunFactory:
             "runId": run_id,
             "kind": GenerationRunKinds.SCRIPT,
             "sourceText": source_text,
-            "visualStyle": visual_style,
             "prompt": prompt,
             "outputFormat": "markdown",
             "scriptMarkdown": script_markdown,
@@ -736,7 +738,6 @@ class GenerationRunFactory:
         )
         script_markdown = self._support.nested_value(request, "input", "scriptMarkdown", "")
         adjustment_prompt = self._support.nested_value(request, "input", "adjustmentPrompt", "")
-        visual_style = self._support.nested_value(request, "options", "visualStyle", "")
         requested_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel",
@@ -746,7 +747,7 @@ class GenerationRunFactory:
         if not script_markdown.strip():
             raise ValueError("")
 
-        prompt = self._build_script_adjust_user_prompt(source_text, visual_style, script_markdown, adjustment_prompt)
+        prompt = self._build_script_adjust_user_prompt(source_text, script_markdown, adjustment_prompt)
         call_chain: list[dict[str, Any]] = []
         provider_interactions: list[dict[str, Any]] = []
 
@@ -811,7 +812,6 @@ class GenerationRunFactory:
 
         adjustment_mode = "self_review" if not adjustment_prompt.strip() else "user_prompt"
         metadata = {
-            "visualStyle": visual_style,
             "scriptMarkdown": adjusted_script,
             "sourceScriptMarkdown": script_markdown,
             "adjustmentPrompt": adjustment_prompt,
@@ -830,7 +830,6 @@ class GenerationRunFactory:
             "runId": run_id,
             "kind": GenerationRunKinds.SCRIPT_ADJUST,
             "sourceText": source_text,
-            "visualStyle": visual_style,
             "prompt": prompt,
             "adjustmentPrompt": adjustment_prompt,
             "adjustmentMode": adjustment_mode,
@@ -860,16 +859,14 @@ class GenerationRunFactory:
         width = self._support.nested_int(request, "input", "width", 1024)
         height = self._support.nested_int(request, "input", "height", 1024)
         _requested_seed = self._support.nested_nullable_int(request, "input", "seed")
-        _style_preset = self._support.nested_value(request, "options", "stylePreset", "cinematic")
         _text_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel",
             "",
         )
-        requested_image_model = self._support.required_model(
+        requested_image_model = self._support.first_non_blank(
             self._support.nested_value(request, "model", "providerModel", ""),
-            "providerModel",
-            "",
+            DEFAULT_OPENAI_IMAGE_MODEL,
         )
         _text_profile = self._resolve_text_profile(_text_model, _user_id)
         image_profile = self._resolve_media_profile(requested_image_model, GenerationModelKinds.IMAGE, _user_id)
@@ -933,7 +930,6 @@ class GenerationRunFactory:
             "width": artifact_width,
             "height": artifact_height,
             "metadata": {
-                "stylePreset": _style_preset,
                 "outputUrl": artifact_public_url,
                 "fileUrl": artifact_public_url,
                 "source": f"remote:{remote_image['providerModel']}",
@@ -1008,7 +1004,6 @@ class GenerationRunFactory:
         _requested_min_duration = self._support.nested_int(request, "input", "minDurationSeconds", _requested_duration)
         _requested_max_duration = self._support.nested_int(request, "input", "maxDurationSeconds", _requested_duration)
         _requested_seed = self._support.nested_nullable_int(request, "input", "seed")
-        _style_preset = self._support.nested_value(request, "options", "stylePreset", "cinematic")
         _text_model = self._support.required_model(
             self._support.nested_value(request, "model", "textAnalysisModel", ""),
             "textAnalysisModel",
@@ -1671,17 +1666,17 @@ class GenerationRunFactory:
         return build_negative_prompt(media_kind)
 
     @staticmethod
-    def _build_script_user_prompt(source_text: str, visual_style: str) -> str:
-        return build_script_user_prompt(source_text, visual_style)
+    def _build_script_user_prompt(source_text: str) -> str:
+        return build_script_user_prompt(source_text)
 
     @staticmethod
     def _build_script_adjust_user_prompt(
-        source_text: str, visual_style: str, source_script: str, adjustment_prompt: str
+        source_text: str, source_script: str, adjustment_prompt: str
     ) -> str:
-        return build_script_adjust_user_prompt(source_text, visual_style, source_script, adjustment_prompt)
+        return build_script_adjust_user_prompt(source_text, source_script, adjustment_prompt)
 
     @staticmethod
-    def _stub_script_output(source_text: str, visual_style: str) -> str:
+    def _stub_script_output(source_text: str) -> str:
         return "【 】\n-  : \n\n【 】\n|  |  |  |  |  |\n| --- | --- | --- | --- | --- |\n| 1 | ... | ... | ... | 5 |"
 
     @staticmethod

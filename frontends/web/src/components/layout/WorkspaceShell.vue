@@ -97,7 +97,8 @@ const adminPortalUrl = getRuntimeConfig().adminBaseUrl;
 
 const navItems: { to: string; label: string; icon: IconName }[] = [
   { to: "/", label: "首页", icon: "home" },
-  { to: "/tasks", label: "任务", icon: "task" },
+  { to: "/tasks", label: "图片", icon: "image" },
+  { to: "/videos", label: "视频", icon: "video" },
   { to: "/materials", label: "素材", icon: "material" },
 ];
 

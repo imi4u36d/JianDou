@@ -85,10 +85,12 @@
           'home-composer-linked': promptEditorFocused,
           'home-composer-active': hasPromptInput,
           'home-composer-submitting': submitting,
+          'home-composer-video': selectedMode.kind === 'video',
         }"
         @submit.prevent="submitComposer"
       >
         <button
+          v-if="selectedMode.kind === 'image'"
           type="button"
           class="home-composer__upload"
           :class="{
@@ -131,6 +133,7 @@
           <IconPlus v-else size="md" />
         </button>
         <input
+          v-if="selectedMode.kind === 'image'"
           ref="textFileInput"
           type="file"
           accept="image/*"
@@ -142,9 +145,11 @@
         <div class="home-composer__body">
           <label class="home-composer__prompt">
             <div v-if="showPromptPlaceholder" class="home-composer__placeholder" aria-hidden="true">
-              <span>描述你想生成的图片，</span>
-              <span class="home-composer__placeholder-tag">@</span>
-              <span> 引用参考图</span>
+              <span>{{ promptPlaceholderLead }}</span>
+              <template v-if="selectedMode.kind === 'image'">
+                <span class="home-composer__placeholder-tag">@</span>
+                <span> 引用参考图</span>
+              </template>
             </div>
             <div
               ref="promptEditor"
@@ -218,6 +223,40 @@
             </div>
 
             <div class="home-menu">
+              <button type="button" class="home-tool home-tool-plain" :class="{ 'home-tool-active': activeMenu === 'mode' }" @click="toggleMenu('mode')">
+                <span class="home-tool__icon">
+                  <IconVideo v-if="selectedMode.kind === 'video'" />
+                  <IconImage v-else />
+                </span>
+                {{ selectedMode.label }}
+              </button>
+              <transition name="home-popover-float">
+                <div v-if="activeMenu === 'mode'" class="home-popover home-popover-mode">
+                  <p class="home-popover__label">类型</p>
+                  <button
+                    v-for="mode in modeOptions"
+                    :key="mode.value"
+                    type="button"
+                    class="home-popover__item"
+                    :class="{ 'home-popover__item-active': selectedModeValue === mode.value }"
+                    @click="selectMode(mode.value)"
+                  >
+                    <span class="home-popover__icon">
+                      <IconVideo v-if="mode.kind === 'video'" size="sm" />
+                      <IconImage v-else size="sm" />
+                    </span>
+                    <span>
+                      <strong>{{ mode.label }}</strong>
+                    </span>
+                    <span v-if="selectedModeValue === mode.value" class="home-popover__check" aria-hidden="true">
+                      <IconCheck size="sm" />
+                    </span>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
+            <div class="home-menu">
               <button type="button" class="home-tool home-tool-plain" :class="{ 'home-tool-active': activeMenu === 'ratio' }" @click="toggleMenu('ratio')">
                 <span class="home-tool__shape"></span>
                 {{ ratioToolLabel }}
@@ -243,6 +282,21 @@
               </transition>
             </div>
 
+            <Transition name="home-template-chip-pop">
+              <span
+                v-if="selectedPromptTemplate"
+                :key="`${selectedPromptTemplate.id}-${templateChipNonce}`"
+                class="home-template-chip"
+                tabindex="0"
+                :aria-label="`已使用${selectedPromptTemplate.title}`"
+              >
+                <span class="home-template-chip__shine" aria-hidden="true"></span>
+                <IconCheck size="xs" />
+                <span>已使用{{ selectedPromptTemplate.title }}</span>
+                <span class="home-template-chip__tooltip" role="tooltip">{{ selectedPromptTemplate.prompt }}</span>
+              </span>
+            </Transition>
+
             <div class="home-menu home-menu-hidden" aria-hidden="true">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'count' }" @click="toggleMenu('count')">
                 <span class="home-tool__icon"><IconFrame /></span>
@@ -266,7 +320,7 @@
               </transition>
             </div>
 
-            <div class="home-menu">
+            <div v-if="selectedMode.kind === 'image'" class="home-menu">
               <button type="button" class="home-tool home-tool-mention" :class="{ 'home-tool-active': activeMenu === 'mention' }" @click="toggleMenu('mention')">
                 <span class="home-tool__icon">@</span>
                 引用
@@ -303,21 +357,6 @@
                 </div>
               </transition>
             </div>
-
-            <Transition name="home-template-chip-pop">
-              <span
-                v-if="selectedPromptTemplate"
-                :key="`${selectedPromptTemplate.id}-${templateChipNonce}`"
-                class="home-template-chip"
-                tabindex="0"
-                :aria-label="`已使用${selectedPromptTemplate.title}`"
-              >
-                <span class="home-template-chip__shine" aria-hidden="true"></span>
-                <IconCheck size="xs" />
-                <span>已使用{{ selectedPromptTemplate.title }}</span>
-                <span class="home-template-chip__tooltip" role="tooltip">{{ selectedPromptTemplate.prompt }}</span>
-              </span>
-            </Transition>
 
             <div class="home-menu home-menu-hidden" aria-hidden="true">
               <button type="button" class="home-tool" :class="{ 'home-tool-active': activeMenu === 'seed' }" @click="toggleMenu('seed')">
@@ -418,9 +457,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComputedRef } from "vue";
+import { useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import { useAuthSessionState } from "@/auth/session";
 import { createGenerationTask, saveDefaultAspectRatio } from "@/features/home";
+import { createWorkflow } from "@/features/workflows";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { formatTaskStatus } from "@/utils/task";
 
@@ -429,11 +470,11 @@ import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/
 import { useGenerationForm, type ModeOption, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
 import { openCreditDetailsDialog } from "@/composables/useCreditDialog";
-import { IconCheck, IconClose, IconImage, IconModel, IconFrame, IconTag, IconPlus, IconText } from "@/components/icons";
+import { IconCheck, IconClose, IconImage, IconModel, IconFrame, IconTag, IconPlus, IconText, IconVideo } from "@/components/icons";
 import PromptTemplateGallery from "@/components/home/PromptTemplateGallery.vue";
 import PublicShareGallery from "@/components/home/PublicShareGallery.vue";
 
-type MenuKey = "" | "model" | "ratio" | "count" | "mention" | "seed";
+type MenuKey = "" | "model" | "mode" | "ratio" | "count" | "mention" | "seed";
 
 interface AppliedPromptTemplate {
   id: string;
@@ -446,6 +487,7 @@ interface AppliedPromptTemplate {
 // ---------------------------------------------------------------------------
 
 const authState = useAuthSessionState();
+const router = useRouter();
 const activeMenu = ref<MenuKey>("");
 const statusText = ref("加载参数");
 const submitting = ref(false);
@@ -487,7 +529,9 @@ const {
 
 const {
   form,
+  modeOptions,
   selectedMode,
+  selectedModeValue,
   seedMode,
   seedInput,
   autoSeed,
@@ -500,6 +544,7 @@ const {
   selectedImageModelOption,
   selectedPrimaryModelLabel,
   creditLabel,
+  options,
   ratioOptions,
   selectedMaterialAssetType,
   ratioToolLabel,
@@ -507,6 +552,7 @@ const {
   seedCapabilityHint,
   isFormReady,
   imageOutputCountOptions,
+  videoSizeOptions,
   refreshAutoSeed,
   resolvedImageAspectRatioForSubmit,
   loadOptions,
@@ -558,10 +604,11 @@ const submitLabel = computed(() => {
   if (submitting.value) {
     return "创建中";
   }
-  return "生成图片";
+  return selectedMode.value.kind === "video" ? "生成视频" : "生成图片";
 });
 
 const hasPromptInput = computed(() => promptText.value.trim().length > 0);
+const promptPlaceholderLead = computed(() => selectedMode.value.kind === "video" ? "描述你想生成的视频" : "描述你想生成的图片，");
 
 // ---------------------------------------------------------------------------
 // Menu toggle logic (not extracted)
@@ -569,6 +616,16 @@ const hasPromptInput = computed(() => promptText.value.trim().length > 0);
 
 function toggleMenu(menu: Exclude<MenuKey, "">) {
   activeMenu.value = activeMenu.value === menu ? "" : menu;
+}
+
+function selectMode(value: ModeOption["value"]) {
+  if (selectedModeValue.value === value) {
+    activeMenu.value = "";
+    return;
+  }
+  selectedModeValue.value = value;
+  activeMenu.value = "";
+  statusText.value = value === "video" ? "视频模式会创建阶段工作流。" : "图片模式支持参考图生成。";
 }
 
 function openMentionMenuFromPrompt() {
@@ -654,7 +711,11 @@ async function submitComposer() {
   submitting.value = true;
   createdTaskId.value = "";
   try {
-    await submitImageGeneration();
+    if (selectedMode.value.kind === "video") {
+      await submitVideoWorkflow();
+    } else {
+      await submitImageGeneration();
+    }
   } catch (error) {
     statusText.value = formatApiErrorMessage(error, "创建失败");
   } finally {
@@ -692,6 +753,30 @@ async function submitImageGeneration() {
   showTaskToast(task.id);
   statusText.value = "已提交";
   void loadActiveTasks();
+}
+
+function videoWorkflowTitle() {
+  return promptText.value.trim().slice(0, 32) || "视频生成任务";
+}
+
+async function submitVideoWorkflow() {
+  const prompt = buildCreativePrompt();
+  const workflow = await createWorkflow({
+    title: videoWorkflowTitle(),
+    transcriptText: prompt || null,
+    aspectRatio: form.value.aspectRatio === "9:16" ? "9:16" : "16:9",
+    textAnalysisModel: form.value.textAnalysisModel || "",
+    imageModel: form.value.imageModel || "",
+    videoModel: form.value.videoModel || "",
+    videoSize: form.value.videoSize || videoSizeOptions.value[0]?.value || null,
+    durationMode: "auto",
+    executionMode: "auto",
+  });
+  if (authState.isAuthenticated.value) {
+    void saveDefaultAspectRatio(form.value.aspectRatio).catch(() => undefined);
+  }
+  statusText.value = "已创建视频任务";
+  await router.push({ name: "video-detail", params: { workflowId: workflow.id } });
 }
 
 // ---------------------------------------------------------------------------
@@ -1311,6 +1396,10 @@ onBeforeUnmount(() => {
 
 .home-composer-submitting {
   box-shadow: none;
+}
+
+.home-composer-video {
+  padding-left: 34px;
 }
 
 .home-hidden-input {
@@ -2093,6 +2182,10 @@ onBeforeUnmount(() => {
 
 .home-popover-model {
   width: min(304px, calc(100vw - 48px));
+}
+
+.home-popover-mode {
+  width: min(220px, calc(100vw - 48px));
 }
 
 .home-popover-compact,
