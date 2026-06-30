@@ -6,9 +6,9 @@ import { computed, ref, watch } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { usePolling } from "@/composables/usePolling";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
-import { continueTask, deleteTask, fetchTask, fetchTaskTrace, pauseTask, retryTask, terminateTask } from "@/features/tasks";
+import { continueTask, deleteTask, fetchTask, pauseTask, retryTask, terminateTask } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
-import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
+import type { TaskDetail, TaskListItem, TaskStatus } from "@/types";
 import type { IconName } from "@/components/icons";
 import {
   formatTaskDurationMode,
@@ -168,62 +168,6 @@ function stageStateClass(state: TaskStageState): string {
   }
 }
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return "-";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return value;
-  return new Date(timestamp).toLocaleString();
-}
-
-/**
- * 将追踪事件的 stage 值映射为可读中文标签。
- */
-const TRACE_STAGE_LABELS: Record<string, string> = {
-  api: "接口",
-  analysis: "分析",
-  planning: "编排",
-  rendering: "渲染",
-  pipeline: "流水线",
-  feedback: "反馈",
-  dispatch: "调度",
-};
-
-function formatTraceStage(stage: string): string {
-  if (!stage) return "系统";
-  const lower = stage.toLowerCase();
-  return TRACE_STAGE_LABELS[lower] ?? stage;
-}
-
-/**
- * 将追踪事件的 event 值映射为可读中文标签。
- */
-const TRACE_EVENT_LABELS: Record<string, string> = {
-  "task.created": "创建任务",
-  "task.enqueued": "加入队列",
-  "task.claimed": "领取任务",
-  "task.analyzing": "开始分析",
-  "task.planning": "开始编排",
-  "task.rendering": "开始渲染",
-  "task.completed": "任务完成",
-  "task.failed": "任务失败",
-  "task.paused": "暂停任务",
-  "task.continued": "继续任务",
-  "task.terminated": "终止任务",
-  "task.retried": "重试任务",
-  "task.deleted": "删除任务",
-  "task.effect_rated": "效果评分",
-  "analysis.reused": "复用已有分析",
-  "planning.shots_resolved": "镜头解析完成",
-  "planning.keyframe_reused_for_resume": "恢复已有进度",
-  "planning.keyframe_reused_from_last_frame": "复用上一镜尾帧",
-  "generation.call": "调用生成服务",
-};
-
-function formatTraceEvent(event: string): string {
-  if (!event) return "事件";
-  return TRACE_EVENT_LABELS[event] ?? event;
-}
-
 export interface UseTaskDetailOptions {
   /** 当前选中的任务 ID */
   selectedTaskId: () => string;
@@ -237,11 +181,11 @@ export interface UseTaskDetailOptions {
 
 export function useTaskDetail(options: UseTaskDetailOptions) {
   const selectedTaskDetail = ref<TaskDetail | null>(null);
-  const selectedTaskTrace = ref<TaskTraceEvent[]>([]);
   const selectedTaskLoading = ref(false);
   const managingTaskId = ref("");
   const failureDetailsOpen = ref(false);
   const completedPreviewPollCount = ref(0);
+  let detailRequestSerial = 0;
 
   const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
@@ -418,8 +362,6 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     return rows;
   });
 
-  const selectedTaskTracePreview = computed(() => selectedTaskTrace.value.slice(0, 16));
-
   const materialLibraryLink = computed(() => {
     const assetType = selectedTaskDetail.value?.requestSnapshot?.assetType;
     return assetType ? `/materials?assetType=${encodeURIComponent(assetType)}` : "/materials";
@@ -464,23 +406,26 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
 
   // ── Data loading ──
 
-  async function loadSelectedTaskDetails(opts: { silent?: boolean; includeTrace?: boolean } = {}) {
-    if (!selectedTaskId.value) {
+  async function loadSelectedTaskDetails(opts: { silent?: boolean } = {}) {
+    const taskId = selectedTaskId.value;
+    const requestId = ++detailRequestSerial;
+    if (!taskId) {
       selectedTaskDetail.value = null;
-      selectedTaskTrace.value = [];
+      selectedTaskLoading.value = false;
       return;
     }
-    if (!opts.silent) selectedTaskLoading.value = true;
-    try {
-      const previousStatus = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
-      const includeTrace = opts.includeTrace ?? (!opts.silent || isActiveTaskStatus(previousStatus));
-      const detailPromise = fetchTask(selectedTaskId.value);
-      const tracePromise = includeTrace ? fetchTaskTrace(selectedTaskId.value, 120) : Promise.resolve(null);
-      const [detail, trace] = await Promise.all([detailPromise, tracePromise]);
-      selectedTaskDetail.value = detail;
-      if (trace) {
-        selectedTaskTrace.value = [...trace].reverse();
+    if (!opts.silent) {
+      if (selectedTaskDetail.value?.id !== taskId) {
+        selectedTaskDetail.value = null;
       }
+      selectedTaskLoading.value = true;
+    }
+    try {
+      const detail = await fetchTask(taskId);
+      if (requestId !== detailRequestSerial || selectedTaskId.value !== taskId) {
+        return;
+      }
+      selectedTaskDetail.value = detail;
       if (selectedTaskPreviewMedia.value) {
         completedPreviewPollCount.value = 0;
       }
@@ -493,11 +438,13 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
         detailPolling.stop();
       }
     } catch (error) {
-      if (!opts.silent) {
+      if (!opts.silent && requestId === detailRequestSerial && selectedTaskId.value === taskId) {
         messageApi.error(error instanceof Error ? error.message : "任务详情加载失败");
       }
     } finally {
-      if (!opts.silent) selectedTaskLoading.value = false;
+      if (!opts.silent && requestId === detailRequestSerial && selectedTaskId.value === taskId) {
+        selectedTaskLoading.value = false;
+      }
     }
   }
 
@@ -620,7 +567,6 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   return {
     // State
     selectedTaskDetail,
-    selectedTaskTrace,
     selectedTaskLoading,
     managingTaskId,
     failureDetailsOpen,
@@ -654,7 +600,6 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     selectedTaskResultItems,
     selectedTaskReferenceItems,
     selectedTaskMaterialItems,
-    selectedTaskTracePreview,
     materialLibraryLink,
     selectedTaskArtifactRows,
     selectedTaskShortArtifactDirectoryHint,
@@ -669,9 +614,6 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     handleContinueTask,
     handleTerminate,
     handleDelete,
-    formatDateTime,
-    formatTraceStage,
-    formatTraceEvent,
     taskStatusTone: (status: TaskStatus) => getTaskStatusMeta(status).tone,
     stageStateClass,
     taskTypeIcon,

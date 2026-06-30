@@ -4,6 +4,7 @@ from typing import Any
 
 from backend.domain.task_monitoring import task_monitoring_snapshot
 from backend.domain.task_record import TaskRecord
+from backend.shared import first_non_blank, map_value, safe_int, string_value
 
 
 class TaskViewMapper:
@@ -123,4 +124,47 @@ class TaskViewMapper:
         return {"reason": None, "stage": None, "clipIndex": None}
 
     def _task_thumbnail_url(self, task: TaskRecord, monitoring: dict[str, Any]) -> str:
+        context = task.execution_context or {}
+        return first_non_blank(
+            self._material_thumbnail_url(task.materials, prefer_non_source=True),
+            self._output_thumbnail_url(task.outputs),
+            string_value(context.get("videoThumbnailUrl")),
+            string_value(context.get("thumbnailUrl")),
+            self._material_thumbnail_url(task.materials),
+            self._material_thumbnail_url(task.source_assets),
+        )
+
+    def _material_thumbnail_url(self, materials: list[dict[str, Any]], prefer_non_source: bool = False) -> str:
+        fallback = ""
+        for material in materials:
+            thumbnail_url = first_non_blank(
+                string_value(material.get("thumbnailUrl")),
+                string_value(material.get("previewUrl")),
+            )
+            if not thumbnail_url:
+                continue
+            kind = string_value(material.get("kind") or material.get("assetRole")).lower()
+            if prefer_non_source and kind == "source":
+                fallback = fallback or thumbnail_url
+                continue
+            return thumbnail_url
+        return fallback
+
+    def _output_thumbnail_url(self, outputs: list[dict[str, Any]]) -> str:
+        for output in sorted(outputs, key=lambda item: safe_int(item.get("clipIndex"), 0), reverse=True):
+            extra = map_value(output.get("extra"))
+            thumbnail_url = first_non_blank(
+                string_value(output.get("thumbnailUrl")),
+                string_value(extra.get("thumbnailUrl")),
+                string_value(extra.get("posterUrl")),
+                string_value(output.get("previewUrl")) if _looks_like_image_url(output.get("previewUrl")) else "",
+                string_value(output.get("previewPath")) if _looks_like_image_url(output.get("previewPath")) else "",
+            )
+            if thumbnail_url:
+                return thumbnail_url
         return ""
+
+
+def _looks_like_image_url(value: Any) -> bool:
+    url = string_value(value).lower()
+    return url.startswith("/storage/thumbs/") or url.endswith((".avif", ".gif", ".jpg", ".jpeg", ".png", ".webp"))

@@ -120,6 +120,109 @@ async def test_task_list_and_trace_use_lightweight_queries(db_session) -> None:
     assert "metadata_json" not in selected_sql
 
 
+async def test_task_detail_uses_lightweight_payload_and_filters_inline_media(db_session) -> None:
+    repository = TaskRepository(db_session)
+    inline_image = "data:image/png;base64," + ("a" * 8192)
+    task = _task("task_detail_light")
+    task.creative_prompt = "p" * 4096
+    task.request_snapshot = {
+        "taskType": "image_generation",
+        "creativePrompt": "r" * 4096,
+        "transcriptText": "t" * 4096,
+        "referenceImageUrls": [inline_image, "/storage/reference.png"],
+    }
+    task.execution_context = {
+        "clipPrompts": ["x" * 8192],
+        "analysisScriptText": "s" * 8192,
+        "referenceImageUrls": [inline_image],
+    }
+    mutation = TaskPersistenceMutation().set_task(task)
+    mutation.add_attempt(
+        {
+            "attemptId": "att_detail_light",
+            "attemptNo": 1,
+            "triggerType": "create",
+            "status": "RUNNING",
+            "resumeFromStage": "render",
+            "payload": {"large": "a" * 8192},
+        }
+    )
+    mutation.add_status_history(
+        {
+            "id": "status_detail_light",
+            "previousStatus": "PENDING",
+            "currentStatus": "RENDERING",
+            "payload": {"large": "b" * 8192},
+        }
+    )
+    mutation.add_model_call(
+        {
+            "modelCallId": "mdl_detail_light",
+            "callKind": "image",
+            "stage": "rendering",
+            "operation": "generation.image",
+            "requestPayload": {"large": "c" * 8192},
+            "responsePayload": {"large": "d" * 8192},
+            "success": True,
+        }
+    )
+    mutation.add_material(
+        {
+            "id": "asset_detail_light",
+            "ownerUserId": 1,
+            "kind": "output",
+            "mediaType": "image",
+            "fileUrl": inline_image,
+            "thumbnailUrl": "/storage/thumbs/detail-light.jpg",
+            "metadata": {"large": "e" * 8192},
+        }
+    )
+    mutation.add_result(
+        {
+            "id": "result_detail_light",
+            "resultType": "image",
+            "clipIndex": 1,
+            "title": "Generated",
+            "reason": "done",
+            "previewUrl": inline_image,
+            "downloadUrl": "/storage/detail-light.png",
+        }
+    )
+    await repository.save_mutation(mutation)
+
+    statements: list[str] = []
+    event.listen(
+        db_session.bind.sync_engine,
+        "before_cursor_execute",
+        lambda _conn, _cursor, statement, _parameters, _context, _executemany: statements.append(statement),
+    )
+
+    detail = await repository.find_detail_light("task_detail_light", 1)
+
+    assert detail is not None
+    assert detail["creativePrompt"] == "p" * 2000
+    assert detail["requestSnapshot"]["creativePrompt"] == "r" * 2000
+    assert detail["requestSnapshot"]["transcriptText"] == "t" * 2000
+    assert detail["requestSnapshot"]["referenceImageUrls"] == ["/storage/reference.png"]
+    assert detail["executionContext"] == {}
+    assert detail["storyboardScript"] == ""
+    assert detail["attempts"][0]["payload"] == {}
+    assert detail["modelCalls"] == []
+    assert detail["materials"][0]["fileUrl"] == ""
+    assert detail["materials"][0]["thumbnailUrl"] == "/storage/thumbs/detail-light.jpg"
+    assert detail["outputs"][0]["previewPath"] == ""
+    assert detail["outputs"][0]["downloadPath"] == "/storage/detail-light.png"
+
+    selected_sql = "\n".join(statement.lower() for statement in statements if statement.lstrip().lower().startswith("select"))
+    assert "context_json" not in selected_sql
+    assert "payload_json" not in selected_sql
+    assert "input_summary_json" not in selected_sql
+    assert "output_summary_json" not in selected_sql
+    assert "request_payload_json" in selected_sql
+    assert "response_payload_json" not in selected_sql
+    assert "metadata_json" not in selected_sql
+
+
 async def test_model_call_and_material_payloads_are_sanitized_before_persisting(db_session) -> None:
     repository = TaskRepository(db_session)
     huge_b64 = "a" * 4096

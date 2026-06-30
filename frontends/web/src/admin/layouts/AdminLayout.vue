@@ -101,7 +101,7 @@ const currentTitle = computed(() => {
 });
 
 function goToWorkspace() {
-  router.push("/workspace");
+  router.push("/image-tasks");
 }
 
 async function handleLogout() {

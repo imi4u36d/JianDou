@@ -76,7 +76,7 @@ const submitting = ref(false);
 
 function normalizeRedirectTarget(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/tasks";
+    return "/image-tasks";
   }
   return value;
 }
@@ -84,7 +84,7 @@ function normalizeRedirectTarget(value: unknown) {
 const redirectTarget = computed(() => normalizeRedirectTarget(route.query.redirect));
 const loginLink = computed(() => ({
   path: "/login",
-  query: redirectTarget.value === "/tasks" ? undefined : { redirect: redirectTarget.value }
+  query: redirectTarget.value === "/image-tasks" ? undefined : { redirect: redirectTarget.value }
 }));
 
 async function handleSubmit() {

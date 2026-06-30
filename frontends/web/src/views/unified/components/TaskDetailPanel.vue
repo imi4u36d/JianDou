@@ -278,38 +278,6 @@
         </section>
       </div>
 
-      <section class="detail-section detail-section-card detail-trace-section" :class="{ 'detail-trace-section-open': traceListOpen }">
-        <button
-          type="button"
-          class="detail-trace-summary"
-          :aria-expanded="traceListOpen"
-          aria-controls="task-detail-traces"
-          @click="traceListOpen = !traceListOpen"
-        >
-          <span class="detail-trace-summary__copy">
-            <strong>追踪</strong>
-            <small>{{ selectedTaskTracePreview[0]?.message || "暂无记录" }}</small>
-          </span>
-          <span class="surface-chip">{{ selectedTaskTrace.length }} 条</span>
-          <span class="detail-trace-summary__chevron" aria-hidden="true">
-            <IconChevronDown size="xs" />
-          </span>
-        </button>
-        <div v-if="traceListOpen" id="task-detail-traces" class="detail-traces">
-          <div v-if="selectedTaskTrace.length === 0" class="detail-traces__empty">暂无记录</div>
-          <div v-for="event in selectedTaskTracePreview" :key="`${event.timestamp}-${event.event}-${event.stage}`" class="detail-traces__item">
-            <div class="detail-traces__body">
-              <p>{{ event.message }}</p>
-              <small>
-                <span class="detail-traces__stage">{{ formatTraceStage(event.stage) }}</span>
-                <span class="detail-traces__event">{{ formatTraceEvent(event.event) }}</span>
-              </small>
-            </div>
-            <time class="detail-traces__time" :datetime="event.timestamp || undefined">{{ formatDateTime(event.timestamp) }}</time>
-          </div>
-        </div>
-      </section>
-
     </section>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
@@ -389,7 +357,6 @@ const detail = useTaskDetail({
 });
 
 const {
-  selectedTaskTrace,
   selectedTaskLoading,
   managingTaskId,
   failureDetailsOpen,
@@ -407,7 +374,6 @@ const {
   selectedTaskResultItems,
   selectedTaskReferenceItems,
   selectedTaskMaterialItems,
-  selectedTaskTracePreview,
   materialLibraryLink,
   selectedTaskCompactArtifactRows,
   selectedTaskShortArtifactDirectoryHint,
@@ -423,9 +389,6 @@ const {
   handleTerminate,
   handleContinueTask,
   handleDelete,
-  formatDateTime,
-  formatTraceStage,
-  formatTraceEvent,
   stageStateClass,
   confirmDialog,
   acceptConfirm,
@@ -447,7 +410,6 @@ async function handleDownloadMedia(url: string, title: string, mediaType: Downlo
 
 // 选中变化时重新加载详情
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from "vue";
-const traceListOpen = ref(false);
 const promptDialogOpen = ref(false);
 const promptCloseButtonRef = ref<HTMLButtonElement | null>(null);
 const previewImageLoadFailed = ref(false);
@@ -610,11 +572,10 @@ watch(taskPreviewMediaUrl, (url) => {
 }, { immediate: true });
 
 watch(() => props.selectedTaskId, () => {
-  traceListOpen.value = false;
   closePromptDialog();
   closeTaskPreviewDialog();
   stopDetailPolling();
-  void loadSelectedTaskDetails({ includeTrace: true }).then(() => {
+  void loadSelectedTaskDetails().then(() => {
     if (selectedTaskIsActive.value) {
       startDetailPolling();
     }

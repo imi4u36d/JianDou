@@ -45,7 +45,7 @@
           <IconSettings size="sm" />
           <span v-if="activeFilterCount > 0" class="material-toolbar-badge">{{ activeFilterCount }}</span>
         </button>
-        <RouterLink class="material-toolbar-primary" to="/tasks">
+        <RouterLink class="material-toolbar-primary" to="/image-tasks">
           <IconPlus size="sm" />
           新建
         </RouterLink>
@@ -241,7 +241,7 @@
                   <IconPlus v-else size="xs" />
                   <span>{{ busyActionKey === `reuse-${asset.id}` ? "复用中" : "复用" }}</span>
                 </button>
-                <RouterLink v-if="asset.workflowId" :to="`/videos/${asset.workflowId}`">
+                <RouterLink v-if="asset.workflowId" :to="`/video-tasks/${asset.workflowId}`">
                   <IconWorkflow size="xs" />
                   <span>视频</span>
                 </RouterLink>
@@ -1203,7 +1203,7 @@ async function handleReuseAsset(assetId: string) {
   try {
     const workflow = await reuseMaterialAsset(assetId, { mode: "clone" });
     await loadAssets();
-    await router.push(`/videos/${workflow.id}`);
+    await router.push(`/video-tasks/${workflow.id}`);
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "素材操作失败");
   } finally {

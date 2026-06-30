@@ -3,11 +3,11 @@
     <div class="forbidden-view__card">
       <h1>没有权限</h1>
       <div class="forbidden-view__actions">
-        <RouterLink class="forbidden-view__secondary" to="/tasks">
+        <RouterLink class="forbidden-view__secondary" to="/image-tasks">
           <IconHome size="xs" />
           <span>任务</span>
         </RouterLink>
-        <RouterLink class="forbidden-view__primary" to="/tasks">
+        <RouterLink class="forbidden-view__primary" to="/image-tasks">
           <IconTask size="xs" />
           <span>任务</span>
         </RouterLink>

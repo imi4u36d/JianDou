@@ -71,13 +71,13 @@ const submitting = ref(false);
 
 function normalizeRedirectTarget(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/tasks";
+    return "/image-tasks";
   }
   return value;
 }
 
 const redirectTarget = computed(() => normalizeRedirectTarget(route.query.redirect));
-const redirectHint = computed(() => (redirectTarget.value === "/tasks" ? "" : redirectTarget.value));
+const redirectHint = computed(() => (redirectTarget.value === "/image-tasks" ? "" : redirectTarget.value));
 const activateLink = computed(() => ({
   path: "/activate",
   query: redirectHint.value ? { redirect: redirectHint.value } : undefined

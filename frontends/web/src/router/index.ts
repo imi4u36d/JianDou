@@ -22,11 +22,11 @@ import HomeView from "@/views/HomeView.vue";
 import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
 import StageWorkflowView from "@/views/StageWorkflowView.vue";
-import UnifiedTaskView from "@/views/UnifiedTaskView.vue";
+import ImageTaskView from "@/views/ImageTaskView.vue";
 
 function normalizeRedirectTarget(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return authState.isAdmin.value ? "/admin" : "/tasks";
+    return authState.isAdmin.value ? "/admin" : "/image-tasks";
   }
   return value;
 }
@@ -90,11 +90,11 @@ const router = createRouter({
           }
         },
         {
-          path: "tasks",
-          name: "tasks",
-          component: UnifiedTaskView,
+          path: "image-tasks",
+          name: "image-tasks",
+          component: ImageTaskView,
           meta: {
-            title: "任务"
+            title: "图片任务"
           }
         },
         {
@@ -107,33 +107,48 @@ const router = createRouter({
         },
         // ── 旧路由重定向（向后兼容） ──
         {
+          path: "tasks",
+          redirect: "/image-tasks"
+        },
+        {
           path: "workspace",
-          redirect: "/tasks"
+          redirect: "/image-tasks"
+        },
+        {
+          path: "video-tasks",
+          name: "video-tasks",
+          component: StageWorkflowView,
+          meta: {
+            title: "视频任务"
+          }
+        },
+        {
+          path: "video-tasks/:workflowId",
+          name: "video-task-detail",
+          component: StageWorkflowView,
+          meta: {
+            title: "视频任务"
+          }
         },
         {
           path: "videos",
-          name: "videos",
-          component: StageWorkflowView,
-          meta: {
-            title: "视频"
-          }
+          redirect: "/video-tasks"
         },
         {
           path: "videos/:workflowId",
-          name: "video-detail",
-          component: StageWorkflowView,
-          meta: {
-            title: "视频"
-          }
+          redirect: (to) => ({
+            path: `/video-tasks/${String(to.params.workflowId || "")}`,
+            query: to.query,
+          })
         },
         {
           path: "workflows",
-          redirect: "/videos"
+          redirect: "/video-tasks"
         },
         {
           path: "workflows/:workflowId",
           redirect: (to) => ({
-            path: `/videos/${String(to.params.workflowId || "")}`,
+            path: `/video-tasks/${String(to.params.workflowId || "")}`,
             query: to.query,
           })
         }

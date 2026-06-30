@@ -180,6 +180,73 @@ async def test_repository_persists_result_url_aliases(db_session) -> None:
     assert loaded.outputs[0]["downloadPath"] == "https://cdn.example.test/original.png"
 
 
+async def test_repository_task_summaries_include_lightweight_thumbnail_urls(db_session) -> None:
+    material_task = TaskRecord(
+        id="task_summary_material_thumb",
+        owner_user_id=7,
+        task_type="image_generation",
+        title="Material thumbnail summary",
+        status="COMPLETED",
+        progress=100,
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+    output_material = {
+        "id": "asset_summary_material_output",
+        "ownerUserId": 7,
+        "kind": "output",
+        "mediaType": "image",
+        "title": "Generated image",
+        "fileUrl": "/storage/tasks/task_summary_material_thumb/original.png",
+        "thumbnailUrl": "/storage/thumbs/tasks/task_summary_material_thumb/original.jpg",
+    }
+    source_material = {
+        "id": "asset_summary_material_source",
+        "ownerUserId": 7,
+        "kind": "source",
+        "mediaType": "image",
+        "title": "Source image",
+        "fileUrl": "/storage/tasks/task_summary_material_thumb/source.png",
+        "thumbnailUrl": "/storage/thumbs/tasks/task_summary_material_thumb/source.jpg",
+    }
+
+    output_task = TaskRecord(
+        id="task_summary_output_thumb",
+        owner_user_id=7,
+        task_type="video_generation",
+        title="Output thumbnail summary",
+        status="COMPLETED",
+        progress=100,
+        created_at="2026-01-01T00:01:00+00:00",
+        updated_at="2026-01-01T00:01:00+00:00",
+    )
+    output_row = {
+        "id": "result_summary_output_thumb",
+        "resultType": "video",
+        "clipIndex": 1,
+        "title": "Generated video",
+        "reason": "done",
+        "previewUrl": "/storage/tasks/task_summary_output_thumb/clip.mp4",
+        "downloadUrl": "/storage/tasks/task_summary_output_thumb/clip.mp4",
+        "extra": {"thumbnailUrl": "/storage/thumbs/tasks/task_summary_output_thumb/clip.jpg"},
+    }
+
+    repository = TaskRepository(db_session)
+    await repository.save_mutation(
+        TaskPersistenceMutation()
+        .set_task(material_task)
+        .add_material(source_material)
+        .add_material(output_material)
+    )
+    await repository.save_mutation(TaskPersistenceMutation().set_task(output_task).add_result(output_row))
+
+    summaries = await repository.list_task_summaries(owner_user_id=7, sort="created_desc")
+
+    thumbnails = {item["id"]: item["thumbnailUrl"] for item in summaries}
+    assert thumbnails["task_summary_material_thumb"] == "/storage/thumbs/tasks/task_summary_material_thumb/original.jpg"
+    assert thumbnails["task_summary_output_thumb"] == "/storage/thumbs/tasks/task_summary_output_thumb/clip.jpg"
+
+
 async def test_repository_reads_malformed_json_columns_as_empty_payloads(db_session) -> None:
     db_session.add(
         BizTask(

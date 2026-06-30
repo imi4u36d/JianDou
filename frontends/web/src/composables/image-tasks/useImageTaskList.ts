@@ -6,8 +6,8 @@ import { useAuthSessionState } from "@/auth/session";
 import { usePolling } from "@/composables/usePolling";
 import { fetchTaskPage } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
-import type { TaskListItem, WorkflowSummary } from "@/types";
-import type { UnifiedListItem, UnifiedStatusFilter } from "@/types/unified-task";
+import type { TaskListItem } from "@/types";
+import type { ImageTaskListItem, ImageTaskStatusFilter } from "@/types/image-task-list";
 
 const POLL_INTERVAL_MS = 5000;
 const IDLE_POLL_INTERVAL_MS = 15000;
@@ -17,15 +17,16 @@ const MAX_PAGE_SIZE = 30;
 const IMAGE_TASK_EXCLUDE_TYPE = "video_generation";
 const ACTIVE_TASK_STATUSES = new Set(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
 
-function normalizeTask(task: TaskListItem): UnifiedListItem {
+function normalizeTask(task: TaskListItem): ImageTaskListItem {
   return {
     id: task.id,
-    kind: "task",
     title: task.title || "未命名任务",
     status: task.status,
     progress: Number(task.progress ?? 0),
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
+    startedAt: task.startedAt,
+    finishedAt: task.finishedAt,
     aspectRatio: task.aspectRatio,
     thumbnailUrl: task.thumbnailUrl || null,
     currentStage: task.currentStage || undefined,
@@ -48,11 +49,10 @@ function mergeTasks(currentTasks: TaskListItem[], nextTasks: TaskListItem[]) {
   return merged;
 }
 
-export function useUnifiedList() {
+export function useImageTaskList() {
   const authState = useAuthSessionState();
 
   const tasks = ref<TaskListItem[]>([]);
-  const workflows = ref<WorkflowSummary[]>([]);
   const loading = ref(true);
   const loadingMore = ref(false);
   const total = ref(0);
@@ -61,10 +61,10 @@ export function useUnifiedList() {
   let reloadTimer: number | null = null;
 
   const searchText = ref("");
-  const statusFilter = ref<UnifiedStatusFilter>("all");
+  const statusFilter = ref<ImageTaskStatusFilter>("all");
 
-  const items = computed<UnifiedListItem[]>(() => tasks.value.map(normalizeTask));
-  const filteredItems = computed<UnifiedListItem[]>(() => items.value);
+  const items = computed<ImageTaskListItem[]>(() => tasks.value.map(normalizeTask));
+  const filteredItems = computed<ImageTaskListItem[]>(() => items.value);
 
   const hasActiveItems = computed(() => tasks.value.some((task) => ACTIVE_TASK_STATUSES.has(task.status)));
   const hasMore = computed(() => tasks.value.length < total.value);
@@ -76,7 +76,6 @@ export function useUnifiedList() {
     }
     if (!authState.isAuthenticated.value) {
       tasks.value = [];
-      workflows.value = [];
       total.value = 0;
       loading.value = false;
       loadingMore.value = false;
@@ -149,7 +148,7 @@ export function useUnifiedList() {
     }, 260);
   }
 
-  function findItem(id: string): UnifiedListItem | undefined {
+  function findItem(id: string): ImageTaskListItem | undefined {
     return items.value.find((item) => item.id === id);
   }
 
@@ -176,7 +175,6 @@ export function useUnifiedList() {
 
   return {
     tasks,
-    workflows,
     items,
     loading,
     loadingMore,

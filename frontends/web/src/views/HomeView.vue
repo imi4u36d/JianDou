@@ -470,7 +470,7 @@ import { useReferenceImages, type ReferenceImageItem } from "@/composables/home/
 import { useGenerationForm, type ModeOption, type RatioOptionValue } from "@/composables/home/useGenerationForm";
 import { useActiveTasks } from "@/composables/home/useActiveTasks";
 import { openCreditDetailsDialog } from "@/composables/useCreditDialog";
-import { IconCheck, IconClose, IconImage, IconModel, IconFrame, IconTag, IconPlus, IconText, IconVideo } from "@/components/icons";
+import { IconCheck, IconClose, IconImage, IconLoading, IconModel, IconFrame, IconTag, IconPlus, IconText, IconVideo } from "@/components/icons";
 import PromptTemplateGallery from "@/components/home/PromptTemplateGallery.vue";
 import PublicShareGallery from "@/components/home/PublicShareGallery.vue";
 
@@ -544,7 +544,6 @@ const {
   selectedImageModelOption,
   selectedPrimaryModelLabel,
   creditLabel,
-  options,
   ratioOptions,
   selectedMaterialAssetType,
   ratioToolLabel,
@@ -776,7 +775,7 @@ async function submitVideoWorkflow() {
     void saveDefaultAspectRatio(form.value.aspectRatio).catch(() => undefined);
   }
   statusText.value = "已创建视频任务";
-  await router.push({ name: "video-detail", params: { workflowId: workflow.id } });
+  await router.push({ name: "video-task-detail", params: { workflowId: workflow.id } });
 }
 
 // ---------------------------------------------------------------------------
@@ -1576,8 +1575,8 @@ onBeforeUnmount(() => {
 .home-task-toast {
   position: fixed;
   right: 28px;
-  bottom: 28px;
-  z-index: 70;
+  top: 16px;
+  z-index: 220;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1640,7 +1639,7 @@ onBeforeUnmount(() => {
 .home-toast-slide-enter-from,
 .home-toast-slide-leave-to {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateX(24px);
 }
 
 .home-reference-add {
@@ -2535,9 +2534,18 @@ onBeforeUnmount(() => {
 
 .home-composer__submit-submitting,
 .home-composer__submit-submitting:disabled {
+  border-color: rgba(99, 102, 241, 0.22);
+  background:
+    var(--button-highlight),
+    linear-gradient(180deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.08));
   color: var(--accent-blue);
   opacity: 1;
   cursor: wait;
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.14);
+}
+
+.home-composer__submit-submitting :deep(svg) {
+  color: var(--accent-blue);
 }
 
 .home-composer__submit:disabled:not(.home-composer__submit-submitting) {
@@ -2854,8 +2862,8 @@ onBeforeUnmount(() => {
 
   .home-task-toast {
     right: 16px;
-    bottom: 16px;
     left: 16px;
+    top: 16px;
     max-width: none;
   }
 

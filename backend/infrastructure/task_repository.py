@@ -77,6 +77,57 @@ def _material_thumbnail_url_from_payload(row: dict[str, Any]) -> str:
     return _first_non_blank(row.get("thumbnailUrl"), row.get("previewUrl"))
 
 
+def _looks_like_image_url(value: Any) -> bool:
+    url = string_value(value).lower()
+    return url.startswith("/storage/thumbs/") or url.endswith((".avif", ".gif", ".jpg", ".jpeg", ".png", ".webp"))
+
+
+def _short_text(value: Any, limit: int = 2000) -> str:
+    return string_value(value)[:limit]
+
+
+def _light_url(value: Any, max_length: int = 2048) -> str:
+    url = string_value(value)
+    if not url or len(url) > max_length:
+        return ""
+    lowered = url.lower()
+    if lowered.startswith(("data:", "blob:")) or ";base64" in lowered:
+        return ""
+    return url
+
+
+def _light_request_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    passthrough_keys = (
+        "taskType",
+        "assetType",
+        "aspectRatio",
+        "imageSize",
+        "textAnalysisModel",
+        "imageModel",
+        "videoModel",
+        "videoSize",
+        "seed",
+        "videoDurationSeconds",
+        "outputCount",
+        "minDurationSeconds",
+        "maxDurationSeconds",
+        "stopBeforeVideoGeneration",
+        "referenceAssetIds",
+    )
+    result = {key: payload[key] for key in passthrough_keys if key in payload}
+    if "title" in payload:
+        result["title"] = _short_text(payload.get("title"), 200)
+    if "creativePrompt" in payload:
+        result["creativePrompt"] = _short_text(payload.get("creativePrompt"))
+    transcript_text = string_value(payload.get("transcriptText"))
+    if transcript_text:
+        result["transcriptText"] = transcript_text[:2000]
+    reference_urls = payload.get("referenceImageUrls")
+    if isinstance(reference_urls, list):
+        result["referenceImageUrls"] = [url for url in (_light_url(item) for item in reference_urls[:12]) if url]
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Mapping helpers: TaskRecord <-> BizTask
 # ---------------------------------------------------------------------------
@@ -177,8 +228,8 @@ def _material_from_row(row: BizMaterialAsset) -> dict[str, Any]:
 
 
 def _material_from_row_without_metadata(row: BizMaterialAsset) -> dict[str, Any]:
-    public_url = _material_public_url_from_row(row)
-    thumbnail_url = row.thumbnail_url or ""
+    public_url = _light_url(_material_public_url_from_row(row))
+    thumbnail_url = _light_url(row.thumbnail_url)
     return {
         "id": row.material_asset_id,
         "materialAssetId": row.material_asset_id,
@@ -212,8 +263,8 @@ def _material_from_row_without_metadata(row: BizMaterialAsset) -> dict[str, Any]
         "width": row.width or 0,
         "height": row.height or 0,
         "hasAudio": bool(row.has_audio),
-        "storagePath": row.local_storage_path or "",
-        "localFilePath": row.local_file_path or "",
+        "storagePath": "",
+        "localFilePath": "",
         "publicUrl": public_url,
         "fileUrl": public_url,
         "previewUrl": thumbnail_url,
@@ -541,6 +592,7 @@ class TaskRepository:
             owners = await self._owner_users_by_id(session, owner_ids)
             active_attempts = await self._active_attempts_by_task_id(session, task_ids)
             queue_positions = await self._queue_positions(session)
+            thumbnail_urls = await self._task_thumbnail_urls_by_task_id(session, task_ids)
 
         items = []
         normalized_status = string_value(status).strip().upper()
@@ -588,7 +640,7 @@ class TaskRepository:
                     "failureReason": row.error_message or "",
                     "failureStage": "",
                     "failureClipIndex": None,
-                    "thumbnailUrl": "",
+                    "thumbnailUrl": thumbnail_urls.get(row.task_id, ""),
                     "ownerUserId": row.owner_user_id,
                     "ownerUsername": owner.username if owner else None,
                     "ownerRole": owner.role if owner else None,
@@ -614,28 +666,49 @@ class TaskRepository:
     async def find_detail_light(self, task_id: str, owner_user_id: int | None = None) -> dict[str, Any] | None:
         """Return task detail without provider request/response payloads or material metadata."""
         async with self._session_scope() as session:
-            stmt = select(BizTask).where(BizTask.task_id == task_id, BizTask.is_deleted == 0)
+            stmt = (
+                select(
+                    BizTask.task_id,
+                    BizTask.owner_user_id,
+                    BizTask.task_type,
+                    BizTask.title,
+                    BizTask.status,
+                    BizTask.progress,
+                    BizTask.create_time,
+                    BizTask.update_time,
+                    BizTask.source_file_name,
+                    BizTask.aspect_ratio,
+                    BizTask.min_duration_seconds,
+                    BizTask.max_duration_seconds,
+                    BizTask.output_count,
+                    BizTask.task_seed,
+                    BizTask.effect_rating,
+                    BizTask.effect_rating_note,
+                    BizTask.rated_at,
+                    BizTask.started_at,
+                    BizTask.finished_at,
+                    BizTask.retry_count,
+                    BizTask.error_message,
+                    BizTask.editing_mode,
+                    BizTask.creative_prompt,
+                    BizTask.request_payload_json,
+                )
+                .where(BizTask.task_id == task_id, BizTask.is_deleted == 0)
+            )
             if owner_user_id is not None:
                 stmt = stmt.where(BizTask.owner_user_id == owner_user_id)
             result = await session.execute(stmt)
-            task = result.scalars().first()
+            task = result.first()
             if task is None:
                 return None
             owner = await self._owner_user_by_id(session, task.owner_user_id)
-            attempts = await self._attempt_rows(session, task_id)
-            active_attempt = next(
-                (row for row in attempts if string_value(row.get("status")) in ("RUNNING", "QUEUED", "PENDING")),
-                {},
-            )
+            active_attempt = await self._active_attempt_row(session, task_id)
             queue_positions = await self._queue_positions(session)
-            status_history = await self._status_history_rows(session, task_id)
-            stage_runs = await self._stage_run_rows(session, task_id)
-            model_calls = await self._model_call_rows_light(session, task_id)
             materials = await self.get_task_materials_light(task_id, owner_user_id, session=session)
             outputs = await self.get_task_outputs_light(task_id, owner_user_id, session=session)
 
-        request_snapshot = read_json_object(task.request_payload_json)
-        execution_context = read_json_object(task.context_json)
+        request_snapshot = _light_request_snapshot(read_json_object(task.request_payload_json))
+        execution_context: dict[str, Any] = {}
         return {
             "id": task.task_id,
             "taskType": task.task_type or "video_generation",
@@ -666,7 +739,7 @@ class TaskRepository:
             "ownerStatus": owner.status if owner else None,
             "errorMessage": task.error_message or "",
             "editingMode": task.editing_mode or "",
-            "creativePrompt": task.creative_prompt or "",
+            "creativePrompt": _short_text(task.creative_prompt),
             "hasTranscript": bool(string_value(request_snapshot.get("transcriptText"))),
             "hasTimedTranscript": False,
             "sourceAssetCount": 0,
@@ -679,10 +752,10 @@ class TaskRepository:
             "durationDiagnostics": [],
             "plan": [],
             "trace": [],
-            "statusHistory": status_history,
-            "attempts": attempts,
-            "stageRuns": stage_runs,
-            "modelCalls": model_calls,
+            "statusHistory": [],
+            "attempts": [active_attempt] if active_attempt else [],
+            "stageRuns": [],
+            "modelCalls": [],
             "materials": materials,
             "outputs": outputs,
             "sourceAssets": [],
@@ -766,13 +839,13 @@ class TaskRepository:
                     "startSeconds": r.start_seconds,
                     "endSeconds": r.end_seconds,
                     "durationSeconds": r.duration_seconds,
-                    "previewPath": r.preview_path or "",
-                    "downloadPath": r.download_path or "",
+                    "previewPath": _light_url(r.preview_path),
+                    "downloadPath": _light_url(r.download_path),
                     "width": r.width or 0,
                     "height": r.height or 0,
                     "mimeType": r.mime_type or "",
                     "sizeBytes": r.size_bytes or 0,
-                    "remoteUrl": r.remote_url or "",
+                    "remoteUrl": _light_url(r.remote_url),
                     "extra": {},
                     "producedAt": r.produced_at or "",
                 }
@@ -913,6 +986,74 @@ class TaskRepository:
             stmt = stmt.limit(max(1, limit))
         result = await session.execute(stmt)
         return list(result.all())
+
+    async def _task_thumbnail_urls_by_task_id(self, session: AsyncSession, task_ids: list[str]) -> dict[str, str]:
+        if not task_ids:
+            return {}
+        task_id_set = {task_id for task_id in task_ids if task_id}
+        scoped_task_ids = list(task_id_set)
+        if not scoped_task_ids:
+            return {}
+        thumbnail_urls: dict[str, str] = {}
+        priorities: dict[str, int] = {}
+
+        material_stmt = (
+            select(
+                BizMaterialAsset.task_id,
+                BizMaterialAsset.asset_role,
+                BizMaterialAsset.thumbnail_url,
+                BizMaterialAsset.create_time,
+            )
+            .where(
+                BizMaterialAsset.task_id.in_(scoped_task_ids),
+                BizMaterialAsset.is_deleted == 0,
+                BizMaterialAsset.thumbnail_url.is_not(None),
+                BizMaterialAsset.thumbnail_url != "",
+            )
+            .order_by(BizMaterialAsset.create_time.desc())
+        )
+        material_result = await session.execute(material_stmt)
+        for task_id, asset_role, thumbnail_url, _create_time in material_result.all():
+            normalized_task_id = string_value(task_id)
+            normalized_thumbnail_url = string_value(thumbnail_url)
+            if not normalized_task_id or not normalized_thumbnail_url:
+                continue
+            priority = 10 if string_value(asset_role).lower() == "source" else 0
+            if priority < priorities.get(normalized_task_id, 99):
+                thumbnail_urls[normalized_task_id] = normalized_thumbnail_url
+                priorities[normalized_task_id] = priority
+
+        missing_task_ids = task_id_set.difference(thumbnail_urls)
+        if not missing_task_ids:
+            return thumbnail_urls
+
+        output_stmt = (
+            select(
+                BizTaskResult.task_id,
+                BizTaskResult.preview_path,
+                BizTaskResult.extra_json,
+                BizTaskResult.clip_index,
+            )
+            .where(
+                BizTaskResult.task_id.in_(list(missing_task_ids)),
+                BizTaskResult.is_deleted == 0,
+            )
+            .order_by(BizTaskResult.clip_index.desc(), BizTaskResult.create_time.desc())
+        )
+        output_result = await session.execute(output_stmt)
+        for task_id, preview_path, extra_json, _clip_index in output_result.all():
+            normalized_task_id = string_value(task_id)
+            if not normalized_task_id or normalized_task_id in thumbnail_urls:
+                continue
+            extra = read_json_object(extra_json)
+            thumbnail_url = _first_non_blank(
+                extra.get("thumbnailUrl"),
+                extra.get("posterUrl"),
+                preview_path if _looks_like_image_url(preview_path) else "",
+            )
+            if thumbnail_url:
+                thumbnail_urls[normalized_task_id] = thumbnail_url
+        return thumbnail_urls
 
     def _apply_task_summary_filters(
         self,
@@ -1088,6 +1229,58 @@ class TaskRepository:
                 }
             )
         return rows
+
+    async def _active_attempt_row(self, session: AsyncSession, task_id: str) -> dict[str, Any]:
+        stmt = (
+            select(
+                BizTaskAttempt.task_attempt_id,
+                BizTaskAttempt.task_id,
+                BizTaskAttempt.attempt_no,
+                BizTaskAttempt.trigger_type,
+                BizTaskAttempt.status,
+                BizTaskAttempt.queue_name,
+                BizTaskAttempt.worker_instance_id,
+                BizTaskAttempt.queue_entered_at,
+                BizTaskAttempt.queue_left_at,
+                BizTaskAttempt.claimed_at,
+                BizTaskAttempt.started_at,
+                BizTaskAttempt.finished_at,
+                BizTaskAttempt.resume_from_stage,
+                BizTaskAttempt.resume_from_clip_index,
+                BizTaskAttempt.failure_code,
+                BizTaskAttempt.failure_message,
+            )
+            .where(
+                BizTaskAttempt.task_id == task_id,
+                BizTaskAttempt.status.in_(("RUNNING", "QUEUED", "PENDING")),
+                BizTaskAttempt.is_deleted == 0,
+            )
+            .order_by(BizTaskAttempt.attempt_no.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        row = result.first()
+        if row is None:
+            return {}
+        return {
+            "attemptId": row.task_attempt_id,
+            "taskId": row.task_id,
+            "attemptNo": row.attempt_no,
+            "triggerType": row.trigger_type or "",
+            "status": row.status,
+            "queueName": row.queue_name or "",
+            "workerInstanceId": row.worker_instance_id or "",
+            "queueEnteredAt": row.queue_entered_at,
+            "queueLeftAt": row.queue_left_at,
+            "claimedAt": row.claimed_at,
+            "startedAt": row.started_at,
+            "finishedAt": row.finished_at,
+            "resumeFromStage": row.resume_from_stage or "",
+            "resumeFromClipIndex": row.resume_from_clip_index or 0,
+            "failureCode": row.failure_code or "",
+            "failureMessage": row.failure_message or "",
+            "payload": {},
+        }
 
     async def _status_history_rows(self, session: AsyncSession, task_id: str) -> list[dict[str, Any]]:
         stmt = (

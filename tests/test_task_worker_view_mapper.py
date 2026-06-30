@@ -37,3 +37,62 @@ def test_view_mapper_uses_domain_result_type_predicates_for_monitoring() -> None
     assert monitoring["latestVideoOutputUrl"] == "clip-2-preview.mp4"
     assert monitoring["latestJoinName"] == "join-2"
     assert monitoring["latestJoinOutputUrl"] == "joined.mp4"
+
+
+def test_view_mapper_prefers_material_thumbnail_for_list_item() -> None:
+    task = TaskRecord(
+        id="task_thumb",
+        title="Thumb task",
+        status="COMPLETED",
+        progress=100,
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:05:00+00:00",
+        materials=[
+            {
+                "kind": "source",
+                "mediaType": "image",
+                "fileUrl": "/storage/tasks/task_thumb/source.png",
+                "thumbnailUrl": "/storage/thumbs/tasks/task_thumb/source.jpg",
+            },
+            {
+                "kind": "clip",
+                "mediaType": "image",
+                "fileUrl": "/storage/tasks/task_thumb/original.png",
+                "thumbnailUrl": "/storage/thumbs/tasks/task_thumb/original.jpg",
+            }
+        ],
+        outputs=[
+            {
+                "resultType": "image",
+                "clipIndex": 1,
+                "downloadUrl": "/storage/tasks/task_thumb/original.png",
+            }
+        ],
+    )
+
+    item = TaskViewMapper().to_list_item(task)
+
+    assert item["thumbnailUrl"] == "/storage/thumbs/tasks/task_thumb/original.jpg"
+
+
+def test_view_mapper_does_not_use_video_preview_as_image_thumbnail() -> None:
+    task = TaskRecord(
+        id="task_video_preview",
+        title="Video preview task",
+        status="COMPLETED",
+        progress=100,
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:05:00+00:00",
+        outputs=[
+            {
+                "resultType": "video",
+                "clipIndex": 1,
+                "previewUrl": "/storage/tasks/task_video_preview/clip.mp4",
+                "extra": {"thumbnailUrl": "/storage/thumbs/tasks/task_video_preview/clip.jpg"},
+            }
+        ],
+    )
+
+    item = TaskViewMapper().to_list_item(task)
+
+    assert item["thumbnailUrl"] == "/storage/thumbs/tasks/task_video_preview/clip.jpg"

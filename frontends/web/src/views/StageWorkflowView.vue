@@ -68,8 +68,23 @@
             :aria-label="`打开视频 ${item.title}`"
             @click="openWorkflow(item.id, workflowSummaryCanvasStage(item))"
           >
-            <span class="workflow-nav-item__dot" :class="{ 'workflow-nav-item__dot-active': item.id === selectedWorkflowId }"></span>
-            <span class="workflow-nav-item__title">{{ item.title }}</span>
+            <span class="workflow-nav-item__thumb" aria-hidden="true">
+              <IconVideo size="sm" />
+            </span>
+            <span class="workflow-nav-item__body">
+              <span class="workflow-nav-item__title-row">
+                <span class="workflow-nav-item__title" :title="item.title">{{ item.title }}</span>
+                <span class="workflow-nav-item__status" :class="`workflow-nav-item__status-${workflowNavStatusTone(item)}`">{{ workflowNavStatusLabel(item) }}</span>
+              </span>
+              <span class="workflow-nav-item__meta">
+                <span>{{ workflowStageLabel(item.currentStage) }}</span>
+                <span>{{ item.aspectRatio || "未设置" }}</span>
+                <time :datetime="item.updatedAt || item.createdAt || undefined">{{ workflowNavUpdatedLabel(item.updatedAt || item.createdAt) }}</time>
+              </span>
+              <span class="workflow-nav-item__progress" aria-hidden="true">
+                <i :style="{ width: `${workflowNavProgress(item)}%` }"></i>
+              </span>
+            </span>
           </button>
           <div class="workflow-more-menu workflow-nav-item__menu">
             <button type="button" class="workflow-more-menu__trigger" aria-label="更多操作" :popovertarget="`wfm-${item.id}`" @click.stop>
@@ -1008,6 +1023,7 @@ import {
   IconSettings,
   IconTag,
   IconUpload,
+  IconVideo,
   IconWarning,
 } from "@/components/icons";
 
@@ -1445,6 +1461,51 @@ function formatWorkflowStatus(status?: string | null) {
   }
 }
 
+function workflowNavStatusLabel(workflow: WorkflowSummary) {
+  switch ((workflow.autoPilotState || "").trim().toUpperCase()) {
+    case "QUEUED":
+      return "排队中";
+    case "RUNNING":
+      return "自动执行";
+    case "PAUSED":
+      return "已暂停";
+    case "FAILED":
+      return "失败";
+    case "COMPLETED":
+      return "已完成";
+    default:
+      return formatWorkflowStatus(workflow.status);
+  }
+}
+
+function workflowNavStatusTone(workflow: WorkflowSummary) {
+  const autoPilotState = (workflow.autoPilotState || "").trim().toUpperCase();
+  const status = (autoPilotState || workflow.status || "").trim().toUpperCase();
+  if (["READY", "RUNNING", "DRAFT", "QUEUED"].includes(status)) return "active";
+  if (status === "COMPLETED") return "done";
+  if (status === "FAILED") return "failed";
+  if (status === "PAUSED") return "paused";
+  return "idle";
+}
+
+function workflowNavProgress(workflow: WorkflowSummary) {
+  return Math.max(0, Math.min(100, workflowCompletionPercentage(workflow)));
+}
+
+function workflowNavUpdatedLabel(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (diffMin < 1) return "刚刚";
+  if (diffMin < 60) return `${diffMin}分钟前`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}小时前`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}天前`;
+  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(date);
+}
+
 function normalizedStageVersionStatus(version: StageVersion) {
   return (version.status || "").trim().toUpperCase();
 }
@@ -1792,7 +1853,7 @@ async function closeCreateReview() {
   createComposerMenu.value = "";
   selectedWorkflow.value = null;
   if (selectedWorkflowId.value) {
-    await router.push("/videos");
+    await router.push("/video-tasks");
   }
 }
 
@@ -1860,11 +1921,11 @@ function openWorkflow(workflowId: string, preferredStage?: string | null) {
   const nextStage = normalizeWorkflowCanvasStage(preferredStage) ?? normalizeWorkflowDetailStage(route.query.stage) ?? activeCreateStage.value;
   activeCanvasStage.value = nextStage;
   if (nextStage === "final") {
-    void router.push(`/videos/${workflowId}`);
+    void router.push(`/video-tasks/${workflowId}`);
     return;
   }
   void router.push({
-    path: `/videos/${workflowId}`,
+    path: `/video-tasks/${workflowId}`,
     query: { stage: nextStage },
   });
 }
@@ -2207,7 +2268,7 @@ async function handleDeleteWorkflow(workflow: WorkflowSummary) {
     const result: WorkflowDeleteResult = await deleteWorkflow(workflow.id);
     if (result.deleted && selectedWorkflowId.value === workflow.id) {
       selectedWorkflow.value = null;
-      await router.push("/videos");
+      await router.push("/video-tasks");
     }
     await loadWorkflows();
   } catch (error) {
@@ -2425,8 +2486,8 @@ function emitWorkflowViewportPageSize() {
   const searchHeight = drawer?.querySelector<HTMLElement>(".workflow-search-box")?.offsetHeight ?? 40;
   const filterHeight = drawer?.querySelector<HTMLElement>(".workflow-filter-strip")?.offsetHeight ?? 40;
   const styles = window.getComputedStyle(list ?? drawer!);
-  const gap = Number.parseFloat(styles.rowGap || styles.gap || "4") || 4;
-  const itemHeight = item?.offsetHeight || 56;
+  const gap = Number.parseFloat(styles.rowGap || styles.gap || "10") || 10;
+  const itemHeight = item?.offsetHeight || 94;
   const availableHeight = list?.clientHeight ?? Math.max(0, (drawer?.clientHeight ?? window.innerHeight) - searchHeight - filterHeight - gap * 3);
   const nextPageSize = Math.max(4, Math.floor(availableHeight / (itemHeight + gap)));
   if (Number.isFinite(nextPageSize) && nextPageSize !== lastWorkflowPageSize) {
@@ -2574,7 +2635,7 @@ onBeforeUnmount(() => {
 
 .workflow-canvas-header {
   position: sticky;
-  top: 8px;
+  top: 0;
   z-index: 20;
   overflow: visible;
   align-items: flex-start;
@@ -2779,15 +2840,16 @@ onBeforeUnmount(() => {
 
 .workflow-project-list {
   display: grid;
-  gap: 4px;
+  gap: 10px;
   min-height: 0;
   overflow: auto;
-  padding-right: 2px;
+  padding-right: 4px;
 }
 
 .workflow-project-list {
   display: flex;
   flex-direction: column;
+  gap: 10px;
   min-height: 0;
   overflow: auto;
 }
@@ -2807,15 +2869,16 @@ onBeforeUnmount(() => {
 
 .workflow-nav-item {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 6px 6px 6px 10px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 94px;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
   color: var(--text-strong);
   outline: none;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.84) inset;
   transition:
     transform 150ms ease,
     border-color 150ms ease,
@@ -2827,24 +2890,26 @@ onBeforeUnmount(() => {
 .workflow-nav-item:hover,
 .workflow-nav-item:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(99, 102, 241, 0.16);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.045);
+  border-color: rgba(99, 102, 241, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .workflow-nav-item-active {
-  border-color: rgba(99, 102, 241, 0.18);
-  background: linear-gradient(90deg, rgba(224, 231, 255, 0.9), rgba(238, 242, 255, 0.7));
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.42);
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.12),
+    0 12px 28px rgba(99, 102, 241, 0.12);
 }
 
 .workflow-nav-item__main {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: stretch;
+  gap: 12px;
   min-width: 0;
   flex: 1;
-  min-height: 32px;
+  min-height: 78px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -2859,36 +2924,137 @@ onBeforeUnmount(() => {
   border-radius: 10px;
 }
 
-.workflow-nav-item__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(99, 102, 241, 0.22);
-  flex-shrink: 0;
-  transition: background 150ms ease;
+.workflow-nav-item__thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 74px;
+  aspect-ratio: 4 / 3;
+  align-self: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(20, 184, 166, 0.12)),
+    rgba(245, 247, 252, 0.92);
+  color: var(--accent-indigo);
 }
 
-.workflow-nav-item__dot-active {
-  background: var(--accent-blue);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+.workflow-nav-item__thumb::before {
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.workflow-nav-item__thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.workflow-nav-item__thumb :deep(svg) {
+  position: relative;
+  z-index: 1;
+}
+
+.workflow-nav-item__body {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.workflow-nav-item__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .workflow-nav-item__title {
   flex: 1;
   min-width: 0;
   font-size: 0.88rem;
-  font-weight: 500;
+  font-weight: 650;
+  line-height: 1.35;
   color: var(--text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .workflow-nav-item-active .workflow-nav-item__title {
   font-weight: 700;
 }
 
+.workflow-nav-item__status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 21px;
+  max-width: 72px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-nav-item__status-active { background: rgba(99, 102, 241, 0.1); color: var(--accent-indigo); }
+.workflow-nav-item__status-done { background: rgba(132, 204, 22, 0.12); color: var(--accent-lime); }
+.workflow-nav-item__status-failed { background: rgba(229, 72, 101, 0.1); color: var(--accent-danger); }
+.workflow-nav-item__status-paused { background: rgba(245, 158, 11, 0.12); color: var(--accent-warning); }
+
+.workflow-nav-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.workflow-nav-item__meta span,
+.workflow-nav-item__meta time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.workflow-nav-item__progress {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-softer);
+  overflow: hidden;
+}
+
+.workflow-nav-item__progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-indigo);
+  transition: width 0.3s ease;
+}
+
 .workflow-nav-item__menu {
+  align-self: flex-start;
   opacity: 0.55;
   transition: opacity 150ms ease;
 }
@@ -3199,7 +3365,7 @@ onBeforeUnmount(() => {
 .workflow-canvas-main {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 14px;
   min-width: 0;
   min-height: 0;
   padding: 18px;
@@ -3211,7 +3377,7 @@ onBeforeUnmount(() => {
 }
 
 .workflow-canvas-main > * + * {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 0;
 }
 
 .workflow-create-board,

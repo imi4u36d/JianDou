@@ -1,22 +1,22 @@
 <template>
-  <section class="unified-tasks-view" :class="{ 'unified-tasks-view-detail-active': selectedId }">
-    <UnifiedListPanel
-        v-model:search-text="list.searchText.value"
-        v-model:status-filter="list.statusFilter.value"
-        :filtered-items="list.filteredItems.value"
-        :loading="list.loading.value"
-        :loading-more="list.loadingMore.value"
-        :has-more="list.hasMore.value"
-        :selected-id="selection.selectedId.value"
-        @select="handleSelect"
-        @delete="handleDelete"
-        @load-more="list.loadMore"
-        @page-size-change="handlePageSizeChange"
-      />
+  <section class="image-task-view" :class="{ 'image-task-view-detail-active': selectedId }">
+    <ImageTaskListPanel
+      v-model:search-text="list.searchText.value"
+      v-model:status-filter="list.statusFilter.value"
+      :filtered-items="list.filteredItems.value"
+      :loading="list.loading.value"
+      :loading-more="list.loadingMore.value"
+      :has-more="list.hasMore.value"
+      :selected-id="selection.selectedId.value"
+      @select="handleSelect"
+      @delete="handleDelete"
+      @load-more="list.loadMore"
+      @page-size-change="handlePageSizeChange"
+    />
 
-      <section class="unified-detail-area">
-      <div v-if="!selectedId" class="unified-detail-empty">
-        <div class="unified-detail-empty__content">
+    <section class="image-task-detail-area">
+      <div v-if="!detailSelectedId" class="image-task-detail-empty">
+        <div class="image-task-detail-empty__content">
           <h3>选择项目查看详情</h3>
           <p>图片任务会在这里显示</p>
         </div>
@@ -24,8 +24,8 @@
 
       <TaskDetailPanel
         v-else
-        :key="`task-${selectedId}`"
-        :selected-task-id="selectedId"
+        :key="`task-${detailSelectedId}`"
+        :selected-task-id="detailSelectedId"
         :tasks="list.tasks.value"
         :reload-tasks="list.load"
         @deleted="handleDeleted"
@@ -41,30 +41,52 @@
  * 图片任务视图。
  */
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import { useUnifiedList } from "@/composables/unified/useUnifiedList";
-import { useUnifiedSelection } from "@/composables/unified/useUnifiedSelection";
-import UnifiedListPanel from "./unified/components/UnifiedListPanel.vue";
+import { useImageTaskList } from "@/composables/image-tasks/useImageTaskList";
+import { useImageTaskSelection } from "@/composables/image-tasks/useImageTaskSelection";
+import ImageTaskListPanel from "./image-tasks/components/ImageTaskListPanel.vue";
 import TaskDetailPanel from "./unified/components/TaskDetailPanel.vue";
-import type { UnifiedListItem } from "@/types/unified-task";
+import type { ImageTaskListItem } from "@/types/image-task-list";
 import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { messageApi } from "@/composables/useMessage";
 import { deleteTask } from "@/api/tasks";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 
-const list = useUnifiedList();
-const selection = useUnifiedSelection();
+const list = useImageTaskList();
+const selection = useImageTaskSelection();
 const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 const selectedId = selection.selectedId;
+const detailSelectedId = ref("");
 const managingId = ref("");
 const listStarted = ref(false);
 let fallbackListStartTimer: number | null = null;
+let detailSelectionTimer: number | null = null;
+const DETAIL_SELECTION_DEFER_MS = 32;
 
-function handleSelect(item: UnifiedListItem) {
+function clearDetailSelectionTimer() {
+  if (detailSelectionTimer !== null) {
+    window.clearTimeout(detailSelectionTimer);
+    detailSelectionTimer = null;
+  }
+}
+
+function scheduleDetailSelection(nextId: string) {
+  clearDetailSelectionTimer();
+  if (!nextId) {
+    detailSelectedId.value = "";
+    return;
+  }
+  detailSelectionTimer = window.setTimeout(() => {
+    detailSelectionTimer = null;
+    detailSelectedId.value = nextId;
+  }, DETAIL_SELECTION_DEFER_MS);
+}
+
+function handleSelect(item: ImageTaskListItem) {
   selection.selectItem(item);
 }
 
-async function handleDelete(item: UnifiedListItem) {
+async function handleDelete(item: ImageTaskListItem) {
   if (managingId.value) return;
   const authenticated = await requireAuth({
     title: "登录后操作任务",
@@ -125,29 +147,26 @@ onMounted(() => {
     fallbackListStartTimer = null;
     startListOnce();
   }, 300);
-  // 根据 URL 恢复选中状态
-  selection.resolveKind(list.findItem);
   window.addEventListener("keydown", handleKeydown);
 });
-
-watch(
-  () => [selectedId.value, list.items.value.length],
-  () => selection.resolveKind(list.findItem),
-  { immediate: true }
-);
 
 onUnmounted(() => {
   if (fallbackListStartTimer !== null) {
     window.clearTimeout(fallbackListStartTimer);
     fallbackListStartTimer = null;
   }
+  clearDetailSelectionTimer();
   list.stopPolling();
   window.removeEventListener("keydown", handleKeydown);
 });
+
+watch(selectedId, (nextId) => {
+  scheduleDetailSelection(nextId);
+}, { immediate: true });
 </script>
 
 <style scoped>
-.unified-tasks-view {
+.image-task-view {
   height: 100%;
   min-height: 0;
   background: var(--bg-base);
@@ -155,37 +174,37 @@ onUnmounted(() => {
   padding: 18px 22px 18px 18px;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
   align-content: stretch;
   gap: 22px;
   position: relative;
 }
 
-.unified-detail-area {
+.image-task-detail-area {
   min-height: 0;
   min-width: 0;
   overflow: auto;
 }
 
-.unified-detail-empty {
+.image-task-detail-empty {
   display: grid;
   place-items: center;
   height: 100%;
   min-height: 200px;
 }
 
-.unified-detail-empty__content {
+.image-task-detail-empty__content {
   text-align: center;
   color: var(--text-muted);
 }
 
-.unified-detail-empty__content h3 {
+.image-task-detail-empty__content h3 {
   margin: 0 0 6px;
   font-size: 1rem;
   color: var(--text-body);
 }
 
-.unified-detail-empty__content p {
+.image-task-detail-empty__content p {
   margin: 0;
   font-size: 0.85rem;
 }
@@ -193,17 +212,17 @@ onUnmounted(() => {
 /* ── Responsive ── */
 
 @media (max-width: 900px) {
-  .unified-tasks-view {
+  .image-task-view {
     grid-template-columns: 1fr;
     padding: 12px;
     gap: 12px;
   }
 
-  .unified-tasks-view-detail-active .unified-list-panel {
+  .image-task-view-detail-active .image-task-list-panel {
     display: none;
   }
 
-  .unified-tasks-view:not(.unified-tasks-view-detail-active) .unified-detail-area {
+  .image-task-view:not(.image-task-view-detail-active) .image-task-detail-area {
     display: none;
   }
 }
