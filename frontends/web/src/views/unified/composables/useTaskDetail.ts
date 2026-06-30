@@ -265,6 +265,9 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   });
 
   const selectedTaskRequestSnapshot = computed(() => getTaskRequestSnapshot(selectedTaskDetail.value));
+  const selectedTaskPromptText = computed(() =>
+    firstNonBlank(selectedTaskDetail.value?.creativePrompt, selectedTaskRequestSnapshot.value.creativePrompt)
+  );
   const selectedTaskDurationModeLabel = computed(() => formatTaskDurationMode(selectedTaskRequestSnapshot.value));
   const selectedTaskTranscriptPreview = computed(() => previewTaskTranscript(selectedTaskRequestSnapshot.value));
 
@@ -632,6 +635,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     selectedTaskTypeLabel,
     selectedTaskShortId,
     selectedTaskStageLabel,
+    selectedTaskPromptText,
     selectedTaskDurationModeLabel,
     selectedTaskTranscriptPreview,
     selectedReferenceImageCount,

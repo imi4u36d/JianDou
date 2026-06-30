@@ -141,6 +141,10 @@
             <IconRefresh size="xs" />
             刷新
           </button>
+          <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="openPromptDialog">
+            <IconText size="xs" />
+            提示词
+          </button>
           <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
             <IconRefresh size="xs" />
             重试
@@ -269,6 +273,36 @@
       </section>
     </main>
 
+    <Teleport to="body">
+      <Transition name="task-prompt-dialog-fade">
+        <div
+          v-if="promptDialogOpen"
+          class="task-prompt-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="task-prompt-dialog-title"
+          @click.self="closePromptDialog"
+          @keydown.esc.stop.prevent="closePromptDialog"
+        >
+          <section class="task-prompt-dialog__panel">
+            <header class="task-prompt-dialog__header">
+              <div>
+                <h3 id="task-prompt-dialog-title">使用的提示词</h3>
+                <p>{{ selectedTask?.title || "当前任务" }}</p>
+              </div>
+              <button ref="promptCloseButtonRef" class="task-prompt-dialog__close" type="button" aria-label="关闭提示词" title="关闭" @click="closePromptDialog">
+                <IconClose size="sm" />
+              </button>
+            </header>
+            <div class="task-prompt-dialog__content" :class="{ 'task-prompt-dialog__content-empty': !selectedTaskPromptText }">
+              <pre v-if="selectedTaskPromptText">{{ selectedTaskPromptText }}</pre>
+              <p v-else>暂无提示词</p>
+            </div>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
+
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
   </section>
 </template>
@@ -277,7 +311,7 @@
 /**
  * 任务页面组件。
  */
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { requireAuth } from "@/auth/modal";
 import { usePolling } from "@/composables/usePolling";
@@ -288,7 +322,7 @@ import { downloadMedia, inferMediaDownloadKind, type DownloadMediaKind } from "@
 import AppSelect from "@/components/common/AppSelect.vue";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
-import { AppIcon, IconChevronDown, IconClose, IconDelete, IconDownload, IconRefresh, IconWarning, type IconName } from "@/components/icons";
+import { AppIcon, IconChevronDown, IconClose, IconDelete, IconDownload, IconRefresh, IconText, IconWarning, type IconName } from "@/components/icons";
 import type { TaskDetail, TaskListItem, TaskStatus, TaskTraceEvent } from "@/types";
 import {
   formatTaskSeed,
@@ -338,6 +372,8 @@ const selectedTaskDetail = ref<TaskDetail | null>(null);
 const selectedTaskTrace = ref<TaskTraceEvent[]>([]);
 const selectedTaskLoading = ref(false);
 const failureDetailsOpen = ref(false);
+const promptDialogOpen = ref(false);
+const promptCloseButtonRef = ref<HTMLButtonElement | null>(null);
 const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 let querySyncTimer: number | null = null;
 
@@ -446,6 +482,13 @@ const selectedTaskStageLabel = computed(() => {
 });
 
 const selectedTaskRequestSnapshot = computed(() => getTaskRequestSnapshot(selectedTaskDetail.value));
+
+const selectedTaskPromptText = computed(() => {
+  return firstNonBlank(
+    selectedTaskDetail.value?.creativePrompt,
+    selectedTaskRequestSnapshot.value.creativePrompt,
+  );
+});
 
 const selectedTaskHeaderAspectRatio = computed(() => {
   const task = selectedTask.value;
@@ -813,13 +856,31 @@ function clearSelectedTask() {
   selectedTaskId.value = "";
   selectedTaskDetail.value = null;
   selectedTaskTrace.value = [];
+  promptDialogOpen.value = false;
   writeQuery();
 }
 
 function handleWindowKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape" && selectedTaskId.value) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (promptDialogOpen.value) {
+    closePromptDialog();
+    return;
+  }
+  if (selectedTaskId.value) {
     clearSelectedTask();
   }
+}
+
+async function openPromptDialog() {
+  promptDialogOpen.value = true;
+  await nextTick();
+  promptCloseButtonRef.value?.focus({ preventScroll: true });
+}
+
+function closePromptDialog() {
+  promptDialogOpen.value = false;
 }
 
 /**
@@ -2399,6 +2460,141 @@ onUnmounted(() => {
   padding: 0 0 2px;
 }
 
+.task-prompt-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1480;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 10, 20, 0.25);
+  backdrop-filter: blur(34px) saturate(1.8);
+  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+}
+
+.task-prompt-dialog__panel {
+  display: grid;
+  gap: 14px;
+  width: min(640px, 100%);
+  max-height: min(78vh, 680px);
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.task-prompt-dialog__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.task-prompt-dialog__header h3,
+.task-prompt-dialog__header p,
+.task-prompt-dialog__content p {
+  margin: 0;
+}
+
+.task-prompt-dialog__header h3 {
+  color: var(--text-strong);
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.task-prompt-dialog__header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 720;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-prompt-dialog__close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.task-prompt-dialog__close:hover,
+.task-prompt-dialog__close:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.2);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+}
+
+.task-prompt-dialog__content {
+  min-height: 160px;
+  max-height: min(56vh, 480px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  border-radius: 12px;
+  background: rgba(248, 250, 255, 0.86);
+}
+
+.task-prompt-dialog__content pre {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-prompt-dialog__content p {
+  display: grid;
+  min-height: 132px;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.task-prompt-dialog__content-empty {
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.task-prompt-dialog-fade-enter-active,
+.task-prompt-dialog-fade-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.task-prompt-dialog-fade-enter-active .task-prompt-dialog__panel,
+.task-prompt-dialog-fade-leave-active .task-prompt-dialog__panel {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.task-prompt-dialog-fade-enter-from,
+.task-prompt-dialog-fade-leave-to {
+  opacity: 0;
+}
+
+.task-prompt-dialog-fade-enter-from .task-prompt-dialog__panel,
+.task-prompt-dialog-fade-leave-to .task-prompt-dialog__panel {
+  transform: translateY(8px) scale(0.985);
+}
+
 .jd-button__pause {
   position: relative;
   display: inline-grid;
@@ -2529,6 +2725,19 @@ onUnmounted(() => {
   .task-failure-card p,
   .task-failure-card-open p {
     max-height: min(160px, 30vh);
+  }
+
+  .task-prompt-dialog {
+    padding: 14px;
+  }
+
+  .task-prompt-dialog__panel {
+    max-height: calc(100vh - 28px);
+    padding: 14px;
+  }
+
+  .task-prompt-dialog__content {
+    max-height: min(62vh, 480px);
   }
 }
 </style>
