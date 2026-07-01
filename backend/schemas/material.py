@@ -42,6 +42,10 @@ class RateMaterialAssetRequest(MaterialRequestModel):
     effect_rating_note: str | None = Field(default=None, alias="effectRatingNote")
 
 
+class RenameMaterialAssetRequest(MaterialRequestModel):
+    title: str
+
+
 class MaterialAssetDeleteResult(BaseModel):
     deleted: bool = False
     asset_id: str = ""

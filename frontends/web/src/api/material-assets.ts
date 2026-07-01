@@ -15,6 +15,7 @@ import type {
   MaterialFavoriteFolderList,
   MaterialGenerationResponse,
   MaterialAssetQuery,
+  RenameMaterialAssetRequest,
   RenameMaterialFavoriteFolderRequest,
   ReuseMaterialRequest,
   UpdateMaterialAssetRatingRequest,
@@ -85,6 +86,10 @@ export function uploadMaterialAsset(assetId: string) {
 
 export function deleteMaterialAsset(assetId: string) {
   return deleteJson<MaterialAssetDeleteResult>(`/material-assets/${encodeURIComponent(assetId)}`);
+}
+
+export function renameMaterialAsset(assetId: string, payload: RenameMaterialAssetRequest) {
+  return patchJson<MaterialAssetLibraryItem>(`/material-assets/${encodeURIComponent(assetId)}`, payload);
 }
 
 export function fetchMaterialFavoriteFolders() {

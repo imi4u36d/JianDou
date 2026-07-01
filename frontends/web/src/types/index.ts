@@ -1497,6 +1497,10 @@ export interface MaterialFavoriteFolderDeleteResult {
   folderId: string;
 }
 
+export interface RenameMaterialAssetRequest {
+  title: string;
+}
+
 export interface CreateMaterialGenerationRequest {
   assetType: Exclude<MaterialAssetType, "workflow">;
   title: string;

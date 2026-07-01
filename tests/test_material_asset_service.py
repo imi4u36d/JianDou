@@ -18,6 +18,24 @@ async def test_material_asset_service_rejects_cross_owner_upsert(db_session) -> 
         await service.upsert_asset(2, asset_id="mat_shared", title="owner two")
 
 
+async def test_material_asset_service_renames_owned_asset(db_session) -> None:
+    service = MaterialAssetService(db_session)
+    await service.create_asset(1, asset_id="mat_rename", title="old name")
+
+    renamed = await service.rename_asset(1, "mat_rename", title="new name")
+    missing = await service.rename_asset(2, "mat_rename", title="intruder name")
+
+    assert renamed is not None
+    assert renamed["title"] == "new name"
+    assert missing is None
+
+    row_result = await db_session.execute(
+        select(BizMaterialAsset).where(BizMaterialAsset.material_asset_id == "mat_rename")
+    )
+    row = row_result.scalar_one()
+    assert row.title == "new name"
+
+
 async def test_material_asset_service_hides_workflow_artifacts_by_default(db_session) -> None:
     service = MaterialAssetService(db_session)
     await service.create_asset(1, asset_id="mat_single_task", title="single task", mediaType="image")

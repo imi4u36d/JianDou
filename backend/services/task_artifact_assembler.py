@@ -252,7 +252,9 @@ class TaskExecutionArtifactAssembler:
             "keyframe",
         )
         snapshot = task.request_snapshot or {}
-        asset_type = string_value(snapshot.get("assetType", "")) or string_value(task.task_type)
+        asset_type = string_value(snapshot.get("assetType", ""))
+        if not asset_type or asset_type in {"image_generation", "image_to_image", "video_generation", "generation"}:
+            asset_type = "free"
         return self._create_material(
             task,
             run,

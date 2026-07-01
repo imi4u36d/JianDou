@@ -256,6 +256,16 @@ class MaterialAssetService:
         await self.db.refresh(row)
         return self.to_view(row)
 
+    async def rename_asset(self, owner_user_id: int, asset_id: str, *, title: str) -> dict[str, Any] | None:
+        row = await self._find_owned(owner_user_id, asset_id)
+        if row is None:
+            return None
+        row.title = title
+        row.update_time = now_iso()
+        await self.db.commit()
+        await self.db.refresh(row)
+        return self.to_view(row)
+
     async def mark_uploaded(self, owner_user_id: int, asset_id: str) -> dict[str, Any] | None:
         row = await self._find_owned(owner_user_id, asset_id)
         if row is None:

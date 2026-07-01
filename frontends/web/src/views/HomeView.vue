@@ -422,8 +422,12 @@
 
     <Transition name="home-toast-slide">
       <div v-if="taskToastTaskId" class="home-task-toast" role="status">
-        <span>已提交</span>
-        <RouterLink :to="{ name: 'tasks', query: { selected: taskToastTaskId } }">查看</RouterLink>
+        <span class="home-task-toast__icon" aria-hidden="true"><IconCheck size="sm" /></span>
+        <span class="home-task-toast__body">
+          <strong>任务已提交</strong>
+          <small>正在生成，可查看进度</small>
+        </span>
+        <RouterLink :to="{ name: 'tasks', query: { selected: taskToastTaskId } }">查看任务</RouterLink>
         <button type="button" aria-label="关闭任务提示" @click="dismissTaskToast">
           <IconClose size="xs" />
         </button>
@@ -495,7 +499,11 @@ const createdTaskId = ref("");
 const taskToastTaskId = ref("");
 const selectedPromptTemplate = ref<AppliedPromptTemplate | null>(null);
 const templateChipNonce = ref(0);
+const activeSubmitFingerprint = ref("");
 let taskToastTimer: number | null = null;
+let lastSuccessfulSubmitFingerprint = "";
+let lastSuccessfulSubmitAt = 0;
+const SUBMIT_DEBOUNCE_MS = 3000;
 
 // ---------------------------------------------------------------------------
 // Composables
@@ -690,24 +698,58 @@ function buildCreativePrompt() {
   return `${userPrompt}\n\n画风模板：${template.title}\n画风提示词：${styledPrompt}`;
 }
 
+function buildSubmitFingerprint() {
+  return JSON.stringify({
+    mode: selectedMode.value.value,
+    prompt: promptText.value.trim(),
+    creativePrompt: buildCreativePrompt(),
+    aspectRatio: form.value.aspectRatio,
+    textAnalysisModel: form.value.textAnalysisModel || "",
+    imageModel: form.value.imageModel || "",
+    videoModel: form.value.videoModel || "",
+    videoSize: form.value.videoSize || "",
+    outputCount: imageOutputCount.value,
+    seed: selectedImageModelOption.value?.supportsSeed
+      ? (seedMode.value === "manual" ? parsedManualSeed.value : autoSeed.value)
+      : null,
+    references: referenceImages.value.map((item) => item.fileUrl).sort(),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Form submission logic (not extracted)
 // ---------------------------------------------------------------------------
 
 async function submitComposer() {
+  if (submitting.value) {
+    statusText.value = "正在创建，请稍候。";
+    return;
+  }
   if (!isFormReady.value) {
     statusText.value = "请先输入内容并补全参数。";
     return;
   }
+  const submitFingerprint = buildSubmitFingerprint();
+  const now = Date.now();
+  if (
+    activeSubmitFingerprint.value === submitFingerprint ||
+    (lastSuccessfulSubmitFingerprint === submitFingerprint && now - lastSuccessfulSubmitAt < SUBMIT_DEBOUNCE_MS)
+  ) {
+    statusText.value = "相同内容刚刚提交过，请勿重复发送。";
+    return;
+  }
+  activeSubmitFingerprint.value = submitFingerprint;
+  submitting.value = true;
   const authenticated = await requireAuth({
     title: "登录后开始生成",
     message: "生成结果会保存到你的任务和素材库中，请先登录或使用邀请码注册。",
   });
   if (!authenticated) {
     statusText.value = "登录后即可继续生成。";
+    activeSubmitFingerprint.value = "";
+    submitting.value = false;
     return;
   }
-  submitting.value = true;
   createdTaskId.value = "";
   try {
     if (selectedMode.value.kind === "video") {
@@ -715,9 +757,12 @@ async function submitComposer() {
     } else {
       await submitImageGeneration();
     }
+    lastSuccessfulSubmitFingerprint = submitFingerprint;
+    lastSuccessfulSubmitAt = Date.now();
   } catch (error) {
     statusText.value = formatApiErrorMessage(error, "创建失败");
   } finally {
+    activeSubmitFingerprint.value = "";
     submitting.value = false;
   }
 }
@@ -1575,32 +1620,67 @@ onBeforeUnmount(() => {
 .home-task-toast {
   position: fixed;
   right: 28px;
-  top: 16px;
-  z-index: 220;
+  top: max(18px, env(safe-area-inset-top));
+  z-index: 10000;
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: min(420px, calc(100vw - 32px));
-  min-height: 48px;
-  padding: 10px 12px 10px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
+  max-width: min(440px, calc(100vw - 32px));
+  min-height: 58px;
+  padding: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   color: var(--text-strong);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.07);
+  box-shadow:
+    0 22px 48px rgba(15, 23, 42, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.82) inset;
   backdrop-filter: blur(40px) saturate(2.0);
 }
 
-.home-task-toast span {
+.home-task-toast__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.home-task-toast__body {
+  display: grid;
+  gap: 2px;
   min-width: 0;
-  font-size: 0.88rem;
+}
+
+.home-task-toast__body strong {
+  color: var(--text-strong);
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 820;
+  line-height: 1.25;
+}
+
+.home-task-toast__body small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .home-task-toast a {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: #eef2ff;
   color: var(--accent-indigo);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   font-weight: 800;
   text-decoration: none;
 }
@@ -2861,10 +2941,12 @@ onBeforeUnmount(() => {
   }
 
   .home-task-toast {
-    right: 16px;
-    left: 16px;
-    top: 16px;
+    right: 14px;
+    left: 14px;
+    top: auto;
+    bottom: calc(18px + env(safe-area-inset-bottom));
     max-width: none;
+    padding: 12px;
   }
 
 }

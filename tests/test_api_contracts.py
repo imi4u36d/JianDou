@@ -102,6 +102,13 @@ async def test_material_asset_library_is_database_backed(auth_client):
     assert rate_response.status_code == 200
     assert rate_response.json()["userRating"] == 5
 
+    rename_response = await auth_client.patch(
+        f"/api/v3/material-assets/{asset['id']}",
+        json={"title": "renamed image"},
+    )
+    assert rename_response.status_code == 200
+    assert rename_response.json()["title"] == "renamed image"
+
     delete_response = await auth_client.delete(f"/api/v3/material-assets/{asset['id']}")
     assert delete_response.status_code == 200
 

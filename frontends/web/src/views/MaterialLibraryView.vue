@@ -241,6 +241,10 @@
                   <IconPlus v-else size="xs" />
                   <span>{{ busyActionKey === `reuse-${asset.id}` ? "复用中" : "复用" }}</span>
                 </button>
+                <button type="button" :disabled="busyActionKey === `rename-${asset.id}`" @click="openRenameDialog(asset)">
+                  <IconEdit size="xs" />
+                  <span>修改名称</span>
+                </button>
                 <RouterLink v-if="asset.workflowId" :to="`/video-tasks/${asset.workflowId}`">
                   <IconWorkflow size="xs" />
                   <span>视频</span>
@@ -402,15 +406,57 @@
       </div>
     </Transition>
 
+    <Transition name="material-favorite-dialog-fade">
+      <div
+        v-if="renameDialog.open"
+        class="material-rename-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="material-rename-dialog-title"
+        @click.self="closeRenameDialog"
+        @keydown.esc.stop.prevent="closeRenameDialog"
+      >
+        <form class="material-rename-dialog__panel" @submit.prevent="commitAssetRename">
+          <div class="material-rename-dialog__head">
+            <div>
+              <h3 id="material-rename-dialog-title">修改素材名称</h3>
+              <p>{{ renameDialog.asset?.title }}</p>
+            </div>
+            <button type="button" aria-label="关闭修改名称弹窗" @click="closeRenameDialog">
+              <IconClose size="sm" />
+            </button>
+          </div>
+          <label class="material-rename-dialog__field">
+            <span>名称</span>
+            <input
+              ref="renameInputRef"
+              v-model="renameDialog.title"
+              type="text"
+              maxlength="80"
+              placeholder="输入素材名称"
+              @keydown.stop
+            />
+          </label>
+          <div class="material-rename-dialog__actions">
+            <button type="button" class="jd-button jd-button--ghost jd-button--sm" :disabled="Boolean(busyActionKey)" @click="closeRenameDialog">取消</button>
+            <button type="submit" class="jd-button jd-button--primary jd-button--sm" :disabled="!renameDialog.title.trim() || Boolean(busyActionKey)">
+              <IconLoading v-if="busyActionKey === `rename-${renameDialog.asset?.id}`" size="xs" />
+              保存
+            </button>
+          </div>
+        </form>
+      </div>
+    </Transition>
+
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
     <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptMaterialShareConfirm" @cancel="cancelMaterialShareConfirm" />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { deleteMaterialAsset, fetchMaterialAssetPage, reuseMaterialAsset, uploadMaterialAsset } from "@/features/materials";
+import { deleteMaterialAsset, fetchMaterialAssetPage, renameMaterialAsset, reuseMaterialAsset, uploadMaterialAsset } from "@/features/materials";
 import {
   addMaterialFavoriteAssets,
   createMaterialFavoriteFolder,
@@ -458,9 +504,15 @@ const favoriteDialog = reactive({
   editingFolderId: "",
   editingFolderName: "",
 });
+const renameDialog = reactive({
+  open: false,
+  asset: null as MaterialAssetLibraryItem | null,
+  title: "",
+});
 
 const assets = ref<MaterialAssetLibraryItem[]>([]);
 const loadMoreTrigger = ref<HTMLElement | null>(null);
+const renameInputRef = ref<HTMLInputElement | null>(null);
 const assetPageLimit = 30;
 const nextAssetOffset = ref(0);
 const hasMoreAssets = ref(false);
@@ -603,8 +655,71 @@ function cacheMaterialAssets(items: MaterialAssetLibraryItem[]) {
   favoriteAssetCache.value = next;
 }
 
+function upsertMaterialAssetState(asset: MaterialAssetLibraryItem) {
+  const exists = assets.value.some((item) => item.id === asset.id);
+  if (exists) {
+    assets.value = assets.value.map((item) => item.id === asset.id ? asset : item);
+  }
+  cacheMaterialAssets([asset]);
+  if (previewAsset.value?.id === asset.id) {
+    previewAsset.value = asset;
+    previewDialog.title = asset.title;
+  }
+}
+
 function isAssetFavorited(assetId: string) {
   return favoriteFolders.value.some((folder) => folder.assetIds.includes(assetId));
+}
+
+async function openRenameDialog(asset: MaterialAssetLibraryItem) {
+  renameDialog.asset = asset;
+  renameDialog.title = asset.title;
+  renameDialog.open = true;
+  await nextTick();
+  renameInputRef.value?.focus({ preventScroll: true });
+  renameInputRef.value?.select();
+}
+
+function closeRenameDialog() {
+  if (renameDialog.asset && busyActionKey.value === `rename-${renameDialog.asset.id}`) {
+    return;
+  }
+  renameDialog.open = false;
+  renameDialog.asset = null;
+  renameDialog.title = "";
+}
+
+async function commitAssetRename() {
+  const asset = renameDialog.asset;
+  const title = renameDialog.title.trim();
+  if (!asset || !title) {
+    return;
+  }
+  if (title === asset.title) {
+    closeRenameDialog();
+    return;
+  }
+  const authenticated = await requireAuth({
+    title: "登录后修改素材名称",
+    message: "修改素材名称会更新你的素材库，请先登录或使用邀请码注册。",
+  });
+  if (!authenticated) {
+    messageApi.warning("登录后可继续修改素材名称。");
+    return;
+  }
+  busyActionKey.value = `rename-${asset.id}`;
+  try {
+    const updated = await renameMaterialAsset(asset.id, { title });
+    upsertMaterialAssetState(updated);
+    messageApi.success("已修改素材名称");
+    renameDialog.open = false;
+    renameDialog.asset = null;
+    renameDialog.title = "";
+  } catch (error) {
+    messageApi.error(error instanceof Error ? error.message : "素材名称修改失败");
+  } finally {
+    busyActionKey.value = "";
+  }
 }
 
 function folderContainsAsset(folderId: string, assetId: string) {
@@ -826,22 +941,23 @@ function buildPageQuery(offset: number): MaterialAssetQuery {
 }
 
 function assetTypeLabel(value?: MaterialAssetType | string | null) {
-  if (value === "character_sheet") {
+  const normalized = normalizedAssetValue(value);
+  if (normalized === "character_sheet") {
     return "角色三视图";
   }
-  if (value === "scene") {
+  if (normalized === "scene") {
     return "场景";
   }
-  if (value === "prop") {
+  if (normalized === "prop") {
     return "道具";
   }
-  if (value === "free") {
+  if (normalized === "free" || normalized === "image_generation" || normalized === "image_to_image") {
     return "自由模式";
   }
-  if (value === "workflow") {
+  if (normalized === "workflow") {
     return "工作流产物";
   }
-  return "工作流产物";
+  return "素材";
 }
 
 function assetDisplayTypeLabel(asset: MaterialAssetLibraryItem) {
@@ -2268,10 +2384,33 @@ watch(
   backdrop-filter: blur(40px) saturate(2);
 }
 
+.material-rename-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1460;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 10, 20, 0.25);
+  backdrop-filter: blur(40px) saturate(2);
+}
+
 .material-favorite-dialog__panel {
   display: grid;
   gap: 14px;
   width: min(440px, 100%);
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(40px) saturate(1.8);
+}
+
+.material-rename-dialog__panel {
+  display: grid;
+  gap: 14px;
+  width: min(420px, 100%);
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 18px;
@@ -2287,18 +2426,29 @@ watch(
   gap: 12px;
 }
 
+.material-rename-dialog__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .material-favorite-dialog__head h3,
-.material-favorite-dialog__head p {
+.material-favorite-dialog__head p,
+.material-rename-dialog__head h3,
+.material-rename-dialog__head p {
   margin: 0;
 }
 
-.material-favorite-dialog__head h3 {
+.material-favorite-dialog__head h3,
+.material-rename-dialog__head h3 {
   color: var(--text-strong);
   font-size: 1rem;
   line-height: 1.35;
 }
 
-.material-favorite-dialog__head p {
+.material-favorite-dialog__head p,
+.material-rename-dialog__head p {
   display: -webkit-box;
   margin-top: 4px;
   overflow: hidden;
@@ -2309,7 +2459,8 @@ watch(
   -webkit-line-clamp: 2;
 }
 
-.material-favorite-dialog__head button {
+.material-favorite-dialog__head button,
+.material-rename-dialog__head button {
   display: grid;
   place-items: center;
   width: 34px;
@@ -2323,9 +2474,42 @@ watch(
   cursor: pointer;
 }
 
-.material-favorite-dialog__head button:hover {
+.material-favorite-dialog__head button:hover,
+.material-rename-dialog__head button:hover {
   background: rgba(99, 102, 241, 0.1);
   color: var(--accent-indigo);
+}
+
+.material-rename-dialog__field {
+  display: grid;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.material-rename-dialog__field input {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(79, 70, 229, 0.14);
+  border-radius: 12px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-strong);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.material-rename-dialog__field input:focus-visible {
+  border-color: rgba(99, 102, 241, 0.42);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.material-rename-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .material-favorite-dialog__folders {
@@ -2519,7 +2703,9 @@ watch(
 }
 
 .material-favorite-dialog-fade-enter-active .material-favorite-dialog__panel,
-.material-favorite-dialog-fade-leave-active .material-favorite-dialog__panel {
+.material-favorite-dialog-fade-enter-active .material-rename-dialog__panel,
+.material-favorite-dialog-fade-leave-active .material-favorite-dialog__panel,
+.material-favorite-dialog-fade-leave-active .material-rename-dialog__panel {
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -2529,7 +2715,9 @@ watch(
 }
 
 .material-favorite-dialog-fade-enter-from .material-favorite-dialog__panel,
-.material-favorite-dialog-fade-leave-to .material-favorite-dialog__panel {
+.material-favorite-dialog-fade-enter-from .material-rename-dialog__panel,
+.material-favorite-dialog-fade-leave-to .material-favorite-dialog__panel,
+.material-favorite-dialog-fade-leave-to .material-rename-dialog__panel {
   transform: translateY(8px) scale(0.985);
 }
 

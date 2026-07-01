@@ -17,6 +17,7 @@ from backend.schemas.material import (
     MaterialFavoriteFolderDeleteResult,
     MaterialFavoriteFolderList,
     RateMaterialAssetRequest,
+    RenameMaterialAssetRequest,
     RenameMaterialFavoriteFolderRequest,
 )
 from backend.services.material_asset_service import MaterialAssetService
@@ -203,6 +204,23 @@ async def delete_material_asset(
         except Exception as exc:
             logger.warning("Failed to remove deleted material asset from favorites: %s", exc)
     return MaterialAssetDeleteResult(deleted=True, asset_id=asset_id)
+
+
+@router.patch("/{asset_id}")
+async def rename_material_asset(
+    asset_id: str,
+    payload: RenameMaterialAssetRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await require_user(request)
+    title = payload.title.strip()
+    if not title:
+        raise bad_request("material_asset_title_required")
+    asset = await _service(db).rename_asset(user["id"], asset_id, title=title)
+    if asset is None:
+        raise not_found("material_asset")
+    return asset
 
 
 @router.patch("/{asset_id}/rating")

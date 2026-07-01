@@ -22,6 +22,18 @@ def _task() -> TaskRecord:
     )
 
 
+def _image_task_without_asset_type() -> TaskRecord:
+    return TaskRecord(
+        id="task_image_artifact",
+        owner_user_id=7,
+        title="Image Artifact Task",
+        task_type="image_generation",
+        request_snapshot={"taskType": "image_generation"},
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+
+
 def test_create_video_material_uses_media_result_fallbacks_and_thumbnail_candidate(tmp_path: Path) -> None:
     media_service = _RecordingMediaService(tmp_path)
     assembler = TaskExecutionArtifactAssembler(media_service)
@@ -147,6 +159,24 @@ def test_workspace_image_outputs_use_distinct_material_and_result_ids(tmp_path: 
     assert result["clipIndex"] == 2
     assert result["materialAssetId"] == material["id"]
     assert result["extra"]["outputIndex"] == 2
+
+
+def test_workspace_image_material_defaults_to_free_asset_type(tmp_path: Path) -> None:
+    media_service = _RecordingMediaService(tmp_path)
+    assembler = TaskExecutionArtifactAssembler(media_service)
+    task = _image_task_without_asset_type()
+    run = {"id": "run_image_free"}
+    image_result = {
+        "outputUrl": "https://provider.example/image-free.png",
+        "metadata": {"remoteSourceUrl": "https://provider.example/image-free.png"},
+        "width": 1024,
+        "height": 1024,
+    }
+
+    material = assembler.create_workspace_image_material(task, run, image_result)
+
+    assert material["kind"] == "free"
+    assert material["metadata"]["assetType"] == "free"
 
 
 class _StoredArtifact:
