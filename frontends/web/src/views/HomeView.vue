@@ -716,6 +716,14 @@ function buildSubmitFingerprint() {
   });
 }
 
+function resetComposerAfterSuccessfulSubmit() {
+  activeMenu.value = "";
+  promptText.value = "";
+  referenceImages.value = [];
+  referenceExpanded.value = false;
+  nextTick(() => renderPromptEditor(""));
+}
+
 // ---------------------------------------------------------------------------
 // Form submission logic (not extracted)
 // ---------------------------------------------------------------------------
@@ -796,6 +804,7 @@ async function submitImageGeneration() {
   createdTaskId.value = task.id;
   showTaskToast(task.id);
   statusText.value = "已提交";
+  resetComposerAfterSuccessfulSubmit();
   void loadActiveTasks();
 }
 
@@ -820,6 +829,7 @@ async function submitVideoWorkflow() {
     void saveDefaultAspectRatio(form.value.aspectRatio).catch(() => undefined);
   }
   statusText.value = "已创建视频任务";
+  resetComposerAfterSuccessfulSubmit();
   await router.push({ name: "video-task-detail", params: { workflowId: workflow.id } });
 }
 

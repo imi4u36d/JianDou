@@ -325,128 +325,132 @@
       </template>
     </AppPreviewDialog>
 
-    <Transition name="material-favorite-dialog-fade">
-      <div
-        v-if="favoriteDialog.open"
-        class="material-favorite-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="material-favorite-dialog-title"
-        @click.self="closeFavoriteDialog"
-        @keydown.esc.stop.prevent="closeFavoriteDialog"
-      >
-        <div class="material-favorite-dialog__panel">
-          <div class="material-favorite-dialog__head">
-            <div>
-              <h3 id="material-favorite-dialog-title">{{ favoriteDialog.batchAssets.length ? "批量添加到收藏夹" : (favoriteDialog.asset ? "添加到收藏夹" : "管理收藏夹") }}</h3>
-              <p v-if="favoriteDialog.asset">{{ favoriteDialog.asset.title }}</p>
-              <p v-else-if="favoriteDialog.batchAssets.length">已选择 {{ favoriteDialog.batchAssets.length }} 个素材</p>
+    <Teleport to="body">
+      <Transition name="material-favorite-dialog-fade">
+        <div
+          v-if="favoriteDialog.open"
+          class="material-favorite-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="material-favorite-dialog-title"
+          @click.self="closeFavoriteDialog"
+          @keydown.esc.stop.prevent="closeFavoriteDialog"
+        >
+          <div class="material-favorite-dialog__panel">
+            <div class="material-favorite-dialog__head">
+              <div>
+                <h3 id="material-favorite-dialog-title">{{ favoriteDialog.batchAssets.length ? "批量添加到收藏夹" : (favoriteDialog.asset ? "添加到收藏夹" : "管理收藏夹") }}</h3>
+                <p v-if="favoriteDialog.asset">{{ favoriteDialog.asset.title }}</p>
+                <p v-else-if="favoriteDialog.batchAssets.length">已选择 {{ favoriteDialog.batchAssets.length }} 个素材</p>
+              </div>
+              <button type="button" aria-label="关闭收藏夹弹窗" @click="closeFavoriteDialog">
+                <IconClose size="sm" />
+              </button>
             </div>
-            <button type="button" aria-label="关闭收藏夹弹窗" @click="closeFavoriteDialog">
-              <IconClose size="sm" />
-            </button>
-          </div>
 
-          <div class="material-favorite-dialog__folders">
-            <div
-              v-for="folder in favoriteFolders"
-              :key="folder.id"
-              class="material-favorite-dialog__folder"
-              :class="{ 'material-favorite-dialog__folder-active': isFavoriteDialogFolderActive(folder.id) }"
-            >
-              <form
-                v-if="favoriteDialog.editingFolderId === folder.id"
-                class="material-favorite-dialog__rename"
-                @submit.prevent="commitFavoriteFolderRename(folder.id)"
+            <div class="material-favorite-dialog__folders">
+              <div
+                v-for="folder in favoriteFolders"
+                :key="folder.id"
+                class="material-favorite-dialog__folder"
+                :class="{ 'material-favorite-dialog__folder-active': isFavoriteDialogFolderActive(folder.id) }"
               >
-                <input
-                  v-model="favoriteDialog.editingFolderName"
-                  type="text"
-                  maxlength="28"
-                  aria-label="收藏夹名称"
-                  @keydown.stop
-                />
-                <button type="submit" :disabled="!favoriteDialog.editingFolderName.trim()">保存</button>
-                <button type="button" @click="cancelFavoriteFolderRename">取消</button>
-              </form>
-              <template v-else>
-                <button
-                  type="button"
-                  class="material-favorite-dialog__folder-main"
-                  :disabled="!favoriteDialog.asset && !favoriteDialog.batchAssets.length"
-                  @click="handleFavoriteDialogFolderClick(folder.id)"
+                <form
+                  v-if="favoriteDialog.editingFolderId === folder.id"
+                  class="material-favorite-dialog__rename"
+                  @submit.prevent="commitFavoriteFolderRename(folder.id)"
                 >
-                  <IconHeart size="sm" :filled="isFavoriteDialogFolderActive(folder.id)" />
-                  <span>{{ folder.name }}</span>
-                  <small>{{ folder.assetIds.length }}</small>
-                </button>
-                <div v-if="!favoriteDialog.asset && !favoriteDialog.batchAssets.length" class="material-favorite-dialog__folder-actions">
-                  <button type="button" @click="beginFavoriteFolderRename(folder)">
-                    <IconEdit size="xs" />
-                    修改
+                  <input
+                    v-model="favoriteDialog.editingFolderName"
+                    type="text"
+                    maxlength="28"
+                    aria-label="收藏夹名称"
+                    @keydown.stop
+                  />
+                  <button type="submit" :disabled="!favoriteDialog.editingFolderName.trim()">保存</button>
+                  <button type="button" @click="cancelFavoriteFolderRename">取消</button>
+                </form>
+                <template v-else>
+                  <button
+                    type="button"
+                    class="material-favorite-dialog__folder-main"
+                    :disabled="!favoriteDialog.asset && !favoriteDialog.batchAssets.length"
+                    @click="handleFavoriteDialogFolderClick(folder.id)"
+                  >
+                    <IconHeart size="sm" :filled="isFavoriteDialogFolderActive(folder.id)" />
+                    <span>{{ folder.name }}</span>
+                    <small>{{ folder.assetIds.length }}</small>
                   </button>
-                  <button type="button" class="material-favorite-dialog__folder-delete" @click="confirmDeleteFavoriteFolder(folder)">
-                    <IconDelete size="xs" />
-                    删除
-                  </button>
-                </div>
-              </template>
+                  <div v-if="!favoriteDialog.asset && !favoriteDialog.batchAssets.length" class="material-favorite-dialog__folder-actions">
+                    <button type="button" @click="beginFavoriteFolderRename(folder)">
+                      <IconEdit size="xs" />
+                      修改
+                    </button>
+                    <button type="button" class="material-favorite-dialog__folder-delete" @click="confirmDeleteFavoriteFolder(folder)">
+                      <IconDelete size="xs" />
+                      删除
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <span v-if="!favoriteFolders.length" class="material-favorite-dialog__empty">还没有收藏夹</span>
             </div>
-            <span v-if="!favoriteFolders.length" class="material-favorite-dialog__empty">还没有收藏夹</span>
-          </div>
 
-          <form class="material-favorite-dialog__create" @submit.prevent="createFavoriteFolder">
-            <input v-model="favoriteDialog.newFolderName" type="text" maxlength="28" placeholder="输入收藏夹名称" />
-            <button type="submit" :disabled="!favoriteDialog.newFolderName.trim()">
-              <IconPlus size="xs" />
-              添加
-            </button>
+            <form class="material-favorite-dialog__create" @submit.prevent="createFavoriteFolder">
+              <input v-model="favoriteDialog.newFolderName" type="text" maxlength="28" placeholder="输入收藏夹名称" />
+              <button type="submit" :disabled="!favoriteDialog.newFolderName.trim()">
+                <IconPlus size="xs" />
+                添加
+              </button>
+            </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="material-favorite-dialog-fade">
+        <div
+          v-if="renameDialog.open"
+          class="material-rename-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="material-rename-dialog-title"
+          @click.self="closeRenameDialog"
+          @keydown.esc.stop.prevent="closeRenameDialog"
+        >
+          <form class="material-rename-dialog__panel" @submit.prevent="commitAssetRename">
+            <div class="material-rename-dialog__head">
+              <div>
+                <h3 id="material-rename-dialog-title">修改素材名称</h3>
+                <p>{{ renameDialog.asset?.title }}</p>
+              </div>
+              <button type="button" aria-label="关闭修改名称弹窗" @click="closeRenameDialog">
+                <IconClose size="sm" />
+              </button>
+            </div>
+            <label class="material-rename-dialog__field">
+              <span>名称</span>
+              <input
+                ref="renameInputRef"
+                v-model="renameDialog.title"
+                type="text"
+                maxlength="80"
+                placeholder="输入素材名称"
+                @keydown.stop
+              />
+            </label>
+            <div class="material-rename-dialog__actions">
+              <button type="button" class="jd-button jd-button--ghost jd-button--sm" :disabled="Boolean(busyActionKey)" @click="closeRenameDialog">取消</button>
+              <button type="submit" class="jd-button jd-button--primary jd-button--sm" :disabled="!renameDialog.title.trim() || Boolean(busyActionKey)">
+                <IconLoading v-if="busyActionKey === `rename-${renameDialog.asset?.id}`" size="xs" />
+                保存
+              </button>
+            </div>
           </form>
         </div>
-      </div>
-    </Transition>
-
-    <Transition name="material-favorite-dialog-fade">
-      <div
-        v-if="renameDialog.open"
-        class="material-rename-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="material-rename-dialog-title"
-        @click.self="closeRenameDialog"
-        @keydown.esc.stop.prevent="closeRenameDialog"
-      >
-        <form class="material-rename-dialog__panel" @submit.prevent="commitAssetRename">
-          <div class="material-rename-dialog__head">
-            <div>
-              <h3 id="material-rename-dialog-title">修改素材名称</h3>
-              <p>{{ renameDialog.asset?.title }}</p>
-            </div>
-            <button type="button" aria-label="关闭修改名称弹窗" @click="closeRenameDialog">
-              <IconClose size="sm" />
-            </button>
-          </div>
-          <label class="material-rename-dialog__field">
-            <span>名称</span>
-            <input
-              ref="renameInputRef"
-              v-model="renameDialog.title"
-              type="text"
-              maxlength="80"
-              placeholder="输入素材名称"
-              @keydown.stop
-            />
-          </label>
-          <div class="material-rename-dialog__actions">
-            <button type="button" class="jd-button jd-button--ghost jd-button--sm" :disabled="Boolean(busyActionKey)" @click="closeRenameDialog">取消</button>
-            <button type="submit" class="jd-button jd-button--primary jd-button--sm" :disabled="!renameDialog.title.trim() || Boolean(busyActionKey)">
-              <IconLoading v-if="busyActionKey === `rename-${renameDialog.asset?.id}`" size="xs" />
-              保存
-            </button>
-          </div>
-        </form>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
     <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptMaterialShareConfirm" @cancel="cancelMaterialShareConfirm" />
@@ -2376,7 +2380,7 @@ watch(
 .material-favorite-dialog {
   position: fixed;
   inset: 0;
-  z-index: 1450;
+  z-index: 1480;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -2387,7 +2391,7 @@ watch(
 .material-rename-dialog {
   position: fixed;
   inset: 0;
-  z-index: 1460;
+  z-index: 1480;
   display: grid;
   place-items: center;
   padding: 24px;
