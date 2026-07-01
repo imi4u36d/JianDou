@@ -180,6 +180,52 @@ async def test_repository_persists_result_url_aliases(db_session) -> None:
     assert loaded.outputs[0]["downloadPath"] == "https://cdn.example.test/original.png"
 
 
+async def test_repository_updates_existing_task_result_on_regeneration(db_session) -> None:
+    task = TaskRecord(
+        id="task_result_regenerate",
+        owner_user_id=7,
+        task_type="image_generation",
+        title="Result regeneration",
+        status="PENDING",
+        progress=0,
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+    first_result = {
+        "id": "result_regenerate_image",
+        "resultType": "image",
+        "clipIndex": 1,
+        "title": "Generated image",
+        "reason": "done",
+        "previewUrl": "https://cdn.example.test/thumb-old.jpg",
+        "downloadUrl": "https://cdn.example.test/original-old.png",
+        "materialAssetId": "asset_old",
+        "producedAt": "2026-01-01T00:01:00+00:00",
+    }
+    second_result = {
+        **first_result,
+        "previewUrl": "https://cdn.example.test/thumb-new.jpg",
+        "downloadUrl": "https://cdn.example.test/original-new.png",
+        "materialAssetId": "asset_new",
+        "producedAt": "2026-01-01T00:02:00+00:00",
+    }
+    repository = TaskRepository(db_session)
+
+    await repository.save_mutation(TaskPersistenceMutation().set_task(task).add_result(first_result))
+    await repository.save_mutation(TaskPersistenceMutation().set_task(task).add_result(second_result))
+
+    persisted_result = await db_session.execute(
+        select(BizTaskResult).where(BizTaskResult.task_result_id == "result_regenerate_image")
+    )
+    rows = persisted_result.scalars().all()
+    assert len(rows) == 1
+    persisted = rows[0]
+    assert persisted.preview_path == "https://cdn.example.test/thumb-new.jpg"
+    assert persisted.download_path == "https://cdn.example.test/original-new.png"
+    assert persisted.material_asset_id == "asset_new"
+    assert persisted.produced_at == "2026-01-01T00:02:00+00:00"
+
+
 async def test_repository_task_summaries_include_lightweight_thumbnail_urls(db_session) -> None:
     material_task = TaskRecord(
         id="task_summary_material_thumb",

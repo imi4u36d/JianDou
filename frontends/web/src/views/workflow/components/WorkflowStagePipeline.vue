@@ -47,7 +47,14 @@ const emit = defineEmits<{
   gap: 8px;
   flex: 0 0 auto;
   min-width: 0;
-  min-height: 50px;
+  min-height: 54px;
+  align-items: stretch;
+  padding: 2px 0 4px;
+  scrollbar-width: none;
+}
+
+.workflow-stage-pipeline::-webkit-scrollbar {
+  display: none;
 }
 
 .workflow-stage-step {
@@ -55,6 +62,7 @@ const emit = defineEmits<{
   grid-template-columns: 22px minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
+  box-sizing: border-box;
   min-height: 46px;
   padding: 8px 9px;
   border: 1px solid rgba(255, 255, 255, 0.6);
@@ -64,7 +72,6 @@ const emit = defineEmits<{
   text-align: left;
   cursor: pointer;
   transition:
-    transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease,
     box-shadow 180ms ease,
@@ -73,7 +80,6 @@ const emit = defineEmits<{
 
 .workflow-stage-step:hover,
 .workflow-stage-step-active {
-  transform: translateY(-1px);
   border-color: rgba(99, 102, 241, 0.25);
   background: rgba(99, 102, 241, 0.1);
   color: var(--accent-blue);
@@ -125,7 +131,6 @@ const emit = defineEmits<{
   .workflow-stage-pipeline {
     grid-template-columns: repeat(5, minmax(118px, 1fr));
     overflow-x: auto;
-    padding-bottom: 4px;
   }
 }
 </style>

@@ -9,6 +9,8 @@ interface PreviewFrame {
   errorMessage?: string;
 }
 
+const CHARACTER_SHEET_CLIP_INDEX_BASE = 1000;
+
 export function characterSheetKey(sheet: WorkflowCharacterSheet): string {
   return sheet.id || `${characterSheetTitle(sheet)}-${characterSheetClipIndex(sheet) ?? "na"}`;
 }
@@ -20,6 +22,18 @@ export function characterSheetClipIndex(sheet: WorkflowCharacterSheet): number |
     if (Number.isInteger(numericValue) && numericValue > 0) {
       return numericValue;
     }
+  }
+  return null;
+}
+
+export function characterSheetIndex(sheet: WorkflowCharacterSheet): number | null {
+  const directIndex = Number(sheet.characterIndex);
+  if (Number.isInteger(directIndex) && directIndex > 0) {
+    return directIndex;
+  }
+  const clipIndex = characterSheetClipIndex(sheet);
+  if (clipIndex !== null && clipIndex > CHARACTER_SHEET_CLIP_INDEX_BASE) {
+    return clipIndex - CHARACTER_SHEET_CLIP_INDEX_BASE;
   }
   return null;
 }

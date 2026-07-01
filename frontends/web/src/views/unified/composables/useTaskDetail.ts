@@ -8,7 +8,7 @@ import { usePolling } from "@/composables/usePolling";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { continueTask, deleteTask, fetchTask, pauseTask, retryTask, terminateTask } from "@/features/tasks";
 import { messageApi } from "@/composables/useMessage";
-import type { TaskDetail, TaskListItem, TaskStatus } from "@/types";
+import type { TaskAttempt, TaskDetail, TaskListItem, TaskStageRun, TaskStatus } from "@/types";
 import type { IconName } from "@/components/icons";
 import {
   formatTaskDurationMode,
@@ -28,14 +28,22 @@ import { getTaskStatusMeta } from "@/utils/presentation";
 import { resolveTaskPreviewMedia, resolveTaskThumbnailUrl } from "@/utils/task-preview";
 
 type TaskStageState = "pending" | "active" | "paused" | "done" | "failed";
+type TaskStageIconState = TaskStageState;
 const ACTIVE_TASK_STATUSES = new Set<TaskStatus>(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
 
 interface TaskStageDisplayItem {
   key: string;
   label: string;
   state: TaskStageState;
+  iconState: TaskStageIconState;
   stateLabel: string;
+  durationLabel: string;
 }
+
+type TaskStageTimingTask = Pick<TaskListItem, "createdAt" | "updatedAt" | "startedAt" | "finishedAt"> & {
+  attempts?: TaskAttempt[];
+  stageRuns?: TaskStageRun[];
+};
 
 const taskStageStateLabels: Record<TaskStageState, string> = {
   pending: "等待",
@@ -46,8 +54,15 @@ const taskStageStateLabels: Record<TaskStageState, string> = {
 };
 const COMPLETED_PREVIEW_POLL_LIMIT = 8;
 
-function withTaskStageLabels(items: Array<Omit<TaskStageDisplayItem, "stateLabel">>): TaskStageDisplayItem[] {
-  return items.map((item) => ({ ...item, stateLabel: taskStageStateLabels[item.state] }));
+function withTaskStageLabels(
+  items: Array<Omit<TaskStageDisplayItem, "stateLabel" | "iconState" | "durationLabel"> & Partial<Pick<TaskStageDisplayItem, "iconState" | "durationLabel">>>,
+): TaskStageDisplayItem[] {
+  return items.map((item) => ({
+    ...item,
+    iconState: item.iconState ?? item.state,
+    stateLabel: taskStageStateLabels[item.state],
+    durationLabel: item.durationLabel ?? "",
+  }));
 }
 
 function buildVideoTaskStages(status: TaskStatus): TaskStageDisplayItem[] {
@@ -59,13 +74,108 @@ function buildVideoTaskStages(status: TaskStatus): TaskStageDisplayItem[] {
     { key: "PLANNING", label: "任务编排", state: currentIndex > 1 ? "done" : currentIndex === 1 ? "active" : "pending" },
     { key: "RENDERING", label: "视频生成", state: pausedAtRender ? "paused" : currentIndex > 2 ? "done" : currentIndex === 2 ? "active" : "pending" },
     { key: "COMPLETED", label: "任务完成", state: status === "COMPLETED" ? "done" : status === "FAILED" ? "failed" : "pending" },
-  ] as Array<Omit<TaskStageDisplayItem, "stateLabel">>;
+  ] as Array<Omit<TaskStageDisplayItem, "stateLabel" | "iconState" | "durationLabel">>;
   return withTaskStageLabels(items);
 }
 
-function buildImageTaskStages(status: TaskStatus, taskType: string): TaskStageDisplayItem[] {
+function timeValue(raw?: string | null): number | null {
+  if (!raw) return null;
+  const value = new Date(raw).getTime();
+  return Number.isNaN(value) ? null : value;
+}
+
+function elapsedMs(start?: string | null, end?: string | null): number | null {
+  const startValue = timeValue(start);
+  const endValue = timeValue(end);
+  if (startValue == null || endValue == null || endValue < startValue) return null;
+  return endValue - startValue;
+}
+
+function elapsedUntil(start?: string | null, endValue: number | null = Date.now()): number | null {
+  const startValue = timeValue(start);
+  if (startValue == null || endValue == null || endValue < startValue) return null;
+  return endValue - startValue;
+}
+
+function formatStageDuration(ms: number | null): string {
+  if (ms == null) return "";
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes > 0 ? `${minutes}分` : ""}${seconds}秒`;
+  }
+  if (minutes > 0) {
+    return `${minutes}分${String(seconds).padStart(2, "0")}秒`;
+  }
+  return `00:${String(seconds).padStart(2, "0")}秒`;
+}
+
+function stageRunDurationMs(run?: TaskStageRun | null): number | null {
+  if (!run) return null;
+  if (typeof run.durationMs === "number" && Number.isFinite(run.durationMs) && run.durationMs > 0) {
+    return run.durationMs;
+  }
+  return elapsedMs(run.startedAt, run.finishedAt);
+}
+
+function latestAttempt(task: TaskStageTimingTask | null | undefined): TaskAttempt | null {
+  const attempts = task?.attempts ?? [];
+  if (!attempts.length) return null;
+  return [...attempts].sort((a, b) => {
+    const attemptNoA = Number(a.attemptNo ?? 0);
+    const attemptNoB = Number(b.attemptNo ?? 0);
+    if (attemptNoA !== attemptNoB) return attemptNoA - attemptNoB;
+    return (timeValue(a.queueEnteredAt) ?? timeValue(a.startedAt) ?? 0) - (timeValue(b.queueEnteredAt) ?? timeValue(b.startedAt) ?? 0);
+  }).at(-1) ?? null;
+}
+
+function latestStageRun(task: TaskStageTimingTask | null | undefined, matcher: (stageName: string) => boolean): TaskStageRun | null {
+  const attempt = latestAttempt(task);
+  const attemptId = String(attempt?.attemptId ?? "").trim();
+  const runs = task?.stageRuns ?? [];
+  const matched = runs.filter((run) => {
+    const runAttemptId = String(run.attemptId ?? "").trim();
+    return (!attemptId || !runAttemptId || runAttemptId === attemptId) && matcher(String(run.stageName ?? "").trim().toLowerCase());
+  });
+  if (!matched.length) return null;
+  return [...matched].sort((a, b) => {
+    const seqA = Number(a.stageSeq ?? 0);
+    const seqB = Number(b.stageSeq ?? 0);
+    if (seqA !== seqB) return seqA - seqB;
+    return (timeValue(a.startedAt) ?? 0) - (timeValue(b.startedAt) ?? 0);
+  }).at(-1) ?? null;
+}
+
+function imageSubmitStageDuration(task: TaskStageTimingTask | null | undefined): number | null {
+  const attempt = latestAttempt(task);
+  const attemptStart = attempt?.startedAt ?? attempt?.claimedAt ?? attempt?.queueLeftAt ?? null;
+  const attemptQueuedAt = attempt?.queueEnteredAt ?? null;
+  if (attemptStart) {
+    return elapsedMs(attemptQueuedAt, attemptStart) ?? elapsedMs(task?.updatedAt, attemptStart) ?? elapsedMs(task?.createdAt, attemptStart);
+  }
+  if (attemptQueuedAt) {
+    return elapsedUntil(attemptQueuedAt, Date.now());
+  }
+  return elapsedMs(task?.createdAt, task?.startedAt ?? task?.updatedAt);
+}
+
+function imageRenderStageDuration(task: TaskStageTimingTask | null | undefined, status: TaskStatus): number | null {
+  const renderRun = latestStageRun(task, (stageName) =>
+    stageName.includes("render") ||
+    stageName.includes("planning") ||
+    stageName.includes("image") ||
+    stageName.includes("character")
+  );
+  const fallbackEnd = task?.finishedAt ? timeValue(task.finishedAt) : status === "RENDERING" ? Date.now() : timeValue(task?.updatedAt);
+  return stageRunDurationMs(renderRun) ?? elapsedUntil(task?.startedAt, fallbackEnd);
+}
+
+function buildImageTaskStages(task: TaskStageTimingTask | null, status: TaskStatus, taskType: string): TaskStageDisplayItem[] {
   const renderLabel = taskType === "character_sheet" ? "三视图生成" : "图片生成";
-  const submitState: TaskStageState = ["RENDERING", "COMPLETED", "FAILED"].includes(status) ? "done" : status === "PAUSED" ? "paused" : "active";
+  const submitState: TaskStageState = ["RENDERING", "COMPLETED", "FAILED", "PAUSED"].includes(status) ? "done" : "active";
   const renderState: TaskStageState =
     status === "COMPLETED" ? "done" :
     status === "FAILED" ? "failed" :
@@ -73,10 +183,13 @@ function buildImageTaskStages(status: TaskStatus, taskType: string): TaskStageDi
     status === "RENDERING" ? "active" :
     "pending";
   const completeState: TaskStageState = status === "COMPLETED" ? "done" : "pending";
+  const submitDuration = imageSubmitStageDuration(task);
+  const renderDuration = imageRenderStageDuration(task, status);
+  const completeDuration = status === "COMPLETED" ? elapsedMs(task?.startedAt, task?.finishedAt) : null;
   return withTaskStageLabels([
-    { key: "PENDING", label: "提交任务", state: submitState },
-    { key: "RENDERING", label: renderLabel, state: renderState },
-    { key: "COMPLETED", label: "生成完成", state: completeState },
+    { key: "PENDING", label: "提交任务", state: submitState, durationLabel: formatStageDuration(submitDuration) },
+    { key: "RENDERING", label: renderLabel, state: renderState, durationLabel: formatStageDuration(renderDuration) },
+    { key: "COMPLETED", label: "生成完成", state: completeState, durationLabel: status === "COMPLETED" ? formatStageDuration(completeDuration) || "--" : "" },
   ]);
 }
 
@@ -400,7 +513,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   const selectedTaskStages = computed(() => {
     const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status ?? "PENDING";
     const type = normalizedTaskType(selectedTask.value);
-    if (type !== "video_generation") return buildImageTaskStages(status, type);
+    if (type !== "video_generation") return buildImageTaskStages(selectedTask.value, status, type);
     return buildVideoTaskStages(status);
   });
 

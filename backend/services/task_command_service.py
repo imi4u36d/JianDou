@@ -212,6 +212,8 @@ class TaskCommandService:
         """Retry a failed task."""
         task.retry_count += 1
         task.error_message = ""
+        task.started_at = None
+        task.finished_at = None
         retry_payload = self._build_retry_payload(task, AttemptTriggerType.RETRY)
         mutation = TaskPersistenceMutation().set_task(task)
         mutation = self._merge_mutation(mutation, self.execution_coordinator.create_attempt(task, AttemptTriggerType.RETRY, retry_payload))
@@ -249,6 +251,8 @@ class TaskCommandService:
 
     async def resume(self, task: TaskRecord) -> TaskRecord:
         """Resume a paused task."""
+        task.started_at = None
+        task.finished_at = None
         retry_payload = self._build_retry_payload(task, AttemptTriggerType.CONTINUE)
         mutation = TaskPersistenceMutation().set_task(task)
         mutation = self._merge_mutation(mutation, self.execution_coordinator.create_attempt(task, AttemptTriggerType.CONTINUE, retry_payload))

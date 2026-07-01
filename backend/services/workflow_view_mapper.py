@@ -186,6 +186,7 @@ class WorkflowViewMapper:
                 "displayName": character.get("name", ""),
                 "appearanceSummary": character.get("summary", ""),
                 "appearance": character.get("appearance", ""),
+                "characterIndex": idx,
                 "syntheticClipIndex": synthetic_clip_index,
                 "clipIndex": synthetic_clip_index,
                 "versions": [

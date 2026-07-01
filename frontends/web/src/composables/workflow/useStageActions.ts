@@ -7,6 +7,7 @@ import {
   deleteStageVersion,
   deleteWorkflow,
   finalizeWorkflow,
+  generateCharacterSheet,
   generateKeyframe,
   generateKeyframeFrame,
   generateStoryboard,
@@ -19,7 +20,7 @@ import {
   updateWorkflowSettings,
 } from "@/features/workflows";
 import type { WorkflowCharacterSheet, WorkflowDetail, WorkflowSummary, WorkflowDeleteResult, UpdateWorkflowSettingsRequest } from "@/types";
-import { characterSheetClipIndex } from "./useCharacterSheetUtils";
+import { characterSheetClipIndex, characterSheetIndex } from "./useCharacterSheetUtils";
 
 export function useStageActions(deps: {
   selectedWorkflowId: () => string;
@@ -92,14 +93,14 @@ export function useStageActions(deps: {
   async function handleGenerateMissingCharacterSheets(missingSheets: WorkflowCharacterSheet[]) {
     const workflowId = deps.selectedWorkflowId();
     if (!workflowId) return;
-    const pendingClipIndexes = missingSheets
-      .map((sheet) => characterSheetClipIndex(sheet))
-      .filter((clipIndex): clipIndex is number => clipIndex !== null);
-    if (!pendingClipIndexes.length) return;
+    const pendingCharacterIndexes = missingSheets
+      .map((sheet) => characterSheetIndex(sheet))
+      .filter((index): index is number => index !== null);
+    if (!pendingCharacterIndexes.length) return;
     busyActionKey.value = "character-missing";
     try {
-      for (const clipIndex of pendingClipIndexes) {
-        deps.selectedWorkflow.value = await generateKeyframe(workflowId, clipIndex);
+      for (const index of pendingCharacterIndexes) {
+        deps.selectedWorkflow.value = await generateCharacterSheet(workflowId, index);
         deps.applyWorkflowDrafts(deps.selectedWorkflow.value);
       }
       await deps.loadWorkflows();

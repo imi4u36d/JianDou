@@ -11,6 +11,7 @@ import {
   deleteStageVersion,
   fetchWorkflow,
   finalizeWorkflow,
+  generateCharacterSheet,
   generateKeyframe,
   generateKeyframeFrame,
   generateStoryboard,
@@ -48,6 +49,7 @@ import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import {
   characterSheetKey,
   characterSheetClipIndex,
+  characterSheetIndex,
   characterSheetTitle,
   characterSheetAppearanceSummary,
   characterSheetVersions,
@@ -575,14 +577,14 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
   }
   async function handleGenerateMissingCharacterSheets() {
     if (!selectedWorkflowId.value) return;
-    const pendingClipIndexes = missingCharacterSheets.value
-      .map((s) => characterSheetClipIndex(s))
-      .filter((ci): ci is number => ci !== null);
-    if (!pendingClipIndexes.length) return;
+    const pendingCharacterIndexes = missingCharacterSheets.value
+      .map((sheet) => characterSheetIndex(sheet))
+      .filter((index): index is number => index !== null);
+    if (!pendingCharacterIndexes.length) return;
     busyActionKey.value = "character-missing";
     try {
-      for (const clipIndex of pendingClipIndexes) {
-        selectedWorkflow.value = await generateKeyframe(selectedWorkflowId.value, clipIndex);
+      for (const index of pendingCharacterIndexes) {
+        selectedWorkflow.value = await generateCharacterSheet(selectedWorkflowId.value, index);
         applyWorkflowDrafts(selectedWorkflow.value);
       }
       await detailOptions.reloadWorkflows();
@@ -593,9 +595,10 @@ export function useWorkflowDetail(detailOptions: UseWorkflowDetailOptions) {
     }
   }
   async function handleGenerateCharacterSheet(sheet: WorkflowCharacterSheet) {
-    const clipIndex = characterSheetClipIndex(sheet);
-    if (!selectedWorkflowId.value || clipIndex === null) return;
-    await runAndRefresh(`character-sheet-${clipIndex}`, () => generateKeyframe(selectedWorkflowId.value, clipIndex));
+    const index = characterSheetIndex(sheet);
+    if (!selectedWorkflowId.value || index === null) return;
+    const clipIndex = characterSheetClipIndex(sheet) ?? index;
+    await runAndRefresh(`character-sheet-${clipIndex}`, () => generateCharacterSheet(selectedWorkflowId.value, index));
   }
   async function handleGenerateKeyframeFrame(clipIndex: number, frameRole: string) {
     if (!selectedWorkflowId.value) return;

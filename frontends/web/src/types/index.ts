@@ -588,6 +588,7 @@ export interface TaskOutput {
   sizeBytes?: number | null;
   thumbnailUrl?: string | null;
   extra?: Record<string, unknown> | null;
+  producedAt?: string | null;
 }
 
 /**
@@ -681,6 +682,50 @@ export interface TaskListItem {
   failureStage?: string | null;
   failureClipIndex?: number | null;
   thumbnailUrl?: string | null;
+}
+
+/**
+ * 任务阶段运行记录。
+ */
+export interface TaskStageRun {
+  stageRunId?: string;
+  taskId?: string;
+  attemptId?: string;
+  stageName?: string | null;
+  stageSeq?: number | null;
+  clipIndex?: number | null;
+  status?: string | null;
+  workerInstanceId?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+  inputSummary?: Record<string, unknown> | null;
+  outputSummary?: Record<string, unknown> | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
+/**
+ * 任务执行尝试记录。
+ */
+export interface TaskAttempt {
+  attemptId?: string;
+  taskId?: string;
+  attemptNo?: number | null;
+  triggerType?: string | null;
+  status?: string | null;
+  queueName?: string | null;
+  workerInstanceId?: string | null;
+  queueEnteredAt?: string | null;
+  queueLeftAt?: string | null;
+  claimedAt?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  resumeFromStage?: string | null;
+  resumeFromClipIndex?: number | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  payload?: Record<string, unknown> | null;
 }
 
 /**
@@ -835,6 +880,8 @@ export interface TaskDetail extends TaskListItem {
   requestSnapshot?: TaskRequestSnapshot;
   durationDiagnostics?: TaskDurationDiagnosticClip[];
   plan?: TaskPlanClip[];
+  attempts?: TaskAttempt[];
+  stageRuns?: TaskStageRun[];
   monitoring?: TaskMonitoringSummary;
   outputs: TaskOutput[];
 }
@@ -1316,6 +1363,7 @@ export interface WorkflowCharacterSheet {
   displayName?: string | null;
   appearanceSummary?: string | null;
   appearance?: string | null;
+  characterIndex?: number | null;
   syntheticClipIndex?: number | null;
   clipIndex?: number | null;
   versions?: StageVersion[] | null;

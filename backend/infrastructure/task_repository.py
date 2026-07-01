@@ -497,35 +497,7 @@ class TaskRepository:
 
                 # 8. Results
                 for row in mutation.result_rows:
-                    self.session.add(
-                        BizTaskResult(
-                            task_result_id=string_value(row.get("resultId", row.get("id", ""))),
-                            task_id=task_id,
-                            result_type=string_value(row.get("resultType", "")),
-                            clip_index=safe_int(row.get("clipIndex"), 0),
-                            title=string_value(row.get("title", "")),
-                            reason=string_value(row.get("reason", "")),
-                            source_model_call_id=string_value(row.get("sourceModelCallId", "")),
-                            material_asset_id=string_value(row.get("materialAssetId", "")),
-                            start_seconds=float(row.get("startSeconds") or 0),
-                            end_seconds=float(row.get("endSeconds") or 0),
-                            duration_seconds=float(row.get("durationSeconds") or 0),
-                            preview_path=string_value(row.get("previewPath", row.get("previewUrl", ""))),
-                            download_path=string_value(row.get("downloadPath", row.get("downloadUrl", ""))),
-                            width=safe_int(row.get("width"), 0),
-                            height=safe_int(row.get("height"), 0),
-                            mime_type=string_value(row.get("mimeType", "")),
-                            size_bytes=safe_int(row.get("sizeBytes"), 0),
-                            remote_url=string_value(row.get("remoteUrl", "")),
-                            extra_json=write_json_object(row.get("extra", {})),
-                            produced_at=string_value(row.get("producedAt", now_iso())),
-                            timezone_offset_minutes=safe_int(row.get("timezoneOffsetMinutes"), 0),
-                            create_time=now_iso(),
-                            update_time=now_iso(),
-                            is_deleted=0,
-                            remark="",
-                        )
-                    )
+                    await self._upsert_task_result(task_id, row)
 
                 # 9. Queue events
                 for row in mutation.queue_event_rows:
@@ -2055,6 +2027,52 @@ class TaskRepository:
         self.session.add(
             BizMaterialAsset(
                 material_asset_id=material_id,
+                create_time=now,
+                **values,
+            )
+        )
+
+    async def _upsert_task_result(self, task_id: str, row: dict[str, Any]) -> None:
+        result_id = string_value(row.get("resultId", row.get("id", "")))
+        if not result_id:
+            return
+        result = await self.session.execute(
+            select(BizTaskResult).where(BizTaskResult.task_result_id == result_id)
+        )
+        existing = result.scalars().first()
+        now = now_iso()
+        values = {
+            "task_id": task_id,
+            "result_type": string_value(row.get("resultType", "")),
+            "clip_index": safe_int(row.get("clipIndex"), 0),
+            "title": string_value(row.get("title", "")),
+            "reason": string_value(row.get("reason", "")),
+            "source_model_call_id": string_value(row.get("sourceModelCallId", "")),
+            "material_asset_id": string_value(row.get("materialAssetId", "")),
+            "start_seconds": float(row.get("startSeconds") or 0),
+            "end_seconds": float(row.get("endSeconds") or 0),
+            "duration_seconds": float(row.get("durationSeconds") or 0),
+            "preview_path": string_value(row.get("previewPath", row.get("previewUrl", ""))),
+            "download_path": string_value(row.get("downloadPath", row.get("downloadUrl", ""))),
+            "width": safe_int(row.get("width"), 0),
+            "height": safe_int(row.get("height"), 0),
+            "mime_type": string_value(row.get("mimeType", "")),
+            "size_bytes": safe_int(row.get("sizeBytes"), 0),
+            "remote_url": string_value(row.get("remoteUrl", "")),
+            "extra_json": write_json_object(row.get("extra", {})),
+            "produced_at": string_value(row.get("producedAt", now)),
+            "timezone_offset_minutes": safe_int(row.get("timezoneOffsetMinutes"), 0),
+            "update_time": now,
+            "is_deleted": 0,
+            "remark": "",
+        }
+        if existing:
+            for key, value in values.items():
+                setattr(existing, key, value)
+            return
+        self.session.add(
+            BizTaskResult(
+                task_result_id=result_id,
                 create_time=now,
                 **values,
             )

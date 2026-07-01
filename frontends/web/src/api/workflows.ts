@@ -73,6 +73,13 @@ export function generateKeyframe(workflowId: string, clipIndex: number) {
   return postJson<WorkflowDetail>(`/workflows/${encodeURIComponent(workflowId)}/clips/${clipIndex}/keyframes/generate`, {});
 }
 
+export function generateCharacterSheet(workflowId: string, characterIndex: number) {
+  return postJson<WorkflowDetail>(
+    `/workflows/${encodeURIComponent(workflowId)}/character-sheets/${characterIndex}/generate`,
+    {}
+  );
+}
+
 export function generateKeyframeFrame(workflowId: string, clipIndex: number, frameRole: string) {
   return postJson<WorkflowDetail>(
     `/workflows/${encodeURIComponent(workflowId)}/clips/${clipIndex}/keyframes/${encodeURIComponent(frameRole)}/generate`,

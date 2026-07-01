@@ -76,6 +76,32 @@ describe("resolveTaskPreviewMedia", () => {
     expect(preview).toMatchObject({ type: "image", url: "/storage/workspace-image.png" });
   });
 
+  it("uses the latest produced image output and cache-busts stable regenerated urls", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      taskType: "image_generation",
+      requestSnapshot: { taskType: "image_generation" },
+      outputs: [
+        output({
+          resultId: "result_old",
+          resultType: "image",
+          downloadPath: "/storage/workspace-image.png",
+          producedAt: "2026-01-01T00:01:00Z",
+        }),
+        output({
+          resultId: "result_new",
+          resultType: "image",
+          downloadPath: "/storage/workspace-image.png",
+          producedAt: "2026-01-01T00:02:00Z",
+        }),
+      ],
+    }));
+
+    expect(preview).toMatchObject({
+      type: "image",
+      url: "/storage/workspace-image.png?jdv=2026-01-01T00%3A02%3A00Z",
+    });
+  });
+
   it("uses linked material originals ahead of image output thumbnails", () => {
     const preview = resolveTaskPreviewMedia(task({
       taskType: "image_generation",
@@ -129,7 +155,7 @@ describe("resolveTaskPreviewMedia", () => {
       },
     }));
 
-    expect(preview).toMatchObject({ type: "image", url: "/storage/tasks/task_1/workspace-image.png" });
+    expect(preview).toMatchObject({ type: "image", url: "/storage/tasks/task_1/workspace-image.png?jdv=2026-01-01T00%3A00%3A00Z" });
   });
 
   it("does not let source materials replace a generated output", () => {
@@ -269,6 +295,21 @@ describe("resolveTaskPreviewMedia", () => {
       url: "/storage/join-only.mp4",
       posterUrl: "/storage/thumbs/join-only.jpg",
       materialAssetId: "asset_join_only",
+    });
+  });
+});
+
+describe("resolveTaskPreviewMedia summary fallback", () => {
+  it("cache-busts task thumbnail urls with the task update time", () => {
+    const preview = resolveTaskPreviewMedia(task({
+      outputs: undefined as unknown as TaskOutput[],
+      thumbnailUrl: "/storage/thumbs/task_1.jpg",
+      updatedAt: "2026-01-01T00:03:00Z",
+    }));
+
+    expect(preview).toMatchObject({
+      type: "image",
+      url: "/storage/thumbs/task_1.jpg?jdv=2026-01-01T00%3A03%3A00Z",
     });
   });
 });

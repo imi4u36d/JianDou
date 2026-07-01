@@ -412,6 +412,24 @@ async def select_keyframe_frame(
 # ------------------------------------------------------------------
 
 
+@router.post("/{workflow_id}/character-sheets/{character_index}/generate", response_model=WorkflowDetailResponse)
+async def generate_character_sheet(
+    workflow_id: str,
+    character_index: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Generate a character sheet for a storyboard character."""
+    user = await require_user(request)
+    svc = _service(db, request)
+    result = await _run_action(
+        lambda: svc.generate_character_sheet(workflow_id, character_index, owner_user_id=user["id"])
+    )
+    if result is None:
+        raise not_found("workflow")
+    return result
+
+
 @router.post("/{workflow_id}/character-sheets/{clip_index}/select-asset", response_model=WorkflowDetailResponse)
 async def select_character_sheet_asset(
     workflow_id: str,

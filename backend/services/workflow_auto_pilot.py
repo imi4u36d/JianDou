@@ -411,11 +411,18 @@ class WorkflowAutoPilot:
                 model_label,
                 clip_index,
             )
-            await self._workflow_service.generate_keyframe(
-                workflow_id,
-                clip_index,
-                owner_user_id=owner_user_id,
-            )
+            if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
+                await self._workflow_service.generate_character_sheet(
+                    workflow_id,
+                    clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE,
+                    owner_user_id=owner_user_id,
+                )
+            else:
+                await self._workflow_service.generate_keyframe(
+                    workflow_id,
+                    clip_index,
+                    owner_user_id=owner_user_id,
+                )
 
         elif step_type == "generate_video":
             clip_index = step.get("clip_index", 1)
@@ -584,11 +591,18 @@ class WorkflowAutoPilot:
                             attempt,
                             max_attempts,
                         )
-                        await svc.generate_keyframe(
-                            workflow_id,
-                            clip_index,
-                            owner_user_id=owner_user_id,
-                        )
+                        if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
+                            await svc.generate_character_sheet(
+                                workflow_id,
+                                clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE,
+                                owner_user_id=owner_user_id,
+                            )
+                        else:
+                            await svc.generate_keyframe(
+                                workflow_id,
+                                clip_index,
+                                owner_user_id=owner_user_id,
+                            )
                     elif step_type == "generate_video":
                         logger.info(
                             "Auto-pilot concurrent: workflow=%s stage=视频生成 clip=%s attempt=%d/%d",

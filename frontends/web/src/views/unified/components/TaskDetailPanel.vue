@@ -32,7 +32,27 @@
         </header>
 
         <section class="detail-stage-card" aria-label="任务阶段">
-          <div class="detail-stage-line">
+          <div v-if="imageTaskDisplay" class="detail-stage-steps">
+            <template v-for="(stage, index) in selectedTaskStages" :key="stage.key">
+              <div class="detail-stage-step" :class="[`detail-stage-step-${stage.state}`, `detail-stage-step-icon-${stage.iconState}`]">
+                <span class="detail-stage-step__icon" aria-hidden="true">
+                  <IconCheck v-if="stage.iconState === 'done'" size="xs" />
+                  <IconRefresh v-else-if="stage.iconState === 'active'" size="xs" />
+                  <span v-else-if="stage.iconState === 'paused'" class="detail-stage-step__pause"></span>
+                  <IconWarning v-else-if="stage.iconState === 'failed'" size="xs" />
+                </span>
+                <span class="detail-stage-step__copy">
+                  <strong>{{ stage.label }}</strong>
+                  <small>
+                    <span>{{ stage.stateLabel }}</span>
+                    <span v-if="stage.durationLabel" class="detail-stage-step__duration">{{ stage.durationLabel }}</span>
+                  </small>
+                </span>
+              </div>
+              <span v-if="index < selectedTaskStages.length - 1" class="detail-stage-step__chevron" aria-hidden="true">›</span>
+            </template>
+          </div>
+          <div v-else class="detail-stage-line">
             <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
               <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
               <span class="detail-stage-line__copy">
@@ -187,6 +207,14 @@
                 @click="openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)"
               >
                 <img
+                  class="task-result-preview__image-glow"
+                  :src="selectedTaskPreviewMedia.url"
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                />
+                <img
+                  class="task-result-preview__image"
                   :src="selectedTaskPreviewMedia.url"
                   :alt="selectedTaskPreviewMedia.title || '任务结果预览'"
                   @load="markTaskPreviewReady"
@@ -333,7 +361,7 @@
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import AppPreviewDialog from "@/components/common/AppPreviewDialog.vue";
-import { IconChevronDown, IconClose, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconShare, IconText, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
+import { IconCheck, IconChevronDown, IconClose, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconShare, IconText, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
 import { messageApi } from "@/composables/useMessage";
 import { createPublicShare, deletePublicShare } from "@/api/public-shares";
 import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
@@ -808,17 +836,140 @@ onUnmounted(() => {
   display: none;
 }
 
+.detail-stage-steps {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 560px;
+}
+
+.detail-stage-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 0 0;
+  min-width: 152px;
+  min-height: 54px;
+}
+
+.detail-stage-step__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(99, 102, 241, 0.28);
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(99, 102, 241, 0.72);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.88) inset;
+}
+
+.detail-stage-step-icon-done .detail-stage-step__icon {
+  border-color: var(--accent-indigo);
+  background: var(--accent-indigo);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.22);
+}
+
+.detail-stage-step-icon-active .detail-stage-step__icon {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  border-color: var(--accent-indigo);
+  background: var(--accent-indigo);
+  color: #fff;
+  box-shadow:
+    0 0 0 6px rgba(99, 102, 241, 0.1),
+    0 14px 28px rgba(99, 102, 241, 0.28);
+}
+
+.detail-stage-step-icon-active .detail-stage-step__icon svg {
+  animation: detail-stage-icon-spin 1.25s linear infinite;
+}
+
+.detail-stage-step-icon-paused .detail-stage-step__icon {
+  border-color: rgba(217, 119, 6, 0.36);
+  background: rgba(217, 119, 6, 0.14);
+  color: var(--accent-warning);
+}
+
+.detail-stage-step-icon-failed .detail-stage-step__icon {
+  border-color: var(--accent-danger);
+  background: var(--accent-danger);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(229, 72, 101, 0.18);
+}
+
+.detail-stage-step-icon-pending .detail-stage-step__icon {
+  border-color: rgba(99, 102, 241, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.detail-stage-step__pause {
+  width: 10px;
+  height: 12px;
+  border-left: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+}
+
+.detail-stage-step__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.detail-stage-step__copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 780;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-stage-step__copy small {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 720;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.detail-stage-step__duration {
+  color: rgba(80, 90, 110, 0.66);
+  font-weight: 760;
+}
+
+.detail-stage-step__chevron {
+  flex: 0 0 auto;
+  color: rgba(99, 102, 241, 0.34);
+  font-size: 2.3rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+@keyframes detail-stage-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-stage-step-icon-active .detail-stage-step__icon svg {
+    animation: none;
+  }
+}
+
 .detail-stage-line {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
-}
-
-.task-detail-summary-image .detail-stage-line {
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: 0;
-  min-width: 520px;
-  align-items: center;
 }
 
 .detail-stage-line__item {
@@ -831,60 +982,6 @@ onUnmounted(() => {
   border: 1px solid rgba(80, 90, 110, 0.08);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.54);
-}
-
-.task-detail-summary-image .detail-stage-line__item {
-  position: relative;
-  min-height: 64px;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.task-detail-summary-image .detail-stage-line__item::before {
-  content: "";
-  position: absolute;
-  left: 32px;
-  right: calc(100% - 32px);
-  top: 31px;
-  height: 2px;
-  background: rgba(99, 102, 241, 0.28);
-}
-
-.task-detail-summary-image .detail-stage-line__item:not(:first-child)::before {
-  left: -50%;
-  right: calc(100% - 32px);
-}
-
-.task-detail-summary-image .detail-stage-line__item:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  left: 32px;
-  right: -50%;
-  top: 31px;
-  height: 2px;
-  background: rgba(99, 102, 241, 0.28);
-}
-
-.task-detail-summary-image .detail-stage-line__item-pending::before,
-.task-detail-summary-image .detail-stage-line__item-pending::after {
-  background: rgba(148, 163, 184, 0.24);
-}
-
-.task-detail-summary-image .detail-stage-line__item-active {
-  z-index: 1;
-}
-
-.task-detail-summary-image .detail-stage-line__item-active .detail-stage-line__copy,
-.task-detail-summary-image .detail-stage-line__item-paused .detail-stage-line__copy,
-.task-detail-summary-image .detail-stage-line__item-failed .detail-stage-line__copy {
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  border-radius: 10px;
-  background: rgba(245, 246, 255, 0.92);
-  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.08);
 }
 
 .detail-stage-line__item-done {
@@ -910,25 +1007,6 @@ onUnmounted(() => {
   border-radius: 50%;
   flex-shrink: 0;
   border: 2px solid var(--text-muted);
-}
-
-.task-detail-summary-image .detail-stage-line__dot {
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-width: 2px;
-  background: #fff;
-}
-
-.task-detail-summary-image .detail-stage-line__dot.task-stage-row--done::after {
-  content: "";
-  width: 7px;
-  height: 4px;
-  border-left: 2px solid #fff;
-  border-bottom: 2px solid #fff;
-  transform: translateY(-1px) rotate(-45deg);
 }
 
 .detail-stage-line__dot.task-stage-row--done {
@@ -971,12 +1049,6 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.task-detail-summary-image .detail-stage-line__copy {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-}
-
 .detail-stage-line__copy strong {
   font-size: 0.78rem;
   font-weight: 600;
@@ -986,19 +1058,9 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.task-detail-summary-image .detail-stage-line__copy strong {
-  font-size: 0.84rem;
-  font-weight: 760;
-}
-
 .detail-stage-line__copy small {
   font-size: 0.68rem;
   color: var(--text-muted);
-}
-
-.task-detail-summary-image .detail-stage-line__copy small {
-  font-size: 0.74rem;
-  font-weight: 650;
 }
 
 @keyframes task-stage-dot-breathe {
@@ -1277,6 +1339,8 @@ onUnmounted(() => {
 }
 
 .task-result-preview__image-button {
+  position: relative;
+  z-index: 0;
   display: grid;
   place-items: center;
   width: 100%;
@@ -1285,6 +1349,18 @@ onUnmounted(() => {
   border: 0;
   background: transparent;
   cursor: zoom-in;
+  isolation: isolate;
+}
+
+.task-result-preview__image-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.08), rgba(245, 247, 252, 0.5) 68%, rgba(245, 247, 252, 0.84)),
+    linear-gradient(90deg, rgba(245, 247, 252, 0.42), rgba(255, 255, 255, 0.08), rgba(245, 247, 252, 0.42));
+  pointer-events: none;
 }
 
 .task-result-preview__loading {
@@ -1332,6 +1408,25 @@ onUnmounted(() => {
   max-height: min(52vh, 420px);
   display: block;
   object-fit: contain;
+}
+
+.task-result-preview__image-glow {
+  position: absolute;
+  inset: -14%;
+  z-index: 0;
+  width: 128%;
+  height: 128%;
+  max-height: none;
+  object-fit: cover;
+  opacity: 0.34;
+  filter: blur(30px) saturate(1.08);
+  transform: scale(1.04);
+  pointer-events: none;
+}
+
+.task-result-preview__image {
+  position: relative;
+  z-index: 2;
 }
 
 .task-result-preview__main video {

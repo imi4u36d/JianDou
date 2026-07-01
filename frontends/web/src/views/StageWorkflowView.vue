@@ -31,6 +31,17 @@
         >
           {{ item.label }}
         </button>
+        <button
+          class="workflow-filter-refresh"
+          type="button"
+          :disabled="loadingWorkflows || loadingMoreWorkflows || refreshingWorkflows"
+          aria-label="刷新视频任务"
+          title="刷新视频任务"
+          @click="handleRefreshWorkflows"
+        >
+          <IconLoading v-if="refreshingWorkflows" size="xs" />
+          <IconRefresh v-else size="xs" />
+        </button>
       </div>
 
       <div v-if="loadingWorkflows" class="workflow-empty-state">
@@ -482,7 +493,7 @@
                       <IconSearch size="xs" />
                       <span>素材</span>
                     </button>
-                    <button class="jd-button jd-button--ghost jd-button--sm character-action-button" type="button" :disabled="characterSheetClipIndex(sheet) === null || busyActionKey === 'character-missing' || busyActionKey === `keyframe-${characterSheetClipIndex(sheet)}`" :title="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" :aria-label="previewCharacterSheetVersion(sheet) ? '重新生成关键帧' : '生成关键帧'" @click="handleGenerateKeyframe(characterSheetClipIndex(sheet) || 0)">
+                    <button class="jd-button jd-button--ghost jd-button--sm character-action-button" type="button" :disabled="characterSheetIndex(sheet) === null || busyActionKey === 'character-missing' || busyActionKey === `character-sheet-${characterSheetClipIndex(sheet)}`" :title="previewCharacterSheetVersion(sheet) ? '重新生成角色设定图' : '生成角色设定图'" :aria-label="previewCharacterSheetVersion(sheet) ? '重新生成角色设定图' : '生成角色设定图'" @click="handleGenerateCharacterSheet(sheet)">
                       <IconRefresh v-if="previewCharacterSheetVersion(sheet)" size="xs" />
                       <IconPlus v-else size="xs" />
                       <span>{{ previewCharacterSheetVersion(sheet) ? "重生" : "生成" }}</span>
@@ -948,6 +959,7 @@ import {
   deleteWorkflow,
   fetchWorkflow,
   finalizeWorkflow,
+  generateCharacterSheet,
   generateKeyframe,
   generateKeyframeFrame,
   generateStoryboard,
@@ -997,6 +1009,7 @@ import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import {
   characterSheetKey,
   characterSheetClipIndex,
+  characterSheetIndex,
   characterSheetTitle,
   characterSheetAppearanceSummary,
   characterSheetVersions,
@@ -1019,6 +1032,7 @@ import {
   IconModel,
   IconMore,
   IconPlus,
+  IconRefresh,
   IconSearch,
   IconSettings,
   IconTag,
@@ -1086,6 +1100,7 @@ const {
 const workflowProjectListRef = ref<HTMLElement | null>(null);
 const workflowProjectDrawerRef = ref<HTMLElement | null>(null);
 const workflowLoadMoreSentinelRef = ref<HTMLElement | null>(null);
+const refreshingWorkflows = ref(false);
 let workflowListResizeObserver: ResizeObserver | null = null;
 let workflowListIntersectionObserver: IntersectionObserver | null = null;
 let lastWorkflowPageSize = 0;
@@ -2134,20 +2149,32 @@ async function handleGenerateKeyframe(clipIndex: number) {
   await runAndRefresh(`keyframe-${clipIndex}`, () => generateKeyframe(selectedWorkflowId.value, clipIndex));
 }
 
+async function handleGenerateCharacterSheet(sheet: WorkflowCharacterSheet) {
+  if (!selectedWorkflowId.value) {
+    return;
+  }
+  const index = characterSheetIndex(sheet);
+  if (index === null) {
+    return;
+  }
+  const clipIndex = characterSheetClipIndex(sheet) ?? index;
+  await runAndRefresh(`character-sheet-${clipIndex}`, () => generateCharacterSheet(selectedWorkflowId.value, index));
+}
+
 async function handleGenerateMissingCharacterSheets() {
   if (!selectedWorkflowId.value) {
     return;
   }
-  const pendingClipIndexes = missingCharacterSheets.value
-    .map((sheet) => characterSheetClipIndex(sheet))
-    .filter((clipIndex): clipIndex is number => clipIndex !== null);
-  if (!pendingClipIndexes.length) {
+  const pendingCharacterIndexes = missingCharacterSheets.value
+    .map((sheet) => characterSheetIndex(sheet))
+    .filter((index): index is number => index !== null);
+  if (!pendingCharacterIndexes.length) {
     return;
   }
   busyActionKey.value = "character-missing";
   try {
-    for (const clipIndex of pendingClipIndexes) {
-      selectedWorkflow.value = await generateKeyframe(selectedWorkflowId.value, clipIndex);
+    for (const index of pendingCharacterIndexes) {
+      selectedWorkflow.value = await generateCharacterSheet(selectedWorkflowId.value, index);
       applyWorkflowDrafts(selectedWorkflow.value);
     }
     await loadWorkflows();
@@ -2505,6 +2532,18 @@ function handleWorkflowListScroll(event: Event) {
   }
 }
 
+async function handleRefreshWorkflows() {
+  if (refreshingWorkflows.value || loadingWorkflows.value || loadingMoreWorkflows.value) {
+    return;
+  }
+  refreshingWorkflows.value = true;
+  try {
+    await loadWorkflows({ mode: "refresh" });
+  } finally {
+    refreshingWorkflows.value = false;
+  }
+}
+
 function observeWorkflowLoadMoreSentinel() {
   workflowListIntersectionObserver?.disconnect();
   workflowListIntersectionObserver = null;
@@ -2836,6 +2875,39 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
   color: var(--accent-blue);
   box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
+}
+
+.workflow-filter-refresh {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-body);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.workflow-filter-refresh:hover:not(:disabled),
+.workflow-filter-refresh:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.26);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+}
+
+.workflow-filter-refresh:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .workflow-project-list {
@@ -4050,10 +4122,10 @@ button:disabled {
   grid-template-columns: repeat(5, minmax(118px, 1fr));
   gap: 8px;
   flex: 0 0 auto;
-  min-height: 50px;
+  min-height: 54px;
   overflow-x: auto;
   align-items: stretch;
-  padding: 0 0 4px;
+  padding: 2px 0 4px;
   scrollbar-width: none;
 }
 
@@ -4066,6 +4138,7 @@ button:disabled {
   grid-template-columns: 22px minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
+  box-sizing: border-box;
   min-height: 46px;
   padding: 8px 9px;
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -4075,7 +4148,6 @@ button:disabled {
   text-align: left;
   cursor: pointer;
   transition:
-    transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease,
     box-shadow 180ms ease,
@@ -4084,7 +4156,6 @@ button:disabled {
 
 .workflow-stage-step-active,
 .workflow-stage-step:hover {
-  transform: translateY(-1px);
   border-color: rgba(99, 102, 241, 0.2);
   background: linear-gradient(135deg, rgba(238, 242, 255, 0.94), rgba(224, 231, 255, 0.9));
   color: var(--accent-blue);

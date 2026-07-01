@@ -80,6 +80,22 @@ async def test_terminate_persists_full_lifecycle_mutation() -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_retry_resets_task_timing_for_fresh_elapsed_duration() -> None:
+    repository = _RecordingTaskRepository()
+    service = TaskCommandService(repository, TaskExecutionCoordinator())
+    task = _task_with_attempt(TaskStatus.COMPLETED.value)
+    task.started_at = "2026-01-01T00:00:00+00:00"
+    task.finished_at = "2026-01-01T00:05:00+00:00"
+
+    retried = await service.retry(task)
+
+    assert retried.status == TaskStatus.PENDING.value
+    assert retried.started_at is None
+    assert retried.finished_at is None
+    assert repository.single_mutation().task is retried
+
+
 def test_retry_payload_resumes_from_first_missing_video_clip_only() -> None:
     task = TaskRecord(
         id="task_retry",

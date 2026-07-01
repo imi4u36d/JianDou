@@ -29,6 +29,15 @@ function clampProgress(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function versionedUrl(url?: string | null, version?: string | null): string | null {
+  const normalizedUrl = String(url ?? "").trim();
+  const token = String(version ?? "").trim();
+  if (!normalizedUrl) return null;
+  if (!token) return normalizedUrl;
+  const separator = normalizedUrl.includes("?") ? "&" : "?";
+  return `${normalizedUrl}${separator}jdv=${encodeURIComponent(token)}`;
+}
+
 function completedDuration(task: TaskListItem): { finishedAt: number; duration: number } | null {
   if (task.status !== "COMPLETED") return null;
   const startedAt = timeValue(task.startedAt);
@@ -68,7 +77,7 @@ function normalizeTask(task: TaskListItem, averageDuration: number | null, now: 
     startedAt: task.startedAt,
     finishedAt: task.finishedAt,
     aspectRatio: task.aspectRatio,
-    thumbnailUrl: task.thumbnailUrl || null,
+    thumbnailUrl: versionedUrl(task.thumbnailUrl, task.finishedAt || task.updatedAt),
     currentStage: task.currentStage || undefined,
     task,
   };

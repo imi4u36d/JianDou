@@ -25,6 +25,17 @@
       >
         {{ item.label }}
       </button>
+      <button
+        class="image-task-filter-refresh"
+        type="button"
+        :disabled="loading || loadingMore || refreshing"
+        aria-label="刷新图片任务"
+        title="刷新图片任务"
+        @click="$emit('refresh')"
+      >
+        <IconLoading v-if="refreshing" size="xs" />
+        <IconRefresh v-else size="xs" />
+      </button>
     </div>
 
     <div v-if="loading" class="image-task-list-state">
@@ -68,6 +79,7 @@ import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconEmpty from "@/components/icons/IconEmpty.vue";
 import IconLoading from "@/components/icons/IconLoading.vue";
+import IconRefresh from "@/components/icons/IconRefresh.vue";
 import ImageTaskListItem from "./ImageTaskListItem.vue";
 import type { ImageTaskListItem as ImageTaskListItemType } from "@/types/image-task-list";
 import type { ImageTaskStatusFilter } from "@/types/image-task-list";
@@ -78,6 +90,7 @@ const props = defineProps<{
   loadingMore: boolean;
   hasMore: boolean;
   selectedId: string;
+  refreshing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -85,6 +98,7 @@ const emit = defineEmits<{
   delete: [item: ImageTaskListItemType];
   loadMore: [];
   pageSizeChange: [size: number];
+  refresh: [];
 }>();
 
 const searchText = defineModel<string>("searchText", { required: true });
@@ -312,6 +326,39 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
   color: var(--accent-blue);
   box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
+}
+
+.image-task-filter-refresh {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-body);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.image-task-filter-refresh:hover:not(:disabled),
+.image-task-filter-refresh:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.26);
+  background: #fff;
+  color: var(--accent-blue);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+}
+
+.image-task-filter-refresh:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .image-task-list-state {

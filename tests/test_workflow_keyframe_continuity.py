@@ -188,3 +188,49 @@ async def test_generate_keyframe_reuses_previous_tail_as_start_without_generatin
     request = fake_generation.calls[0]
     assert request["input"]["frameRole"] == "last"
     assert request["input"]["referenceImageUrl"] == "https://cdn.example/clip-1-last.png"
+
+
+async def test_generate_character_sheet_does_not_generate_end_frame(db_session) -> None:
+    script = (
+        "## 角色定义\n"
+        "| 角色 | 外观 |\n"
+        "|------|------|\n"
+        "| 阿宁 | red coat |\n"
+        "\n"
+        "## 分镜脚本\n"
+        "| 序号 | 首帧 | 尾帧 | 场景 | 时长 |\n"
+        "|------|------|------|------|------|\n"
+        "| 1 | 阿宁站在门口 | 阿宁推开门 | 门口 | 5s |\n"
+    )
+    db_session.add(_workflow())
+    db_session.add(
+        _version(
+            stage_version_id="sv_story",
+            stage_type="storyboard",
+            clip_index=0,
+            selected=1,
+            input_summary_json="{}",
+            output_summary_json=json.dumps({"scriptMarkdown": script}),
+        )
+    )
+    await db_session.commit()
+
+    fake_generation = _FakeGenerationService()
+    service = WorkflowService(db_session, generation_service=fake_generation)
+
+    await service.generate_character_sheet("wf_continuity", 1, owner_user_id=1)
+
+    assert len(fake_generation.calls) == 1
+    request = fake_generation.calls[0]
+    assert request["input"]["frameRole"] == "sheet"
+    assert request["metadata"]["variantKind"] == "character_sheet"
+
+
+async def test_generate_keyframe_rejects_character_sheet_clip_index(db_session) -> None:
+    db_session.add(_workflow())
+    await db_session.commit()
+
+    service = WorkflowService(db_session, generation_service=_FakeGenerationService())
+
+    with pytest.raises(ValueError, match="角色设定图请使用"):
+        await service.generate_keyframe("wf_continuity", 1001, owner_user_id=1)

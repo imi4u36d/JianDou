@@ -11,6 +11,7 @@ export {
   fetchWorkflow,
   fetchWorkflowPage,
   finalizeWorkflow,
+  generateCharacterSheet,
   generateKeyframe,
   generateKeyframeFrame,
   generateStoryboard,

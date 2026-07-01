@@ -8,8 +8,10 @@
       :loading-more="list.loadingMore.value"
       :has-more="list.hasMore.value"
       :selected-id="selection.selectedId.value"
+      :refreshing="refreshingList"
       @select="handleSelect"
       @delete="handleDelete"
+      @refresh="handleRefresh"
       @load-more="list.loadMore"
       @page-size-change="handlePageSizeChange"
     />
@@ -60,6 +62,7 @@ const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfi
 const selectedId = selection.selectedId;
 const detailSelectedId = ref("");
 const managingId = ref("");
+const refreshingList = ref(false);
 const listStarted = ref(false);
 let fallbackListStartTimer: number | null = null;
 let detailSelectionTimer: number | null = null;
@@ -86,6 +89,18 @@ function scheduleDetailSelection(nextId: string) {
 
 function handleSelect(item: ImageTaskListItem) {
   selection.selectItem(item);
+}
+
+async function handleRefresh() {
+  if (refreshingList.value || list.loading.value || list.loadingMore.value) {
+    return;
+  }
+  refreshingList.value = true;
+  try {
+    await list.load({ mode: "refresh" });
+  } finally {
+    refreshingList.value = false;
+  }
 }
 
 async function handleDelete(item: ImageTaskListItem) {

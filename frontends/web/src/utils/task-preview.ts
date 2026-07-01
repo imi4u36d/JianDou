@@ -34,6 +34,20 @@ function normalizedType(value: unknown): string {
   return normalizedText(value).toLowerCase();
 }
 
+function timestampValue(raw?: string | null): number {
+  const text = normalizedText(raw);
+  if (!text) return 0;
+  const value = new Date(text).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function appendVersionParam(url: string, version: unknown): string {
+  const token = normalizedText(version);
+  if (!url || !token) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}jdv=${encodeURIComponent(token)}`;
+}
+
 function normalizedTaskType(task?: Pick<TaskListItem, "taskType"> & { requestSnapshot?: { taskType?: string | null } } | null): string {
   return normalizedType(task?.requestSnapshot?.taskType || task?.taskType || "video_generation") || "video_generation";
 }
@@ -105,6 +119,11 @@ function outputPosterUrl(output: TaskOutput): string {
   return firstNonBlankTaskValue(output.thumbnailUrl, extra.thumbnailUrl, extra.posterUrl);
 }
 
+function outputVersionToken(output: TaskOutput): string {
+  const extra: Record<string, unknown> = output.extra && typeof output.extra === "object" ? output.extra : {};
+  return firstNonBlankTaskValue(output.producedAt, extra.runId, output.resultId, output.id);
+}
+
 function materialById(materials: TaskMaterial[] | undefined): Map<string, TaskMaterial> {
   return new Map((materials ?? [])
     .map((material) => [normalizedText(material.id), material] as const)
@@ -122,9 +141,10 @@ function outputPreviewMedia(
   if (!url) return null;
   const type = taskOutputMediaType(output, url, fallbackType) || (linkedMaterial ? taskMaterialMediaType(linkedMaterial, url) : "");
   if (!type) return null;
+  const version = type === "image" ? outputVersionToken(output) : "";
   return {
     type,
-    url: type === "video" ? taskOutputDownloadUrl(output) || linkedMaterialUrl || url : url,
+    url: type === "video" ? taskOutputDownloadUrl(output) || linkedMaterialUrl || url : appendVersionParam(url, version),
     posterUrl: type === "video" ? firstNonBlankTaskValue(outputPosterUrl(output), linkedMaterial?.thumbnailUrl) : undefined,
     title: output.title || "任务结果",
     materialAssetId: firstNonBlankTaskValue(output.materialAssetId, linkedMaterial?.id),
@@ -150,14 +170,18 @@ function outputClipIndex(output: TaskOutput): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-function firstOutput(outputs: TaskOutput[], predicate: (output: TaskOutput) => boolean): TaskOutput | null {
-  return outputs.find(predicate) ?? null;
+function outputRecency(output: TaskOutput): number {
+  return timestampValue(output.producedAt);
 }
 
 function latestOutput(outputs: TaskOutput[], predicate: (output: TaskOutput) => boolean): TaskOutput | null {
   return outputs
     .filter(predicate)
-    .sort((left, right) => outputClipIndex(right) - outputClipIndex(left))[0] ?? null;
+    .sort((left, right) => {
+      const recencyDelta = outputRecency(right) - outputRecency(left);
+      if (recencyDelta !== 0) return recencyDelta;
+      return outputClipIndex(right) - outputClipIndex(left);
+    })[0] ?? null;
 }
 
 function firstPreviewFromOutputs(
@@ -195,7 +219,7 @@ function monitoringPreviewMedia(detail: TaskDetail): TaskPreviewMedia | null {
   if (taskType !== "video_generation" && latestImageUrl) {
     return {
       type: "image",
-      url: latestImageUrl,
+      url: appendVersionParam(latestImageUrl, detail.updatedAt),
       title: "最新图片结果",
     };
   }
@@ -225,7 +249,7 @@ function detailOutputPreviewMedia(detail: TaskDetail): TaskPreviewMedia | null {
   const preferredType: TaskPreviewMediaType = taskType === "video_generation" ? "video" : "image";
   const joinedVideoOutput = latestOutput(outputs, (output) => isJoinVideoResultType(output.resultType));
   const primaryVideoOutput = latestOutput(outputs, (output) => isPrimaryVideoResultType(output.resultType));
-  const imageOutput = firstOutput(outputs, (output) => isImageResultType(output.resultType));
+  const imageOutput = latestOutput(outputs, (output) => isImageResultType(output.resultType));
 
   const outputCandidates = taskType === "video_generation"
     ? [joinedVideoOutput, primaryVideoOutput, imageOutput]
@@ -257,7 +281,7 @@ export function resolveTaskPreviewMedia(task?: TaskListItem | TaskDetail | null)
   }
 
   const thumbnailUrl = firstNonBlankTaskValue(task.thumbnailUrl);
-  return thumbnailUrl ? { type: "image", url: thumbnailUrl, title: task.title || "任务预览" } : null;
+  return thumbnailUrl ? { type: "image", url: appendVersionParam(thumbnailUrl, task.updatedAt), title: task.title || "任务预览" } : null;
 }
 
 export function resolveTaskThumbnailUrl(task?: TaskListItem | TaskDetail | null): string {

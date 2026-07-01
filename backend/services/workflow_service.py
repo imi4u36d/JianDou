@@ -768,6 +768,29 @@ class WorkflowService:
         owner_user_id: int | None = None,
     ) -> dict[str, Any] | None:
         """Generate keyframe for a clip."""
+        if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
+            raise ValueError("角色设定图请使用 /character-sheets/{character_index}/generate 接口生成。")
+        return await self._generate_keyframe(workflow_id, clip_index, owner_user_id=owner_user_id)
+
+    async def generate_character_sheet(
+        self,
+        workflow_id: str,
+        character_index: int,
+        owner_user_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Generate a character sheet by 1-based character index."""
+        if character_index <= 0:
+            raise ValueError("角色序号必须从 1 开始。")
+        clip_index = CHARACTER_SHEET_CLIP_INDEX_BASE + character_index
+        return await self._generate_keyframe(workflow_id, clip_index, owner_user_id=owner_user_id)
+
+    async def _generate_keyframe(
+        self,
+        workflow_id: str,
+        clip_index: int,
+        owner_user_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Generate a clip keyframe or a character sheet for internal workflow orchestration."""
         wf = await self._require_workflow(workflow_id, owner_user_id)
         if wf is None:
             return None
@@ -872,54 +895,54 @@ class WorkflowService:
                 clip_index, image_result.output_url[:80],
             )
 
-        # Generate end frame via image-to-image using start frame as reference
-        # End frame generation is required - cannot be skipped
-        ref_url = start_frame_remote_url or start_frame_output_url
-        if not ref_url:
-            raise ValueError(f"镜头 {clip_index} 的首帧缺少远程 URL，无法生成尾帧。")
-
         end_frame_remote_url = ""
         end_frame_output_url = ""
-        for attempt in range(3):
-            try:
-                end_request, _ = self._generation_request_builder.build_end_keyframe_request(
-                    wf,
-                    workflow_id=workflow_id,
-                    clip_index=clip_index,
-                    width=width,
-                    height=height,
-                    clip=clip,
-                    start_frame_remote_url=ref_url,
-                    character_sheet_urls=character_sheet_urls or None,
-                )
-                logger.info(
-                    "Generating end frame for clip %s (attempt %d/3) with reference: %s...",
-                    clip_index, attempt + 1, ref_url[:80],
-                )
-                end_gen_result = await self._get_generation_service().create_run(end_request)
-                end_image_result = self._generation_result_parser.parse_image_result(
-                    end_gen_result,
-                    fallback_width=width,
-                    fallback_height=height,
-                )
-                end_frame_remote_url = end_image_result.remote_source_url or end_image_result.output_url
-                end_frame_output_url = end_image_result.output_url
-                logger.info("End frame generated for clip %s: %s", clip_index, end_frame_output_url[:80])
-                break
-            except Exception as e:
-                if attempt < 2:
-                    delay = 2 ** attempt
-                    logger.warning(
-                        "End frame generation failed for clip %s (attempt %d/3), retrying in %ds: %s",
-                        clip_index, attempt + 1, delay, e,
+        if not is_character_sheet:
+            # Generate end frame via image-to-image using start frame as reference.
+            ref_url = start_frame_remote_url or start_frame_output_url
+            if not ref_url:
+                raise ValueError(f"镜头 {clip_index} 的首帧缺少远程 URL，无法生成尾帧。")
+
+            for attempt in range(3):
+                try:
+                    end_request, _ = self._generation_request_builder.build_end_keyframe_request(
+                        wf,
+                        workflow_id=workflow_id,
+                        clip_index=clip_index,
+                        width=width,
+                        height=height,
+                        clip=clip,
+                        start_frame_remote_url=ref_url,
+                        character_sheet_urls=character_sheet_urls or None,
                     )
-                    await asyncio.sleep(delay)
-                else:
-                    logger.error(
-                        "End frame generation failed for clip %s after 3 attempts: %s",
-                        clip_index, e,
+                    logger.info(
+                        "Generating end frame for clip %s (attempt %d/3) with reference: %s...",
+                        clip_index, attempt + 1, ref_url[:80],
                     )
-                    raise
+                    end_gen_result = await self._get_generation_service().create_run(end_request)
+                    end_image_result = self._generation_result_parser.parse_image_result(
+                        end_gen_result,
+                        fallback_width=width,
+                        fallback_height=height,
+                    )
+                    end_frame_remote_url = end_image_result.remote_source_url or end_image_result.output_url
+                    end_frame_output_url = end_image_result.output_url
+                    logger.info("End frame generated for clip %s: %s", clip_index, end_frame_output_url[:80])
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        delay = 2 ** attempt
+                        logger.warning(
+                            "End frame generation failed for clip %s (attempt %d/3), retrying in %ds: %s",
+                            clip_index, attempt + 1, delay, e,
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(
+                            "End frame generation failed for clip %s after 3 attempts: %s",
+                            clip_index, e,
+                        )
+                        raise
 
         asset = self._row_factory.create_material_asset(
             wf=wf,
@@ -1035,6 +1058,8 @@ class WorkflowService:
         wf = await self._require_workflow(workflow_id, owner_user_id)
         if wf is None:
             return None
+        if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
+            raise ValueError("角色设定图不支持首尾帧生成，请使用角色设定图生成接口。")
 
         storyboard_version = await self._selected_storyboard_version(wf)
         if storyboard_version is None:

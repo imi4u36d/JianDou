@@ -85,6 +85,15 @@ class TaskRecord:
         self.materials.append(row)
 
     def add_output(self, row: dict[str, Any]) -> None:
+        rid = _string_value(row.get("resultId", row.get("id")))
+        if not rid:
+            self.outputs.append(row)
+            return
+        for i, existing in enumerate(self.outputs):
+            existing_id = _string_value(existing.get("resultId", existing.get("id")))
+            if rid == existing_id:
+                self.outputs[i] = row
+                return
         self.outputs.append(row)
 
     def add_source_asset(self, row: dict[str, Any]) -> None:
