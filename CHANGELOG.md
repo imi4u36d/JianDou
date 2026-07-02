@@ -7,6 +7,28 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0-rc.1] - 2026-07-02
+
+### Added
+
+- Image task management with dedicated image task list, selection, preview, and backend query support.
+- Material asset renaming so users can update asset names from the material library.
+- Prompt detail dialog for viewing and managing task prompts.
+- Persisted user generation preferences with a resumable database migration.
+- Manual deployment workflow and main-branch deployment trigger after pull request merges.
+- Login carousel background assets and page zoom prevention for the web frontend.
+
+### Changed
+
+- Refined task detail, workflow, and material library experiences for image-generation tasks.
+- Removed style preset references from task and workflow request paths.
+- Updated OpenAI provider default base URL configuration.
+- Enabled gzip compression in the web nginx configuration.
+
+### Fixed
+
+- Improved task preview cache handling for updated image task outputs.
+
 ## [0.1.0] - 2026-06-26
 
 ### Added

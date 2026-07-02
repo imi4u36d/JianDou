@@ -67,7 +67,7 @@ def create_app(start_worker: bool = True) -> FastAPI:
 
     app = FastAPI(
         title="JianDou API",
-        version="0.1.0",
+        version="0.2.0rc1",
         docs_url="/docs" if settings.app_env == "dev" else None,
         lifespan=lifespan,
     )

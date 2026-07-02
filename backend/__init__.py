@@ -10,4 +10,4 @@ import importlib.metadata
 try:
     __version__ = importlib.metadata.version("jiandou")
 except importlib.metadata.PackageNotFoundError:
-    __version__ = "0.1.0"
+    __version__ = "0.2.0rc1"
