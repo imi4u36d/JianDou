@@ -4,7 +4,12 @@
       <h3>选择任务</h3>
     </section>
 
-    <section v-else class="task-detail-content" :class="{ 'task-detail-content-image': imageTaskDisplay }" aria-labelledby="task-detail-title">
+    <section
+      v-else
+      class="task-detail-content"
+      :class="{ 'task-detail-content-image': imageTaskDisplay }"
+      aria-labelledby="task-detail-title"
+    >
       <section class="task-detail-summary" :class="{ 'task-detail-summary-image': imageTaskDisplay }">
         <header class="task-detail-header">
           <div>
@@ -34,7 +39,10 @@
         <section class="detail-stage-card" aria-label="任务阶段">
           <div v-if="imageTaskDisplay" class="detail-stage-steps">
             <template v-for="(stage, index) in selectedTaskStages" :key="stage.key">
-              <div class="detail-stage-step" :class="[`detail-stage-step-${stage.state}`, `detail-stage-step-icon-${stage.iconState}`]">
+              <div
+                class="detail-stage-step"
+                :class="[`detail-stage-step-${stage.state}`, `detail-stage-step-icon-${stage.iconState}`]"
+              >
                 <span class="detail-stage-step__icon" aria-hidden="true">
                   <IconCheck v-if="stage.iconState === 'done'" size="xs" />
                   <IconRefresh v-else-if="stage.iconState === 'active'" size="xs" />
@@ -45,15 +53,24 @@
                   <strong>{{ stage.label }}</strong>
                   <small>
                     <span>{{ stage.stateLabel }}</span>
-                    <span v-if="stage.durationLabel" class="detail-stage-step__duration">{{ stage.durationLabel }}</span>
+                    <span v-if="stage.durationLabel" class="detail-stage-step__duration">{{
+                      stage.durationLabel
+                    }}</span>
                   </small>
                 </span>
               </div>
-              <span v-if="index < selectedTaskStages.length - 1" class="detail-stage-step__chevron" aria-hidden="true">›</span>
+              <span v-if="index < selectedTaskStages.length - 1" class="detail-stage-step__chevron" aria-hidden="true"
+                >›</span
+              >
             </template>
           </div>
           <div v-else class="detail-stage-line">
-            <div v-for="stage in selectedTaskStages" :key="stage.key" class="detail-stage-line__item" :class="`detail-stage-line__item-${stage.state}`">
+            <div
+              v-for="stage in selectedTaskStages"
+              :key="stage.key"
+              class="detail-stage-line__item"
+              :class="`detail-stage-line__item-${stage.state}`"
+            >
               <span class="detail-stage-line__dot" :class="stageStateClass(stage.state)" aria-hidden="true"></span>
               <span class="detail-stage-line__copy">
                 <strong>{{ stage.label }}</strong>
@@ -64,43 +81,103 @@
         </section>
 
         <div class="detail-actions detail-actions-card" aria-label="任务操作">
-          <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="refreshSelectedTask">
+          <button
+            class="jd-button jd-button--sm"
+            type="button"
+            :disabled="selectedTaskLoading"
+            @click="refreshSelectedTask"
+          >
             <IconRefresh size="xs" />
             刷新
           </button>
-          <button class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading" @click="openPromptDialog">
+          <button
+            class="jd-button jd-button--sm"
+            type="button"
+            :disabled="selectedTaskLoading"
+            @click="openPromptDialog"
+          >
             <IconText size="xs" />
             提示词
           </button>
-          <button v-if="selectedTaskActionTask?.status === 'FAILED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+          <button
+            v-if="selectedTaskActionTask?.status === 'FAILED'"
+            class="jd-button jd-button--sm jd-button--primary"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleRetry(selectedTaskActionTask)"
+          >
             <IconRefresh size="xs" />
             重试
           </button>
-          <button v-if="selectedTaskActionTask?.status === 'COMPLETED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleRetry(selectedTaskActionTask)">
+          <button
+            v-if="selectedTaskActionTask?.status === 'COMPLETED'"
+            class="jd-button jd-button--sm jd-button--primary"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleRetry(selectedTaskActionTask)"
+          >
             <IconRefresh size="xs" />
             重新生成
           </button>
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handlePause(selectedTaskActionTask)">
+          <button
+            v-if="
+              selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING'].includes(selectedTaskActionTask.status)
+            "
+            class="jd-button jd-button--sm"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handlePause(selectedTaskActionTask)"
+          >
             <span class="jd-button__pause" aria-hidden="true"></span>
             暂停
           </button>
-          <button v-if="selectedTaskActionTask?.status === 'PAUSED'" class="jd-button jd-button--sm jd-button--primary" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleContinueTask(selectedTaskActionTask)">
+          <button
+            v-if="selectedTaskActionTask?.status === 'PAUSED'"
+            class="jd-button jd-button--sm jd-button--primary"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleContinueTask(selectedTaskActionTask)"
+          >
             <IconRefresh size="xs" />
             继续
           </button>
-          <button v-if="selectedTaskActionTask && ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)" class="jd-button jd-button--sm jd-button--warning" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleTerminate(selectedTaskActionTask)">
+          <button
+            v-if="
+              selectedTaskActionTask &&
+              ['PENDING', 'ANALYZING', 'PLANNING', 'RENDERING'].includes(selectedTaskActionTask.status)
+            "
+            class="jd-button jd-button--sm jd-button--warning"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleTerminate(selectedTaskActionTask)"
+          >
             <IconWarning size="xs" />
             终止
           </button>
-          <button v-if="selectedTaskActionTask" class="jd-button jd-button--sm jd-button--danger" type="button" :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id" @click="handleDelete(selectedTaskActionTask)">
+          <button
+            v-if="selectedTaskActionTask"
+            class="jd-button jd-button--sm jd-button--danger"
+            type="button"
+            :disabled="selectedTaskLoading || managingTaskId === selectedTaskActionTask.id"
+            @click="handleDelete(selectedTaskActionTask)"
+          >
             <IconDelete size="xs" />
             删除
           </button>
         </div>
       </section>
 
-      <section v-if="selectedTaskFailureReason" class="task-failure-card" :class="{ 'task-failure-card-open': failureDetailsOpen }">
-        <button type="button" class="task-failure-card__summary" :aria-expanded="failureDetailsOpen" @click="failureDetailsOpen = !failureDetailsOpen">
+      <section
+        v-if="selectedTaskFailureReason"
+        class="task-failure-card"
+        :class="{ 'task-failure-card-open': failureDetailsOpen }"
+      >
+        <button
+          type="button"
+          class="task-failure-card__summary"
+          :aria-expanded="failureDetailsOpen"
+          @click="failureDetailsOpen = !failureDetailsOpen"
+        >
           <span class="task-failure-card__icon" aria-hidden="true"><IconWarning size="xs" /></span>
           <strong>{{ selectedTaskFailureContext || "任务失败" }}</strong>
           <small class="task-failure-card__chevron" aria-hidden="true">
@@ -160,7 +237,9 @@
                 <button
                   type="button"
                   class="task-result-preview__action"
-                  @click="openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)"
+                  @click="
+                    openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)
+                  "
                 >
                   <IconImage v-if="selectedTaskPreviewMedia.type === 'image'" size="xs" />
                   <IconVideo v-else size="xs" />
@@ -169,7 +248,13 @@
                 <button
                   class="task-result-preview__action"
                   type="button"
-                  @click="handleDownloadMedia(selectedTaskPreviewMedia.url, selectedTaskPreviewMedia.title || '任务结果', selectedTaskPreviewMedia.type)"
+                  @click="
+                    handleDownloadMedia(
+                      selectedTaskPreviewMedia.url,
+                      selectedTaskPreviewMedia.title || '任务结果',
+                      selectedTaskPreviewMedia.type,
+                    )
+                  "
                 >
                   <IconDownload size="xs" />
                   下载
@@ -204,7 +289,9 @@
                 type="button"
                 class="task-result-preview__image-button"
                 :aria-label="`预览${selectedTaskPreviewMedia.title || '任务结果'}`"
-                @click="openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)"
+                @click="
+                  openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)
+                "
               >
                 <img
                   class="task-result-preview__image-glow"
@@ -221,7 +308,12 @@
                   @error="markTaskPreviewFailed"
                 />
               </button>
-              <div v-else-if="selectedTaskAwaitingCompletedPreview" class="task-result-preview__pending" role="status" aria-live="polite">
+              <div
+                v-else-if="selectedTaskAwaitingCompletedPreview"
+                class="task-result-preview__pending"
+                role="status"
+                aria-live="polite"
+              >
                 <IconLoading size="md" />
                 <span>加载预览中</span>
               </div>
@@ -230,17 +322,22 @@
                 <IconLoading size="md" />
                 <span>加载预览中</span>
               </div>
-              <div v-else-if="taskPreviewLoadState === 'failed'" class="task-result-preview__loading task-result-preview__loading-error">
+              <div
+                v-else-if="taskPreviewLoadState === 'failed'"
+                class="task-result-preview__loading task-result-preview__loading-error"
+              >
                 <IconWarning size="sm" />
                 <span>预览加载失败</span>
               </div>
             </div>
           </div>
         </section>
-
       </div>
 
-      <section v-if="showResultMaterials && (selectedTaskResultItems.length || selectedTaskMaterialItems.length)" class="detail-section detail-section-card">
+      <section
+        v-if="showResultMaterials && (selectedTaskResultItems.length || selectedTaskMaterialItems.length)"
+        class="detail-section detail-section-card"
+      >
         <div class="detail-section__head">
           <h3>结果素材</h3>
           <RouterLink class="surface-chip detail-material-link" :to="materialLibraryLink">素材库</RouterLink>
@@ -283,7 +380,10 @@
         </div>
       </section>
 
-      <div v-if="selectedTaskCompactMonitoringRows.length || selectedTaskCompactArtifactRows.length" class="task-detail-grid task-detail-grid-secondary">
+      <div
+        v-if="selectedTaskCompactMonitoringRows.length || selectedTaskCompactArtifactRows.length"
+        class="task-detail-grid task-detail-grid-secondary"
+      >
         <section v-if="selectedTaskCompactMonitoringRows.length" class="detail-section detail-section-card">
           <h3>监控</h3>
           <div class="detail-params">
@@ -297,7 +397,9 @@
         <section v-if="selectedTaskCompactArtifactRows.length" class="detail-section detail-section-card">
           <div class="detail-section__head">
             <h3>产物</h3>
-            <span class="surface-chip" :title="selectedTaskArtifactDirectoryHint">{{ selectedTaskShortArtifactDirectoryHint }}</span>
+            <span class="surface-chip" :title="selectedTaskArtifactDirectoryHint">{{
+              selectedTaskShortArtifactDirectoryHint
+            }}</span>
           </div>
           <div class="detail-params">
             <div v-for="item in selectedTaskCompactArtifactRows" :key="item.label" class="detail-params__row">
@@ -307,7 +409,6 @@
           </div>
         </section>
       </div>
-
     </section>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
@@ -329,11 +430,21 @@
                 <h3 id="task-prompt-dialog-title">使用的提示词</h3>
                 <p>{{ selectedTask?.title || "当前任务" }}</p>
               </div>
-              <button ref="promptCloseButtonRef" class="task-prompt-dialog__close" type="button" aria-label="关闭提示词" title="关闭" @click="closePromptDialog">
+              <button
+                ref="promptCloseButtonRef"
+                class="task-prompt-dialog__close"
+                type="button"
+                aria-label="关闭提示词"
+                title="关闭"
+                @click="closePromptDialog"
+              >
                 <IconClose size="sm" />
               </button>
             </header>
-            <div class="task-prompt-dialog__content" :class="{ 'task-prompt-dialog__content-empty': !selectedTaskPromptText }">
+            <div
+              class="task-prompt-dialog__content"
+              :class="{ 'task-prompt-dialog__content-empty': !selectedTaskPromptText }"
+            >
               <pre v-if="selectedTaskPromptText">{{ selectedTaskPromptText }}</pre>
               <p v-else>暂无提示词</p>
             </div>
@@ -361,7 +472,21 @@
 import { RouterLink } from "vue-router";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import AppPreviewDialog from "@/components/common/AppPreviewDialog.vue";
-import { IconCheck, IconChevronDown, IconClose, IconDelete, IconDownload, IconImage, IconLoading, IconRefresh, IconShare, IconText, IconVideo, IconWarning, IconWorkflow } from "@/components/icons";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconClose,
+  IconDelete,
+  IconDownload,
+  IconImage,
+  IconLoading,
+  IconRefresh,
+  IconShare,
+  IconText,
+  IconVideo,
+  IconWarning,
+  IconWorkflow,
+} from "@/components/icons";
 import { messageApi } from "@/composables/useMessage";
 import { createPublicShare, deletePublicShare } from "@/api/public-shares";
 import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
@@ -476,7 +601,9 @@ const linkedWorkflowId = computed(() => {
   const contextWorkflowId = context.workflowId;
   return typeof contextWorkflowId === "string" ? contextWorkflowId : "";
 });
-const taskPreviewIsLoading = computed(() => Boolean(taskPreviewMediaUrl.value) && taskPreviewLoadState.value === "loading");
+const taskPreviewIsLoading = computed(
+  () => Boolean(taskPreviewMediaUrl.value) && taskPreviewLoadState.value === "loading",
+);
 const selectedTaskHeaderAspectRatio = computed(() => {
   const task = selectedTask.value as TaskDetail | TaskListItem | null;
   if (!task) return "未设置";
@@ -602,20 +729,28 @@ function markTaskPreviewFailed() {
   }
 }
 
-watch(taskPreviewMediaUrl, (url) => {
-  taskPreviewLoadState.value = url ? "loading" : "idle";
-}, { immediate: true });
+watch(
+  taskPreviewMediaUrl,
+  (url) => {
+    taskPreviewLoadState.value = url ? "loading" : "idle";
+  },
+  { immediate: true },
+);
 
-watch(() => props.selectedTaskId, () => {
-  closePromptDialog();
-  closeTaskPreviewDialog();
-  stopDetailPolling();
-  void loadSelectedTaskDetails().then(() => {
-    if (selectedTaskIsActive.value) {
-      startDetailPolling();
-    }
-  });
-}, { immediate: true });
+watch(
+  () => props.selectedTaskId,
+  () => {
+    closePromptDialog();
+    closeTaskPreviewDialog();
+    stopDetailPolling();
+    void loadSelectedTaskDetails().then(() => {
+      if (selectedTaskIsActive.value) {
+        startDetailPolling();
+      }
+    });
+  },
+  { immediate: true },
+);
 
 onUnmounted(() => {
   stopDetailPolling();
@@ -756,7 +891,9 @@ onUnmounted(() => {
   cursor: pointer;
   overflow: hidden;
   isolation: isolate;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.05), 0 8px 22px rgba(20, 184, 166, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.05),
+    0 8px 22px rgba(20, 184, 166, 0.12);
 }
 
 .task-detail-header__workflow-btn::before {
@@ -786,7 +923,9 @@ onUnmounted(() => {
 
 .task-detail-header__workflow-btn:hover {
   background: var(--bg-soft);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 10px 28px rgba(99, 102, 241, 0.2);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.12),
+    0 10px 28px rgba(99, 102, 241, 0.2);
 }
 
 @keyframes workflow-button-shine {
@@ -810,7 +949,9 @@ onUnmounted(() => {
 }
 
 @keyframes chip-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .detail-stage-card {
@@ -1234,7 +1375,9 @@ onUnmounted(() => {
   margin-top: -28px;
   border-radius: 9px;
   transform-origin: center top;
-  transition: transform 160ms ease, z-index 160ms ease;
+  transition:
+    transform 160ms ease,
+    z-index 160ms ease;
 }
 
 .task-reference-card:first-child {
@@ -1283,7 +1426,10 @@ onUnmounted(() => {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
   opacity: 0.92;
   transform: scale(1);
-  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background 140ms ease;
 }
 
 .task-reference-card:hover .task-reference-card__download,
@@ -1358,7 +1504,12 @@ onUnmounted(() => {
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.08), rgba(245, 247, 252, 0.5) 68%, rgba(245, 247, 252, 0.84)),
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.08),
+      rgba(245, 247, 252, 0.5) 68%,
+      rgba(245, 247, 252, 0.84)
+    ),
     linear-gradient(90deg, rgba(245, 247, 252, 0.42), rgba(255, 255, 255, 0.08), rgba(245, 247, 252, 0.42));
   pointer-events: none;
 }
@@ -1604,7 +1755,10 @@ onUnmounted(() => {
   cursor: zoom-in;
   scroll-snap-align: start;
   text-align: left;
-  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.12s;
 }
 
 .detail-result-item:hover {
@@ -1800,6 +1954,46 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
+.detail-actions-card .jd-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-indigo);
+  box-shadow: none;
+}
+
+.detail-actions-card .jd-button:hover:not(:disabled),
+.detail-actions-card .jd-button:focus-visible:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-blue);
+  box-shadow: none;
+}
+
+.detail-actions-card .jd-button--warning {
+  color: #d97706;
+}
+
+.detail-actions-card .jd-button--warning:hover:not(:disabled),
+.detail-actions-card .jd-button--warning:focus-visible:not(:disabled) {
+  color: #b45309;
+}
+
+.detail-actions-card .jd-button--danger {
+  color: #e54865;
+}
+
+.detail-actions-card .jd-button--danger:hover:not(:disabled),
+.detail-actions-card .jd-button--danger:focus-visible:not(:disabled) {
+  color: #be123c;
+}
+
+.detail-actions-card .jd-button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: rgba(100, 116, 139, 0.52);
+  box-shadow: none;
+}
+
 .task-prompt-dialog {
   position: fixed;
   inset: 0;
@@ -1821,7 +2015,9 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.68);
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 22px 56px rgba(0, 0, 0, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .task-prompt-dialog__header {

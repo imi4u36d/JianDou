@@ -23,12 +23,18 @@
             class="material-search__clear"
             type="button"
             aria-label="清除搜索"
-            @click="filters.q = ''; loadAssets()"
+            @click="
+              filters.q = '';
+              loadAssets();
+            "
           >
             <IconClose size="xs" />
           </button>
         </label>
-        <label class="material-workflow-toggle" :class="{ 'material-workflow-toggle-active': filters.showWorkflowArtifacts }">
+        <label
+          class="material-workflow-toggle"
+          :class="{ 'material-workflow-toggle-active': filters.showWorkflowArtifacts }"
+        >
           <input v-model="filters.showWorkflowArtifacts" type="checkbox" @change="loadAssets" />
           <span class="material-workflow-toggle__track" aria-hidden="true"></span>
           <span class="material-workflow-toggle__text">工作流产物</span>
@@ -45,16 +51,21 @@
           <IconSettings size="sm" />
           <span v-if="activeFilterCount > 0" class="material-toolbar-badge">{{ activeFilterCount }}</span>
         </button>
-        <RouterLink class="material-toolbar-primary" to="/image-tasks">
-          <IconPlus size="sm" />
-          新建
-        </RouterLink>
+        <button class="material-toolbar-primary" type="button" :disabled="loading" @click="loadAssets">
+          <IconLoading v-if="loading" size="sm" />
+          <IconSearch v-else size="sm" />
+          搜索
+        </button>
       </div>
     </header>
 
     <section class="material-favorite-folders" aria-label="收藏夹">
       <div class="material-favorite-folders__head">
-        <button class="jd-button jd-button--primary jd-button--xs material-favorite-folders__add" type="button" @click="openFavoriteDialog()">
+        <button
+          class="jd-button jd-button--ghost jd-button--xs material-favorite-folders__add"
+          type="button"
+          @click="openFavoriteDialog()"
+        >
           <IconPlus size="xs" />
           新建收藏夹
         </button>
@@ -85,11 +96,21 @@
           批量操作
         </button>
         <template v-if="batchMode">
-          <button class="jd-button jd-button--secondary jd-button--xs" type="button" :disabled="!selectedAssetIds.length" @click="openBatchFavoriteDialog">
+          <button
+            class="jd-button jd-button--secondary jd-button--xs"
+            type="button"
+            :disabled="!selectedAssetIds.length"
+            @click="openBatchFavoriteDialog"
+          >
             <IconHeart size="xs" />
             添加到收藏
           </button>
-          <button class="jd-button jd-button--danger jd-button--xs" type="button" :disabled="!selectedAssetIds.length || Boolean(busyActionKey)" @click="handleBatchDelete">
+          <button
+            class="jd-button jd-button--danger jd-button--xs"
+            type="button"
+            :disabled="!selectedAssetIds.length || Boolean(busyActionKey)"
+            @click="handleBatchDelete"
+          >
             <IconLoading v-if="busyActionKey === 'batch-delete'" size="xs" />
             <IconDelete v-else size="xs" />
             删除
@@ -114,11 +135,33 @@
       </label>
       <label class="material-field">
         <span>镜头号</span>
-        <input v-model="filters.clipIndex" class="field-input" type="number" min="0" step="1" placeholder="全部" @keyup.enter="loadAssets" />
+        <input
+          v-model="filters.clipIndex"
+          class="field-input"
+          type="number"
+          min="0"
+          step="1"
+          placeholder="全部"
+          @keyup.enter="loadAssets"
+        />
       </label>
       <div class="material-filter-drawer__actions">
-        <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="loading" @click="loadAssets">应用</button>
-        <button class="jd-button jd-button--ghost jd-button--sm" type="button" :disabled="loading" @click="resetFilters">清空</button>
+        <button
+          class="jd-button jd-button--primary jd-button--sm"
+          type="button"
+          :disabled="loading"
+          @click="loadAssets"
+        >
+          应用
+        </button>
+        <button
+          class="jd-button jd-button--ghost jd-button--sm"
+          type="button"
+          :disabled="loading"
+          @click="resetFilters"
+        >
+          清空
+        </button>
       </div>
     </section>
 
@@ -140,13 +183,19 @@
           <span></span>
         </label>
 
-        <div class="material-card__preview">
+        <div class="material-card__preview" :class="assetPreviewClass(asset)" :style="assetPreviewStyle(asset)">
           <button
             v-if="asset.mediaType === 'video' && assetVideoPosterUrl(asset)"
             class="material-preview-trigger material-preview-trigger-video"
             type="button"
             @click.stop="handleAssetPreviewClick(asset, openVideoPreview)"
           >
+            <span
+              v-if="!isAssetPreviewImageFailed(assetVideoPosterUrl(asset))"
+              class="material-preview-backdrop"
+              :style="assetPreviewBackdropStyle(assetVideoPosterUrl(asset))"
+              aria-hidden="true"
+            ></span>
             <img
               v-if="!isAssetPreviewImageFailed(assetVideoPosterUrl(asset))"
               :src="assetVideoPosterUrl(asset)"
@@ -173,6 +222,12 @@
             type="button"
             @click.stop="handleAssetPreviewClick(asset, openImagePreview)"
           >
+            <span
+              v-if="!isAssetPreviewImageFailed(assetListImageUrl(asset))"
+              class="material-preview-backdrop"
+              :style="assetPreviewBackdropStyle(assetListImageUrl(asset))"
+              aria-hidden="true"
+            ></span>
             <img
               v-if="!isAssetPreviewImageFailed(assetListImageUrl(asset))"
               :src="assetListImageUrl(asset)"
@@ -215,11 +270,9 @@
         </button>
 
         <div class="material-card__body">
-          <div class="material-card__head">
-            <div class="material-card__title">
-              <strong>{{ asset.title }}</strong>
-              <span>{{ assetSubtitle(asset) }}</span>
-            </div>
+          <strong class="material-card__title">{{ asset.title }}</strong>
+          <div class="material-card__meta-row">
+            <span>{{ assetOverlayMeta(asset) }}</span>
             <div class="material-more-menu">
               <button
                 type="button"
@@ -230,18 +283,37 @@
               >
                 <IconMore size="sm" />
               </button>
-              <div :id="`material-menu-${asset.id}`" popover class="material-more-menu__panel" @beforetoggle="positionMaterialMenu">
-                <button type="button" :disabled="busyActionKey === `upload-${asset.id}` || Boolean(asset.remoteUrl)" @click="handleUploadAsset(asset.id)">
+              <div
+                :id="`material-menu-${asset.id}`"
+                popover
+                class="material-more-menu__panel"
+                @beforetoggle="positionMaterialMenu"
+              >
+                <button
+                  type="button"
+                  :disabled="busyActionKey === `upload-${asset.id}` || Boolean(asset.remoteUrl)"
+                  @click="handleMaterialMenuAction($event, () => handleUploadAsset(asset.id))"
+                >
                   <IconLoading v-if="busyActionKey === `upload-${asset.id}`" size="xs" />
                   <IconUpload v-else size="xs" />
-                  <span>{{ busyActionKey === `upload-${asset.id}` ? "上传中" : (asset.remoteUrl ? "已上传" : "上传") }}</span>
+                  <span>{{
+                    busyActionKey === `upload-${asset.id}` ? "上传中" : asset.remoteUrl ? "已上传" : "上传"
+                  }}</span>
                 </button>
-                <button type="button" :disabled="busyActionKey === `reuse-${asset.id}`" @click="handleReuseAsset(asset.id)">
+                <button
+                  type="button"
+                  :disabled="busyActionKey === `reuse-${asset.id}`"
+                  @click="handleMaterialMenuAction($event, () => handleReuseAsset(asset.id))"
+                >
                   <IconLoading v-if="busyActionKey === `reuse-${asset.id}`" size="xs" />
                   <IconPlus v-else size="xs" />
                   <span>{{ busyActionKey === `reuse-${asset.id}` ? "复用中" : "复用" }}</span>
                 </button>
-                <button type="button" :disabled="busyActionKey === `rename-${asset.id}`" @click="openRenameDialog(asset)">
+                <button
+                  type="button"
+                  :disabled="busyActionKey === `rename-${asset.id}`"
+                  @click="handleMaterialMenuAction($event, () => openRenameDialog(asset))"
+                >
                   <IconEdit size="xs" />
                   <span>修改名称</span>
                 </button>
@@ -249,15 +321,25 @@
                   <IconWorkflow size="xs" />
                   <span>视频</span>
                 </RouterLink>
-                <button type="button" @click="handleDownloadAsset(asset)">
+                <button type="button" @click="handleMaterialMenuAction($event, () => handleDownloadAsset(asset))">
                   <IconDownload size="xs" />
                   <span>下载</span>
                 </button>
-                <button v-if="isAssetShareable(asset)" type="button" :disabled="sharingAssetId === asset.id" @click="openMaterialShareConfirm(asset)">
+                <button
+                  v-if="isAssetShareable(asset)"
+                  type="button"
+                  :disabled="sharingAssetId === asset.id"
+                  @click="handleMaterialMenuAction($event, () => openMaterialShareConfirm(asset))"
+                >
                   <IconShare size="xs" />
                   <span>{{ sharedAssetRecords[asset.id] ? "已分享" : "分享" }}</span>
                 </button>
-                <button type="button" class="material-menu-danger" :disabled="busyActionKey === `delete-${asset.id}`" @click="handleDeleteAsset(asset)">
+                <button
+                  type="button"
+                  class="material-menu-danger"
+                  :disabled="busyActionKey === `delete-${asset.id}`"
+                  @click="handleMaterialMenuAction($event, () => handleDeleteAsset(asset))"
+                >
                   <IconLoading v-if="busyActionKey === `delete-${asset.id}`" size="xs" />
                   <IconDelete v-else size="xs" />
                   <span>{{ busyActionKey === `delete-${asset.id}` ? "删除中" : "删除" }}</span>
@@ -265,21 +347,21 @@
               </div>
             </div>
           </div>
-          <div class="material-card__chips">
-            <span>{{ assetDisplayTypeLabel(asset) }}</span>
-            <button v-if="asset.remoteUrl" type="button" :title="`复制远程地址：${asset.remoteUrl}`" aria-label="复制远程地址" @click.stop="copyRemoteUrl(asset.remoteUrl)">
-              <IconUpload size="xs" />
-            </button>
-            <span v-else>本地</span>
-          </div>
         </div>
       </article>
 
-      <div v-if="!displayedAssets.length && (activeFavoriteFolderId || !hasMoreAssets)" class="material-empty material-empty-inline">
+      <div
+        v-if="!displayedAssets.length && (activeFavoriteFolderId || !hasMoreAssets)"
+        class="material-empty material-empty-inline"
+      >
         <strong>{{ materialEmptyTitle }}</strong>
       </div>
 
-      <div v-else-if="!activeFavoriteFolderId && (displayedAssets.length || hasMoreAssets)" ref="loadMoreTrigger" class="material-load-more">
+      <div
+        v-else-if="!activeFavoriteFolderId && (displayedAssets.length || hasMoreAssets)"
+        ref="loadMoreTrigger"
+        class="material-load-more"
+      >
         <IconLoading v-if="loadingMore" size="sm" />
         <span v-else-if="hasMoreAssets" aria-hidden="true"></span>
       </div>
@@ -339,9 +421,19 @@
           <div class="material-favorite-dialog__panel">
             <div class="material-favorite-dialog__head">
               <div>
-                <h3 id="material-favorite-dialog-title">{{ favoriteDialog.batchAssets.length ? "批量添加到收藏夹" : (favoriteDialog.asset ? "添加到收藏夹" : "管理收藏夹") }}</h3>
+                <h3 id="material-favorite-dialog-title">
+                  {{
+                    favoriteDialog.batchAssets.length
+                      ? "批量添加到收藏夹"
+                      : favoriteDialog.asset
+                        ? "添加到收藏夹"
+                        : "管理收藏夹"
+                  }}
+                </h3>
                 <p v-if="favoriteDialog.asset">{{ favoriteDialog.asset.title }}</p>
-                <p v-else-if="favoriteDialog.batchAssets.length">已选择 {{ favoriteDialog.batchAssets.length }} 个素材</p>
+                <p v-else-if="favoriteDialog.batchAssets.length">
+                  已选择 {{ favoriteDialog.batchAssets.length }} 个素材
+                </p>
               </div>
               <button type="button" aria-label="关闭收藏夹弹窗" @click="closeFavoriteDialog">
                 <IconClose size="sm" />
@@ -381,12 +473,19 @@
                     <span>{{ folder.name }}</span>
                     <small>{{ folder.assetIds.length }}</small>
                   </button>
-                  <div v-if="!favoriteDialog.asset && !favoriteDialog.batchAssets.length" class="material-favorite-dialog__folder-actions">
+                  <div
+                    v-if="!favoriteDialog.asset && !favoriteDialog.batchAssets.length"
+                    class="material-favorite-dialog__folder-actions"
+                  >
                     <button type="button" @click="beginFavoriteFolderRename(folder)">
                       <IconEdit size="xs" />
                       修改
                     </button>
-                    <button type="button" class="material-favorite-dialog__folder-delete" @click="confirmDeleteFavoriteFolder(folder)">
+                    <button
+                      type="button"
+                      class="material-favorite-dialog__folder-delete"
+                      @click="confirmDeleteFavoriteFolder(folder)"
+                    >
                       <IconDelete size="xs" />
                       删除
                     </button>
@@ -441,8 +540,19 @@
               />
             </label>
             <div class="material-rename-dialog__actions">
-              <button type="button" class="jd-button jd-button--ghost jd-button--sm" :disabled="Boolean(busyActionKey)" @click="closeRenameDialog">取消</button>
-              <button type="submit" class="jd-button jd-button--primary jd-button--sm" :disabled="!renameDialog.title.trim() || Boolean(busyActionKey)">
+              <button
+                type="button"
+                class="jd-button jd-button--ghost jd-button--sm"
+                :disabled="Boolean(busyActionKey)"
+                @click="closeRenameDialog"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                class="jd-button jd-button--primary jd-button--sm"
+                :disabled="!renameDialog.title.trim() || Boolean(busyActionKey)"
+              >
                 <IconLoading v-if="busyActionKey === `rename-${renameDialog.asset?.id}`" size="xs" />
                 保存
               </button>
@@ -453,14 +563,25 @@
     </Teleport>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
-    <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptMaterialShareConfirm" @cancel="cancelMaterialShareConfirm" />
+    <AppConfirmDialog
+      v-bind="shareConfirmDialog"
+      @confirm="acceptMaterialShareConfirm"
+      @cancel="cancelMaterialShareConfirm"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import type { CSSProperties } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { deleteMaterialAsset, fetchMaterialAssetPage, renameMaterialAsset, reuseMaterialAsset, uploadMaterialAsset } from "@/features/materials";
+import {
+  deleteMaterialAsset,
+  fetchMaterialAssetPage,
+  renameMaterialAsset,
+  reuseMaterialAsset,
+  uploadMaterialAsset,
+} from "@/features/materials";
 import {
   addMaterialFavoriteAssets,
   createMaterialFavoriteFolder,
@@ -477,11 +598,28 @@ import AppSelect from "@/components/common/AppSelect.vue";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
 import AppPreviewDialog from "@/components/common/AppPreviewDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
-import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialAssetType, MaterialFavoriteFolder } from "@/types";
+import type { MaterialAssetLibraryItem, MaterialAssetQuery, MaterialFavoriteFolder } from "@/types";
 import { renderMarkdownToHtml } from "@/utils/markdown";
 import { messageApi } from "@/composables/useMessage";
 import { downloadMedia, inferMediaDownloadKind, type DownloadMediaKind } from "@/utils/download";
-import { IconCheck, IconClose, IconDelete, IconDownload, IconEdit, IconHeart, IconImage, IconLoading, IconMore, IconPlus, IconSearch, IconSettings, IconShare, IconUpload, IconVideo, IconWorkflow } from "@/components/icons";
+import {
+  IconCheck,
+  IconClose,
+  IconDelete,
+  IconDownload,
+  IconEdit,
+  IconHeart,
+  IconImage,
+  IconLoading,
+  IconMore,
+  IconPlus,
+  IconSearch,
+  IconSettings,
+  IconShare,
+  IconUpload,
+  IconVideo,
+  IconWorkflow,
+} from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
@@ -615,16 +753,26 @@ const previewAssetIndex = computed(() => {
 const canPreviewPrevious = computed(() => previewAssetIndex.value > 0);
 const canPreviewNext = computed(() => {
   const index = previewAssetIndex.value;
-  return index >= 0 && (index < displayedAssets.value.length - 1 || (!activeFavoriteFolderId.value && hasMoreAssets.value));
+  return (
+    index >= 0 && (index < displayedAssets.value.length - 1 || (!activeFavoriteFolderId.value && hasMoreAssets.value))
+  );
 });
 const activeFilterCount = computed(() => {
-  return [filters.assetType, filters.showWorkflowArtifacts, filters.model.trim(), filters.aspectRatio, filters.clipIndex].filter(Boolean).length;
+  return [
+    filters.assetType,
+    filters.showWorkflowArtifacts,
+    filters.model.trim(),
+    filters.aspectRatio,
+    filters.clipIndex,
+  ].filter(Boolean).length;
 });
 const materialEmptyTitle = computed(() => {
   if (activeFavoriteFolderId.value) {
     return "收藏夹暂无素材";
   }
-  return filters.q.trim() || activeFilterCount.value > 0 || activeLibraryTab.value !== "all" ? "没有匹配素材" : "暂无素材";
+  return filters.q.trim() || activeFilterCount.value > 0 || activeLibraryTab.value !== "all"
+    ? "没有匹配素材"
+    : "暂无素材";
 });
 
 function selectLibraryTab(tabKey: string) {
@@ -662,7 +810,7 @@ function cacheMaterialAssets(items: MaterialAssetLibraryItem[]) {
 function upsertMaterialAssetState(asset: MaterialAssetLibraryItem) {
   const exists = assets.value.some((item) => item.id === asset.id);
   if (exists) {
-    assets.value = assets.value.map((item) => item.id === asset.id ? asset : item);
+    assets.value = assets.value.map((item) => (item.id === asset.id ? asset : item));
   }
   cacheMaterialAssets([asset]);
   if (previewAsset.value?.id === asset.id) {
@@ -770,7 +918,7 @@ function closeFavoriteDialog() {
 function upsertFavoriteFolderState(folder: MaterialFavoriteFolder) {
   const exists = favoriteFolders.value.some((item) => item.id === folder.id);
   favoriteFolders.value = exists
-    ? favoriteFolders.value.map((item) => item.id === folder.id ? folder : item)
+    ? favoriteFolders.value.map((item) => (item.id === folder.id ? folder : item))
     : [...favoriteFolders.value, folder];
 }
 
@@ -897,10 +1045,14 @@ async function selectFavoriteFolder(folderId: string) {
   batchMode.value = false;
   const folder = favoriteFolders.value.find((item) => item.id === folderId);
   if (!folder) return;
-  const missingAssetIds = folder.assetIds.filter((assetId) => !assets.value.some((asset) => asset.id === assetId) && !favoriteAssetCache.value[assetId]);
+  const missingAssetIds = folder.assetIds.filter(
+    (assetId) => !assets.value.some((asset) => asset.id === assetId) && !favoriteAssetCache.value[assetId],
+  );
   if (!missingAssetIds.length) return;
   try {
-    const loadedAssets = await Promise.all(missingAssetIds.map((assetId) => fetchMaterialAsset(assetId).catch(() => null)));
+    const loadedAssets = await Promise.all(
+      missingAssetIds.map((assetId) => fetchMaterialAsset(assetId).catch(() => null)),
+    );
     cacheMaterialAssets(loadedAssets.filter((asset): asset is MaterialAssetLibraryItem => Boolean(asset)));
   } catch {
     messageApi.warning("部分收藏素材加载失败");
@@ -919,9 +1071,11 @@ function normalizedAssetValue(value?: string | null) {
 }
 
 function isWorkflowArtifactAsset(asset: MaterialAssetLibraryItem) {
-  return Boolean(normalizedAssetValue(asset.workflowId))
-    || normalizedAssetValue(asset.assetType) === "workflow"
-    || normalizedAssetValue(asset.assetRole) === "workflow";
+  return (
+    Boolean(normalizedAssetValue(asset.workflowId)) ||
+    normalizedAssetValue(asset.assetType) === "workflow" ||
+    normalizedAssetValue(asset.assetRole) === "workflow"
+  );
 }
 
 function buildQuery(): MaterialAssetQuery {
@@ -944,46 +1098,6 @@ function buildPageQuery(offset: number): MaterialAssetQuery {
   };
 }
 
-function assetTypeLabel(value?: MaterialAssetType | string | null) {
-  const normalized = normalizedAssetValue(value);
-  if (normalized === "character_sheet") {
-    return "角色三视图";
-  }
-  if (normalized === "scene") {
-    return "场景";
-  }
-  if (normalized === "prop") {
-    return "道具";
-  }
-  if (normalized === "free" || normalized === "image_generation" || normalized === "image_to_image") {
-    return "自由模式";
-  }
-  if (normalized === "workflow") {
-    return "工作流产物";
-  }
-  return "素材";
-}
-
-function assetDisplayTypeLabel(asset: MaterialAssetLibraryItem) {
-  if (isWorkflowArtifactAsset(asset)) {
-    return "工作流产物";
-  }
-  return assetTypeLabel(asset.assetType);
-}
-
-function mediaTypeLabel(value?: string | null) {
-  if (value === "image") {
-    return "图片";
-  }
-  if (value === "video") {
-    return "视频";
-  }
-  if (value === "text") {
-    return "文本";
-  }
-  return "素材";
-}
-
 function assetPublicUrl(asset: MaterialAssetLibraryItem) {
   return asset.publicUrl || asset.fileUrl || "";
 }
@@ -993,11 +1107,53 @@ function assetDownloadKind(asset: MaterialAssetLibraryItem): DownloadMediaKind {
   return inferMediaDownloadKind(assetPublicUrl(asset));
 }
 
-function assetSubtitle(asset: MaterialAssetLibraryItem) {
-  const size = asset.width && asset.height ? `${asset.width} x ${asset.height}` : "";
-  const clip = asset.clipIndex ? `镜头 ${asset.clipIndex}` : "";
-  const parts = [mediaTypeLabel(asset.mediaType), asset.originModel || asset.originProvider || "", size, clip].filter(Boolean);
-  return parts.join(" · ") || "素材";
+function assetOverlayMeta(asset: MaterialAssetLibraryItem) {
+  const size = asset.width && asset.height ? `${asset.width} x ${asset.height}` : "未知分辨率";
+  return `${size} · ${asset.remoteUrl ? "远端" : "本地"}`;
+}
+
+function assetPreviewRatio(asset: MaterialAssetLibraryItem) {
+  const width = Number(asset.width);
+  const height = Number(asset.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return width / height;
+}
+
+function boundedAssetPreviewRatio(asset: MaterialAssetLibraryItem) {
+  const ratio = assetPreviewRatio(asset);
+  return ratio ? Math.min(Math.max(ratio, 0.5), 9 / 16) : 9 / 16;
+}
+
+function assetPreviewStyle(asset: MaterialAssetLibraryItem) {
+  if (!assetPreviewRatio(asset)) {
+    return undefined;
+  }
+  return {
+    "--material-preview-ratio": boundedAssetPreviewRatio(asset).toFixed(4),
+  };
+}
+
+function assetPreviewBackdropStyle(url?: string): CSSProperties | undefined {
+  if (!url) return undefined;
+  return {
+    backgroundImage: `url("${url.replace(/["\\]/g, "\\$&")}")`,
+  };
+}
+
+function assetPreviewClass(asset: MaterialAssetLibraryItem) {
+  const ratio = assetPreviewRatio(asset);
+  if (!ratio) {
+    return "";
+  }
+  if (ratio < 0.78) {
+    return "material-card__preview-portrait";
+  }
+  if (ratio > 2.8) {
+    return "material-card__preview-panorama";
+  }
+  return "";
 }
 
 function storyboardText(asset: MaterialAssetLibraryItem) {
@@ -1029,7 +1185,10 @@ function isAssetShareable(asset: MaterialAssetLibraryItem) {
   return (asset.mediaType === "image" || asset.mediaType === "video") && Boolean(assetPublicUrl(asset));
 }
 
-function materialShareSource(asset: MaterialAssetLibraryItem): { sourceType: "task" | "workflow" | "material"; sourceId: string } {
+function materialShareSource(asset: MaterialAssetLibraryItem): {
+  sourceType: "task" | "workflow" | "material";
+  sourceId: string;
+} {
   if (asset.workflowId) {
     return { sourceType: "workflow", sourceId: asset.workflowId };
   }
@@ -1173,10 +1332,7 @@ async function loadMoreAssets() {
       return;
     }
     const existingIds = new Set(assets.value.map((asset) => asset.id));
-    assets.value = [
-      ...assets.value,
-      ...(page?.items ?? []).filter((asset) => !existingIds.has(asset.id)),
-    ];
+    assets.value = [...assets.value, ...(page?.items ?? []).filter((asset) => !existingIds.has(asset.id))];
     cacheMaterialAssets(page?.items ?? []);
     nextAssetOffset.value = page?.nextOffset ?? assets.value.length;
     hasMoreAssets.value = page?.hasMore ?? false;
@@ -1272,22 +1428,10 @@ function setupLoadMoreObserver() {
         void loadMoreAssets();
       }
     },
-    { root: null, rootMargin: "360px 0px 520px", threshold: 0.01 }
+    { root: null, rootMargin: "360px 0px 520px", threshold: 0.01 },
   );
   if (loadMoreTrigger.value) {
     loadMoreObserver.observe(loadMoreTrigger.value);
-  }
-}
-
-async function copyRemoteUrl(remoteUrl?: string | null) {
-  const value = remoteUrl?.trim();
-  if (!value) {
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    messageApi.error("远程路径复制失败，请手动复制");
   }
 }
 
@@ -1333,7 +1477,11 @@ async function handleReuseAsset(assetId: string) {
 
 async function handleDownloadAsset(asset: MaterialAssetLibraryItem) {
   try {
-    const result = await downloadMedia({ url: assetPublicUrl(asset), title: asset.title || asset.id, mediaType: assetDownloadKind(asset) });
+    const result = await downloadMedia({
+      url: assetPublicUrl(asset),
+      title: asset.title || asset.id,
+      mediaType: assetDownloadKind(asset),
+    });
     if (result.target === "album") {
       messageApi.success("已保存到相册");
     } else if (result.target === "share") {
@@ -1411,6 +1559,23 @@ function positionMaterialMenu(event: ToggleEvent) {
   popover.style.top = `${top}px`;
 }
 
+function closeMaterialMenuFromEvent(event: Event) {
+  const target = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  const popover = target?.closest<HTMLElement>(".material-more-menu__panel");
+  const hidePopover =
+    popover && "hidePopover" in popover ? (popover.hidePopover as (() => void) | undefined) : undefined;
+  if (hidePopover) {
+    hidePopover.call(popover);
+    return;
+  }
+  popover?.removeAttribute("popover");
+}
+
+function handleMaterialMenuAction(event: Event, action: () => void | Promise<void>) {
+  closeMaterialMenuFromEvent(event);
+  void action();
+}
+
 onMounted(async () => {
   await loadFavoriteFolders();
   const queryAssetType = typeof route.query.assetType === "string" ? route.query.assetType : "";
@@ -1446,12 +1611,9 @@ watch(canUseBatchMode, (enabled) => {
   }
 });
 
-watch(
-  loadMoreTrigger,
-  () => {
-    setupLoadMoreObserver();
-  }
-);
+watch(loadMoreTrigger, () => {
+  setupLoadMoreObserver();
+});
 
 watch(
   () => filters.assetType,
@@ -1463,7 +1625,7 @@ watch(
     if (activeLibraryTab.value !== nextTab && nextTab !== "image" && nextTab !== "video") {
       activeLibraryTab.value = nextTab;
     }
-  }
+  },
 );
 </script>
 
@@ -1553,7 +1715,18 @@ watch(
   min-height: 30px;
   padding: 0 12px;
   border-radius: 10px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent-indigo);
   font-size: 0.76rem;
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.08);
+}
+
+.material-favorite-folders__add:hover,
+.material-favorite-folders__add:focus-visible {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: #eef2ff;
+  color: var(--accent-blue);
 }
 
 .material-favorite-folders__batch-active {
@@ -1640,7 +1813,7 @@ watch(
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 12px 30px rgba(99, 102, 241, 0.06);
-  backdrop-filter: blur(40px) saturate(2.0);
+  backdrop-filter: blur(40px) saturate(2);
 }
 
 .material-search {
@@ -1706,7 +1879,9 @@ watch(
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 
 .material-search__clear:hover {
@@ -1727,7 +1902,9 @@ watch(
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 
 .material-workflow-toggle:hover,
@@ -1753,7 +1930,10 @@ watch(
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.82);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .material-workflow-toggle__track::after {
@@ -1798,8 +1978,7 @@ watch(
 }
 
 .material-toolbar-link :deep(svg),
-.material-toolbar-primary :deep(svg),
-.material-card__chips button :deep(svg) {
+.material-toolbar-primary :deep(svg) {
   width: 15px;
   height: 15px;
 }
@@ -1847,6 +2026,12 @@ watch(
   background: linear-gradient(135deg, var(--accent-indigo), var(--accent-blue));
   color: #fff;
   box-shadow: 0 10px 22px rgba(99, 102, 241, 0.16);
+  cursor: pointer;
+}
+
+.material-toolbar-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .material-toolbar-divider {
@@ -1916,7 +2101,7 @@ watch(
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 10px 26px rgba(99, 102, 241, 0.06);
-  backdrop-filter: blur(40px) saturate(2.0);
+  backdrop-filter: blur(40px) saturate(2);
 }
 
 .material-batch-bar span {
@@ -1972,13 +2157,15 @@ watch(
 
 .material-asset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr));
+  grid-auto-flow: row;
   gap: 14px;
-  align-content: start;
+  align-items: start;
 }
 
 .material-load-more {
   display: grid;
+  grid-column: 1 / -1;
   place-items: center;
   min-height: 34px;
   border: 0;
@@ -2001,21 +2188,25 @@ watch(
 
 .material-card {
   position: relative;
-  display: grid;
-  gap: 10px;
-  min-height: 258px;
-  padding: 9px;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.82);
+  overflow: hidden;
+  background: #eef2ff;
   border: 1px solid rgba(0, 0, 0, 0.06);
   color: var(--text-strong);
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.045);
-  backdrop-filter: blur(40px) saturate(2.0);
+  backdrop-filter: blur(40px) saturate(2);
   transition:
     transform 180ms ease,
     border-color 180ms ease,
     box-shadow 180ms ease,
     background 180ms ease;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .material-card:hover,
@@ -2068,10 +2259,22 @@ watch(
 }
 
 .material-card__preview {
-  height: 166px;
-  border-radius: 11px;
+  aspect-ratio: var(--material-preview-ratio, 9 / 16);
+  width: 100%;
+  min-height: 178px;
+  max-height: 420px;
+  border-radius: inherit;
   overflow: hidden;
-  background: #eef2ff;
+  background: #e9edf6;
+}
+
+.material-card__preview-portrait {
+  width: 100%;
+  max-height: 420px;
+}
+
+.material-card__preview-panorama {
+  min-height: 168px;
 }
 
 .material-card__favorite {
@@ -2108,12 +2311,15 @@ watch(
 
 .material-card__preview video,
 .material-card__preview img {
+  position: relative;
+  z-index: 1;
   display: block;
-  object-fit: cover;
-  background: #eef2ff;
+  object-fit: contain;
+  background: transparent;
 }
 
 .material-preview-trigger {
+  position: relative;
   display: grid;
   place-items: center;
   width: 100%;
@@ -2123,16 +2329,40 @@ watch(
   background: transparent;
   cursor: zoom-in;
   text-align: left;
+  overflow: hidden;
+}
+
+.material-preview-trigger-image::after,
+.material-preview-trigger-video::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.16), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(8, 10, 22, 0.14));
+}
+
+.material-preview-backdrop {
+  position: absolute;
+  inset: -18px;
+  z-index: 0;
+  background-position: center;
+  background-size: cover;
+  filter: blur(24px) saturate(1.22);
+  opacity: 0.82;
+  transform: scale(1.08);
 }
 
 .material-preview-fallback {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
-  background:
-    linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.08)),
-    #eef2ff;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.08)), #eef2ff;
   color: var(--text-muted);
 }
 
@@ -2150,6 +2380,7 @@ watch(
   position: absolute;
   left: 12px;
   bottom: 12px;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2215,85 +2446,63 @@ watch(
 }
 
 .material-card__body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   display: grid;
-  gap: 7px;
+  gap: 3px;
+  padding: 22px 12px 10px;
+  background: linear-gradient(180deg, transparent 0%, rgba(10, 10, 20, 0.24) 34%, rgba(10, 10, 20, 0.56) 100%);
+  color: #fff;
+  backdrop-filter: blur(14px) saturate(1.25);
 }
 
-.material-card__head {
+.material-card__meta-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 38px;
-  align-items: start;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .material-card__title {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.material-card__title strong {
   overflow: hidden;
-  color: var(--text-strong);
-  font-size: 0.92rem;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 850;
   line-height: 1.35;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.26);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.material-card__title span {
+.material-card__meta-row > span {
   overflow: hidden;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 0.76rem;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.24);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.material-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.material-card__chips span,
-.material-card__chips button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 25px;
-  padding: 0 8px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 999px;
-  background: #eef2ff;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.material-card__chips button {
-  width: 30px;
-  padding: 0;
-  color: var(--accent-indigo);
-  cursor: copy;
 }
 
 .material-more-menu {
   position: relative;
   justify-self: end;
-  margin-top: -6px;
+  margin: 0;
 }
 
 .material-more-menu__trigger {
   display: inline-grid;
   place-items: center;
-  width: 38px;
-  min-height: 38px;
+  width: 30px;
+  min-height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
@@ -2301,9 +2510,9 @@ watch(
 
 .material-more-menu__trigger:hover,
 .material-more-menu__trigger:focus-visible {
-  background: #eef2ff;
-  color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.08);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
 }
 
 .material-more-menu__panel {
@@ -2315,13 +2524,12 @@ watch(
   padding: 8px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
   box-shadow:
     0 18px 42px rgba(0, 0, 0, 0.1),
     0 2px 8px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  backdrop-filter: blur(40px) saturate(2.0);
+  backdrop-filter: blur(40px) saturate(2);
 }
 
 .material-more-menu__panel:popover-open {
@@ -2735,7 +2943,6 @@ watch(
     min-width: 0;
     width: 100%;
   }
-
 }
 
 @media (max-width: 900px) {
@@ -2844,8 +3051,7 @@ watch(
     overflow: auto;
     padding: 20px 10px 10px;
     border-radius: 22px;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 253, 254, 0.98));
     box-shadow:
       0 -18px 46px rgba(0, 0, 0, 0.08),
       0 0 0 1px rgba(255, 255, 255, 0.82) inset;
@@ -2866,7 +3072,12 @@ watch(
   }
 
   .material-card__preview {
-    height: 204px;
+    min-height: 210px;
+    max-height: 480px;
+  }
+
+  .material-card__preview-portrait {
+    max-height: 480px;
   }
 
   .material-card__favorite {
@@ -2882,6 +3093,5 @@ watch(
   .material-favorite-dialog__panel {
     border-radius: 20px;
   }
-
 }
 </style>
