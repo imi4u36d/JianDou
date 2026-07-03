@@ -213,13 +213,14 @@ async def test_task_detail_uses_lightweight_payload_and_filters_inline_media(db_
     assert detail["outputs"][0]["downloadPath"] == "/storage/detail-light.png"
 
     selected_sql = "\n".join(statement.lower() for statement in statements if statement.lstrip().lower().startswith("select"))
-    assert "context_json" not in selected_sql
-    assert "payload_json" not in selected_sql
-    assert "input_summary_json" not in selected_sql
-    assert "output_summary_json" not in selected_sql
-    assert "request_payload_json" in selected_sql
-    assert "response_payload_json" not in selected_sql
-    assert "metadata_json" not in selected_sql
+    normalized_sql = selected_sql.replace("`", "")
+    assert "biz_task.context_json" not in normalized_sql
+    assert "biz_task_attempt.payload_json" not in normalized_sql
+    assert "biz_task_stage_run.input_summary_json" not in normalized_sql
+    assert "biz_task_stage_run.output_summary_json" not in normalized_sql
+    assert "biz_task.request_payload_json" in normalized_sql
+    assert "biz_task_model_call.response_payload_json" not in normalized_sql
+    assert "biz_material_asset.metadata_json" not in normalized_sql
 
 
 async def test_model_call_and_material_payloads_are_sanitized_before_persisting(db_session) -> None:
