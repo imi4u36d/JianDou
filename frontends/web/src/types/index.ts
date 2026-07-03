@@ -1103,8 +1103,7 @@ export interface AdminTraceEvent extends TaskTraceEvent {
 /**
  * 管理任务筛选条件接口定义。
  */
-export interface AdminTaskFilters extends TaskFilters {
-}
+export type AdminTaskFilters = TaskFilters;
 
 /**
  * 管理端用户接口定义。

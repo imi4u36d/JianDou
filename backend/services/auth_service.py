@@ -35,8 +35,8 @@ def validate_username(username: str) -> str:
 
 def validate_password(password: str) -> str:
     normalized = password.strip() if password else ""
-    if len(normalized) < 8 or len(normalized) > 72:
-        raise ValueError("密码长度需在 8 到 72 个字符之间")
+    if len(normalized) < 8 or len(normalized.encode("utf-8")) > 72:
+        raise ValueError("密码长度需至少 8 个字符，且 UTF-8 编码不超过 72 字节")
     return normalized
 
 

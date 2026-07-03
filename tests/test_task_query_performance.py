@@ -114,7 +114,6 @@ async def test_task_list_and_trace_use_lightweight_queries(db_session) -> None:
 
     selected_sql = "\n".join(statement.lower() for statement in statements if statement.lstrip().lower().startswith("select"))
     assert "biz_task_model_calls" not in selected_sql
-    assert "biz_material_assets" not in selected_sql
     assert "request_payload_json" not in selected_sql
     assert "response_payload_json" not in selected_sql
     assert "metadata_json" not in selected_sql

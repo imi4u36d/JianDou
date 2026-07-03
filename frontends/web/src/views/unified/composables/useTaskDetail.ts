@@ -124,12 +124,13 @@ function stageRunDurationMs(run?: TaskStageRun | null): number | null {
 function latestAttempt(task: TaskStageTimingTask | null | undefined): TaskAttempt | null {
   const attempts = task?.attempts ?? [];
   if (!attempts.length) return null;
-  return [...attempts].sort((a, b) => {
+  const sorted = [...attempts].sort((a, b) => {
     const attemptNoA = Number(a.attemptNo ?? 0);
     const attemptNoB = Number(b.attemptNo ?? 0);
     if (attemptNoA !== attemptNoB) return attemptNoA - attemptNoB;
     return (timeValue(a.queueEnteredAt) ?? timeValue(a.startedAt) ?? 0) - (timeValue(b.queueEnteredAt) ?? timeValue(b.startedAt) ?? 0);
-  }).at(-1) ?? null;
+  });
+  return sorted[sorted.length - 1] ?? null;
 }
 
 function latestStageRun(task: TaskStageTimingTask | null | undefined, matcher: (stageName: string) => boolean): TaskStageRun | null {
@@ -141,12 +142,13 @@ function latestStageRun(task: TaskStageTimingTask | null | undefined, matcher: (
     return (!attemptId || !runAttemptId || runAttemptId === attemptId) && matcher(String(run.stageName ?? "").trim().toLowerCase());
   });
   if (!matched.length) return null;
-  return [...matched].sort((a, b) => {
+  const sorted = [...matched].sort((a, b) => {
     const seqA = Number(a.stageSeq ?? 0);
     const seqB = Number(b.stageSeq ?? 0);
     if (seqA !== seqB) return seqA - seqB;
     return (timeValue(a.startedAt) ?? 0) - (timeValue(b.startedAt) ?? 0);
-  }).at(-1) ?? null;
+  });
+  return sorted[sorted.length - 1] ?? null;
 }
 
 function imageSubmitStageDuration(task: TaskStageTimingTask | null | undefined): number | null {

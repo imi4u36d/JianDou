@@ -233,83 +233,75 @@
             </aside>
 
             <div class="task-result-preview__main">
-              <div v-if="selectedTaskPreviewMedia" class="task-result-preview__actions">
-                <button
-                  type="button"
-                  class="task-result-preview__action"
-                  @click="
-                    openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)
-                  "
-                >
-                  <IconImage v-if="selectedTaskPreviewMedia.type === 'image'" size="xs" />
-                  <IconVideo v-else size="xs" />
-                  预览
-                </button>
-                <button
-                  class="task-result-preview__action"
-                  type="button"
-                  @click="
-                    handleDownloadMedia(
-                      selectedTaskPreviewMedia.url,
-                      selectedTaskPreviewMedia.title || '任务结果',
-                      selectedTaskPreviewMedia.type,
-                    )
-                  "
-                >
-                  <IconDownload size="xs" />
-                  下载
-                </button>
-                <button
-                  v-if="selectedTaskShareable"
-                  class="task-result-preview__action"
-                  type="button"
-                  :disabled="sharingTaskResult"
-                  @click="openTaskShareConfirm"
-                >
-                  <IconShare size="xs" />
-                  {{ selectedTaskShareRecord ? "已分享" : "分享" }}
-                </button>
-              </div>
-              <video
-                v-if="selectedTaskPreviewMedia?.type === 'video'"
-                :src="selectedTaskPreviewMedia.url"
-                :poster="selectedTaskPreviewMedia.posterUrl || undefined"
-                controls
-                playsinline
-                preload="metadata"
-                :aria-label="selectedTaskPreviewMedia.title"
-                @loadstart="markTaskPreviewLoading"
-                @loadedmetadata="markTaskPreviewReady"
-                @loadeddata="markTaskPreviewReady"
-                @canplay="markTaskPreviewReady"
-                @error="markTaskPreviewFailed"
-              ></video>
-              <button
-                v-else-if="selectedTaskPreviewMedia?.type === 'image'"
-                type="button"
-                class="task-result-preview__image-button"
-                :aria-label="`预览${selectedTaskPreviewMedia.title || '任务结果'}`"
-                @click="
-                  openTaskPreviewItem(selectedTaskPreviewMedia.title || '任务结果预览', selectedTaskPreviewMedia.url)
-                "
-              >
-                <img
-                  class="task-result-preview__image-glow"
-                  :src="selectedTaskPreviewMedia.url"
-                  alt=""
-                  aria-hidden="true"
-                  loading="lazy"
-                />
-                <img
-                  class="task-result-preview__image"
-                  :src="selectedTaskPreviewMedia.url"
-                  :alt="selectedTaskPreviewMedia.title || '任务结果预览'"
-                  @load="markTaskPreviewReady"
+              <template v-for="media in taskPreviewMediaItems" :key="`${media.type}-${media.url}`">
+                <div class="task-result-preview__actions">
+                  <button
+                    type="button"
+                    class="task-result-preview__action"
+                    @click="openTaskPreviewItem(media.title || '任务结果预览', media.url)"
+                  >
+                    <IconImage v-if="media.type === 'image'" size="xs" />
+                    <IconVideo v-else size="xs" />
+                    预览
+                  </button>
+                  <button
+                    class="task-result-preview__action"
+                    type="button"
+                    @click="handleDownloadMedia(media.url, media.title || '任务结果', media.type)"
+                  >
+                    <IconDownload size="xs" />
+                    下载
+                  </button>
+                  <button
+                    v-if="selectedTaskShareable"
+                    class="task-result-preview__action"
+                    type="button"
+                    :disabled="sharingTaskResult"
+                    @click="openTaskShareConfirm"
+                  >
+                    <IconShare size="xs" />
+                    {{ selectedTaskShareRecord ? "已分享" : "分享" }}
+                  </button>
+                </div>
+                <video
+                  v-if="media.type === 'video'"
+                  :src="media.url"
+                  :poster="media.posterUrl || undefined"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  :aria-label="media.title"
+                  @loadstart="markTaskPreviewLoading"
+                  @loadedmetadata="markTaskPreviewReady"
+                  @loadeddata="markTaskPreviewReady"
+                  @canplay="markTaskPreviewReady"
                   @error="markTaskPreviewFailed"
-                />
-              </button>
+                ></video>
+                <button
+                  v-else-if="media.type === 'image'"
+                  type="button"
+                  class="task-result-preview__image-button"
+                  :aria-label="`预览${media.title || '任务结果'}`"
+                  @click="openTaskPreviewItem(media.title || '任务结果预览', media.url)"
+                >
+                  <img
+                    class="task-result-preview__image-glow"
+                    :src="media.url"
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                  />
+                  <img
+                    class="task-result-preview__image"
+                    :src="media.url"
+                    :alt="media.title || '任务结果预览'"
+                    @load="markTaskPreviewReady"
+                    @error="markTaskPreviewFailed"
+                  />
+                </button>
+              </template>
               <div
-                v-else-if="selectedTaskAwaitingCompletedPreview"
+                v-if="!taskPreviewMediaItems.length && selectedTaskAwaitingCompletedPreview"
                 class="task-result-preview__pending"
                 role="status"
                 aria-live="polite"
@@ -317,7 +309,9 @@
                 <IconLoading size="md" />
                 <span>加载预览中</span>
               </div>
-              <div v-else>{{ selectedTaskActionTask?.status === "COMPLETED" ? "暂无可预览结果" : "生成中" }}</div>
+              <div v-else-if="!taskPreviewMediaItems.length">
+                {{ selectedTaskActionTask?.status === "COMPLETED" ? "暂无可预览结果" : "生成中" }}
+              </div>
               <div v-if="taskPreviewIsLoading" class="task-result-preview__loading" role="status" aria-live="polite">
                 <IconLoading size="md" />
                 <span>加载预览中</span>
@@ -574,6 +568,10 @@ const promptDialogOpen = ref(false);
 const promptCloseButtonRef = ref<HTMLButtonElement | null>(null);
 const previewImageLoadFailed = ref(false);
 const taskPreviewLoadState = ref<"idle" | "loading" | "ready" | "failed">("idle");
+const taskPreviewMediaItems = computed(() => {
+  const media = selectedTaskPreviewMedia.value;
+  return media ? [media] : [];
+});
 const taskPreviewMediaUrl = computed(() => selectedTaskPreviewMedia.value?.url || "");
 const sharingTaskResult = ref(false);
 const taskShareRecords = ref<Record<string, string>>({});
