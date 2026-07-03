@@ -70,11 +70,11 @@ def _material_public_url_from_row(row: BizMaterialAsset) -> str:
 
 
 def _material_public_url_from_payload(row: dict[str, Any]) -> str:
-    return _first_non_blank(row.get("publicUrl"), row.get("fileUrl"), row.get("remoteUrl"), row.get("thirdPartyUrl"))
+    return _light_url(_first_non_blank(row.get("publicUrl"), row.get("fileUrl"), row.get("remoteUrl"), row.get("thirdPartyUrl")), 1024)
 
 
 def _material_thumbnail_url_from_payload(row: dict[str, Any]) -> str:
-    return _first_non_blank(row.get("thumbnailUrl"), row.get("previewUrl"))
+    return _light_url(_first_non_blank(row.get("thumbnailUrl"), row.get("previewUrl")), 1024)
 
 
 def _looks_like_image_url(value: Any) -> bool:
@@ -2052,13 +2052,13 @@ class TaskRepository:
             "start_seconds": float(row.get("startSeconds") or 0),
             "end_seconds": float(row.get("endSeconds") or 0),
             "duration_seconds": float(row.get("durationSeconds") or 0),
-            "preview_path": string_value(row.get("previewPath", row.get("previewUrl", ""))),
-            "download_path": string_value(row.get("downloadPath", row.get("downloadUrl", ""))),
+            "preview_path": _light_url(row.get("previewPath", row.get("previewUrl", "")), 512),
+            "download_path": _light_url(row.get("downloadPath", row.get("downloadUrl", "")), 512),
             "width": safe_int(row.get("width"), 0),
             "height": safe_int(row.get("height"), 0),
             "mime_type": string_value(row.get("mimeType", "")),
             "size_bytes": safe_int(row.get("sizeBytes"), 0),
-            "remote_url": string_value(row.get("remoteUrl", "")),
+            "remote_url": _light_url(row.get("remoteUrl", ""), 1024),
             "extra_json": write_json_object(row.get("extra", {})),
             "produced_at": string_value(row.get("producedAt", now)),
             "timezone_offset_minutes": safe_int(row.get("timezoneOffsetMinutes"), 0),

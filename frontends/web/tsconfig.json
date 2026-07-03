@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     // 面向当前 Vite 流程支持的现代浏览器。
-    "target": "ES2020",
+    "target": "ES2022",
     // 与 Vue 对 class field 的编译行为保持一致。
     "useDefineForClassFields": true,
     // 保留 ES Module，交给 Vite 打包。
@@ -21,7 +21,7 @@
     // 在需要时兼容 CommonJS 互操作。
     "esModuleInterop": true,
     // 包含现代 JS 和浏览器 DOM 类型库。
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     // 为 Vite 配置和构建辅助代码提供 Node 类型。
     "types": ["node"],
     // 让路径别名相对于前端项目根目录生效。

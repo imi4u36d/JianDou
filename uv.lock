@@ -551,7 +551,7 @@ dev = [
 requires-dist = [
     { name = "alembic" },
     { name = "asyncmy", specifier = ">=0.2.11" },
-    { name = "bcrypt", specifier = ">=4.0,<4.1" },
+    { name = "bcrypt", specifier = ">=4.0,<5.1" },
     { name = "click", specifier = ">=8.1" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "greenlet", specifier = ">=3.1.0" },

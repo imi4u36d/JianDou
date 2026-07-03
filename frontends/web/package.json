@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint src --ext .vue,.ts",
+    "lint": "eslint src",
     "format": "prettier --write \"src/**/*.{vue,ts,css,html,json}\"",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -24,6 +24,7 @@
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^26.1.0",
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.62.1",

@@ -11,6 +11,16 @@ from backend.auth import hash_password
 from backend.config import settings
 from backend.domain.enums import UserRole, UserStatus
 from backend.models.user import SysUser
+from backend.services.auth_service import validate_password
+
+
+def test_validate_password_rejects_values_over_bcrypt_byte_limit():
+    with pytest.raises(ValueError, match="72 字节"):
+        validate_password("界" * 25)
+
+
+def test_validate_password_accepts_72_ascii_bytes():
+    assert validate_password("a" * 72) == "a" * 72
 
 
 @pytest.mark.asyncio
