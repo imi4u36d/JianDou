@@ -961,10 +961,10 @@ onUnmounted(() => {
 }
 
 .task-detail-summary-image .detail-stage-card {
-  padding: 6px 2px 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 10px 12px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 252, 0.62)), rgba(255, 255, 255, 0.68);
   box-shadow: none;
   overflow-x: auto;
   overflow-y: hidden;
@@ -978,30 +978,49 @@ onUnmounted(() => {
 .detail-stage-steps {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-width: 560px;
+  gap: 10px;
+  min-width: 600px;
 }
 
 .detail-stage-step {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 1 0 0;
-  min-width: 152px;
-  min-height: 54px;
+  min-width: 156px;
+  min-height: 60px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.detail-stage-step-active,
+.detail-stage-step-paused {
+  border-color: rgba(99, 102, 241, 0.16);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.detail-stage-step-failed {
+  border-color: rgba(229, 72, 101, 0.2);
+  background: rgba(229, 72, 101, 0.06);
 }
 
 .detail-stage-step__icon {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   border-radius: 50%;
   border: 2px solid rgba(99, 102, 241, 0.28);
   background: rgba(255, 255, 255, 0.76);
   color: rgba(99, 102, 241, 0.72);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.88) inset;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.88) inset,
+    0 6px 14px rgba(15, 23, 42, 0.04);
 }
 
 .detail-stage-step-icon-done .detail-stage-step__icon {
@@ -1012,15 +1031,12 @@ onUnmounted(() => {
 }
 
 .detail-stage-step-icon-active .detail-stage-step__icon {
-  width: 42px;
-  height: 42px;
-  flex-basis: 42px;
   border-color: var(--accent-indigo);
   background: var(--accent-indigo);
   color: #fff;
   box-shadow:
-    0 0 0 6px rgba(99, 102, 241, 0.1),
-    0 14px 28px rgba(99, 102, 241, 0.28);
+    0 0 0 6px rgba(99, 102, 241, 0.11),
+    0 12px 24px rgba(99, 102, 241, 0.24);
 }
 
 .detail-stage-step-icon-active .detail-stage-step__icon svg {
@@ -1041,8 +1057,9 @@ onUnmounted(() => {
 }
 
 .detail-stage-step-icon-pending .detail-stage-step__icon {
-  border-color: rgba(99, 102, 241, 0.34);
-  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(148, 163, 184, 0.72);
 }
 
 .detail-stage-step__pause {
@@ -1061,20 +1078,24 @@ onUnmounted(() => {
 .detail-stage-step__copy strong {
   overflow: hidden;
   color: var(--text-strong);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 780;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.detail-stage-step-pending .detail-stage-step__copy strong {
+  color: rgba(15, 23, 42, 0.72);
+}
+
 .detail-stage-step__copy small {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 720;
   line-height: 1.25;
   white-space: nowrap;
@@ -1086,11 +1107,24 @@ onUnmounted(() => {
 }
 
 .detail-stage-step__chevron {
-  flex: 0 0 auto;
-  color: rgba(99, 102, 241, 0.34);
-  font-size: 2.3rem;
-  font-weight: 500;
-  line-height: 1;
+  position: relative;
+  flex: 0 0 34px;
+  height: 1px;
+  overflow: hidden;
+  color: transparent;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.34));
+}
+
+.detail-stage-step__chevron::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-top: 1px solid rgba(99, 102, 241, 0.34);
+  border-right: 1px solid rgba(99, 102, 241, 0.34);
+  transform: translateY(-50%) rotate(45deg);
 }
 
 @keyframes detail-stage-icon-spin {
