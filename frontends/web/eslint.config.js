@@ -49,4 +49,30 @@ export default [
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
+  {
+    files: [
+      "src/api/auth.ts",
+      "src/api/credits.ts",
+      "src/api/health.ts",
+      "src/api/public-shares.ts",
+      "src/api/script.ts",
+      "src/api/showcase.ts",
+      "src/api/tasks.ts",
+      "src/admin/api/**/*.ts",
+      "src/auth/**/*.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/types",
+              message: "Import contracts from a domain module such as @/types/tasks or @/types/auth.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
