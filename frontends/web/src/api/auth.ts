@@ -1,12 +1,9 @@
 /**
  * 认证相关 API 请求封装。
  */
+import type { ActivateInviteRequest, AuthSession, LoginRequest } from "@/types/auth";
+
 import { getJson, postJson } from "./client";
-import type {
-  ActivateInviteRequest,
-  AuthSession,
-  LoginRequest,
-} from "@/types";
 
 export async function fetchAuthSession() {
   return getJson<AuthSession>("/auth/session");
