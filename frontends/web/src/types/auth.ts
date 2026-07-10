@@ -1,16 +1,28 @@
-/**
- * Authentication and account contracts.
- *
- * This domain entry point intentionally re-exports the current compatibility
- * barrel. Consumers can depend on a stable domain path while definitions are
- * migrated out of `types/index.ts` incrementally.
- */
-export type {
-  ActivateInviteRequest,
-  AuthenticatedUser,
-  AuthSession,
-  InviteStatus,
-  LoginRequest,
-  UserRole,
-  UserStatus,
-} from "./index";
+/** Authentication and account contracts. */
+export type UserRole = "ADMIN" | "USER";
+
+export type UserStatus = "ACTIVE" | "DISABLED";
+
+export type InviteStatus = "UNUSED" | "USED" | "REVOKED" | "EXPIRED";
+
+export interface AuthenticatedUser {
+  id: number;
+  username: string;
+  role: UserRole;
+}
+
+export interface AuthSession {
+  authenticated: boolean;
+  user: AuthenticatedUser | null;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface ActivateInviteRequest {
+  code: string;
+  username: string;
+  password: string;
+}

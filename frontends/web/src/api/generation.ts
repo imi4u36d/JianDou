@@ -1,7 +1,6 @@
 /**
  * 生成相关 API 请求封装。
  */
-import { getJson, postJson } from "./client";
 import type {
   GenerationCallLogEntry,
   GenerateMediaRequest,
@@ -10,7 +9,9 @@ import type {
   ProbeTextAnalysisModelRequest,
   ProbeTextAnalysisModelResponse,
   VideoModelUsageResponse,
-} from "@/types";
+} from "@/types/generation";
+
+import { getJson, postJson } from "./client";
 
 type UnknownRecord = Record<string, unknown>;
 

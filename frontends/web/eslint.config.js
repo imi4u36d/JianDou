@@ -53,11 +53,14 @@ export default [
     files: [
       "src/api/auth.ts",
       "src/api/credits.ts",
+      "src/api/generation.ts",
       "src/api/health.ts",
+      "src/api/material-assets.ts",
       "src/api/public-shares.ts",
       "src/api/script.ts",
       "src/api/showcase.ts",
       "src/api/tasks.ts",
+      "src/api/workflows.ts",
       "src/admin/api/**/*.ts",
       "src/auth/**/*.ts",
     ],
@@ -69,6 +72,28 @@ export default [
             {
               name: "@/types",
               message: "Import contracts from a domain module such as @/types/tasks or @/types/auth.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      "src/types/auth.ts",
+      "src/types/credits.ts",
+      "src/types/health.ts",
+      "src/types/public-shares.ts",
+      "src/types/uploads.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "./index",
+              message: "Owned contract modules must define their contracts instead of re-exporting the legacy barrel.",
             },
           ],
         },
