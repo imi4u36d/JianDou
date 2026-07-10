@@ -13,7 +13,8 @@ This document tracks the incremental standardization of JianDou. Each phase shou
 - [x] Introduce domain-scoped type entry points while keeping `src/types/index.ts` as a compatibility barrel.
 - [x] Migrate authentication and the first API modules to explicit domain contract imports.
 - [x] Centralize optional query-string serialization and cover its edge cases with unit tests.
-- [ ] Move the underlying definitions out of `src/types/index.ts` domain by domain.
+- [x] Move authentication, credit, and health definitions out of `src/types/index.ts`.
+- [ ] Move the remaining definitions out of `src/types/index.ts` domain by domain.
 - [ ] Migrate the remaining generation, workflow, material, component, and composable imports.
 - [ ] Reduce lint exclusions by decomposing oversized views.
 

@@ -1,54 +1,27 @@
-/**
- * 任务状态。
- */
-/**
- * 索引相关类型定义。
- */
-export type UserRole = "ADMIN" | "USER";
+import type { InviteStatus, UserRole, UserStatus } from "./auth";
 
-/**
- * 用户状态。
- */
-export type UserStatus = "ACTIVE" | "DISABLED";
-
-/**
- * 邀请码状态。
- */
-export type InviteStatus = "UNUSED" | "USED" | "REVOKED" | "EXPIRED";
-
-/**
- * 当前登录用户接口定义。
- */
-export interface AuthenticatedUser {
-  id: number;
-  username: string;
-  role: UserRole;
-}
-
-/**
- * 登录态接口定义。
- */
-export interface AuthSession {
-  authenticated: boolean;
-  user: AuthenticatedUser | null;
-}
-
-/**
- * 登录请求接口定义。
- */
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-/**
- * 激活邀请码请求接口定义。
- */
-export interface ActivateInviteRequest {
-  code: string;
-  username: string;
-  password: string;
-}
+export type {
+  ActivateInviteRequest,
+  AuthenticatedUser,
+  AuthSession,
+  InviteStatus,
+  LoginRequest,
+  UserRole,
+  UserStatus,
+} from "./auth";
+export type {
+  CreditRule,
+  CreditSummary,
+  CreditTransaction,
+  CreditTransactionPage,
+  CreditTransactionType,
+} from "./credits";
+export type {
+  HealthModelSummary,
+  HealthPlanningCapabilities,
+  HealthResponse,
+  HealthRuntimeSummary,
+} from "./health";
 
 export type TaskStatus =
   | "PENDING"
@@ -987,80 +960,6 @@ export interface CreatePublicShareRequest {
 }
 
 /**
- * 健康检查模型摘要接口定义。
- */
-export interface HealthModelSummary {
-  provider: string | null;
-  primary_model?: string | null;
-  primaryModel?: string | null;
-  text_analysis_provider?: string | null;
-  textAnalysisProvider?: string | null;
-  text_analysis_model?: string | null;
-  textAnalysisModel?: string | null;
-  endpoint_host?: string;
-  endpointHost?: string | null;
-  api_key_present?: boolean;
-  apiKeyPresent?: boolean;
-  ready: boolean;
-  temperature: number;
-  max_tokens?: number;
-  maxTokens?: number;
-  config_errors?: string[];
-  configErrors?: string[];
-}
-
-/**
- * 健康检查规划能力接口定义。
- */
-export interface HealthPlanningCapabilities {
-  timed_transcript_supported?: boolean;
-  timedTranscriptSupported?: boolean;
-  transcript_semantic_planning?: boolean;
-  transcriptSemanticPlanning?: boolean;
-  visual_content_analysis?: boolean;
-  visualContentAnalysis?: boolean;
-  visual_event_reasoning?: boolean;
-  visualEventReasoning?: boolean;
-  subtitle_visual_fusion?: boolean;
-  subtitleVisualFusion?: boolean;
-  audio_peak_signal?: boolean;
-  audioPeakSignal?: boolean;
-  scene_boundary_signal?: boolean;
-  sceneBoundarySignal?: boolean;
-  fusion_timeline_planning?: boolean;
-  fusionTimelinePlanning?: boolean;
-  fallback_heuristic_enabled?: boolean;
-  fallbackHeuristicEnabled?: boolean;
-}
-
-/**
- * 健康检查运行时摘要接口定义。
- */
-export interface HealthRuntimeSummary {
-  name: string;
-  env: string;
-  execution_mode?: string;
-  executionMode?: string;
-  database_url?: string;
-  databaseUrl?: string;
-  model_provider?: string | null;
-  modelProvider?: string | null;
-  storage_root?: string;
-  storageRoot?: string;
-  model: HealthModelSummary;
-  planning_capabilities?: HealthPlanningCapabilities;
-  planningCapabilities?: HealthPlanningCapabilities;
-}
-
-/**
- * 健康检查响应体。
- */
-export interface HealthResponse {
-  ok: boolean;
-  runtime: HealthRuntimeSummary;
-}
-
-/**
  * 管理概览Counts接口定义。
  */
 export interface AdminOverviewCounts {
@@ -1529,45 +1428,6 @@ export interface MaterialGenerationResponse {
 export interface MaterialAssetDeleteResult {
   assetId?: string | null;
   deleted: boolean;
-}
-
-export interface CreditRule {
-  featureCode: string;
-  displayName: string;
-  cost: number;
-  updatedAt?: string | null;
-}
-
-export interface CreditSummary {
-  exempt: boolean;
-  balance: number | null;
-  totalConsumed?: number;
-  totalAdjusted?: number;
-  rules: CreditRule[];
-}
-
-export type CreditTransactionType = "ADJUST" | "CONSUME" | "USAGE" | "REFUND" | string;
-
-export interface CreditTransaction {
-  transactionId: string;
-  userId: number;
-  featureCode?: string | null;
-  transactionType: CreditTransactionType;
-  amountDelta: number;
-  balanceBefore: number;
-  balanceAfter: number;
-  relatedRunId?: string | null;
-  relatedTaskId?: string | null;
-  relatedWorkflowId?: string | null;
-  reason?: string | null;
-  createdAt: string;
-}
-
-export interface CreditTransactionPage {
-  items: CreditTransaction[];
-  total: number;
-  offset: number;
-  limit: number;
 }
 
 export interface UpdateMaterialAssetRatingRequest {
