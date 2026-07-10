@@ -1,12 +1,11 @@
 /**
  * 健康检查相关 API 请求封装。
  */
-import { getJson } from "./client";
-import type { HealthResponse } from "@/types";
+import type { HealthResponse } from "@/types/health";
 
-/**
- * 获取健康检查。
- */
+import { getJson } from "./client";
+
+/** 获取健康检查。 */
 export function fetchHealth() {
   return getJson<HealthResponse>("/health");
 }
