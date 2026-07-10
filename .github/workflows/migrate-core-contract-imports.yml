@@ -1,0 +1,158 @@
+name: Migrate core contract imports
+
+on:
+  push:
+    branches:
+      - refactor/extract-core-contracts
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refactor/extract-core-contracts
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Rewrite imports and add guardrail
+        shell: bash
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import re
+          from pathlib import Path
+
+          root = Path("frontends/web/src")
+          domains = {
+              "@/types/auth": {
+                  "ActivateInviteRequest", "AuthenticatedUser", "AuthSession",
+                  "InviteStatus", "LoginRequest", "UserRole", "UserStatus",
+              },
+              "@/types/credits": {
+                  "CreditRule", "CreditSummary", "CreditTransaction",
+                  "CreditTransactionPage", "CreditTransactionType",
+              },
+              "@/types/health": {
+                  "HealthModelSummary", "HealthPlanningCapabilities",
+                  "HealthResponse", "HealthRuntimeSummary",
+              },
+          }
+          extracted = set().union(*domains.values())
+          pattern = re.compile(
+              r'import(?:\s+type)?\s*\{(?P<body>.*?)\}\s*from\s*["\']@/types["\']\s*;?',
+              re.DOTALL,
+          )
+
+          def normalize(item: str) -> str:
+              value = item.strip()
+              return value[5:].strip() if value.startswith("type ") else value
+
+          def imported_name(item: str) -> str:
+              return re.split(r"\s+as\s+", normalize(item), maxsplit=1)[0].strip()
+
+          def render(items: list[str], module: str) -> str:
+              items = [normalize(item) for item in items]
+              compact = ", ".join(items)
+              if len(module) + len(compact) < 92:
+                  return f'import type {{ {compact} }} from "{module}";'
+              body = "\n".join(f"  {item}," for item in items)
+              return f'import type {{\n{body}\n}} from "{module}";'
+
+          changed = []
+          files = sorted(
+              path for path in root.rglob("*")
+              if path.is_file() and path.suffix in {".ts", ".tsx", ".vue"}
+          )
+          for path in files:
+              original = path.read_text(encoding="utf-8")
+
+              def replace(match: re.Match[str]) -> str:
+                  specs = [item.strip() for item in match.group("body").split(",") if item.strip()]
+                  remaining: list[str] = []
+                  grouped = {module: [] for module in domains}
+                  for spec in specs:
+                      name = imported_name(spec)
+                      module = next((key for key, names in domains.items() if name in names), None)
+                      (grouped[module] if module else remaining).append(spec)
+                  if not any(grouped.values()):
+                      return match.group(0)
+                  output = []
+                  if remaining:
+                      output.append(render(remaining, "@/types"))
+                  for module in domains:
+                      if grouped[module]:
+                          output.append(render(grouped[module], module))
+                  return "\n".join(output)
+
+              updated = pattern.sub(replace, original)
+              if updated != original:
+                  path.write_text(updated, encoding="utf-8")
+                  changed.append(str(path))
+
+          violations = []
+          for path in files:
+              source = path.read_text(encoding="utf-8")
+              for match in pattern.finditer(source):
+                  names = {imported_name(item) for item in match.group("body").split(",") if item.strip()}
+                  blocked = sorted(names & extracted)
+                  if blocked:
+                      violations.append(f"{path}: {', '.join(blocked)}")
+          if violations:
+              raise RuntimeError("Core type imports remain:\n" + "\n".join(violations))
+          if not changed:
+              raise RuntimeError("No imports were migrated")
+
+          eslint_path = Path("frontends/web/eslint.config.js")
+          eslint = eslint_path.read_text(encoding="utf-8")
+          marker = '      ...typescriptEslint.configs.recommended.rules,\n'
+          if marker not in eslint:
+              raise RuntimeError("ESLint marker missing")
+          names = "\n".join(f'                "{name}",' for name in sorted(extracted))
+          rule = f'''      ...typescriptEslint.configs.recommended.rules,
+              "no-restricted-imports": [
+                "error",
+                {{
+                  paths: [
+                    {{
+                      name: "@/types",
+                      importNames: [
+          {names}
+                      ],
+                      message: "Import extracted contracts from their domain modules.",
+                    }},
+                  ],
+                }},
+              ],
+          '''
+          eslint_path.write_text(eslint.replace(marker, rule, 1), encoding="utf-8")
+          print("Migrated", len(changed), "files")
+          PY
+
+      - name: Install and validate frontend
+        run: |
+          npm ci
+          npm run web:lint
+          npm run packages:typecheck
+          npm run web:typecheck
+          npm run web:test
+          npm run web:build
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontends/web
+          git diff --cached --check
+          git commit -m "refactor(types): migrate core contract consumers"
+          git push origin HEAD:refactor/extract-core-contracts
