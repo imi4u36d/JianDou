@@ -14,6 +14,7 @@ This document tracks the incremental standardization of JianDou. Each phase shou
 - [x] Migrate authentication and the first API modules to explicit domain contract imports.
 - [x] Centralize optional query-string serialization and cover its edge cases with unit tests.
 - [x] Move auth, credit, health, public-share, and upload definitions out of `src/types/index.ts`.
+- [x] Preserve legacy `@/types` exports with compile-time compatibility tests.
 - [x] Migrate generation, workflow, and material API modules to explicit domain contract imports.
 - [ ] Move task, generation, workflow, material, and admin definitions out of `src/types/index.ts`.
 - [ ] Migrate the remaining component and composable imports.
