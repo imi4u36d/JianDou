@@ -1,18 +1,22 @@
-import { deleteJson, getJson, postJson } from "./client";
-import type { CreatePublicShareRequest, PublicShareItem, PublicShareListResponse, PublicShareQuery } from "@/types";
+import type {
+  CreatePublicShareRequest,
+  PublicShareItem,
+  PublicShareListResponse,
+  PublicShareQuery,
+} from "@/types/public-shares";
 
-function queryString(query: PublicShareQuery = {}) {
-  const params = new URLSearchParams();
-  if (query.type) params.set("type", query.type);
-  if (typeof query.offset === "number") params.set("offset", String(query.offset));
-  if (typeof query.limit === "number") params.set("limit", String(query.limit));
-  if (query.sort) params.set("sort", query.sort);
-  const value = params.toString();
-  return value ? `?${value}` : "";
-}
+import { deleteJson, getJson, postJson } from "./client";
+import { withQuery } from "./query";
 
 export function fetchPublicShares(query: PublicShareQuery = {}) {
-  return getJson<PublicShareListResponse>(`/public-shares${queryString(query)}`);
+  return getJson<PublicShareListResponse>(
+    withQuery("/public-shares", {
+      type: query.type,
+      offset: query.offset,
+      limit: query.limit,
+      sort: query.sort,
+    }),
+  );
 }
 
 export function createPublicShare(payload: CreatePublicShareRequest) {
