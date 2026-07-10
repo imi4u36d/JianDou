@@ -1,71 +1,51 @@
 /**
  * 素材库 API 请求封装。
  */
-import { deleteJson, getJson, patchJson, postForm, postJson } from "./client";
 import type {
-  CreateMaterialGenerationRequest,
   CreateMaterialFavoriteFolderRequest,
-  ImageUploadResponse,
+  CreateMaterialGenerationRequest,
   MaterialAssetDeleteResult,
   MaterialAssetLibraryItem,
   MaterialAssetPage,
+  MaterialAssetQuery,
   MaterialFavoriteAssetIdsRequest,
   MaterialFavoriteFolder,
   MaterialFavoriteFolderDeleteResult,
   MaterialFavoriteFolderList,
   MaterialGenerationResponse,
-  MaterialAssetQuery,
   RenameMaterialAssetRequest,
   RenameMaterialFavoriteFolderRequest,
   ReuseMaterialRequest,
   UpdateMaterialAssetRatingRequest,
-  WorkflowDetail,
-} from "@/types";
+} from "@/types/materials";
+import type { ImageUploadResponse } from "@/types/uploads";
+import type { WorkflowDetail } from "@/types/workflows";
 
-function buildQuery(filters?: MaterialAssetQuery) {
-  const params = new URLSearchParams();
-  if (filters?.q?.trim()) {
-    params.set("q", filters.q.trim());
-  }
-  if (filters?.type?.trim()) {
-    params.set("type", filters.type.trim());
-  }
-  if (filters?.assetType?.trim()) {
-    params.set("assetType", filters.assetType.trim());
-  }
-  if (typeof filters?.minRating === "number") {
-    params.set("minRating", String(filters.minRating));
-  }
-  if (filters?.model?.trim()) {
-    params.set("model", filters.model.trim());
-  }
-  if (filters?.aspectRatio?.trim()) {
-    params.set("aspectRatio", filters.aspectRatio.trim());
-  }
-  if (typeof filters?.clipIndex === "number") {
-    params.set("clipIndex", String(filters.clipIndex));
-  }
-  if (typeof filters?.includeWorkflowArtifacts === "boolean") {
-    params.set("includeWorkflowArtifacts", String(filters.includeWorkflowArtifacts));
-  }
-  if (typeof filters?.offset === "number") {
-    params.set("offset", String(filters.offset));
-  }
-  if (typeof filters?.limit === "number") {
-    params.set("limit", String(filters.limit));
-  }
-  return params.toString();
+import { deleteJson, getJson, patchJson, postForm, postJson } from "./client";
+import { withQuery } from "./query";
+
+function materialAssetsPath(filters?: MaterialAssetQuery) {
+  return withQuery("/material-assets", {
+    q: filters?.q,
+    type: filters?.type,
+    assetType: filters?.assetType,
+    minRating: filters?.minRating,
+    model: filters?.model,
+    aspectRatio: filters?.aspectRatio,
+    clipIndex: filters?.clipIndex,
+    includeWorkflowArtifacts: filters?.includeWorkflowArtifacts,
+    offset: filters?.offset,
+    limit: filters?.limit,
+  });
 }
 
-export function fetchMaterialAssets(filters?: MaterialAssetQuery) {
-  const query = buildQuery(filters);
-  return getJson<MaterialAssetLibraryItem[] | MaterialAssetPage>(query ? `/material-assets?${query}` : "/material-assets")
-    .then((result) => Array.isArray(result) ? result : result.items ?? []);
+export async function fetchMaterialAssets(filters?: MaterialAssetQuery) {
+  const result = await getJson<MaterialAssetLibraryItem[] | MaterialAssetPage>(materialAssetsPath(filters));
+  return Array.isArray(result) ? result : result.items ?? [];
 }
 
 export function fetchMaterialAssetPage(filters?: MaterialAssetQuery) {
-  const query = buildQuery(filters);
-  return getJson<MaterialAssetPage>(query ? `/material-assets?${query}` : "/material-assets");
+  return getJson<MaterialAssetPage>(materialAssetsPath(filters));
 }
 
 export function fetchMaterialAsset(assetId: string) {
@@ -101,15 +81,23 @@ export function createMaterialFavoriteFolder(payload: CreateMaterialFavoriteFold
 }
 
 export function renameMaterialFavoriteFolder(folderId: string, payload: RenameMaterialFavoriteFolderRequest) {
-  return patchJson<MaterialFavoriteFolder>(`/material-assets/favorite-folders/${encodeURIComponent(folderId)}`, payload);
+  return patchJson<MaterialFavoriteFolder>(
+    `/material-assets/favorite-folders/${encodeURIComponent(folderId)}`,
+    payload,
+  );
 }
 
 export function deleteMaterialFavoriteFolder(folderId: string) {
-  return deleteJson<MaterialFavoriteFolderDeleteResult>(`/material-assets/favorite-folders/${encodeURIComponent(folderId)}`);
+  return deleteJson<MaterialFavoriteFolderDeleteResult>(
+    `/material-assets/favorite-folders/${encodeURIComponent(folderId)}`,
+  );
 }
 
 export function addMaterialFavoriteAssets(folderId: string, payload: MaterialFavoriteAssetIdsRequest) {
-  return postJson<MaterialFavoriteFolder>(`/material-assets/favorite-folders/${encodeURIComponent(folderId)}/assets`, payload);
+  return postJson<MaterialFavoriteFolder>(
+    `/material-assets/favorite-folders/${encodeURIComponent(folderId)}/assets`,
+    payload,
+  );
 }
 
 export function removeMaterialFavoriteAsset(folderId: string, assetId: string) {
