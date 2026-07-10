@@ -1,169 +1,114 @@
 /**
  * 任务相关 API 请求封装。
  */
-import { deleteJson, getJson, postForm, postJson } from "./client";
 import type {
   CreateGenerationTaskRequest,
   GenerateCreativePromptRequest,
   GenerateCreativePromptResponse,
+} from "@/types/generation";
+import type {
   RateTaskEffectRequest,
+  SeedanceTaskQueryResult,
   TaskDeleteResult,
   TaskDetail,
   TaskFilters,
   TaskListItem,
   TaskPaginatedResponse,
-  SeedanceTaskQueryResult,
   TaskTraceEvent,
-  UploadResponse,
-} from "@/types";
+} from "@/types/tasks";
+import type { UploadResponse } from "@/types/uploads";
 
-/**
- * 上传文本。
- * @param file 待上传的文件
- */
+import { deleteJson, getJson, postForm, postJson } from "./client";
+import { withQuery } from "./query";
+
+function taskFilterQuery(filters?: TaskFilters) {
+  return {
+    q: filters?.q,
+    status: filters?.status && filters.status !== "all" ? filters.status : undefined,
+    sort: filters?.sort,
+    taskType: filters?.taskType,
+    excludeTaskType: filters?.excludeTaskType,
+  };
+}
+
+/** 上传文本。 */
 export function uploadText(file: File) {
   const form = new FormData();
   form.append("file", file);
   return postForm<UploadResponse>("/uploads/texts", form);
 }
 
-/**
- * 创建生成任务。
- * @param payload 附加负载数据
- */
+/** 创建生成任务。 */
 export function createGenerationTask(payload: CreateGenerationTaskRequest) {
   return postJson<TaskDetail>("/tasks/generation", payload);
 }
 
-/**
- * 生成创意提示词。
- * @param payload 附加负载数据
- */
+/** 生成创意提示词。 */
 export function generateCreativePrompt(payload: GenerateCreativePromptRequest) {
   return postJson<GenerateCreativePromptResponse>("/tasks/generate-prompt", payload);
 }
 
-/**
- * 获取任务。
- * @param filters 筛选条件值
- */
+/** 获取全部任务。 */
 export function fetchAllTasks(filters?: TaskFilters) {
-  const params = new URLSearchParams();
-  if (filters?.q?.trim()) {
-    params.set("q", filters.q.trim());
-  }
-  if (filters?.status && filters.status !== "all") {
-    params.set("status", filters.status);
-  }
-  if (filters?.sort?.trim()) {
-    params.set("sort", filters.sort.trim());
-  }
-  if (filters?.taskType?.trim()) {
-    params.set("taskType", filters.taskType.trim());
-  }
-  if (filters?.excludeTaskType?.trim()) {
-    params.set("excludeTaskType", filters.excludeTaskType.trim());
-  }
-  const query = params.toString();
-  return getJson<TaskListItem[]>(query ? `/tasks?${query}` : "/tasks");
+  return getJson<TaskListItem[]>(withQuery("/tasks", taskFilterQuery(filters)));
 }
 
-/**
- * 分页获取任务。
- * @param filters 筛选和分页条件值
- */
+/** 分页获取任务。 */
 export function fetchTaskPage(filters: TaskFilters & { offset: number; limit: number }) {
-  const params = new URLSearchParams();
-  if (filters.q?.trim()) {
-    params.set("q", filters.q.trim());
-  }
-  if (filters.status && filters.status !== "all") {
-    params.set("status", filters.status);
-  }
-  if (filters.sort?.trim()) {
-    params.set("sort", filters.sort.trim());
-  }
-  if (filters.taskType?.trim()) {
-    params.set("taskType", filters.taskType.trim());
-  }
-  if (filters.excludeTaskType?.trim()) {
-    params.set("excludeTaskType", filters.excludeTaskType.trim());
-  }
-  params.set("offset", String(filters.offset));
-  params.set("limit", String(filters.limit));
-  return getJson<TaskPaginatedResponse>(`/tasks?${params.toString()}`);
+  return getJson<TaskPaginatedResponse>(
+    withQuery("/tasks", {
+      ...taskFilterQuery(filters),
+      offset: filters.offset,
+      limit: filters.limit,
+    }),
+  );
 }
 
-/**
- * 获取任务。
- * @param taskId 任务标识
- */
+/** 获取任务详情。 */
 export function fetchTask(taskId: string) {
-  return getJson<TaskDetail>(`/tasks/${taskId}`);
+  return getJson<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}`);
 }
 
-/**
- * 获取任务追踪。
- * @param taskId 任务标识
- * @param limit 返回的最大条目数
- */
+/** 获取任务追踪。 */
 export function fetchTaskTrace(taskId: string, limit = 500) {
-  return getJson<TaskTraceEvent[]>(`/tasks/${taskId}/trace?limit=${limit}`);
+  return getJson<TaskTraceEvent[]>(
+    withQuery(`/tasks/${encodeURIComponent(taskId)}/trace`, {
+      limit,
+    }),
+  );
 }
 
-/**
- * 获取Seedance任务结果。
- * @param remoteTaskId 远程任务标识值
- */
+/** 获取 Seedance 任务结果。 */
 export function fetchSeedanceTaskResult(remoteTaskId: string) {
   return getJson<SeedanceTaskQueryResult>(`/tasks/seedance/${encodeURIComponent(remoteTaskId)}`);
 }
 
-/**
- * 重试任务。
- * @param taskId 任务标识
- */
+/** 重试任务。 */
 export function retryTask(taskId: string) {
-  return postJson<TaskDetail>(`/tasks/${taskId}/retry`, {});
+  return postJson<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}/retry`, {});
 }
 
-/**
- * 暂停任务。
- * @param taskId 任务标识
- */
+/** 暂停任务。 */
 export function pauseTask(taskId: string) {
-  return postJson<TaskDetail>(`/tasks/${taskId}/pause`, {});
+  return postJson<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}/pause`, {});
 }
 
-/**
- * 处理继续任务。
- * @param taskId 任务标识
- */
+/** 继续任务。 */
 export function continueTask(taskId: string) {
-  return postJson<TaskDetail>(`/tasks/${taskId}/continue`, {});
+  return postJson<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}/continue`, {});
 }
 
-/**
- * 终止任务。
- * @param taskId 任务标识
- */
+/** 终止任务。 */
 export function terminateTask(taskId: string) {
-  return postJson<TaskDetail>(`/tasks/${taskId}/terminate`, {});
+  return postJson<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}/terminate`, {});
 }
 
-/**
- * 处理评分任务效果。
- * @param taskId 任务标识
- * @param payload 附加负载数据
- */
+/** 评分任务效果。 */
 export function rateTaskEffect(taskId: string, payload: RateTaskEffectRequest) {
-  return postJson<TaskDetail>(`/tasks/${taskId}/effect-rating`, payload);
+  return postJson<TaskDetail>(`/tasks/${encodeURIComponent(taskId)}/effect-rating`, payload);
 }
 
-/**
- * 删除任务。
- * @param taskId 任务标识
- */
+/** 删除任务。 */
 export function deleteTask(taskId: string) {
-  return deleteJson<TaskDeleteResult>(`/tasks/${taskId}`);
+  return deleteJson<TaskDeleteResult>(`/tasks/${encodeURIComponent(taskId)}`);
 }
