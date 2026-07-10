@@ -1,4 +1,3 @@
-import { deleteJson, getJson, postJson } from "@/api/client";
 import type {
   AdminPaginatedResponse,
   AdminTaskBatchResult,
@@ -6,29 +5,22 @@ import type {
   AdminTaskListItem,
   AdminTaskQuery,
   AdminTraceEvent,
-  TaskDetail,
-  TaskTraceEvent,
-} from "@/types";
+} from "@/types/admin";
+import type { TaskDetail, TaskTraceEvent } from "@/types/tasks";
+
+import { deleteJson, getJson, postJson } from "@/api/client";
+import { withQuery } from "@/api/query";
 
 export async function fetchAdminTasks(query?: AdminTaskQuery) {
-  const params = new URLSearchParams();
-  if (query?.q?.trim()) {
-    params.set("q", query.q.trim());
-  }
-  if (query?.status) {
-    params.set("status", query.status);
-  }
-  if (query?.sort) {
-    params.set("sort", query.sort);
-  }
-  if (query?.offset != null && query.offset > 0) {
-    params.set("offset", String(query.offset));
-  }
-  if (query?.limit != null) {
-    params.set("limit", String(query.limit));
-  }
-  const search = params.toString();
-  return getJson<AdminPaginatedResponse<AdminTaskListItem>>(search ? `/admin/tasks?${search}` : "/admin/tasks");
+  return getJson<AdminPaginatedResponse<AdminTaskListItem>>(
+    withQuery("/admin/tasks", {
+      q: query?.q,
+      status: query?.status,
+      sort: query?.sort,
+      offset: query?.offset != null && query.offset > 0 ? query.offset : undefined,
+      limit: query?.limit,
+    }),
+  );
 }
 
 export async function fetchAdminTask(taskId: string) {
@@ -36,8 +28,11 @@ export async function fetchAdminTask(taskId: string) {
 }
 
 export async function fetchAdminTaskTrace(taskId: string, limit?: number) {
-  const params = limit ? `?limit=${limit}` : "";
-  return getJson<TaskTraceEvent[]>(`/admin/tasks/${taskId}/trace${params}`);
+  return getJson<TaskTraceEvent[]>(
+    withQuery(`/admin/tasks/${taskId}/trace`, {
+      limit: limit && limit > 0 ? limit : undefined,
+    }),
+  );
 }
 
 export async function fetchAdminTaskDiagnosis(taskId: string) {
@@ -71,12 +66,13 @@ export async function fetchAdminTraces(params?: {
   stage?: string;
   q?: string;
 }) {
-  const searchParams = new URLSearchParams();
-  if (params?.limit) searchParams.set("limit", String(params.limit));
-  if (params?.taskId) searchParams.set("taskId", params.taskId);
-  if (params?.level) searchParams.set("level", params.level);
-  if (params?.stage) searchParams.set("stage", params.stage);
-  if (params?.q) searchParams.set("q", params.q);
-  const search = searchParams.toString();
-  return getJson<AdminTraceEvent[]>(search ? `/admin/traces?${search}` : "/admin/traces");
+  return getJson<AdminTraceEvent[]>(
+    withQuery("/admin/traces", {
+      limit: params?.limit,
+      taskId: params?.taskId,
+      level: params?.level,
+      stage: params?.stage,
+      q: params?.q,
+    }),
+  );
 }

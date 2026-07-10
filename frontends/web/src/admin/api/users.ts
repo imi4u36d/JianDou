@@ -1,4 +1,3 @@
-import { deleteJson, getJson, postJson, patchJson, putJson } from "@/api/client";
 import type {
   AdminModelConfigKeyUpdateRequest,
   AdminModelConfigResponse,
@@ -7,28 +6,22 @@ import type {
   AdminUserQuery,
   CreateAdminUserRequest,
   UpdateAdminUserPasswordRequest,
-  UpdateAdminUserRequest
-} from "@/types";
+  UpdateAdminUserRequest,
+} from "@/types/admin";
+
+import { deleteJson, getJson, patchJson, postJson, putJson } from "@/api/client";
+import { withQuery } from "@/api/query";
 
 export async function fetchAdminUsers(query?: AdminUserQuery) {
-  const params = new URLSearchParams();
-  if (query?.q?.trim()) {
-    params.set("q", query.q.trim());
-  }
-  if (query?.role) {
-    params.set("role", query.role);
-  }
-  if (query?.status) {
-    params.set("status", query.status);
-  }
-  if (query?.offset != null && query.offset > 0) {
-    params.set("offset", String(query.offset));
-  }
-  if (query?.limit != null) {
-    params.set("limit", String(query.limit));
-  }
-  const search = params.toString();
-  return getJson<AdminPaginatedResponse<AdminUser>>(search ? `/admin/users?${search}` : "/admin/users");
+  return getJson<AdminPaginatedResponse<AdminUser>>(
+    withQuery("/admin/users", {
+      q: query?.q,
+      role: query?.role,
+      status: query?.status,
+      offset: query?.offset != null && query.offset > 0 ? query.offset : undefined,
+      limit: query?.limit,
+    }),
+  );
 }
 
 export async function fetchAdminModelConfig() {
