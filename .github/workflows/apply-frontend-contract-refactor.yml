@@ -1,0 +1,64 @@
+name: Apply frontend contract refactor
+
+on:
+  push:
+    branches:
+      - refactor/physical-core-contracts
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify patches
+        run: git apply --check scripts/refactor-parts/*.patch
+
+      - name: Apply patches
+        run: git apply scripts/refactor-parts/*.patch
+
+      - name: Remove temporary automation
+        run: |
+          rm -rf scripts/refactor-parts
+          rm -f .github/workflows/source-snapshot.yml
+          rm -f .github/workflows/apply-frontend-contract-refactor.yml
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run web:lint
+
+      - name: Typecheck packages
+        run: npm run packages:typecheck
+
+      - name: Typecheck web
+        run: npm run web:typecheck
+
+      - name: Run frontend tests
+        run: npm run web:test
+
+      - name: Build web
+        run: npm run web:build
+
+      - name: Commit validated refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "refactor(frontend): move core contracts into owned modules"
+          git push origin HEAD:refactor/physical-core-contracts
