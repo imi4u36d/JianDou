@@ -2,19 +2,20 @@
  * 登录态单例状态。
  */
 import { computed, reactive } from "vue";
+
 import { activateInviteAccount, fetchAuthSession, loginByPassword, logoutSession } from "@/api/auth";
 import { ApiClientError, setUnauthorizedHandler } from "@/api/client";
-import type { ActivateInviteRequest, AuthSession, LoginRequest } from "@/types";
+import type { ActivateInviteRequest, AuthSession, LoginRequest } from "@/types/auth";
 
 const anonymousSession: AuthSession = {
   authenticated: false,
-  user: null
+  user: null,
 };
 
 const state = reactive({
   ready: false,
   loading: false,
-  session: { ...anonymousSession } as AuthSession
+  session: { ...anonymousSession } as AuthSession,
 });
 
 let pendingSessionPromise: Promise<AuthSession> | null = null;
@@ -89,6 +90,6 @@ export function useAuthSessionState() {
     session: computed(() => state.session),
     user: computed(() => state.session.user),
     isAuthenticated: computed(() => state.session.authenticated),
-    isAdmin: computed(() => state.session.user?.role === "ADMIN")
+    isAdmin: computed(() => state.session.user?.role === "ADMIN"),
   };
 }
