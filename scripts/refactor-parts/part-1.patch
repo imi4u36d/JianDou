@@ -1,0 +1,239 @@
+diff --git a/docs/refactoring-plan.md b/docs/refactoring-plan.md
+index de5a098..1ad67d7 100644
+--- a/docs/refactoring-plan.md
++++ b/docs/refactoring-plan.md
+@@ -13,8 +13,10 @@ This document tracks the incremental standardization of JianDou. Each phase shou
+ - [x] Introduce domain-scoped type entry points while keeping `src/types/index.ts` as a compatibility barrel.
+ - [x] Migrate authentication and the first API modules to explicit domain contract imports.
+ - [x] Centralize optional query-string serialization and cover its edge cases with unit tests.
+-- [ ] Move the underlying definitions out of `src/types/index.ts` domain by domain.
+-- [ ] Migrate the remaining generation, workflow, material, component, and composable imports.
++- [x] Move auth, credit, health, public-share, and upload definitions out of `src/types/index.ts`.
++- [x] Migrate generation, workflow, and material API modules to explicit domain contract imports.
++- [ ] Move task, generation, workflow, material, and admin definitions out of `src/types/index.ts`.
++- [ ] Migrate the remaining component and composable imports.
+ - [ ] Reduce lint exclusions by decomposing oversized views.
+ 
+ ## Phase 3: Backend service boundaries
+diff --git a/frontends/web/eslint.config.js b/frontends/web/eslint.config.js
+index 4539f22..15575eb 100644
+--- a/frontends/web/eslint.config.js
++++ b/frontends/web/eslint.config.js
+@@ -53,11 +53,14 @@ export default [
+     files: [
+       "src/api/auth.ts",
+       "src/api/credits.ts",
++      "src/api/generation.ts",
+       "src/api/health.ts",
++      "src/api/material-assets.ts",
+       "src/api/public-shares.ts",
+       "src/api/script.ts",
+       "src/api/showcase.ts",
+       "src/api/tasks.ts",
++      "src/api/workflows.ts",
+       "src/admin/api/**/*.ts",
+       "src/auth/**/*.ts",
+     ],
+@@ -75,4 +78,26 @@ export default [
+       ],
+     },
+   },
++  {
++    files: [
++      "src/types/auth.ts",
++      "src/types/credits.ts",
++      "src/types/health.ts",
++      "src/types/public-shares.ts",
++      "src/types/uploads.ts",
++    ],
++    rules: {
++      "no-restricted-imports": [
++        "error",
++        {
++          paths: [
++            {
++              name: "./index",
++              message: "Owned contract modules must define their contracts instead of re-exporting the legacy barrel.",
++            },
++          ],
++        },
++      ],
++    },
++  },
+ ];
+diff --git a/frontends/web/src/__tests__/material-assets-api.test.ts b/frontends/web/src/__tests__/material-assets-api.test.ts
+new file mode 100644
+index 0000000..6598f0a
+--- /dev/null
++++ b/frontends/web/src/__tests__/material-assets-api.test.ts
+@@ -0,0 +1,59 @@
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++import {
++  fetchMaterialAssetPage,
++  fetchMaterialAssets,
++  reuseMaterialAsset,
++} from "@/api/material-assets";
++import { getJson, postJson } from "@/api/client";
++
++vi.mock("@/api/client", () => ({
++  deleteJson: vi.fn(),
++  getJson: vi.fn(),
++  patchJson: vi.fn(),
++  postForm: vi.fn(),
++  postJson: vi.fn(),
++}));
++
++describe("material asset API", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it("preserves zero and false query values", () => {
++    fetchMaterialAssetPage({
++      q: "  hero  ",
++      minRating: 0,
++      clipIndex: 0,
++      includeWorkflowArtifacts: false,
++      offset: 0,
++      limit: 20,
++    });
++
++    expect(getJson).toHaveBeenCalledWith(
++      "/material-assets?q=hero&minRating=0&clipIndex=0&includeWorkflowArtifacts=false&offset=0&limit=20",
++    );
++  });
++
++  it("normalizes paginated responses to a list", async () => {
++    vi.mocked(getJson).mockResolvedValueOnce({
++      items: [{ id: "asset-1" }],
++      offset: 0,
++      limit: 20,
++      total: 1,
++      hasMore: false,
++      nextOffset: null,
++    });
++
++    await expect(fetchMaterialAssets()).resolves.toEqual([{ id: "asset-1" }]);
++  });
++
++  it("encodes asset identifiers when reusing material", () => {
++    reuseMaterialAsset("asset/1");
++
++    expect(postJson).toHaveBeenCalledWith(
++      "/material-assets/asset%2F1/reuse",
++      { mode: "clone" },
++    );
++  });
++});
+diff --git a/frontends/web/src/__tests__/type-contract-compatibility.test.ts b/frontends/web/src/__tests__/type-contract-compatibility.test.ts
+new file mode 100644
+index 0000000..b911ddc
+--- /dev/null
++++ b/frontends/web/src/__tests__/type-contract-compatibility.test.ts
+@@ -0,0 +1,24 @@
++import { describe, expectTypeOf, it } from "vitest";
++
++import type {
++  AuthSession as BarrelAuthSession,
++  CreditSummary as BarrelCreditSummary,
++  HealthResponse as BarrelHealthResponse,
++  PublicShareItem as BarrelPublicShareItem,
++  UploadResponse as BarrelUploadResponse,
++} from "@/types";
++import type { AuthSession } from "@/types/auth";
++import type { CreditSummary } from "@/types/credits";
++import type { HealthResponse } from "@/types/health";
++import type { PublicShareItem } from "@/types/public-shares";
++import type { UploadResponse } from "@/types/uploads";
++
++describe("type compatibility barrel", () => {
++  it("preserves the domain contract shapes", () => {
++    expectTypeOf<BarrelAuthSession>().toEqualTypeOf<AuthSession>();
++    expectTypeOf<BarrelCreditSummary>().toEqualTypeOf<CreditSummary>();
++    expectTypeOf<BarrelHealthResponse>().toEqualTypeOf<HealthResponse>();
++    expectTypeOf<BarrelPublicShareItem>().toEqualTypeOf<PublicShareItem>();
++    expectTypeOf<BarrelUploadResponse>().toEqualTypeOf<UploadResponse>();
++  });
++});
+diff --git a/frontends/web/src/__tests__/workflow-api.test.ts b/frontends/web/src/__tests__/workflow-api.test.ts
+new file mode 100644
+index 0000000..fc7512c
+--- /dev/null
++++ b/frontends/web/src/__tests__/workflow-api.test.ts
+@@ -0,0 +1,52 @@
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++import {
++  deleteAllStageVersions,
++  fetchWorkflowPage,
++  startAutoPilot,
++} from "@/api/workflows";
++import { deleteJson, getJson, postJson } from "@/api/client";
++
++vi.mock("@/api/client", () => ({
++  deleteJson: vi.fn(),
++  getJson: vi.fn(),
++  patchJson: vi.fn(),
++  postJson: vi.fn(),
++}));
++
++describe("workflow API", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it("serializes workflow filters consistently", () => {
++    fetchWorkflowPage({
++      q: "  opening scene  ",
++      status: "all",
++      sort: "updated_desc",
++      offset: 0,
++      limit: 25,
++    });
++
++    expect(getJson).toHaveBeenCalledWith(
++      "/workflows?q=opening+scene&sort=updated_desc&offset=0&limit=25",
++    );
++  });
++
++  it("encodes optional stage filters", () => {
++    deleteAllStageVersions("workflow/1", "key frame");
++
++    expect(deleteJson).toHaveBeenCalledWith(
++      "/workflows/workflow%2F1/versions?stage_type=key+frame",
++    );
++  });
++
++  it("encodes workflow identifiers for auto-pilot actions", () => {
++    startAutoPilot("workflow/1");
++
++    expect(postJson).toHaveBeenCalledWith(
++      "/workflows/workflow%2F1/auto-pilot/start",
++      {},
++    );
++  });
++});
+diff --git a/frontends/web/src/api/generation.ts b/frontends/web/src/api/generation.ts
+index 4185332..b627d6d 100644
+--- a/frontends/web/src/api/generation.ts
++++ b/frontends/web/src/api/generation.ts
+@@ -1,7 +1,6 @@
+ /**
+  * 生成相关 API 请求封装。
+  */
+-import { getJson, postJson } from "./client";
+ import type {
+   GenerationCallLogEntry,
+   GenerateMediaRequest,
+@@ -10,7 +9,9 @@ import type {
+   ProbeTextAnalysisModelRequest,
+   ProbeTextAnalysisModelResponse,
+   VideoModelUsageResponse,
+-} from "@/types";
++} from "@/types/generation";
++
++import { getJson, postJson } from "./client";
+ 
+ type UnknownRecord = Record<string, unknown>;
+ 
