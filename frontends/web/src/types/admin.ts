@@ -1,5 +1,18 @@
+/** Administrative users, tasks, model configuration, and credit contracts. */
 import type { InviteStatus, UserRole, UserStatus } from "./auth";
 import type { TaskFilters, TaskListItem, TaskStatus, TaskTraceEvent } from "./task";
+
+export type {
+  AdminModelConfigDefaults,
+  AdminModelConfigKeyUpdateRequest,
+  AdminModelConfigModelItem,
+  AdminModelConfigProviderItem,
+  AdminModelConfigProviderKeyInput,
+  AdminModelConfigResponse,
+  AdminModelConfigSummary,
+  AdminModelConfigValidationResponse,
+} from "./generation-model-config";
+export type { AdminTaskDiagnosis, AdminTaskDiagnosisFinding } from "./task-execution";
 
 export interface AdminOverviewCounts {
   totalTasks: number;

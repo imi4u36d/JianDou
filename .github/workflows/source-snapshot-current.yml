@@ -1,0 +1,25 @@
+name: Current source snapshot
+
+on:
+  push:
+    branches:
+      - refactor/physical-core-contracts
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-source-snapshot
+          path: .
+          retention-days: 1
+          if-no-files-found: error

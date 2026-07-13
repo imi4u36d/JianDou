@@ -1,9 +1,8 @@
-import { getJson } from "./client";
-import type { TaskShowcaseResponse } from "@/types";
+import type { TaskShowcaseResponse } from "@/types/tasks";
 
-/**
- * 获取官网与工作台共用的真实案例展示。
- */
+import { getJson } from "./client";
+
+/** 获取官网与工作台共用的真实案例展示。 */
 export function fetchTaskShowcase() {
   return getJson<TaskShowcaseResponse>("/tasks/showcase");
 }

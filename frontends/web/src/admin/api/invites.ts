@@ -1,5 +1,6 @@
+import type { AdminInvite, CreateAdminInviteRequest } from "@/types/admin";
+
 import { getJson, postJson } from "@/api/client";
-import type { AdminInvite, CreateAdminInviteRequest } from "@/types";
 
 export async function fetchAdminInvites() {
   return getJson<AdminInvite[]>("/admin/invites");

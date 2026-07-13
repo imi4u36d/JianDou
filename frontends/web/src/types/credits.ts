@@ -1,3 +1,4 @@
+/** User credit and transaction contracts. */
 export interface CreditRule {
   featureCode: string;
   displayName: string;

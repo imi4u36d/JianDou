@@ -1,5 +1,8 @@
+/** Authentication and account contracts. */
 export type UserRole = "ADMIN" | "USER";
+
 export type UserStatus = "ACTIVE" | "DISABLED";
+
 export type InviteStatus = "UNUSED" | "USED" | "REVOKED" | "EXPIRED";
 
 export interface AuthenticatedUser {

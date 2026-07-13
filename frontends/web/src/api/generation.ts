@@ -1,13 +1,14 @@
 /**
  * 生成相关 API 请求封装。
  */
-import { getJson, postJson } from "./client";
 import type {
   GenerateMediaRequest,
   ProbeTextAnalysisModelRequest,
   ProbeTextAnalysisModelResponse,
   VideoModelUsageResponse,
-} from "@/types";
+} from "@/types/generation";
+
+import { getJson, postJson } from "./client";
 import {
   asNumber,
   asRecord,
@@ -91,10 +92,7 @@ export async function probeTextAnalysisModel(payload: ProbeTextAnalysisModelRequ
     options: {},
   });
   const runRecord = asRecord(run) ?? {};
-  const probe =
-    asRecord(runRecord.result) ??
-    asRecord(runRecord.resultProbe) ??
-    {};
+  const probe = asRecord(runRecord.result) ?? asRecord(runRecord.resultProbe) ?? {};
   const metadata = asRecord(probe.metadata) ?? {};
   return {
     ready: Boolean(probe.ready ?? metadata.ready ?? true),

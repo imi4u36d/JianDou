@@ -1,20 +1,17 @@
-import { getJson, postJson, patchJson } from "@/api/client";
 import type {
   AdminCreditAdjustmentRequest,
   AdminCreditRule,
   AdminCreditRuleUpdateRequest,
   AdminCreditTransaction,
   AdminCreditUser,
-  AdminCreditUserQuery
-} from "@/types";
+  AdminCreditUserQuery,
+} from "@/types/admin";
+
+import { getJson, patchJson, postJson } from "@/api/client";
+import { withQuery } from "@/api/query";
 
 export async function fetchAdminCreditUsers(query?: AdminCreditUserQuery) {
-  const params = new URLSearchParams();
-  if (query?.q?.trim()) {
-    params.set("q", query.q.trim());
-  }
-  const search = params.toString();
-  return getJson<AdminCreditUser[]>(search ? `/admin/credits/users?${search}` : "/admin/credits/users");
+  return getJson<AdminCreditUser[]>(withQuery("/admin/credits/users", { q: query?.q }));
 }
 
 export async function fetchAdminCreditTransactions(userId: number) {

@@ -1,3 +1,4 @@
+/** Health-check and runtime diagnostic contracts. */
 export interface HealthModelSummary {
   provider: string | null;
   primary_model?: string | null;
