@@ -7,6 +7,39 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-13
+
+### Added
+
+- Added explicit backend and frontend application bootstrap modules while preserving existing public entry points.
+- Added domain-specific frontend contract entry points, shared query serialization, compatibility checks, and import-boundary lint rules.
+- Added maintainability and incremental refactoring guides with automated module-boundary and source-size guardrails.
+- Expanded backend regression coverage and frontend component, composable, presenter, and API tests.
+
+### Changed
+
+- Split oversized backend repositories, routers, provider integrations, task execution services, and workflow services into focused collaborators behind stable facades.
+- Split large Vue views into focused components, composables, presenters, type modules, and view-owned styles.
+- Standardized frontend API query serialization, identifier encoding, domain-owned type imports, and lazy admin application setup.
+- Upgraded Vue, Vue Router, TypeScript, Vite, Vitest, ESLint, Tailwind CSS, and related frontend tooling.
+- Made frontend lint and test failures mandatory CI gates, sourced the Node version from `.nvmrc`, and updated the deployment SSH action.
+- Updated backend dependency constraints and the bundled OpenAI-compatible provider base URL.
+
+### Fixed
+
+- Improved task detail progress presentation and styling.
+- Tightened lightweight task-query regression assertions after dependency integration.
+
+### Compatibility
+
+- No database migration is required when upgrading from `0.2.0-rc.1`.
+- Existing backend entry points, route paths, compatibility type exports, and request/response contracts remain supported.
+
+### Known limitations
+
+- Database-backed integration tests still require `JIANDOU_TEST_DATABASE_URL`.
+- Provider availability depends on deployment-specific endpoints and credentials; deployments using the bundled OpenAI-compatible endpoint should verify network reachability.
+
 ## [0.2.0-rc.1] - 2026-07-02
 
 ### Added
