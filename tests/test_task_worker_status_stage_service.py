@@ -9,6 +9,7 @@ from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.services.generation_service import GenerationProviderException
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
+from backend.services.task_worker_record_factory import TaskWorkerRecordFactory
 from backend.services.task_worker_status_stage_service import (
     TaskExecutionAbortedException,
     TaskStage,
@@ -60,6 +61,7 @@ def test_record_stage_run_creates_deterministic_completed_row() -> None:
 
 def test_model_call_lifecycle_preserves_model_metadata_and_provider_errors() -> None:
     service = TaskWorkerStatusStageService()
+    assert isinstance(service._record_factory, TaskWorkerRecordFactory)
     pending = service.create_pending_model_call(
         _task(),
         TaskStage.RENDER,

@@ -3,13 +3,8 @@
  * 管理统一任务详情的加载、展示和操作。
  */
 import { computed, ref, watch } from "vue";
-import { requireAuth } from "@/auth/modal";
-import { usePolling } from "@/composables/usePolling";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
-import { continueTask, deleteTask, fetchTask, pauseTask, retryTask, terminateTask } from "@/features/tasks";
-import { messageApi } from "@/composables/useMessage";
-import type { TaskAttempt, TaskDetail, TaskListItem, TaskStageRun, TaskStatus } from "@/types";
-import type { IconName } from "@/components/icons";
+import type { TaskDetail, TaskListItem, TaskStatus } from "@/types";
 import {
   formatTaskDurationMode,
   formatTaskModelValue,
@@ -25,263 +20,25 @@ import {
 } from "@/utils/task-request";
 import { formatTaskStatus } from "@/utils/task";
 import { getTaskStatusMeta } from "@/utils/presentation";
-import { resolveTaskPreviewMedia, resolveTaskThumbnailUrl } from "@/utils/task-preview";
-
-type TaskStageState = "pending" | "active" | "paused" | "done" | "failed";
-type TaskStageIconState = TaskStageState;
-const ACTIVE_TASK_STATUSES = new Set<TaskStatus>(["PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED"]);
-
-interface TaskStageDisplayItem {
-  key: string;
-  label: string;
-  state: TaskStageState;
-  iconState: TaskStageIconState;
-  stateLabel: string;
-  durationLabel: string;
-}
-
-type TaskStageTimingTask = Pick<TaskListItem, "createdAt" | "updatedAt" | "startedAt" | "finishedAt"> & {
-  attempts?: TaskAttempt[];
-  stageRuns?: TaskStageRun[];
-};
-
-const taskStageStateLabels: Record<TaskStageState, string> = {
-  pending: "等待",
-  active: "进行中",
-  paused: "已暂停",
-  done: "已完成",
-  failed: "失败",
-};
-const COMPLETED_PREVIEW_POLL_LIMIT = 8;
-
-function withTaskStageLabels(
-  items: Array<Omit<TaskStageDisplayItem, "stateLabel" | "iconState" | "durationLabel"> & Partial<Pick<TaskStageDisplayItem, "iconState" | "durationLabel">>>,
-): TaskStageDisplayItem[] {
-  return items.map((item) => ({
-    ...item,
-    iconState: item.iconState ?? item.state,
-    stateLabel: taskStageStateLabels[item.state],
-    durationLabel: item.durationLabel ?? "",
-  }));
-}
-
-function buildVideoTaskStages(status: TaskStatus): TaskStageDisplayItem[] {
-  const stageOrder: TaskStatus[] = ["ANALYZING", "PLANNING", "RENDERING", "COMPLETED"];
-  const pausedAtRender = status === "PAUSED";
-  const currentIndex = pausedAtRender ? 2 : stageOrder.indexOf(status);
-  const items = [
-    { key: "ANALYZING", label: "素材分析", state: currentIndex > 0 ? "done" : currentIndex === 0 ? "active" : "pending" },
-    { key: "PLANNING", label: "任务编排", state: currentIndex > 1 ? "done" : currentIndex === 1 ? "active" : "pending" },
-    { key: "RENDERING", label: "视频生成", state: pausedAtRender ? "paused" : currentIndex > 2 ? "done" : currentIndex === 2 ? "active" : "pending" },
-    { key: "COMPLETED", label: "任务完成", state: status === "COMPLETED" ? "done" : status === "FAILED" ? "failed" : "pending" },
-  ] as Array<Omit<TaskStageDisplayItem, "stateLabel" | "iconState" | "durationLabel">>;
-  return withTaskStageLabels(items);
-}
-
-function timeValue(raw?: string | null): number | null {
-  if (!raw) return null;
-  const value = new Date(raw).getTime();
-  return Number.isNaN(value) ? null : value;
-}
-
-function elapsedMs(start?: string | null, end?: string | null): number | null {
-  const startValue = timeValue(start);
-  const endValue = timeValue(end);
-  if (startValue == null || endValue == null || endValue < startValue) return null;
-  return endValue - startValue;
-}
-
-function elapsedUntil(start?: string | null, endValue: number | null = Date.now()): number | null {
-  const startValue = timeValue(start);
-  if (startValue == null || endValue == null || endValue < startValue) return null;
-  return endValue - startValue;
-}
-
-function formatStageDuration(ms: number | null): string {
-  if (ms == null) return "";
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const seconds = totalSeconds % 60;
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = totalMinutes % 60;
-  const hours = Math.floor(totalMinutes / 60);
-  if (hours > 0) {
-    return `${hours}h ${minutes > 0 ? `${minutes}分` : ""}${seconds}秒`;
-  }
-  if (minutes > 0) {
-    return `${minutes}分${String(seconds).padStart(2, "0")}秒`;
-  }
-  return `00:${String(seconds).padStart(2, "0")}秒`;
-}
-
-function stageRunDurationMs(run?: TaskStageRun | null): number | null {
-  if (!run) return null;
-  if (typeof run.durationMs === "number" && Number.isFinite(run.durationMs) && run.durationMs > 0) {
-    return run.durationMs;
-  }
-  return elapsedMs(run.startedAt, run.finishedAt);
-}
-
-function latestAttempt(task: TaskStageTimingTask | null | undefined): TaskAttempt | null {
-  const attempts = task?.attempts ?? [];
-  if (!attempts.length) return null;
-  const sorted = [...attempts].sort((a, b) => {
-    const attemptNoA = Number(a.attemptNo ?? 0);
-    const attemptNoB = Number(b.attemptNo ?? 0);
-    if (attemptNoA !== attemptNoB) return attemptNoA - attemptNoB;
-    return (timeValue(a.queueEnteredAt) ?? timeValue(a.startedAt) ?? 0) - (timeValue(b.queueEnteredAt) ?? timeValue(b.startedAt) ?? 0);
-  });
-  return sorted[sorted.length - 1] ?? null;
-}
-
-function latestStageRun(task: TaskStageTimingTask | null | undefined, matcher: (stageName: string) => boolean): TaskStageRun | null {
-  const attempt = latestAttempt(task);
-  const attemptId = String(attempt?.attemptId ?? "").trim();
-  const runs = task?.stageRuns ?? [];
-  const matched = runs.filter((run) => {
-    const runAttemptId = String(run.attemptId ?? "").trim();
-    return (!attemptId || !runAttemptId || runAttemptId === attemptId) && matcher(String(run.stageName ?? "").trim().toLowerCase());
-  });
-  if (!matched.length) return null;
-  const sorted = [...matched].sort((a, b) => {
-    const seqA = Number(a.stageSeq ?? 0);
-    const seqB = Number(b.stageSeq ?? 0);
-    if (seqA !== seqB) return seqA - seqB;
-    return (timeValue(a.startedAt) ?? 0) - (timeValue(b.startedAt) ?? 0);
-  });
-  return sorted[sorted.length - 1] ?? null;
-}
-
-function imageSubmitStageDuration(task: TaskStageTimingTask | null | undefined): number | null {
-  const attempt = latestAttempt(task);
-  const attemptStart = attempt?.startedAt ?? attempt?.claimedAt ?? attempt?.queueLeftAt ?? null;
-  const attemptQueuedAt = attempt?.queueEnteredAt ?? null;
-  if (attemptStart) {
-    return elapsedMs(attemptQueuedAt, attemptStart) ?? elapsedMs(task?.updatedAt, attemptStart) ?? elapsedMs(task?.createdAt, attemptStart);
-  }
-  if (attemptQueuedAt) {
-    return elapsedUntil(attemptQueuedAt, Date.now());
-  }
-  return elapsedMs(task?.createdAt, task?.startedAt ?? task?.updatedAt);
-}
-
-function imageRenderStageDuration(task: TaskStageTimingTask | null | undefined, status: TaskStatus): number | null {
-  const renderRun = latestStageRun(task, (stageName) =>
-    stageName.includes("render") ||
-    stageName.includes("planning") ||
-    stageName.includes("image") ||
-    stageName.includes("character")
-  );
-  const fallbackEnd = task?.finishedAt ? timeValue(task.finishedAt) : status === "RENDERING" ? Date.now() : timeValue(task?.updatedAt);
-  return stageRunDurationMs(renderRun) ?? elapsedUntil(task?.startedAt, fallbackEnd);
-}
-
-function buildImageTaskStages(task: TaskStageTimingTask | null, status: TaskStatus, taskType: string): TaskStageDisplayItem[] {
-  const renderLabel = taskType === "character_sheet" ? "三视图生成" : "图片生成";
-  const submitState: TaskStageState = ["RENDERING", "COMPLETED", "FAILED", "PAUSED"].includes(status) ? "done" : "active";
-  const renderState: TaskStageState =
-    status === "COMPLETED" ? "done" :
-    status === "FAILED" ? "failed" :
-    status === "PAUSED" ? "paused" :
-    status === "RENDERING" ? "active" :
-    "pending";
-  const completeState: TaskStageState = status === "COMPLETED" ? "done" : "pending";
-  const submitDuration = imageSubmitStageDuration(task);
-  const renderDuration = imageRenderStageDuration(task, status);
-  const completeDuration = status === "COMPLETED" ? elapsedMs(task?.startedAt, task?.finishedAt) : null;
-  return withTaskStageLabels([
-    { key: "PENDING", label: "提交任务", state: submitState, durationLabel: formatStageDuration(submitDuration) },
-    { key: "RENDERING", label: renderLabel, state: renderState, durationLabel: formatStageDuration(renderDuration) },
-    { key: "COMPLETED", label: "生成完成", state: completeState, durationLabel: status === "COMPLETED" ? formatStageDuration(completeDuration) || "--" : "" },
-  ]);
-}
-
-function formatMonitoringValue(value: unknown): string {
-  if (value == null) return "暂无";
-  if (typeof value === "number") return value > 0 ? String(value) : "暂无";
-  const text = String(value).trim();
-  return text ? text : "暂无";
-}
-
-function compactIdentifier(value: string, keep = 8): string {
-  const text = String(value ?? "").trim();
-  if (!text || text === "暂无") return text || "暂无";
-  if (text.length <= keep + 2) return text;
-  return `#${text.slice(-keep)}`;
-}
-
-function compactPath(value: string): string {
-  const text = String(value ?? "").trim();
-  if (!text || text === "等待任务创建" || text.length <= 28) return text || "等待任务创建";
-  const parts = text.split(/[\\/]/).filter(Boolean);
-  if (parts.length >= 2) return `.../${parts.slice(-2).join("/")}`;
-  return `...${text.slice(-24)}`;
-}
-
-function normalizedTaskType(task?: Pick<TaskListItem, "taskType"> & { requestSnapshot?: { taskType?: string | null } } | null): string {
-  return String(task?.requestSnapshot?.taskType || task?.taskType || "video_generation").trim() || "video_generation";
-}
-
-function taskTypeLabel(task?: Pick<TaskListItem, "taskType"> & { requestSnapshot?: { taskType?: string | null } } | null): string {
-  switch (normalizedTaskType(task)) {
-    case "image_generation": return "文生图";
-    case "image_to_image": return "图生图";
-    case "character_sheet": return "角色三视图";
-    case "video_generation": return "视频生成";
-    default: return "生成任务";
-  }
-}
-
-function taskTypeIcon(task?: Pick<TaskListItem, "taskType"> & { requestSnapshot?: { taskType?: string | null } } | null): IconName {
-  switch (normalizedTaskType(task)) {
-    case "image_generation":
-    case "image_to_image": return "image";
-    case "character_sheet": return "character";
-    case "video_generation": return "video";
-    default: return "task";
-  }
-}
-
-function isActiveTaskStatus(status?: TaskStatus | null): boolean {
-  return Boolean(status && ACTIVE_TASK_STATUSES.has(status));
-}
-
-function firstNonBlank(...values: Array<string | null | undefined>): string {
-  for (const value of values) {
-    const normalized = String(value ?? "").trim();
-    if (normalized) return normalized;
-  }
-  return "";
-}
-
-function assetUrlKey(url: string): string {
-  return String(url ?? "").trim();
-}
-
-function listValue(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function taskFailureContext(task?: Pick<TaskListItem, "failureStage" | "failureClipIndex"> | null): string {
-  if (!task) return "";
-  const parts: string[] = [];
-  if (task.failureStage) parts.push(`阶段 ${task.failureStage}`);
-  if (typeof task.failureClipIndex === "number" && task.failureClipIndex > 0) parts.push(`镜头 #${task.failureClipIndex}`);
-  return parts.join(" · ");
-}
-
-function taskThumbnailUrl(task?: (TaskListItem | TaskDetail) | null): string {
-  return resolveTaskThumbnailUrl(task);
-}
-
-function stageStateClass(state: TaskStageState): string {
-  switch (state) {
-    case "done": return "task-stage-row--done";
-    case "active": return "task-stage-row--active";
-    case "paused": return "task-stage-row--paused";
-    case "failed": return "task-stage-row--failed";
-    default: return "task-stage-row--pending";
-  }
-}
+import { useTaskDetailCommands } from "./useTaskDetailCommands";
+import { useTaskDetailLoader } from "./useTaskDetailLoader";
+import {
+  assetUrlKey,
+  buildImageTaskStages,
+  buildVideoTaskStages,
+  compactIdentifier,
+  compactPath,
+  firstNonBlank,
+  formatMonitoringValue,
+  isActiveTaskStatus,
+  listValue,
+  normalizedTaskType,
+  stageStateClass,
+  taskFailureContext,
+  taskThumbnailUrl,
+  taskTypeIcon,
+  taskTypeLabel,
+} from "../features/task-detail-presenters";
 
 export interface UseTaskDetailOptions {
   /** 当前选中的任务 ID */
@@ -295,12 +52,7 @@ export interface UseTaskDetailOptions {
 }
 
 export function useTaskDetail(options: UseTaskDetailOptions) {
-  const selectedTaskDetail = ref<TaskDetail | null>(null);
-  const selectedTaskLoading = ref(false);
-  const managingTaskId = ref("");
   const failureDetailsOpen = ref(false);
-  const completedPreviewPollCount = ref(0);
-  let detailRequestSerial = 0;
 
   const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
 
@@ -310,6 +62,34 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   const selectedTaskSummary = computed(() => {
     if (!selectedTaskId.value) return null;
     return tasks.value.find((task) => task.id === selectedTaskId.value) ?? null;
+  });
+
+  const {
+    selectedTaskDetail,
+    selectedTaskLoading,
+    selectedTaskPreviewMedia,
+    selectedTaskAwaitingCompletedPreview,
+    loadSelectedTaskDetails,
+    refreshSelectedTask,
+    startDetailPolling,
+    stopDetailPolling,
+  } = useTaskDetailLoader({
+    selectedTaskId: () => selectedTaskId.value,
+    selectedTaskSummary: () => selectedTaskSummary.value,
+  });
+  const {
+    managingTaskId,
+    handleRetry,
+    handlePause,
+    handleContinueTask,
+    handleTerminate,
+    handleDelete,
+  } = useTaskDetailCommands({
+    selectedTaskId: () => selectedTaskId.value,
+    reloadTasks: options.reloadTasks,
+    reloadDetail: loadSelectedTaskDetails,
+    requestConfirm,
+    onDeleted: options.onDeleted,
   });
 
   const selectedTask = computed(() => selectedTaskDetail.value ?? selectedTaskSummary.value);
@@ -402,14 +182,6 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
   const selectedTaskThumbnailUrl = computed(() =>
     taskThumbnailUrl(selectedTaskDetail.value ?? selectedTaskSummary.value)
   );
-
-  const selectedTaskPreviewMedia = computed(() =>
-    resolveTaskPreviewMedia(selectedTaskDetail.value ?? selectedTaskSummary.value)
-  );
-  const selectedTaskAwaitingCompletedPreview = computed(() => {
-    const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
-    return status === "COMPLETED" && !selectedTaskPreviewMedia.value && completedPreviewPollCount.value < COMPLETED_PREVIEW_POLL_LIMIT;
-  });
 
   const selectedTaskResultItems = computed(() => {
     const items: Array<{ title: string; url: string }> = [];
@@ -519,164 +291,10 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     return buildVideoTaskStages(status);
   });
 
-  // ── Data loading ──
-
-  async function loadSelectedTaskDetails(opts: { silent?: boolean } = {}) {
-    const taskId = selectedTaskId.value;
-    const requestId = ++detailRequestSerial;
-    if (!taskId) {
-      selectedTaskDetail.value = null;
-      selectedTaskLoading.value = false;
-      return;
-    }
-    if (!opts.silent) {
-      if (selectedTaskDetail.value?.id !== taskId) {
-        selectedTaskDetail.value = null;
-      }
-      selectedTaskLoading.value = true;
-    }
-    try {
-      const detail = await fetchTask(taskId);
-      if (requestId !== detailRequestSerial || selectedTaskId.value !== taskId) {
-        return;
-      }
-      selectedTaskDetail.value = detail;
-      if (selectedTaskPreviewMedia.value) {
-        completedPreviewPollCount.value = 0;
-      }
-      if (selectedTaskAwaitingCompletedPreview.value) {
-        completedPreviewPollCount.value += 1;
-        if (!detailPolling.active.value) {
-          void detailPolling.start(false);
-        }
-      } else if (!isActiveTaskStatus(detail.status)) {
-        detailPolling.stop();
-      }
-    } catch (error) {
-      if (!opts.silent && requestId === detailRequestSerial && selectedTaskId.value === taskId) {
-        messageApi.error(error instanceof Error ? error.message : "任务详情加载失败");
-      }
-    } finally {
-      if (!opts.silent && requestId === detailRequestSerial && selectedTaskId.value === taskId) {
-        selectedTaskLoading.value = false;
-      }
-    }
-  }
-
-  async function refreshSelectedTask() {
-    await loadSelectedTaskDetails();
-  }
-
-  // ── Action handlers ──
-
-  async function handleRetry(task: TaskListItem) {
-    if (managingTaskId.value) return;
-    const authenticated = await requireAuth({ title: "登录后操作任务", message: "任务重试会重新加入队列，请先登录或使用邀请码注册。" });
-    if (!authenticated) { messageApi.error("登录后可继续操作任务"); return; }
-    managingTaskId.value = task.id;
-    try {
-      await retryTask(task.id);
-      await Promise.all([
-        options.reloadTasks(),
-        task.id === selectedTaskId.value ? loadSelectedTaskDetails() : Promise.resolve(),
-      ]);
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "重试任务失败");
-    } finally {
-      managingTaskId.value = "";
-    }
-  }
-
-  async function handlePause(task: TaskListItem) {
-    if (managingTaskId.value) return;
-    const authenticated = await requireAuth({ title: "登录后操作任务", message: "任务操作会修改你的任务状态，请先登录或使用邀请码注册。" });
-    if (!authenticated) { messageApi.error("登录后可继续操作任务"); return; }
-    managingTaskId.value = task.id;
-    try {
-      await pauseTask(task.id);
-      await Promise.all([options.reloadTasks(), loadSelectedTaskDetails()]);
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "暂停任务失败");
-    } finally {
-      managingTaskId.value = "";
-    }
-  }
-
-  async function handleContinueTask(task: TaskListItem) {
-    if (managingTaskId.value) return;
-    const authenticated = await requireAuth({ title: "登录后操作任务", message: "任务操作会修改你的任务状态，请先登录或使用邀请码注册。" });
-    if (!authenticated) { messageApi.error("登录后可继续操作任务"); return; }
-    managingTaskId.value = task.id;
-    try {
-      await continueTask(task.id);
-      await Promise.all([options.reloadTasks(), loadSelectedTaskDetails()]);
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "继续任务失败");
-    } finally {
-      managingTaskId.value = "";
-    }
-  }
-
-  async function handleTerminate(task: TaskListItem) {
-    if (managingTaskId.value) return;
-    const authenticated = await requireAuth({ title: "登录后操作任务", message: "任务操作会修改你的任务状态，请先登录或使用邀请码注册。" });
-    if (!authenticated) { messageApi.error("登录后可继续操作任务"); return; }
-    const ok = await requestConfirm({
-      title: "终止任务",
-      message: `任务会变为失败状态，可再删除或重试：${task.title || "未命名任务"}`,
-      confirmText: "终止",
-    });
-    if (!ok) return;
-    managingTaskId.value = task.id;
-    try {
-      await terminateTask(task.id);
-      await Promise.all([options.reloadTasks(), loadSelectedTaskDetails()]);
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "终止任务失败");
-    } finally {
-      managingTaskId.value = "";
-    }
-  }
-
-  async function handleDelete(task: TaskListItem) {
-    if (managingTaskId.value) return;
-    const authenticated = await requireAuth({ title: "登录后操作任务", message: "任务删除后无法恢复，请先登录或使用邀请码注册。" });
-    if (!authenticated) { messageApi.error("登录后可继续操作任务"); return; }
-    const ok = await requestConfirm({
-      title: "删除任务",
-      message: `删除后无法恢复：${task.title || "未命名任务"}`,
-      confirmText: "删除",
-    });
-    if (!ok) return;
-    managingTaskId.value = task.id;
-    try {
-      await deleteTask(task.id);
-      await options.reloadTasks();
-      messageApi.success("任务已删除");
-      options.onDeleted?.(task.id);
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : "删除任务失败");
-    } finally {
-      managingTaskId.value = "";
-    }
-  }
-
-  // ── Polling for detail refresh ──
-
-  const detailPolling = usePolling(async () => {
-    const status = selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status;
-    if (!isActiveTaskStatus(status) && !selectedTaskAwaitingCompletedPreview.value) {
-      detailPolling.stop();
-      return;
-    }
-    await loadSelectedTaskDetails({ silent: true });
-  }, 5000);
-
   // ── Watch: reset failure details when selection changes ──
 
   watch(selectedTaskId, () => {
     failureDetailsOpen.value = false;
-    completedPreviewPollCount.value = 0;
   });
 
   return {
@@ -735,7 +353,7 @@ export function useTaskDetail(options: UseTaskDetailOptions) {
     taskThumbnailUrl: (task?: (TaskListItem | TaskDetail) | null) => taskThumbnailUrl(task),
     selectedTaskIsActive: computed(() => isActiveTaskStatus(selectedTaskDetail.value?.status ?? selectedTaskSummary.value?.status)),
     // Polling
-    startDetailPolling: () => detailPolling.start(false),
-    stopDetailPolling: () => detailPolling.stop(),
+    startDetailPolling,
+    stopDetailPolling,
   };
 }

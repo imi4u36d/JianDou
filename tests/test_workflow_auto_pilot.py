@@ -338,6 +338,41 @@ class TestComputeNextSteps:
         assert result[0]["type"] == "generate_video"
         assert result[0]["clip_index"] == 2
 
+    def test_multiple_clips_selects_every_completed_video_before_finalize(self):
+        pilot = self._make_pilot()
+        wf = _mock_workflow(selected_storyboard_version_id="sv_1")
+        sb = _mock_storyboard_version(version_no=1, selected=1)
+        pilot._get_storyboard_plan = MagicMock(
+            return_value=(
+                [],
+                [{"clipIndex": 1}, {"clipIndex": 2}],
+            )
+        )
+        keyframes = [
+            _mock_version(stage_type=WorkflowStage.KEYFRAME.value, clip_index=clip_index, selected=1)
+            for clip_index in (1, 2)
+        ]
+        videos = [
+            _mock_version(
+                stage_type=WorkflowStage.VIDEO.value,
+                clip_index=1,
+                selected=1,
+                material_asset_id="asset_1",
+                preview_url="http://example.com/v1.mp4",
+            ),
+            _mock_version(
+                stage_type=WorkflowStage.VIDEO.value,
+                clip_index=2,
+                stage_version_id="video_2",
+                material_asset_id="asset_2",
+                preview_url="http://example.com/v2.mp4",
+            ),
+        ]
+
+        result = pilot._compute_next_steps(wf, [sb, *keyframes, *videos])
+
+        assert result == [{"type": "select_video", "clip_index": 2, "version_id": "video_2"}]
+
     def test_multiple_characters_batched(self):
         """All missing character sheets should be batched together with any
         missing regular keyframes."""

@@ -10,6 +10,7 @@ from backend.infrastructure.task_persistence_mutation import TaskPersistenceMuta
 from backend.services.task_artifact_assembler import TaskExecutionArtifactAssembler
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
 from backend.services.task_execution_runtime_support import TaskExecutionRuntimeSupport
+from backend.services.task_video_clip_result_recorder import TaskVideoClipResultRecorder
 from backend.services.task_video_stage_service import TaskVideoStageOptions, TaskVideoStageService
 from backend.services.task_worker_status_stage_service import TaskWorkerExecutionContext, TaskWorkerStatusStageService
 
@@ -33,6 +34,7 @@ async def test_video_stage_generates_missing_clips_and_joins_ready_task(tmp_path
         }
     )
     service = _service(repository, generation_service, media_service)
+    assert isinstance(service._clip_result_recorder, TaskVideoClipResultRecorder)
 
     result = await service.render_missing_videos(
         task,

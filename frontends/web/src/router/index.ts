@@ -16,6 +16,7 @@ const TaskManagementView = () => import("@/admin/views/TaskManagementView.vue");
 const TaskDetailView = () => import("@/admin/views/TaskDetailView.vue");
 const SystemView = () => import("@/admin/views/SystemView.vue");
 import { ensureAuthSession, useAuthSessionState } from "@/auth/session";
+import { normalizeAuthRedirectTarget } from "@/auth/redirect";
 import ActivateInviteView from "@/views/ActivateInviteView.vue";
 import ForbiddenView from "@/views/ForbiddenView.vue";
 import HomeView from "@/views/HomeView.vue";
@@ -23,13 +24,6 @@ import LoginView from "@/views/LoginView.vue";
 import MaterialLibraryView from "@/views/MaterialLibraryView.vue";
 import StageWorkflowView from "@/views/StageWorkflowView.vue";
 import ImageTaskView from "@/views/ImageTaskView.vue";
-
-function normalizeRedirectTarget(value: unknown) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return authState.isAdmin.value ? "/admin" : "/image-tasks";
-  }
-  return value;
-}
 
 const authState = useAuthSessionState();
 
@@ -255,7 +249,10 @@ router.beforeEach(async (to) => {
   const guestOnly = isGuestOnlyRoute(to);
   const requiresAdmin = to.matched.some((record) => record.meta.requiresAdmin);
   if (guestOnly && isAuthenticated) {
-    return normalizeRedirectTarget(to.query.redirect);
+    return normalizeAuthRedirectTarget(
+      to.query.redirect,
+      authState.isAdmin.value ? "/admin" : "/image-tasks",
+    );
   }
   if (requiresAuth && !isAuthenticated) {
     return {

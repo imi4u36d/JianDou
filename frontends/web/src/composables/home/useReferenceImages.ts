@@ -1,6 +1,23 @@
 import { nextTick, ref, type ComputedRef, type Ref } from "vue";
 import { requireAuth } from "@/auth/modal";
 import { uploadText } from "@/features/workflows";
+import {
+  REFERENCE_ADD_CARD_OFFSET,
+  REFERENCE_COLLAPSED_HEIGHT,
+  REFERENCE_COLLAPSED_WIDTH,
+  REFERENCE_EXPANDED_BOTTOM,
+  REFERENCE_EXPANDED_GAP,
+  REFERENCE_EXPANDED_MAX_TILT_DEG,
+  REFERENCE_PREVIEW_HEIGHT,
+  REFERENCE_PREVIEW_WIDTH,
+  referenceAddCardStyle as buildReferenceAddCardStyle,
+  referenceExpandedBottom,
+  referenceExpandedStep,
+  referencePreviewImageStyle as buildReferencePreviewImageStyle,
+  referencePreviewRotation,
+  referenceRotationBottomDelta,
+  referenceUploadSceneStyle as buildReferenceUploadSceneStyle,
+} from "./referenceImageLayout";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,19 +45,6 @@ export interface UseReferenceImagesOptions {
   renderPromptEditor: (value: string) => void;
   focusPromptEditorToEnd: () => void;
 }
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const REFERENCE_PREVIEW_WIDTH = 68;
-const REFERENCE_PREVIEW_HEIGHT = 98;
-const REFERENCE_COLLAPSED_WIDTH = 58;
-const REFERENCE_COLLAPSED_HEIGHT = 84;
-const REFERENCE_EXPANDED_MAX_TILT_DEG = 30;
-const REFERENCE_EXPANDED_GAP = 8;
-const REFERENCE_EXPANDED_BOTTOM = 8;
-const REFERENCE_ADD_CARD_OFFSET = 86;
 
 // ---------------------------------------------------------------------------
 // Composable
@@ -115,125 +119,15 @@ export function useReferenceImages(options: UseReferenceImagesOptions) {
   // ----- style computations -----
 
   function referenceUploadSceneStyle() {
-    if (referenceImages.value.length <= 1) {
-      return referenceExpanded.value
-        ? {
-            width: `${REFERENCE_PREVIEW_WIDTH + REFERENCE_ADD_CARD_OFFSET}px`,
-            height: `${REFERENCE_PREVIEW_HEIGHT}px`,
-          }
-        : undefined;
-    }
-    if (!referenceExpanded.value) {
-      return undefined;
-    }
-    const step = referenceExpandedStep();
-    const cardWidth = REFERENCE_PREVIEW_WIDTH;
-    const addCardLeft = referenceImages.value.length * step;
-    return {
-      width: `${addCardLeft + cardWidth}px`,
-      height: "112px",
-    };
-  }
-
-  function referencePreviewRotation(index: number, expanded: boolean) {
-    if (expanded) {
-      const expandedRotations = [-9, 6, -7, 8, -5, 7, -8, 5, -6, 9, -4, 6];
-      return expandedRotations[index % expandedRotations.length];
-    }
-    const collapsedRotations = [-7, 4, -5, 6, -4, 5];
-    return collapsedRotations[index % collapsedRotations.length];
-  }
-
-  function referenceExpandedStep() {
-    const radians = REFERENCE_EXPANDED_MAX_TILT_DEG * Math.PI / 180;
-    const projectedWidth = REFERENCE_PREVIEW_WIDTH * Math.cos(radians) + REFERENCE_PREVIEW_HEIGHT * Math.sin(radians);
-    return Math.ceil(projectedWidth + REFERENCE_EXPANDED_GAP);
-  }
-
-  function referenceRotationBottomDelta(rotateDeg: number) {
-    return Math.sin(Math.abs(rotateDeg) * Math.PI / 180) * (REFERENCE_PREVIEW_WIDTH / 2);
-  }
-
-  function referenceExpandedBottom(rotateDeg: number) {
-    const firstDelta = referenceRotationBottomDelta(referencePreviewRotation(0, true));
-    const currentDelta = referenceRotationBottomDelta(rotateDeg);
-    return `${REFERENCE_EXPANDED_BOTTOM - firstDelta + currentDelta}px`;
+    return buildReferenceUploadSceneStyle(referenceImages.value.length, referenceExpanded.value);
   }
 
   function referencePreviewImageStyle(index: number) {
-    const total = referenceImages.value.length;
-    if (total <= 1) {
-      const rotate = -8;
-      return {
-        left: "0px",
-        top: "0px",
-        bottom: "auto",
-        width: `${REFERENCE_PREVIEW_WIDTH}px`,
-        height: `${REFERENCE_PREVIEW_HEIGHT}px`,
-        opacity: "1",
-        zIndex: "1",
-        "--preview-rotate": `${rotate}deg`,
-        "--preview-remove-rotate": `${-rotate}deg`,
-        transformOrigin: "center bottom",
-        transform: `rotate(${rotate}deg)`,
-      };
-    }
-
-    if (referenceExpanded.value) {
-      const step = referenceExpandedStep();
-      const rotate = referencePreviewRotation(index, true);
-      return {
-        left: `${index * step}px`,
-        top: "auto",
-        bottom: referenceExpandedBottom(rotate),
-        width: `${REFERENCE_PREVIEW_WIDTH}px`,
-        height: `${REFERENCE_PREVIEW_HEIGHT}px`,
-        opacity: "1",
-        zIndex: String(index + 1),
-        "--preview-rotate": `${rotate}deg`,
-        "--preview-remove-rotate": `${-rotate}deg`,
-        transformOrigin: "center bottom",
-        transform: `rotate(${rotate}deg)`,
-      };
-    }
-
-    const visibleIndex = Math.min(index, 4);
-    const rotate = referencePreviewRotation(visibleIndex, false);
-    return {
-      left: `${-6 + visibleIndex * 8}px`,
-      top: `${4 - Math.min(visibleIndex, 2) * 2}px`,
-      bottom: "auto",
-      width: `${REFERENCE_COLLAPSED_WIDTH}px`,
-      height: `${REFERENCE_COLLAPSED_HEIGHT}px`,
-      opacity: index < 4 ? "0.96" : "0",
-      zIndex: String(index + 1),
-      "--preview-rotate": `${rotate}deg`,
-      "--preview-remove-rotate": `${-rotate}deg`,
-      transformOrigin: "center bottom",
-      transform: `rotate(${rotate}deg)`,
-    };
+    return buildReferencePreviewImageStyle(index, referenceImages.value.length, referenceExpanded.value);
   }
 
   function referenceAddCardStyle() {
-    if (referenceImages.value.length <= 1) {
-      if (!referenceExpanded.value) {
-        return undefined;
-      }
-      return {
-        left: `${REFERENCE_ADD_CARD_OFFSET}px`,
-        top: "0px",
-        bottom: "auto",
-      };
-    }
-    if (!referenceExpanded.value) {
-      return undefined;
-    }
-    const firstDelta = referenceRotationBottomDelta(referencePreviewRotation(0, true));
-    return {
-      left: `${referenceImages.value.length * referenceExpandedStep()}px`,
-      top: "auto",
-      bottom: `${REFERENCE_EXPANDED_BOTTOM - firstDelta}px`,
-    };
+    return buildReferenceAddCardStyle(referenceImages.value.length, referenceExpanded.value);
   }
 
   // ----- file handling -----

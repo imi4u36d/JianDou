@@ -164,6 +164,25 @@ async def test_showcase_cases_returns_completed_tasks_with_preview() -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_admin_overview_builds_counts_and_recent_groups() -> None:
+    running = _task("task_running", 1, "Running", "RENDERING", "2026-01-02T00:00:00+00:00", 50)
+    failed = _task("task_failed", 2, "Failed", "FAILED", "2026-01-03T00:00:00+00:00", 20)
+    completed = _task("task_done", 3, "Done", "COMPLETED", "2026-01-01T00:00:00+00:00", 100)
+    service = TaskQueryService(
+        _TaskQueryRepository([running, failed, completed]),
+        TaskExecutionCoordinator(),
+    )
+
+    overview = await service.admin_overview()
+
+    assert overview["counts"]["totalTasks"] == 3
+    assert overview["counts"]["runningTasks"] == 1
+    assert overview["counts"]["failedTasks"] == 1
+    assert [item["id"] for item in overview["recentFailures"]] == ["task_failed"]
+    assert [item["id"] for item in overview["recentRunningTasks"]] == ["task_running"]
+
+
 class _TaskQueryRepository:
     def __init__(self, tasks: list[TaskRecord]) -> None:
         self.tasks = tasks

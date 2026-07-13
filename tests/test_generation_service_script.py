@@ -20,6 +20,9 @@ class _ScriptSupport:
         value = parent.get(child_key, default)
         return str(value) if value is not None else default
 
+    def first_non_blank(self, *values: str) -> str:
+        return next((value.strip() for value in values if value and value.strip()), "")
+
     def required_model(self, value: str, field_name: str, label: str) -> str:
         if value.strip():
             return value.strip()
@@ -128,7 +131,7 @@ class _SinglePassScriptFactory(GenerationRunFactory):
     ) -> dict[str, Any]:
         self.calls.append({"systemPrompt": system_prompt, "userPrompt": user_prompt})
         return {
-            "text": "【 角色 】\n- 阿明：修表师\n\n【 分镜 】\n| 镜头 | 画面 | 时长 |\n| --- | --- | --- |\n| 1 | 雨夜修表店亮起灯。 | 5 |",
+            "text": "【 角色 】\n- 阿明：修表师\n\n【 】\n| 镜头 | 画面 | 时长 |\n| --- | --- | --- |\n| 1 | 雨夜修表店亮起灯。 | 5 |",
             "modelName": profile_dict.get("modelName", ""),
             "latencyMs": 123,
             "endpointHost": profile_dict.get("endpointHost", ""),
@@ -165,3 +168,27 @@ async def test_create_script_run_uses_single_text_model_pass(tmp_path) -> None:
     assert metadata["finalResponseId"] == "resp_draft"
     assert [item["step"] for item in metadata["providerInteractions"]] == ["draft"]
     assert "script.review_requested" not in {item["event"] for item in result["callChain"]}
+
+
+@pytest.mark.asyncio
+async def test_create_script_adjust_run_delegates_to_script_workflow(tmp_path) -> None:
+    factory = _SinglePassScriptFactory(_ScriptSupport(tmp_path))
+
+    run = await factory.create_script_adjust_run(
+        "run_script_adjust_1",
+        {
+            "input": {
+                "sourceText": "雨夜里的修表师。",
+                "scriptMarkdown": "【 角色 】\n旧稿\n【 分镜 】\n旧分镜",
+                "adjustmentPrompt": "缩短对白",
+            },
+            "model": {"textAnalysisModel": "gpt-5.5"},
+            "metadata": {"requestSource": "test"},
+        },
+    )
+
+    result = run["resultScript"]
+    assert result["kind"] == "script_adjust"
+    assert result["adjustmentMode"] == "user_prompt"
+    assert result["metadata"]["requestSource"] == "test"
+    assert [item["step"] for item in result["metadata"]["providerInteractions"]] == ["adjust"]

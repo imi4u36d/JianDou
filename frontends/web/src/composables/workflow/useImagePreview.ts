@@ -7,7 +7,7 @@ interface ImagePreviewItem {
 }
 
 export function useImagePreview() {
-  const imagePreviewOverlayRef = ref<HTMLElement | null>(null);
+  const imagePreviewOverlayRef = ref<{ focus: () => void } | null>(null);
   const imagePreviewTriggerRef = ref<HTMLElement | null>(null);
 
   const imagePreviewState = reactive({

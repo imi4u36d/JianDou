@@ -8,15 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import require_admin
 from backend.database import get_db
 from backend.errors import bad_request, not_found
+from backend.routers.admin_task_routes import router as task_router
 from backend.schemas.admin import (
     AdminAdjustCreditRequest,
-    AdminBulkTerminateTasksRequest,
     AdminCreateInviteRequest,
     AdminCreateUserRequest,
     AdminModelConfigKeysRequest,
     AdminOverviewResponse,
-    AdminTaskBatchActionRequest,
-    AdminTaskBatchResult,
     AdminUpdateCreditRuleRequest,
     AdminUpdateUserPasswordRequest,
     AdminUpdateUserRequest,
@@ -27,6 +25,7 @@ from backend.services.credit_service import CreditService
 from backend.services.model_config_service import AdminModelConfigKeyUpdateRequest as ModelConfigKeyUpdateRequest
 
 router = APIRouter(prefix="/api/v3/admin", tags=["admin"])
+router.include_router(task_router)
 
 
 
@@ -48,52 +47,6 @@ async def admin_overview(request: Request):
         overview["modelReady"] = False
 
     return overview
-
-
-@router.get("/tasks")
-async def admin_list_tasks(request: Request):
-    await require_admin(request)
-    q = request.query_params.get("q", "")
-    status = request.query_params.get("status", "")
-    sort = request.query_params.get("sort", "")
-    offset_raw = request.query_params.get("offset", "0")
-    limit_raw = request.query_params.get("limit", "20")
-    try:
-        offset = max(0, int(offset_raw))
-    except (ValueError, TypeError):
-        offset = 0
-    try:
-        limit = max(1, min(int(limit_raw), 200))
-    except (ValueError, TypeError):
-        limit = 20
-    app_service = request.app.state.task_application_service
-    return await app_service.admin_list_tasks(
-        q=q or None,
-        status=status or None,
-        sort=sort or None,
-        offset=offset,
-        limit=limit,
-    )
-
-
-@router.post("/tasks/batch-action")
-async def admin_batch_task_action(body: AdminTaskBatchActionRequest, request: Request):
-    await require_admin(request)
-    app_service = request.app.state.task_application_service
-    succeeded: list[str] = []
-    failed: list[dict] = []
-    for task_id in body.task_ids:
-        try:
-            await app_service.admin_terminate_task(task_id)
-            succeeded.append(task_id)
-        except Exception as exc:
-            failed.append({"taskId": task_id, "error": str(exc)})
-    return {
-        "action": body.action,
-        "requested_count": len(body.task_ids),
-        "succeeded_task_ids": succeeded,
-        "failed": failed,
-    }
 
 
 @router.get("/traces")
@@ -410,59 +363,6 @@ async def admin_revoke_invite(invite_id: int, request: Request, db: AsyncSession
         raise not_found("invite_not_found")
     return invite
 
-
-@router.post("/tasks/{task_id}/terminate")
-async def admin_terminate_single_task(task_id: str, request: Request):
-    await require_admin(request)
-    app_service = request.app.state.task_application_service
-    try:
-        await app_service.admin_terminate_task(task_id)
-    except Exception as exc:
-        raise bad_request(exc)
-    return {"success": True, "taskId": task_id}
-
-
-@router.post("/tasks/bulk-terminate", response_model=AdminTaskBatchResult)
-async def admin_bulk_terminate_tasks(body: AdminBulkTerminateTasksRequest, request: Request):
-    await require_admin(request)
-    app_service = request.app.state.task_application_service
-    succeeded: list[str] = []
-    failed: list[dict] = []
-    for task_id in body.task_ids:
-        try:
-            await app_service.admin_terminate_task(task_id)
-            succeeded.append(task_id)
-        except Exception as exc:
-            failed.append({"taskId": task_id, "error": str(exc)})
-    return {
-        "action": "terminate",
-        "requestedCount": len(body.task_ids),
-        "succeededTaskIds": succeeded,
-        "failed": failed,
-    }
-
-
-@router.post("/tasks/bulk-delete")
-async def admin_bulk_delete_tasks(body: AdminBulkTerminateTasksRequest, request: Request):
-    await require_admin(request)
-    admin_user = await require_admin(request)
-    app_service = request.app.state.task_application_service
-    succeeded: list[str] = []
-    failed: list[dict] = []
-    for task_id in body.task_ids:
-        try:
-            await app_service.delete_task(task_id, admin_user["id"])
-            succeeded.append(task_id)
-        except Exception as exc:
-            failed.append({"taskId": task_id, "error": str(exc)})
-    return {
-        "action": "delete",
-        "requestedCount": len(body.task_ids),
-        "succeededTaskIds": succeeded,
-        "failed": failed,
-    }
-
-
 @router.post("/invites")
 async def admin_create_invite(
     body: AdminCreateInviteRequest,
@@ -476,80 +376,3 @@ async def admin_create_invite(
     except (ValueError, RuntimeError) as exc:
         raise bad_request(exc)
     return invite
-
-
-@router.get("/tasks/{task_id}")
-async def admin_get_task(task_id: str, request: Request):
-    await require_admin(request)
-    app_service = request.app.state.task_application_service
-    try:
-        task = await app_service.admin_get_task(task_id)
-    except Exception as exc:
-        raise not_found(str(exc))
-    return task
-
-
-@router.get("/tasks/{task_id}/trace")
-async def admin_get_task_trace(task_id: str, request: Request):
-    await require_admin(request)
-    app_service = request.app.state.task_application_service
-    limit_raw = request.query_params.get("limit", "50")
-    try:
-        limit = max(1, min(int(limit_raw), 500))
-    except (ValueError, TypeError):
-        limit = 50
-    try:
-        task = await app_service.admin_get_task(task_id)
-        trace = task.get("trace", [])[-limit:]
-    except Exception as exc:
-        raise not_found(str(exc))
-    return trace
-
-
-@router.get("/tasks/{task_id}/diagnosis")
-async def admin_get_task_diagnosis(task_id: str, request: Request):
-    await require_admin(request)
-    app_service = request.app.state.task_application_service
-    try:
-        task = await app_service.admin_get_task(task_id)
-    except Exception as exc:
-        raise not_found(str(exc))
-    severity = "info"
-    if task.get("status") == "FAILED":
-        severity = "high"
-    elif task.get("progress", 0) < 50 and task.get("status") in ("ANALYZING", "PLANNING", "RENDERING"):
-        severity = "medium"
-    return {
-        "taskId": task_id,
-        "title": task.get("title", ""),
-        "status": task.get("status", ""),
-        "severity": severity,
-        "summary": task.get("failureReason", ""),
-        "findings": [],
-        "recovery": {},
-        "continuity": {},
-        "outputs": {},
-        "queue": {},
-    }
-
-
-@router.post("/tasks/{task_id}/retry")
-async def admin_retry_task(task_id: str, request: Request):
-    admin_user = await require_admin(request)
-    app_service = request.app.state.task_application_service
-    try:
-        result = await app_service.retry_task(task_id, admin_user["id"])
-    except Exception as exc:
-        raise bad_request(exc)
-    return result
-
-
-@router.delete("/tasks/{task_id}")
-async def admin_delete_task(task_id: str, request: Request):
-    admin_user = await require_admin(request)
-    app_service = request.app.state.task_application_service
-    try:
-        await app_service.delete_task(task_id, admin_user["id"])
-    except Exception as exc:
-        raise bad_request(exc)
-    return {"success": True, "taskId": task_id}

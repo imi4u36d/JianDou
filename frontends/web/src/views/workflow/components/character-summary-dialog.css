@@ -1,0 +1,57 @@
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 72;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.36);
+  backdrop-filter: blur(18px);
+}
+.dialog-card {
+  width: min(560px, calc(100vw - 32px));
+  padding: 18px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.dialog-head h4,
+.dialog-card p {
+  margin: 0;
+}
+.dialog-head button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 11px;
+  background: #f8fafb;
+  cursor: pointer;
+}
+.dialog-card p {
+  padding-top: 14px;
+  color: var(--text-body);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+@media (max-width: 640px) {
+  .dialog-overlay {
+    align-items: end;
+    padding: 14px;
+  }
+  .dialog-card {
+    width: 100%;
+    max-height: 76vh;
+    padding: 26px 16px 16px;
+    border-radius: 22px;
+  }
+}

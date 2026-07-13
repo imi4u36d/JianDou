@@ -2,35 +2,37 @@
 
 from __future__ import annotations
 
-import re
-from typing import Any, Protocol
+from typing import Any
 
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.infrastructure.task_repository import TaskRepository
 from backend.services.task_artifact_assembler import TaskExecutionArtifactAssembler
+from backend.services.task_character_sheet_render_service import TaskCharacterSheetRenderService
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
-from backend.services.task_execution_runtime_support import GenerationModelKinds as _GenerationModelKinds
 from backend.services.task_execution_runtime_support import TaskExecutionRuntimeSupport
+from backend.services.task_frame_render_service import (
+    GenerationApplicationServiceProtocol,
+    TaskFrameRenderService,
+)
+from backend.services.task_render_reference_selector import (
+    character_name_position,
+    existing_character_sheet_urls,
+    frame_reference_image_urls,
+    matching_character_indexes,
+)
+from backend.services.task_render_stage_context import TaskRenderStageContext
 from backend.services.task_render_stage_payloads import (
     FrameResolution,
     RenderStageRequest,
     RenderStageResult,
-    build_clip_frame_context,
     build_frame_continuity_prompt,
     build_planning_stage_request,
     build_planning_stage_response,
 )
 from backend.services.task_worker_status_stage_service import TaskStage as _TaskStage
 from backend.services.task_worker_status_stage_service import TaskWorkerExecutionContext, TaskWorkerStatusStageService
-from backend.shared import first_non_blank, map_value, safe_int, string_value
-
-_MAX_CHARACTER_REFERENCE_IMAGES = 3
-_MAX_CHARACTER_REFERENCE_IMAGES_WITH_SCENE = 2
-
-
-class GenerationApplicationServiceProtocol(Protocol):
-    async def create_run(self, request: dict[str, Any]) -> dict[str, Any]: ...
+from backend.shared import first_non_blank
 
 
 class TaskWorkerRenderStageService:
@@ -56,6 +58,16 @@ class TaskWorkerRenderStageService:
             task_repository=task_repository,
             execution_coordinator=self._execution_coordinator,
         )
+        self._frame_render_service = TaskFrameRenderService(
+            generation_application_service,
+            self._runtime_support,
+            self._artifact_assembler,
+            self._status_stage_service,
+            self._execution_coordinator,
+            self._save_result,
+        )
+        self._character_sheet_service = TaskCharacterSheetRenderService(self)
+        self._render_context = TaskRenderStageContext()
 
     async def _save_result(self, result: dict[str, Any] | None) -> None:
         """Persist coordinator mutations when the service is wired with a repository."""
@@ -189,31 +201,7 @@ class TaskWorkerRenderStageService:
                 last_frame_references,
             )
 
-            self._put_execution_context(task, "imageRunId", first_non_blank(start_frame.run_id(), end_frame.run_id()))
-            self._put_execution_context(task, "keyframeOutputUrl", start_frame.material_url())
-            self._put_execution_context(task, "keyframeRemoteSourceUrl", start_frame.source_url())
-            self._put_execution_context(task, "firstFrameUrl", start_frame.video_input_url())
-            self._put_execution_context(task, "startFrameUrl", start_frame.video_input_url())
-            self._put_execution_context(task, "startFrameSourceType", start_frame.source_type())
-            self._put_execution_context(task, "startFrameSourceUrl", start_frame.source_url())
-            self._put_execution_context(task, "startFrameKeyframeUrl", start_frame.material_url())
-            self._put_execution_context(task, "startFrameKeyframeRemoteSourceUrl", start_frame.remote_url())
-            self._put_execution_context(task, "startFrameKeyframeRunId", start_frame.run_id())
-            self._put_execution_context(task, "lastFrameImageRunId", end_frame.run_id())
-            self._put_execution_context(task, "requestedLastFrameUrl", end_frame.video_input_url())
-            self._put_execution_context(task, "endFrameConstraintUrl", end_frame.video_input_url())
-            self._put_execution_context(task, "endFrameConstraintSourceType", end_frame.source_type())
-            self._put_execution_context(task, "endFrameConstraintSourceUrl", end_frame.source_url())
-            self._put_execution_context(task, "endFrameKeyframeUrl", end_frame.material_url())
-            self._put_execution_context(task, "endFrameKeyframeRemoteSourceUrl", end_frame.remote_url())
-            self._put_execution_context(task, "endFrameKeyframeRunId", end_frame.run_id())
-            self._put_clip_frame_execution_context(
-                task,
-                clip_index,
-                build_clip_frame_context(
-                    shot_plan, clip_index, clip_duration_seconds, start_frame, end_frame, "", "", "", ""
-                ),
-            )
+            self._render_context.record_clip(task, shot_plan, clip_index, clip_duration_seconds, start_frame, end_frame)
             await self._task_repository.save(task) if self._task_repository else None
 
             await self._save_result(
@@ -249,32 +237,12 @@ class TaskWorkerRenderStageService:
                 )
             )
 
-            task.progress = min(95, 45 + int(45.0 * clip_index / max(1, len(request.shot_plans))))
-            task.completed_output_count = max(task.completed_output_count, clip_index)
             previous_clip_last_frame_url = end_frame.material_url()
-            self._put_execution_context(task, "lastFrameUrl", end_frame.material_url())
-            self._put_execution_context(task, "lastFrameSourceType", end_frame.source_type())
-            self._put_execution_context(task, "lastFrameSourceUrl", end_frame.source_url())
+            self._render_context.record_clip_progress(task, clip_index, len(request.shot_plans), end_frame)
             await self._task_repository.save(task) if self._task_repository else None
 
         self._runtime_support.assert_task_still_active(task)
-        self._put_execution_context(
-            task,
-            "clipImageRunIds",
-            self._merge_string_list_context(task.execution_context.get("clipImageRunIds"), image_run_ids),
-        )
-        self._put_execution_context(task, "clipVideoRunIds", [])
-        self._put_execution_context(task, "videoRunId", None)
-        self._put_execution_context(task, "videoOutputUrl", None)
-        self._put_execution_context(task, "videoThumbnailUrl", None)
-        self._put_execution_context(task, "videoRemoteTaskId", None)
-        self._put_execution_context(task, "videoRemoteSourceUrl", None)
-        task.completed_output_count = len(request.shot_plans)
-        self._put_execution_context(task, "resumeExistingOutputCount", None)
-        self._put_execution_context(task, "resumeExistingClipIndices", None)
-        self._put_execution_context(task, "resumeRenderFromClipIndex", None)
-        self._put_execution_context(task, "attemptResumeFromStage", None)
-        self._put_execution_context(task, "attemptResumeFromClipIndex", None)
+        self._render_context.complete(task, image_run_ids, len(request.shot_plans))
         await self._task_repository.save(task) if self._task_repository else None
         return RenderStageResult(image_run_ids, [], "", len(request.shot_plans))
 
@@ -292,7 +260,7 @@ class TaskWorkerRenderStageService:
         image_run_ids: list[str],
         reference_image_urls: list[str] | None = None,
     ) -> FrameResolution:
-        image_request = self._runtime_support.build_image_run_request(
+        return await self._frame_render_service.generate_frame(
             task,
             clip_index,
             prompt,
@@ -301,56 +269,9 @@ class TaskWorkerRenderStageService:
             reference_image_url,
             duration_seconds,
             frame_role,
-            reference_image_urls=reference_image_urls,
-        )
-        pending_image_model_call = self._status_stage_service.create_pending_model_call(
-            task,
-            _TaskStage.PLANNING,
-            "generation.image",
-            image_request,
-            clip_index,
-            f"{_GenerationModelKinds.IMAGE}.{frame_role}",
-        )
-        await self._save_result(self._execution_coordinator.record_model_call(task, pending_image_model_call))
-        try:
-            image_run = await self._generation_application_service.create_run(image_request)
-        except Exception as ex:
-            await self._save_result(
-                self._execution_coordinator.record_model_call(
-                    task, self._status_stage_service.fail_model_call(pending_image_model_call, ex)
-                )
-            )
-            raise
-        self._runtime_support.assert_task_still_active(task)
-        image_result = self._result_map(image_run)
-        image_metadata = map_value(image_result.get("metadata"))
-        keyframe_source_url = first_non_blank(
-            string_value(image_result.get("outputUrl")),
-            string_value(image_metadata.get("remoteSourceUrl")),
-        )
-        image_model_call = self._status_stage_service.complete_model_call(
-            pending_image_model_call, image_run, image_result
-        )
-        await self._save_result(self._execution_coordinator.record_model_call(task, image_model_call))
-        self._status_stage_service.record_run_call_chain(task, _TaskStage.PLANNING, image_run, image_result)
-        image_material = self._artifact_assembler.create_image_material(
-            task, image_run, image_result, clip_index, frame_role
-        )
-        await self._save_result(self._execution_coordinator.record_material(task, image_material))
-        material_url = string_value(image_material.get("fileUrl"))
-        image_run_ids.append(string_value(image_run.get("id")))
-        return FrameResolution(
-            prompt_value=string_value(prompt),
-            frame_role_value=string_value(frame_role),
-            source_type_value=string_value(source_type),
-            source_url_value=first_non_blank(material_url, keyframe_source_url),
-            material_url_value=material_url,
-            remote_url_value=first_non_blank(string_value(image_material.get("remoteUrl")), keyframe_source_url),
-            video_input_url_value=first_non_blank(
-                material_url, keyframe_source_url, string_value(image_material.get("remoteUrl"))
-            ),
-            run_id_value=string_value(image_run.get("id")),
-            material_value=image_material,
+            source_type,
+            image_run_ids,
+            reference_image_urls,
         )
 
     async def _ensure_character_sheets(
@@ -362,137 +283,14 @@ class TaskWorkerRenderStageService:
         height: int,
         image_run_ids: list[str],
     ) -> list[str]:
-        """Generate missing character reference sheets and reuse stored sheets during resume."""
-        if not character_definitions:
-            self._put_execution_context(task, "characterSheetUrls", [])
-            return []
-
-        existing = self._existing_character_sheet_urls(task)
-        resolved_urls: list[str] = []
-        generated_count = 0
-        reused_count = 0
-
-        await self._save_result(
-            self._execution_coordinator.record_trace(
-                task,
-                _TaskStage.PLANNING,
-                "planning.character_sheets_started",
-                "任务开始生成角色三视图设定图。",
-                "INFO",
-                {"characterCount": len(character_definitions)},
-            )
+        return await self._character_sheet_service.ensure_character_sheets(
+            task,
+            run_context,
+            character_definitions,
+            width,
+            height,
+            image_run_ids,
         )
-
-        for index, character in enumerate(character_definitions, start=1):
-            existing_url = existing.get(index, "")
-            if existing_url:
-                resolved_urls.append(existing_url)
-                reused_count += 1
-                continue
-
-            sheet_request = self._runtime_support.build_character_sheet_run_request(
-                task,
-                index,
-                character,
-                width,
-                height,
-            )
-            pending_model_call = self._status_stage_service.create_pending_model_call(
-                task,
-                _TaskStage.PLANNING,
-                "generation.image",
-                sheet_request,
-                1000 + index,
-                "image.character_sheet",
-            )
-            await self._save_result(self._execution_coordinator.record_model_call(task, pending_model_call))
-            try:
-                sheet_run = await self._generation_application_service.create_run(sheet_request)
-            except Exception as ex:
-                await self._save_result(
-                    self._execution_coordinator.record_model_call(
-                        task,
-                        self._status_stage_service.fail_model_call(pending_model_call, ex),
-                    )
-                )
-                raise
-
-            self._runtime_support.assert_task_still_active(task)
-            sheet_result = self._result_map(sheet_run)
-            sheet_metadata = map_value(sheet_result.get("metadata"))
-            sheet_url = first_non_blank(
-                string_value(sheet_metadata.get("remoteSourceUrl")),
-                string_value(sheet_result.get("outputUrl")),
-            )
-            if not sheet_url:
-                raise ValueError(f"角色 {index} 三视图生成结果为空，未返回可用输出地址。")
-
-            sheet_model_call = self._status_stage_service.complete_model_call(
-                pending_model_call, sheet_run, sheet_result
-            )
-            await self._save_result(self._execution_coordinator.record_model_call(task, sheet_model_call))
-            self._status_stage_service.record_run_call_chain(task, _TaskStage.PLANNING, sheet_run, sheet_result)
-            sheet_material = self._artifact_assembler.create_character_sheet_material(
-                task,
-                sheet_run,
-                sheet_result,
-                index,
-                character,
-            )
-            await self._save_result(self._execution_coordinator.record_material(task, sheet_material))
-            stored_sheet_url = first_non_blank(
-                string_value(sheet_material.get("fileUrl")),
-                sheet_url,
-                string_value(sheet_material.get("remoteUrl")),
-            )
-            resolved_urls.append(stored_sheet_url)
-            image_run_id = string_value(sheet_run.get("id"))
-            if image_run_id:
-                image_run_ids.append(image_run_id)
-            generated_count += 1
-
-            await self._save_result(
-                self._status_stage_service.record_stage_run(
-                    task,
-                    run_context,
-                    50 + index,
-                    _TaskStage.PLANNING,
-                    1000 + index,
-                    {
-                        "variantKind": "character_sheet",
-                        "characterIndex": index,
-                        "characterName": string_value(getattr(character, "name", "")),
-                        "width": width,
-                        "height": height,
-                    },
-                    {
-                        "summary": "角色三视图设定图已生成",
-                        "sheetUrl": stored_sheet_url,
-                        "imageRunId": image_run_id,
-                    },
-                )
-            )
-
-        self._put_execution_context(task, "characterSheetUrls", resolved_urls)
-        self._put_execution_context(task, "characterSheetCount", len(resolved_urls))
-        await self._task_repository.save(task) if self._task_repository else None
-        await self._save_result(
-            self._execution_coordinator.record_trace(
-                task,
-                _TaskStage.PLANNING,
-                "planning.character_sheets_resolved",
-                "角色三视图设定图已就绪。",
-                "INFO",
-                {
-                    "characterCount": len(character_definitions),
-                    "sheetCount": len(resolved_urls),
-                    "generatedCount": generated_count,
-                    "reusedCount": reused_count,
-                    "sheetUrls": resolved_urls,
-                },
-            )
-        )
-        return resolved_urls
 
     def _frame_reference_image_urls(
         self,
@@ -501,144 +299,37 @@ class TaskWorkerRenderStageService:
         character_sheet_urls: list[str],
         character_definitions: list[Any],
     ) -> list[str]:
-        """Build the provider reference image list without exceeding model payload limits."""
-        references: list[str] = []
-        normalized_scene_reference_url = string_value(scene_reference_url)
-        if normalized_scene_reference_url:
-            references.append(normalized_scene_reference_url)
-
-        if not character_sheet_urls:
-            return references
-
-        max_character_references = (
-            _MAX_CHARACTER_REFERENCE_IMAGES_WITH_SCENE
-            if normalized_scene_reference_url
-            else _MAX_CHARACTER_REFERENCE_IMAGES
-        )
-        selected_indexes = self._matching_character_indexes(prompt, character_definitions, len(character_sheet_urls))
-        if not selected_indexes:
-            selected_indexes = list(range(1, len(character_sheet_urls) + 1))
-
-        for index in selected_indexes:
-            if len(references) >= max_character_references + (1 if normalized_scene_reference_url else 0):
-                break
-            if index < 1 or index > len(character_sheet_urls):
-                continue
-            url = string_value(character_sheet_urls[index - 1])
-            if url and url not in references:
-                references.append(url)
-        return references
+        return frame_reference_image_urls(prompt, scene_reference_url, character_sheet_urls, character_definitions)
 
     def _matching_character_indexes(self, prompt: str, character_definitions: list[Any], sheet_count: int) -> list[int]:
-        normalized_prompt = string_value(prompt)
-        if not normalized_prompt:
-            return []
-        lowered_prompt = normalized_prompt.lower()
-        matches: list[tuple[int, int]] = []
-        for index, character in enumerate(character_definitions[:sheet_count], start=1):
-            name = string_value(getattr(character, "name", ""))
-            if not name:
-                continue
-            position = self._character_name_position(normalized_prompt, lowered_prompt, name)
-            if position >= 0:
-                matches.append((position, index))
-        matches.sort(key=lambda item: item[0])
-        return [index for _, index in matches]
+        return matching_character_indexes(prompt, character_definitions, sheet_count)
 
     @staticmethod
     def _character_name_position(prompt: str, lowered_prompt: str, name: str) -> int:
-        normalized_name = string_value(name)
-        if not normalized_name:
-            return -1
-        direct_position = prompt.find(normalized_name)
-        if direct_position >= 0:
-            return direct_position
-        lowered_name = normalized_name.lower()
-        if re.search(r"[A-Za-z0-9_]", lowered_name):
-            match = re.search(rf"(?<![A-Za-z0-9_]){re.escape(lowered_name)}(?![A-Za-z0-9_])", lowered_prompt)
-            return match.start() if match else -1
-        return -1
+        return character_name_position(prompt, lowered_prompt, name)
 
     def _existing_character_sheet_urls(self, task: TaskRecord) -> dict[int, str]:
-        """Return previously materialized character sheets keyed by one-based character index."""
-        resolved: dict[int, str] = {}
-        for material in task.materials:
-            if string_value(material.get("kind", material.get("assetRole", ""))) != "character_sheet":
-                continue
-            metadata = map_value(material.get("metadata"))
-            index = safe_int(metadata.get("characterIndex"), 0)
-            if index <= 0:
-                clip_index = safe_int(material.get("clipIndex"), 0)
-                index = clip_index - 1000 if clip_index > 1000 else 0
-            url = first_non_blank(
-                string_value(material.get("fileUrl")),
-                string_value(material.get("previewUrl")),
-                string_value(material.get("remoteUrl")),
-            )
-            if index > 0 and url.startswith("/storage/"):
-                resolved[index] = url
-        return resolved
+        return existing_character_sheet_urls(task)
 
     async def _reuse_frame(
-        self, task: TaskRecord, clip_index: int, source_url: str, frame_role: str, source_type: str
+        self,
+        task: TaskRecord,
+        clip_index: int,
+        source_url: str,
+        frame_role: str,
+        source_type: str,
     ) -> FrameResolution:
-        image_material = self._artifact_assembler.create_reference_frame_material(
-            task, clip_index, source_url, frame_role
+        return await self._frame_render_service.reuse_frame(
+            task,
+            clip_index,
+            source_url,
+            frame_role,
+            source_type,
         )
-        await self._save_result(self._execution_coordinator.record_material(task, image_material))
-        remote_url = first_non_blank(string_value(image_material.get("remoteUrl")), source_url)
-        return FrameResolution(
-            prompt_value="",
-            frame_role_value=string_value(frame_role),
-            source_type_value=string_value(source_type),
-            source_url_value=string_value(source_url),
-            material_url_value=string_value(image_material.get("fileUrl")),
-            remote_url_value=remote_url,
-            video_input_url_value=first_non_blank(remote_url, string_value(image_material.get("fileUrl"))),
-            run_id_value="",
-            material_value=image_material,
-        )
-
-    def _put_clip_frame_execution_context(
-        self, task: TaskRecord, clip_index: int, clip_frame_context: dict[str, Any]
-    ) -> None:
-        rows: list[dict[str, Any]] = []
-        existing = task.execution_context.get("clipFrameContexts")
-        if isinstance(existing, list):
-            for item in existing:
-                if isinstance(item, dict):
-                    if safe_int(item.get("clipIndex"), 0) != clip_index:
-                        rows.append(dict(item))
-        rows.append(clip_frame_context)
-        rows.sort(key=lambda r: safe_int(r.get("clipIndex"), 0))
-        self._put_execution_context(task, "clipFrameContexts", rows)
 
     def _result_map(self, run: dict[str, Any]) -> dict[str, Any]:
         result = run.get("result")
         return result if isinstance(result, dict) else {}
 
     def _put_execution_context(self, task: TaskRecord, key: str, value: Any) -> None:
-        if task.execution_context is None:
-            task.execution_context = {}
-        if value is None:
-            task.execution_context.pop(key, None)
-            return
-        if isinstance(value, str):
-            normalized = value.strip()
-            if not normalized:
-                task.execution_context.pop(key, None)
-                return
-        task.execution_context[key] = value
-
-    def _merge_string_list_context(self, existing: Any, appended: list[str]) -> list[str]:
-        merged: set[str] = set()
-        if isinstance(existing, list):
-            for item in existing:
-                v = string_value(item)
-                if v:
-                    merged.add(v)
-        for item in appended:
-            v = string_value(item)
-            if v:
-                merged.add(v)
-        return list(merged)
+        self._render_context.put(task, key, value)

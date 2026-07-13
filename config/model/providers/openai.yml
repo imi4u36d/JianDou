@@ -4,7 +4,7 @@ model:
       provider: "openai"
       vendor: "openai"
       api_key: ""
-      base_url: "http://13.192.165.23:3030/v1"
+      base_url: "http://54.250.234.84:3030/v1"
       extras:
         timeout_seconds: 300
         use_responses_api: false

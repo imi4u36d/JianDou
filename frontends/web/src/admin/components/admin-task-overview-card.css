@@ -1,0 +1,78 @@
+.admin-task-detail-card :deep(.el-card__header) { padding: 14px 16px; }
+.admin-task-detail-card :deep(.el-card__body) { padding: 16px; }
+
+.admin-task-detail-card__header,
+.admin-detail-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-task-detail-card__header { flex-wrap: wrap; }
+.admin-task-detail-card__header h3,
+.admin-detail-section-title h4,
+.admin-detail-section h4 {
+  margin: 0;
+  color: var(--jd-text);
+  font-size: 0.98rem;
+  font-weight: 850;
+}
+
+.admin-task-detail-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-detail-section-title { justify-content: flex-start; margin-bottom: 12px; }
+.admin-detail-section-compact {
+  padding: 12px 14px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
+}
+
+.admin-detail-section p,
+.admin-detail-text-block p {
+  margin: 6px 0 0;
+  color: var(--jd-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.admin-detail-text-block {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
+}
+
+.admin-detail-text-block strong {
+  display: block;
+  color: var(--jd-text);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.admin-detail-text-block p {
+  max-height: 150px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.admin-task-detail-muted { color: var(--jd-text-soft); font-size: 0.78rem; line-height: 1.5; }
+.admin-task-detail-error { margin-top: 16px; }
+.admin-task-detail-card :deep(.el-descriptions__label) {
+  width: 112px;
+  color: var(--jd-text-soft);
+  font-weight: 780;
+}
+.admin-task-detail-card :deep(.el-descriptions__content) { color: var(--jd-text); overflow-wrap: anywhere; }
+.admin-task-detail-card :deep(.el-table) { width: 100%; }
+.admin-task-detail-card :deep(.el-table__inner-wrapper) { border-radius: var(--jd-radius-card); }
+
+@media (max-width: 720px) {
+  .admin-task-detail-card :deep(.el-card__header),
+  .admin-task-detail-card :deep(.el-card__body) { padding: 14px; }
+  .admin-task-detail-card__actions { width: 100%; }
+  .admin-task-detail-card__actions .el-button { flex: 1 1 120px; }
+  .admin-task-detail-card :deep(.el-descriptions__body) { overflow-x: auto; }
+  .admin-detail-text-block p { max-height: 220px; }
+}

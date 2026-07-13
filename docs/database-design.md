@@ -171,11 +171,11 @@ Provider response parsing for text, image, and video integrations belongs in `ba
 
 JSON text column parsing and serialization belongs in `backend.domain.json_payloads`. Repositories and workflow services should use these helpers so malformed legacy JSON degrades to empty objects/lists instead of breaking list/detail/admin queries.
 
-Task execution artifact/material/result row assembly belongs in `backend.services.task_artifact_assembler`. Worker pipeline services should orchestrate generation, status transitions, and persistence rather than constructing material/result dictionaries inline.
+Task execution artifact/material/result row assembly enters through `backend.services.task_artifact_assembler`. Image-like material normalization and metadata belong to `backend.services.task_image_material_assembler`, while result rows belong to `backend.services.task_result_assembler`. Worker pipeline services should orchestrate generation, status transitions, and persistence rather than constructing material/result dictionaries inline.
 
-Task worker status transitions, stage-run rows, model-call rows, abort handling, and worker heartbeat mutations belong in `backend.services.task_worker_status_stage_service`. Worker pipeline services should call this boundary instead of directly building lifecycle rows.
+Task worker status transitions, abort handling, and worker heartbeat mutations belong in `backend.services.task_worker_status_stage_service`. Deterministic stage-run/model-call rows and provider call-chain trace projections belong in `backend.services.task_worker_record_factory`; worker pipeline services should call the status-stage boundary instead of constructing lifecycle rows directly.
 
-Task execution runtime request building belongs in `backend.services.task_execution_runtime_support`. Dimensions, duration resolution, model selection, storage metadata, seed handling, and compatible reference-image URL expansion should be tested there instead of living inside the worker pipeline.
+Task execution request orchestration belongs in `backend.services.task_execution_runtime_support`. Dimensions, duration resolution, model selection, storage metadata, and seed handling are tested there; prompt construction lives in `backend.services.task_execution_prompt_support`, while compatible reference-image URL expansion lives in `backend.services.task_reference_image_support`.
 
 Task queue fairness belongs in `backend.domain.task_queue_fairness`. Queue coordinators and worker dispatch should reuse the round-robin scheduler instead of embedding owner interleaving logic in service classes.
 
@@ -222,7 +222,7 @@ Workflow rows are indexed by `owner_user_id + status + is_deleted`. Stage versio
 
 Task render-stage request/response objects, frame resolution values, stage-run payloads, and clip frame execution-context dictionaries belong in `TaskRenderStagePayloads`.
 
-`TaskWorkerRenderStageService` lives in its own module and should orchestrate keyframe generation, video generation, artifact recording, and render-stage persistence only. The pipeline handler should stay focused on claim/resume, analysis, storyboard planning, and final completion wiring.
+`TaskWorkerRenderStageService` lives in its own module and should orchestrate keyframe generation, video generation, artifact recording, and render-stage persistence only. Render execution-context and progress projections belong in `TaskRenderStageContext`; the pipeline handler should stay focused on claim/resume, analysis, storyboard planning, and final completion wiring.
 
 ## Auth Tables
 

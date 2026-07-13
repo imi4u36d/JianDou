@@ -1,0 +1,119 @@
+.invite-page {
+  display: grid;
+  gap: 16px;
+}
+
+.invite-page > *,
+.invite-page .surface-card,
+.invite-page__summary,
+.invite-page__summary-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.invite-page__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.invite-page__summary-card {
+  border-radius: var(--jd-radius-card);
+}
+
+.invite-page__summary-card :deep(.el-card__body) {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.invite-page__summary-card p {
+  margin: 0;
+  color: var(--jd-text-soft);
+}
+
+.invite-page__summary-card strong {
+  font-family: inherit;
+  font-size: 1.8rem;
+  line-height: 1.05;
+}
+
+.invite-page__summary-card span,
+.invite-page__muted {
+  color: var(--jd-text-soft);
+  font-size: 0.92rem;
+}
+
+.invite-page__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.invite-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.invite-page__toolbar-actions,
+.invite-page__code-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.invite-page__code-cell strong {
+  font-family: inherit;
+  letter-spacing: 0.1em;
+}
+
+.invite-page__alert {
+  margin-bottom: 16px;
+}
+
+.invite-page__table {
+  width: 100%;
+}
+
+.invite-page__code-cell :deep(.el-button),
+.invite-page__table :deep(.el-button.is-link) {
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--jd-surface-muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.invite-page__code-cell :deep(.el-button:hover),
+.invite-page__table :deep(.el-button.is-link:hover) {
+  background: var(--jd-accent-soft);
+}
+
+@media (max-width: 1200px) {
+  .invite-page__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .invite-page__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-page__toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .invite-page__toolbar-actions {
+    width: 100%;
+  }
+
+  .invite-page__toolbar-actions :deep(.el-button) {
+    flex: 1;
+    min-width: 0;
+  }
+}

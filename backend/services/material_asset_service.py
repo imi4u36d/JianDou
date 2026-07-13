@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import uuid
 from typing import Any
 
@@ -8,74 +7,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.task import BizMaterialAsset
+from backend.services.material_asset_mapping import material_asset_payload, material_asset_view
 from backend.shared import now_iso, string_value
-
-
-def _optional_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    try:
-        return int(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _optional_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        return float(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _bool_to_int(value: Any) -> int:
-    if isinstance(value, str):
-        return 1 if value.strip().lower() in {"1", "true", "yes", "on"} else 0
-    return 1 if bool(value) else 0
-
-
-def _metadata_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str) and value.strip():
-        try:
-            parsed = json.loads(value)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
-
-
-def _first_non_blank(*values: Any) -> str:
-    for value in values:
-        normalized = string_value(value).strip()
-        if normalized:
-            return normalized
-    return ""
-
-
-def _public_url_from_values(values: dict[str, Any]) -> str:
-    return _first_non_blank(
-        values.get("publicUrl"),
-        values.get("fileUrl"),
-        values.get("remoteUrl"),
-        values.get("thirdPartyUrl"),
-    )
-
-
-def _thumbnail_url_from_values(values: dict[str, Any]) -> str:
-    return _first_non_blank(values.get("thumbnailUrl"), values.get("previewUrl"))
-
-
-def _public_url_from_row(row: BizMaterialAsset) -> str:
-    return _first_non_blank(row.public_url, row.remote_url, row.third_party_url)
 
 
 def _non_blank_column(column: Any) -> Any:
@@ -184,50 +117,7 @@ class MaterialAssetService:
         resolved_id = string_value(asset_id) or f"mat_{uuid.uuid4().hex}"
         row = await self._find_by_asset_id(resolved_id)
         now = now_iso()
-        metadata = _metadata_dict(values.get("metadata"))
-        payload = {
-            "remark": string_value(values.get("remark", "")),
-            "owner_user_id": owner_user_id,
-            "task_id": string_value(values.get("taskId", "")) or None,
-            "workflow_id": string_value(values.get("workflowId", "")) or None,
-            "source_task_id": string_value(values.get("sourceTaskId", "")) or None,
-            "source_material_id": string_value(values.get("sourceMaterialId", "")) or None,
-            "asset_role": string_value(values.get("assetType", values.get("assetRole", "free"))) or None,
-            "stage_type": string_value(values.get("stageType", "material")) or None,
-            "clip_index": _optional_int(values.get("clipIndex")) if "clipIndex" in values else 0,
-            "version_no": _optional_int(values.get("versionNo")) if "versionNo" in values else 1,
-            "selected_for_next": _bool_to_int(values.get("selectedForNext", False)),
-            "user_rating": _optional_int(values.get("userRating")),
-            "rating_note": string_value(values.get("ratingNote", "")) or None,
-            "media_type": string_value(values.get("mediaType", "image")) or None,
-            "title": string_value(values.get("title", "素材")) or None,
-            "origin_provider": string_value(values.get("originProvider", "")) or None,
-            "origin_model": string_value(values.get("originModel", "")) or None,
-            "remote_task_id": string_value(values.get("remoteTaskId", "")) or None,
-            "remote_asset_id": string_value(values.get("remoteAssetId", "")) or None,
-            "original_file_name": string_value(values.get("originalFileName", "")) or None,
-            "stored_file_name": string_value(values.get("storedFileName", "")) or None,
-            "file_ext": string_value(values.get("fileExt", "")) or None,
-            "storage_provider": string_value(values.get("storageProvider", "")) or None,
-            "mime_type": string_value(values.get("mimeType", "")) or None,
-            "size_bytes": _optional_int(values.get("sizeBytes")),
-            "sha256": string_value(values.get("sha256", "")) or None,
-            "duration_seconds": _optional_float(values.get("durationSeconds")),
-            "width": _optional_int(values.get("width")),
-            "height": _optional_int(values.get("height")),
-            "has_audio": _bool_to_int(values.get("hasAudio", False)),
-            "local_storage_path": string_value(values.get("storagePath", "")) or None,
-            "local_file_path": string_value(values.get("localFilePath", values.get("storagePath", ""))) or None,
-            "public_url": _public_url_from_values(values) or None,
-            "thumbnail_url": _thumbnail_url_from_values(values) or None,
-            "third_party_url": None,
-            "remote_url": None,
-            "metadata_json": json.dumps(metadata, ensure_ascii=False),
-            "captured_at": string_value(values.get("capturedAt", now)) or None,
-            "timezone_offset_minutes": _optional_int(values.get("timezoneOffsetMinutes")),
-            "update_time": now,
-            "is_deleted": 0,
-        }
+        payload = material_asset_payload(owner_user_id, values, now)
         if row is None:
             row = BizMaterialAsset(material_asset_id=resolved_id, create_time=now, **payload)
             self.db.add(row)
@@ -300,42 +190,4 @@ class MaterialAssetService:
         )
         return result.scalar_one_or_none()
 
-    @staticmethod
-    def to_view(row: BizMaterialAsset) -> dict[str, Any]:
-        metadata = _metadata_dict(row.metadata_json)
-        public_url = _public_url_from_row(row)
-        thumbnail_url = row.thumbnail_url or ""
-        return {
-            "id": row.material_asset_id,
-            "materialAssetId": row.material_asset_id,
-            "workflowId": row.workflow_id,
-            "taskId": row.task_id or "",
-            "stageType": row.stage_type or "material",
-            "clipIndex": row.clip_index if row.clip_index is not None else 0,
-            "versionNo": row.version_no if row.version_no is not None else 1,
-            "selectedForNext": bool(row.selected_for_next),
-            "assetType": row.asset_role or "free",
-            "assetRole": row.asset_role,
-            "userRating": row.user_rating,
-            "ratingNote": row.rating_note,
-            "mediaType": row.media_type or "image",
-            "title": row.title or "素材",
-            "originModel": row.origin_model,
-            "originProvider": row.origin_provider,
-            "mimeType": row.mime_type,
-            "durationSeconds": row.duration_seconds,
-            "width": row.width,
-            "height": row.height,
-            "hasAudio": bool(row.has_audio),
-            "publicUrl": public_url,
-            "fileUrl": public_url,
-            "previewUrl": thumbnail_url,
-            "thumbnailUrl": thumbnail_url,
-            "remoteUrl": "",
-            "hasRemotePath": False,
-            "remotePath": "",
-            "metadata": metadata,
-            "createdAt": row.create_time or row.captured_at or "",
-            "updatedAt": row.update_time or row.create_time or "",
-            "status": "ready" if not row.is_deleted else "deleted",
-        }
+    to_view = staticmethod(material_asset_view)

@@ -1,90 +1,42 @@
 <template>
-  <section class="auth-screen">
-    <AuthCarouselBackground />
-    <div class="auth-screen__panel">
-      <div class="auth-screen__brand">
-        <img alt="煎豆" class="auth-screen__logo" src="/brand/jiandou-mark.svg" />
-        <div>
-          <h1>激活账号</h1>
-          <p>创建你的煎豆账号，立即开始创作</p>
-        </div>
-      </div>
-
-      <form class="auth-form" @submit.prevent="handleSubmit">
-        <label class="auth-form__field">
-          <span class="auth-form__field-label">邀请码</span>
-          <input v-model="code" autocomplete="off" placeholder="邀请码" type="text" />
-        </label>
-        <label class="auth-form__field">
-          <span class="auth-form__field-label">用户名</span>
-          <input v-model="username" autocomplete="username" placeholder="用户名" type="text" />
-        </label>
-        <label class="auth-form__field">
-          <span class="auth-form__field-label">密码</span>
-          <div class="auth-form__password-wrap">
-            <input
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              autocomplete="new-password"
-              placeholder="密码"
-            />
-            <button
-              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
-              :title="showPassword ? '隐藏密码' : '显示密码'"
-              class="auth-form__password-toggle"
-              type="button"
-              @click="showPassword = !showPassword"
-            >
-              <IconEyeOff v-if="showPassword" size="sm" />
-              <IconEye v-else size="sm" />
-            </button>
-          </div>
-        </label>
-
-        <button :disabled="submitting" class="auth-form__submit" type="submit">
-          <IconLoading v-if="submitting" size="sm" />
-          <span>{{ submitting ? "激活中" : "激活" }}</span>
-        </button>
-
-        <p class="auth-form__footer">
-          <RouterLink :to="loginLink">登录</RouterLink>
-        </p>
-      </form>
-    </div>
-  </section>
+  <AuthStandaloneForm
+    title="激活账号"
+    subtitle="创建你的煎豆账号，立即开始创作"
+    show-code
+    password-autocomplete="new-password"
+    :code="code"
+    :username="username"
+    :password="password"
+    :submitting="submitting"
+    submit-label="激活"
+    submitting-label="激活中"
+    footer-label="登录"
+    :footer-to="loginLink"
+    @update:code="code = $event"
+    @update:username="username = $event"
+    @update:password="password = $event"
+    @submit="handleSubmit"
+  />
 </template>
 
 <script setup lang="ts">
-/**
- * 激活页。
- */
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { normalizeAuthRedirectTarget } from "@/auth/redirect";
 import { activateInviteAndStoreSession } from "@/auth/session";
+import AuthStandaloneForm from "@/components/auth/AuthStandaloneForm.vue";
 import { messageApi } from "@/composables/useMessage";
-import AuthCarouselBackground from "@/components/auth/AuthCarouselBackground.vue";
-import { IconEye, IconEyeOff, IconLoading } from "@/components/icons";
 
 const route = useRoute();
 const router = useRouter();
-
 const code = ref(typeof route.query.code === "string" ? route.query.code : "");
 const username = ref("");
 const password = ref("");
-const showPassword = ref(false);
 const submitting = ref(false);
-
-function normalizeRedirectTarget(value: unknown) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/image-tasks";
-  }
-  return value;
-}
-
-const redirectTarget = computed(() => normalizeRedirectTarget(route.query.redirect));
+const redirectTarget = computed(() => normalizeAuthRedirectTarget(route.query.redirect, "/image-tasks"));
 const loginLink = computed(() => ({
   path: "/login",
-  query: redirectTarget.value === "/image-tasks" ? undefined : { redirect: redirectTarget.value }
+  query: redirectTarget.value === "/image-tasks" ? undefined : { redirect: redirectTarget.value },
 }));
 
 async function handleSubmit() {
@@ -93,7 +45,7 @@ async function handleSubmit() {
     await activateInviteAndStoreSession({
       code: code.value,
       username: username.value,
-      password: password.value
+      password: password.value,
     });
     await router.replace(redirectTarget.value);
   } catch (error) {
@@ -103,248 +55,3 @@ async function handleSubmit() {
   }
 }
 </script>
-
-<style scoped>
-.auth-screen {
-  position: relative;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  overflow: hidden;
-  isolation: isolate;
-  background: var(--bg-base);
-}
-
-.auth-screen__panel {
-  position: relative;
-  z-index: 1;
-  width: min(460px, 100%);
-  display: grid;
-  gap: 22px;
-  padding: 24px;
-  border-radius: var(--radius-xl);
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  background: var(--glass-panel-bg);
-  box-shadow:
-    var(--glass-panel-shadow),
-    var(--glass-sheen);
-  backdrop-filter: var(--glass-panel-blur);
-  -webkit-backdrop-filter: var(--glass-panel-blur);
-  max-width: calc(100% - 28px);
-}
-
-.auth-screen__brand {
-  display: grid;
-  gap: 10px;
-  text-align: left;
-}
-
-.auth-screen__logo {
-  width: 44px;
-  height: 44px;
-}
-
-.auth-screen__brand h1 {
-  margin: 0;
-  line-height: 1.15;
-  color: var(--text-strong);
-  font-size: clamp(1.45rem, 4vw, 1.9rem);
-  letter-spacing: 0.01em;
-}
-
-.auth-screen__brand p {
-  margin: 6px 0 0;
-  color: var(--text-body);
-}
-
-.auth-form {
-  display: grid;
-  gap: 10px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  border: 0;
-}
-
-.auth-form__field {
-  display: grid;
-  gap: 8px;
-}
-
-.auth-form__field-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-}
-
-.auth-form__field input {
-  width: 100%;
-  min-height: 48px;
-  padding: 0 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.78));
-  color: var(--text-strong);
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    background 180ms ease,
-    transform 180ms ease;
-}
-
-.auth-form__field input:focus {
-  border-color: rgba(99, 102, 241, 0.64);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 0 0 1px rgba(99, 102, 241, 0.36),
-    0 0 0 4px rgba(99, 102, 241, 0.18);
-}
-
-.auth-form__password-wrap {
-  position: relative;
-}
-
-.auth-form__password-wrap input {
-  padding-right: 54px;
-}
-
-.auth-form__password-toggle {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  display: grid;
-  place-items: center;
-  width: 34px;
-  min-height: 34px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 11px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.16)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(99, 102, 241, 0.1));
-  color: var(--text-body);
-  backdrop-filter: blur(20px) saturate(1.7);
-  -webkit-backdrop-filter: blur(20px) saturate(1.7);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    0 6px 16px rgba(15, 23, 42, 0.1);
-  line-height: 0;
-  cursor: pointer;
-  transition:
-    color 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease,
-    transform 180ms ease;
-}
-
-.auth-form__password-toggle:hover {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.2)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(99, 102, 241, 0.14));
-  color: var(--accent-blue);
-  transform: translateY(-50%) scale(1.02);
-}
-
-.auth-form__password-toggle :deep(svg) {
-  width: 16px;
-  height: 16px;
-}
-
-.auth-form__field input::placeholder {
-  color: #9aa5ad;
-}
-
-.auth-form__submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  border-radius: 14px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.08) 52%, rgba(255, 255, 255, 0.24)),
-    linear-gradient(180deg, rgba(99, 102, 241, 0.22), rgba(99, 102, 241, 0.1));
-  color: var(--accent-blue);
-  font-weight: 800;
-  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-  cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    0 12px 28px rgba(99, 102, 241, 0.14),
-    0 2px 6px rgba(15, 23, 42, 0.08);
-  transition:
-    background 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease,
-    opacity 180ms ease;
-}
-
-.auth-form__submit :deep(svg) {
-  width: 16px;
-  height: 16px;
-}
-
-.auth-form__submit:hover:not(:disabled),
-.auth-form__submit:focus-visible {
-  transform: translateY(-1px);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.12) 52%, rgba(255, 255, 255, 0.28)),
-    linear-gradient(180deg, rgba(99, 102, 241, 0.3), rgba(99, 102, 241, 0.14));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    0 16px 34px rgba(99, 102, 241, 0.18),
-    0 4px 12px rgba(15, 23, 42, 0.1);
-}
-
-.auth-form__submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.auth-form__footer {
-  margin: 2px 0 0;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.auth-form__footer a {
-  color: var(--accent-indigo);
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.auth-form__footer a:hover,
-.auth-form__footer a:focus-visible {
-  color: var(--accent-blue);
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-}
-
-@media (max-width: 860px) {
-  .auth-screen {
-    padding: 16px;
-  }
-
-  .auth-screen__panel {
-    gap: 16px;
-    padding: 18px;
-    border-radius: var(--radius-lg);
-    max-width: 100%;
-  }
-
-  .auth-screen__brand h1 {
-    max-width: none;
-    font-size: clamp(1.5rem, 8vw, 1.9rem);
-  }
-}
-</style>
