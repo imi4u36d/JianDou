@@ -6,31 +6,21 @@ status history, model calls, results, and materials queries.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from backend.config import settings
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
+from backend.services.task_admin_query_service import TaskAdminQueryService
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
-from backend.shared import string_value
-
-
-def _trimmed(value: str | None, fallback: str) -> str:
-    if value is None:
-        return fallback
-    v = value.strip()
-    return v if v else fallback
-
-
-def _timestamp(value: str | None) -> float:
-    text = string_value(value).strip()
-    if not text:
-        return 0
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
-    except ValueError:
-        return 0
+from backend.services.task_query_cache import TaskQueryCache
+from backend.services.task_query_policy import (
+    matches_task_status,
+    showcase_comparator,
+    task_comparator,
+    task_type_set,
+)
+from backend.services.task_query_presenters import task_detail, task_list_item
 
 
 class TaskQueryService:
@@ -40,8 +30,6 @@ class TaskQueryService:
     sub-collection queries.
     """
 
-    SHOWCASE_LIMIT = 8
-
     def __init__(
         self,
         task_repository: TaskRepository | None = None,
@@ -49,10 +37,17 @@ class TaskQueryService:
         cache: Any | None = None,
     ) -> None:
         self._task_repository: TaskRepository | None = task_repository
-        self._execution_coordinator: TaskExecutionCoordinator = (
-            execution_coordinator or TaskExecutionCoordinator()
+        self._execution_coordinator: TaskExecutionCoordinator = execution_coordinator or TaskExecutionCoordinator()
+        self._query_cache = TaskQueryCache(cache)
+        self._admin_queries = TaskAdminQueryService(
+            repository=lambda: self.task_repository,
+            coordinator=self._execution_coordinator,
+            repo_method=self._repo_method,
+            to_list_item=self._to_list_item,
+            task_comparator=self._task_comparator,
+            showcase_comparator=self._showcase_comparator,
+            matches_status=self._matches_status,
         )
-        self._cache = cache
 
     @property
     def task_repository(self) -> TaskRepository:
@@ -90,7 +85,7 @@ class TaskQueryService:
         page_limit = max(1, limit or 10)
         list_task_summaries = self._repo_method("list_task_summaries")
         if list_task_summaries:
-            cache_key = self._task_list_cache_key(
+            cache_key = self._query_cache.task_list_key(
                 owner_user_id,
                 q,
                 status,
@@ -100,7 +95,7 @@ class TaskQueryService:
                 page_offset if is_paginated else None,
                 page_limit if is_paginated else None,
             )
-            cached = await self._cache_get(cache_key)
+            cached = await self._query_cache.get(cache_key)
             if isinstance(cached, (list, dict)):
                 return cached
             items = await list_task_summaries(
@@ -126,39 +121,33 @@ class TaskQueryService:
                     "offset": page_offset,
                     "limit": page_limit,
                 }
-                await self._cache_set(cache_key, result, settings.task_list_cache_ttl_seconds)
+                await self._query_cache.set(cache_key, result, settings.task_list_cache_ttl_seconds)
                 return result
-            await self._cache_set(cache_key, items, settings.task_list_cache_ttl_seconds)
+            await self._query_cache.set(cache_key, items, settings.task_list_cache_ttl_seconds)
             return items
 
         tasks = await self.task_repository.find_all()
         self._execution_coordinator.recompute_queue_positions(tasks)
 
-        filtered = [
-            t for t in tasks
-            if t.owner_user_id == owner_user_id
-        ]
+        filtered = [t for t in tasks if t.owner_user_id == owner_user_id]
 
         # Apply text search
         if q and q.strip():
             q_lower = q.lower().strip()
             filtered = [
-                t for t in filtered
-                if q_lower in (t.title or "").lower()
-                or q_lower in (t.creative_prompt or "").lower()
+                t
+                for t in filtered
+                if q_lower in (t.title or "").lower() or q_lower in (t.creative_prompt or "").lower()
             ]
 
         # Apply status filter
         if status:
-            filtered = [
-                t for t in filtered
-                if self._matches_status(t, status)
-            ]
+            filtered = [t for t in filtered if self._matches_status(t, status)]
         if task_type:
-            allowed = self._type_set(task_type)
+            allowed = task_type_set(task_type)
             filtered = [t for t in filtered if t.task_type in allowed]
         if exclude_task_type:
-            excluded = self._type_set(exclude_task_type)
+            excluded = task_type_set(exclude_task_type)
             filtered = [t for t in filtered if t.task_type not in excluded]
 
         # Sort
@@ -176,13 +165,6 @@ class TaskQueryService:
 
         return [self._to_list_item(t) for t in filtered]
 
-    def _type_set(self, value: str | None) -> set[str]:
-        return {
-            item.strip()
-            for item in string_value(value).split(",")
-            if item.strip()
-        }
-
     async def admin_list_tasks(
         self,
         q: str | None = None,
@@ -191,93 +173,10 @@ class TaskQueryService:
         offset: int = 0,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """List tasks for admin with pagination."""
-        list_task_summaries = self._repo_method("list_task_summaries")
-        if list_task_summaries:
-            items = await list_task_summaries(None, q, status, sort, offset=offset, limit=limit)
-            count_task_summaries = self._repo_method("count_task_summaries")
-            total = await count_task_summaries(None, q, status) if count_task_summaries else len(items)
-            return {
-                "items": items,
-                "total": total,
-                "offset": offset,
-                "limit": limit,
-            }
-
-        tasks = await self.task_repository.find_all()
-        self._execution_coordinator.recompute_queue_positions(tasks)
-
-        filtered = list(tasks)
-
-        # Apply text search
-        if q and q.strip():
-            q_lower = q.lower().strip()
-            filtered = [
-                t for t in filtered
-                if q_lower in (t.title or "").lower()
-                or q_lower in (t.creative_prompt or "").lower()
-                or q_lower in (t.source_file_name or "").lower()
-            ]
-
-        # Apply status filter
-        if status:
-            filtered = [
-                t for t in filtered
-                if self._matches_status(t, status)
-            ]
-
-        # Sort
-        filtered.sort(key=self._task_comparator(sort))
-
-        total = len(filtered)
-        page_items = filtered[offset : offset + limit]
-        return {
-            "items": [self._to_list_item(t) for t in page_items],
-            "total": total,
-            "offset": offset,
-            "limit": limit,
-        }
+        return await self._admin_queries.list_tasks(q, status, sort, offset, limit)
 
     async def showcase_cases(self) -> dict[str, Any]:
-        """Return public showcase data: completed tasks with preview results."""
-        tasks = await self.task_repository.find_all()
-        self._execution_coordinator.recompute_queue_positions(tasks)
-
-        eligible = [
-            t for t in tasks
-            if t.status == "COMPLETED"
-            and (t.completed_output_count > 0 or t.outputs)
-        ]
-
-        eligible.sort(key=self._showcase_comparator())
-
-        items = []
-        for t in eligible[:self.SHOWCASE_LIMIT]:
-            preview_url = ""
-            for output in t.outputs:
-                preview_url = string_value(output.get("previewUrl", output.get("remoteUrl", "")))
-                if preview_url:
-                    break
-            if not preview_url:
-                continue
-            items.append({
-                "taskId": t.id,
-                "title": t.title,
-                "taskType": t.task_type,
-                "aspectRatio": t.aspect_ratio,
-                "effectRating": t.effect_rating,
-                "previewUrl": preview_url,
-                "completedOutputCount": t.completed_output_count,
-                "updatedAt": t.updated_at,
-            })
-
-        total_completed = sum(1 for t in tasks if t.status == "COMPLETED")
-
-        return {
-            "generatedAt": TaskRecord.now_iso(),
-            "totalCompletedTasks": total_completed,
-            "items": items,
-        }
+        return await self._admin_queries.showcase_cases()
 
     # ------------------------------------------------------------------
     # Get single task
@@ -317,12 +216,12 @@ class TaskQueryService:
         """Get trace events for a task."""
         get_task_trace = self._repo_method("get_task_trace")
         if get_task_trace:
-            cache_key = self._task_trace_cache_key(owner_user_id, task_id, limit)
-            cached = await self._cache_get(cache_key)
+            cache_key = self._query_cache.task_trace_key(owner_user_id, task_id, limit)
+            cached = await self._query_cache.get(cache_key)
             if isinstance(cached, list):
                 return cached
             trace = await get_task_trace(task_id, owner_user_id, limit)
-            await self._cache_set(cache_key, trace, settings.task_trace_cache_ttl_seconds)
+            await self._query_cache.set(cache_key, trace, settings.task_trace_cache_ttl_seconds)
             return trace
 
         task = await self._require_owned_task(task_id, owner_user_id)
@@ -369,60 +268,7 @@ class TaskQueryService:
     # ------------------------------------------------------------------
 
     async def admin_overview(self) -> dict[str, Any]:
-        """Admin dashboard overview."""
-        queue_snapshot = self._execution_coordinator.queue_snapshot()
-        tasks = await self.task_repository.find_all()
-        self._execution_coordinator.recompute_queue_positions(tasks)
-        tasks.sort(key=lambda t: string_value(t.created_at), reverse=True)
-
-        total = len(tasks)
-        list_items = [self._to_list_item(t) for t in tasks]
-        recent_tasks = list_items[:8]
-
-        recent_failures = [t for t in tasks if t.status == "FAILED"][:6]
-        recent_running = [t for t in tasks if t.status in ("ANALYZING", "PLANNING", "RENDERING")][:6]
-
-        running_count = sum(1 for t in tasks if t.status in ("ANALYZING", "PLANNING", "RENDERING"))
-        completed_count = sum(1 for t in tasks if t.status == "COMPLETED")
-        failed_count = sum(1 for t in tasks if t.status == "FAILED")
-        semantic_count = sum(1 for t in tasks if t.has_transcript)
-        timed_semantic_count = sum(1 for t in tasks if t.has_timed_transcript)
-        avg_progress = sum(t.progress for t in tasks) // total if total > 0 else 0
-
-        return {
-            "generatedAt": TaskRecord.now_iso(),
-            "counts": {
-                "totalTasks": total,
-                "queuedTasks": len(queue_snapshot),
-                "runningTasks": running_count,
-                "completedTasks": completed_count,
-                "failedTasks": failed_count,
-                "highRiskTasks": 0,
-                "riskyTasks": 0,
-                "semanticTasks": semantic_count,
-                "timedSemanticTasks": timed_semantic_count,
-                "averageProgress": avg_progress,
-            },
-            "queue": {
-                "generatedAt": TaskRecord.now_iso(),
-                "queueLength": len(queue_snapshot),
-                "queueSnapshot": queue_snapshot,
-                "runningWorkers": 0,
-                "userQueues": [],
-                "latestEvents": [],
-                "oldestQueuedTaskId": queue_snapshot[0] if queue_snapshot else "",
-                "oldestQueuedTaskTitle": "",
-                "oldestQueuedTaskCreatedAt": None,
-            },
-            "workers": {
-                "items": [],
-                "onlineCount": 0,
-            },
-            "recentTasks": recent_tasks,
-            "recentFailures": [self._to_list_item(t) for t in recent_failures],
-            "recentRunningTasks": [self._to_list_item(t) for t in recent_running],
-            "recentTraceCount": 0,
-        }
+        return await self._admin_queries.overview()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -441,204 +287,22 @@ class TaskQueryService:
         return task
 
     def _to_list_item(self, task: TaskRecord) -> dict[str, Any]:
-        """Build a list-item response dict from a TaskRecord."""
-        current_stage = ""
-        active_worker = ""
-        for attempt in task.attempts:
-            if attempt.get("attemptId") == task.active_attempt_id:
-                current_stage = string_value(attempt.get("resumeFromStage", ""))
-                active_worker = string_value(attempt.get("workerInstanceId", ""))
-                break
-
-        return {
-            "id": task.id,
-            "taskType": task.task_type,
-            "title": task.title,
-            "status": task.status,
-            "progress": task.progress,
-            "createdAt": task.created_at,
-            "updatedAt": task.updated_at,
-            "sourceFileName": task.source_file_name,
-            "aspectRatio": task.aspect_ratio,
-            "minDurationSeconds": task.min_duration_seconds,
-            "maxDurationSeconds": task.max_duration_seconds,
-            "retryCount": task.retry_count,
-            "startedAt": task.started_at,
-            "finishedAt": task.finished_at,
-            "completedOutputCount": task.completed_output_count,
-            "taskSeed": task.task_seed,
-            "effectRating": task.effect_rating,
-            "effectRatingNote": task.effect_rating_note,
-            "ratedAt": task.rated_at,
-            "hasTranscript": task.has_transcript,
-            "hasTimedTranscript": task.has_timed_transcript,
-            "sourceAssetCount": task.source_asset_count,
-            "editingMode": task.editing_mode,
-            "isQueued": task.is_queued,
-            "queuePosition": task.queue_position,
-            "currentStage": current_stage,
-            "activeWorkerInstanceId": active_worker,
-            "plannedClipCount": 0,
-            "renderedClipCount": 0,
-            "diagnosisSeverity": "",
-            "diagnosisCode": "",
-            "diagnosisHint": "",
-            "recommendedAction": "",
-            "failureReason": task.error_message or "",
-            "failureStage": "",
-            "failureClipIndex": None,
-            "thumbnailUrl": "",
-            "ownerUserId": task.owner_user_id,
-            "ownerUsername": "",
-            "ownerRole": "",
-        }
+        return task_list_item(task)
 
     def _to_detail(self, task: TaskRecord) -> dict[str, Any]:
-        """Build a detail response dict from a TaskRecord."""
-        current_stage = ""
-        active_worker = ""
-        for attempt in task.attempts:
-            if attempt.get("attemptId") == task.active_attempt_id:
-                current_stage = string_value(attempt.get("resumeFromStage", ""))
-                active_worker = string_value(attempt.get("workerInstanceId", ""))
-                break
-
-        return {
-            "id": task.id,
-            "taskType": task.task_type,
-            "title": task.title,
-            "status": task.status,
-            "progress": task.progress,
-            "createdAt": task.created_at,
-            "updatedAt": task.updated_at,
-            "sourceFileName": task.source_file_name,
-            "aspectRatio": task.aspect_ratio,
-            "minDurationSeconds": task.min_duration_seconds,
-            "maxDurationSeconds": task.max_duration_seconds,
-            "retryCount": task.retry_count,
-            "startedAt": task.started_at,
-            "finishedAt": task.finished_at,
-            "completedOutputCount": task.completed_output_count,
-            "taskSeed": task.task_seed,
-            "effectRating": task.effect_rating,
-            "effectRatingNote": task.effect_rating_note,
-            "ratedAt": task.rated_at,
-            "isQueued": task.is_queued,
-            "queuePosition": task.queue_position,
-            "currentStage": current_stage,
-            "activeWorkerInstanceId": active_worker,
-            "ownerUserId": task.owner_user_id,
-            "ownerUsername": "",
-            "errorMessage": task.error_message or "",
-            "editingMode": task.editing_mode,
-            "creativePrompt": task.creative_prompt,
-            "hasTranscript": task.has_transcript,
-            "hasTimedTranscript": task.has_timed_transcript,
-            "sourceAssetCount": task.source_asset_count,
-            "transcriptPreview": task.transcript_text[: min(220, len(task.transcript_text))]
-            if task.transcript_text
-            else None,
-            "transcriptCueCount": 0,
-            "executionContext": task.execution_context,
-            "requestSnapshot": task.request_snapshot or {},
-            "storyboardScript": task.storyboard_script,
-            "artifactDirectories": {},
-            "durationDiagnostics": [],
-            "plan": [],
-            "trace": list(task.trace),
-            "statusHistory": list(task.status_history),
-            "attempts": list(task.attempts),
-            "stageRuns": list(task.stage_runs),
-            "modelCalls": list(task.model_calls),
-            "materials": list(task.materials),
-            "outputs": list(task.outputs),
-            "sourceAssets": list(task.source_assets),
-        }
+        return task_detail(task)
 
     async def invalidate_task_list_cache(self, owner_user_id: int | None = None) -> None:
-        if not self._cache:
-            return
-        if owner_user_id is None:
-            await self._cache.delete_prefix("task:list:")
-            return
-        await self._cache.delete_prefix(f"task:list:{owner_user_id}:")
-
-    async def _cache_get(self, key: str) -> Any | None:
-        if not self._cache:
-            return None
-        return await self._cache.get(key)
-
-    async def _cache_set(self, key: str, value: Any, ttl_seconds: int) -> None:
-        if not self._cache:
-            return
-        await self._cache.set(key, value, ttl_seconds)
-
-    @staticmethod
-    def _task_list_cache_key(
-        owner_user_id: int,
-        q: str | None,
-        status: str | None,
-        sort: str | None,
-        task_type: str | None = None,
-        exclude_task_type: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> str:
-        return (
-            f"task:list:{owner_user_id}:"
-            f"{string_value(q).strip().lower()}:"
-            f"{string_value(status).strip().lower()}:"
-            f"{string_value(sort).strip().lower()}:"
-            f"{string_value(task_type).strip().lower()}:"
-            f"{string_value(exclude_task_type).strip().lower()}:"
-            f"{offset if offset is not None else 'all'}:"
-            f"{limit if limit is not None else 'all'}"
-        )
-
-    @staticmethod
-    def _task_trace_cache_key(owner_user_id: int, task_id: str, limit: int) -> str:
-        return f"task:trace:{owner_user_id}:{task_id}:{limit}"
+        await self._query_cache.invalidate_task_lists(owner_user_id)
 
     @staticmethod
     def _task_comparator(sort: str | None):
-        """Return a sort key function based on the sort parameter."""
-        normalized = _trimmed(sort, "created_desc").lower()
-
-        def sort_key(task: TaskRecord):
-            if normalized == "created_desc":
-                return (-_timestamp(task.created_at), string_value(task.id))
-            if normalized == "progress_desc":
-                return (-task.progress, -_timestamp(task.updated_at), string_value(task.id))
-            if normalized == "semantic_desc":
-                score = 1 if task.has_timed_transcript or task.has_transcript else 0
-                return (-score, -_timestamp(task.updated_at), string_value(task.id))
-            if normalized == "status_desc":
-                return (0, string_value(task.status), -_timestamp(task.updated_at), string_value(task.id))
-            if normalized in ("effect_rating_desc", "rating_desc"):
-                rating = task.effect_rating if task.effect_rating is not None else float("-inf")
-                return (-rating, -_timestamp(task.updated_at), string_value(task.id))
-            return (-_timestamp(task.updated_at), string_value(task.id))
-
-        return lambda t: (sort_key(t),)
+        return task_comparator(sort)
 
     @staticmethod
     def _showcase_comparator():
-        """Return a sort key function for showcase items."""
-        def sort_key(task: TaskRecord):
-            rating = task.effect_rating if task.effect_rating is not None else float("-inf")
-            return (-rating, -task.completed_output_count, string_value(task.updated_at))
-        return sort_key
+        return showcase_comparator()
 
     @staticmethod
     def _matches_status(task: TaskRecord, status_filter: str | None) -> bool:
-        """Check if task matches the status filter."""
-        if not status_filter:
-            return True
-        normalized = status_filter.strip().upper()
-        if normalized == "QUEUED":
-            return task.is_queued
-        if normalized == "ACTIVE":
-            return task.status in ("PENDING", "ANALYZING", "PLANNING", "RENDERING", "PAUSED")
-        if normalized == "PENDING":
-            return task.status == "PENDING"
-        return task.status == normalized
+        return matches_task_status(task, status_filter)

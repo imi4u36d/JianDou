@@ -36,6 +36,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import AuthCarouselBackground from "@/components/auth/AuthCarouselBackground.vue";
 import { loginAndStoreSession, logoutAndClearSession } from "@/auth/session";
+import { normalizeAuthRedirectTarget } from "@/auth/redirect";
 
 const route = useRoute();
 const router = useRouter();
@@ -45,13 +46,6 @@ const form = reactive({
   password: ""
 });
 const submitting = ref(false);
-
-function normalizeRedirectTarget(value: unknown) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/admin";
-  }
-  return value;
-}
 
 async function handleSubmit() {
   submitting.value = true;
@@ -65,7 +59,7 @@ async function handleSubmit() {
       throw new Error("当前账号不是管理员，不能进入管理系统");
     }
     ElMessage.success("登录成功");
-    await router.replace(normalizeRedirectTarget(route.query.redirect));
+    await router.replace(normalizeAuthRedirectTarget(route.query.redirect, "/admin"));
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "登录失败");
   } finally {

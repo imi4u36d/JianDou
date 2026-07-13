@@ -12,14 +12,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import require_user
 from backend.database import get_db
-from backend.errors import bad_gateway, bad_request, not_found, payment_required
-from backend.exceptions import GenerationProviderError
+from backend.errors import bad_request, not_found
+from backend.routers.workflow_route_support import (
+    run_workflow_action as _run_action,
+)
+from backend.routers.workflow_route_support import (
+    save_aspect_ratio_preference as _save_aspect_ratio_preference,
+)
+from backend.routers.workflow_route_support import (
+    workflow_service as _service,
+)
+from backend.routers.workflow_stage_routes import router as stage_router
 from backend.schemas.workflow import (
-    AdjustStoryboardRequest,
     CreateWorkflowRequest,
     RateStageVersionRequest,
     RateWorkflowRequest,
-    SelectCharacterSheetAssetRequest,
     UpdateWorkflowSettingsRequest,
     WorkflowActionResponse,
     WorkflowDeleteResult,
@@ -27,38 +34,12 @@ from backend.schemas.workflow import (
     WorkflowListPageResponse,
     WorkflowListResponse,
 )
-from backend.services.credit_service import InsufficientCreditsError
-from backend.services.workflow_service import WorkflowService, now_iso
+from backend.shared import now_iso
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v3/workflows", tags=["workflows"])
-
-
-def _service(db: AsyncSession, request: Request | None = None) -> WorkflowService:
-    generation_service = getattr(request.app.state, "generation_application_service", None) if request else None
-    media_service = getattr(request.app.state, "media_artifact_service", None) if request else None
-    return WorkflowService(db, generation_service=generation_service, media_service=media_service)
-
-
-async def _run_action(action):
-    try:
-        return await action()
-    except InsufficientCreditsError:
-        raise payment_required()
-    except ValueError as exc:
-        raise bad_request(str(exc)) from exc
-    except GenerationProviderError as exc:
-        raise bad_gateway(str(exc) or exc.__class__.__name__) from exc
-
-
-async def _save_aspect_ratio_preference(request: Request, user_id: int, aspect_ratio: str | None) -> None:
-    normalized = str(aspect_ratio or "").strip()
-    if not normalized:
-        return
-    preference_service = getattr(request.app.state, "user_generation_preferences", None)
-    if preference_service is not None:
-        await preference_service.set_default_aspect_ratio(user_id, normalized)
+router.include_router(stage_router)
 
 
 # ------------------------------------------------------------------
@@ -270,224 +251,6 @@ async def update_workflow_settings(
     return result
 
 
-# ------------------------------------------------------------------
-# Storyboard endpoints
-# ------------------------------------------------------------------
-
-
-@router.post("/{workflow_id}/storyboards/generate", response_model=WorkflowDetailResponse)
-async def generate_storyboard(
-    workflow_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Generate a storyboard version."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await _run_action(lambda: svc.generate_storyboard(workflow_id, owner_user_id=user["id"]))
-    if result is None:
-        raise not_found("workflow")
-    return result
-
-
-@router.post("/{workflow_id}/storyboards/{version_id}/select", response_model=WorkflowDetailResponse)
-async def select_storyboard(
-    workflow_id: str,
-    version_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Select a storyboard version."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await svc.select_storyboard(workflow_id, version_id, owner_user_id=user["id"])
-    if result is None:
-        raise not_found("workflow_or_version")
-    return result
-
-
-@router.post("/{workflow_id}/storyboards/{version_id}/adjust", response_model=WorkflowDetailResponse)
-async def adjust_storyboard(
-    workflow_id: str,
-    version_id: str,
-    payload: AdjustStoryboardRequest,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Adjust a storyboard version."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await svc.adjust_storyboard(workflow_id, version_id, payload.prompt or "", owner_user_id=user["id"])
-    if result is None:
-        raise not_found("workflow_or_version")
-    return result
-
-
-# ------------------------------------------------------------------
-# Keyframe endpoints
-# ------------------------------------------------------------------
-
-
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/generate", response_model=WorkflowDetailResponse)
-async def generate_keyframe(
-    workflow_id: str,
-    clip_index: int,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Generate keyframe for a clip."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await _run_action(lambda: svc.generate_keyframe(workflow_id, clip_index, owner_user_id=user["id"]))
-    if result is None:
-        raise not_found("workflow")
-    return result
-
-
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{frame_role}/generate", response_model=WorkflowDetailResponse)
-async def generate_keyframe_frame(
-    workflow_id: str,
-    clip_index: int,
-    frame_role: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Generate single keyframe frame."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await _run_action(
-        lambda: svc.generate_keyframe_frame(workflow_id, clip_index, frame_role, owner_user_id=user["id"])
-    )
-    if result is None:
-        raise not_found("workflow")
-    return result
-
-
-@router.post("/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/select", response_model=WorkflowDetailResponse)
-async def select_keyframe(
-    workflow_id: str,
-    clip_index: int,
-    version_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Select a keyframe version."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await svc.select_keyframe(workflow_id, clip_index, version_id, owner_user_id=user["id"])
-    if result is None:
-        raise not_found("workflow_or_version")
-    return result
-
-
-@router.post(
-    "/{workflow_id}/clips/{clip_index}/keyframes/{version_id}/frames/{frame_role}/select",
-    response_model=WorkflowDetailResponse,
-)
-async def select_keyframe_frame(
-    workflow_id: str,
-    clip_index: int,
-    version_id: str,
-    frame_role: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Select a keyframe frame version."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await svc.select_keyframe_frame(
-        workflow_id,
-        clip_index,
-        version_id,
-        frame_role,
-        owner_user_id=user["id"],
-    )
-    if result is None:
-        raise not_found("workflow_or_version")
-    return result
-
-
-# ------------------------------------------------------------------
-# Character sheet endpoints
-# ------------------------------------------------------------------
-
-
-@router.post("/{workflow_id}/character-sheets/{character_index}/generate", response_model=WorkflowDetailResponse)
-async def generate_character_sheet(
-    workflow_id: str,
-    character_index: int,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Generate a character sheet for a storyboard character."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await _run_action(
-        lambda: svc.generate_character_sheet(workflow_id, character_index, owner_user_id=user["id"])
-    )
-    if result is None:
-        raise not_found("workflow")
-    return result
-
-
-@router.post("/{workflow_id}/character-sheets/{clip_index}/select-asset", response_model=WorkflowDetailResponse)
-async def select_character_sheet_asset(
-    workflow_id: str,
-    clip_index: int,
-    payload: SelectCharacterSheetAssetRequest,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Select a character sheet asset."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await svc.select_character_sheet_asset(
-        workflow_id,
-        clip_index,
-        payload.asset_id,
-        owner_user_id=user["id"],
-    )
-    if result is None:
-        raise not_found("workflow")
-    return result
-
-
-# ------------------------------------------------------------------
-# Video endpoints
-# ------------------------------------------------------------------
-
-
-@router.post("/{workflow_id}/clips/{clip_index}/videos/generate", response_model=WorkflowDetailResponse)
-async def generate_video(
-    workflow_id: str,
-    clip_index: int,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Generate video for a clip."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await _run_action(lambda: svc.generate_video(workflow_id, clip_index, owner_user_id=user["id"]))
-    if result is None:
-        raise not_found("workflow")
-    return result
-
-
-@router.post("/{workflow_id}/clips/{clip_index}/videos/{version_id}/select", response_model=WorkflowDetailResponse)
-async def select_video(
-    workflow_id: str,
-    clip_index: int,
-    version_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Select a video version."""
-    user = await require_user(request)
-    svc = _service(db, request)
-    result = await svc.select_video(workflow_id, clip_index, version_id, owner_user_id=user["id"])
-    if result is None:
-        raise not_found("workflow_or_version")
-    return result
 
 
 # ------------------------------------------------------------------

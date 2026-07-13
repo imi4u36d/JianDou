@@ -1,0 +1,91 @@
+.credit-page {
+  display: grid;
+  gap: 16px;
+}
+
+.credit-page > *,
+.credit-page .surface-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.credit-page__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.credit-page__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.credit-page__tabs :deep(.el-tabs__header) {
+  margin-bottom: 18px;
+}
+
+.credit-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--jd-border);
+  border-radius: var(--jd-radius-card);
+  background: var(--jd-surface-muted);
+}
+
+.credit-page__filters-action {
+  margin-right: 0;
+}
+
+.credit-page__alert {
+  margin-bottom: 14px;
+}
+
+.credit-page__table {
+  width: 100%;
+}
+
+.credit-page__primary-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.credit-page__primary-cell span {
+  color: var(--jd-text-soft);
+  font-size: 0.9rem;
+}
+
+.credit-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.credit-page__actions :deep(.el-button),
+.credit-page__table :deep(.el-button.is-link) {
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--jd-surface-muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.credit-page__actions :deep(.el-button:hover),
+.credit-page__table :deep(.el-button.is-link:hover) {
+  background: var(--jd-accent-soft);
+}
+
+.credit-page__positive {
+  color: var(--el-color-success);
+  font-weight: 600;
+}
+
+.credit-page__negative {
+  color: var(--el-color-warning);
+  font-weight: 600;
+}

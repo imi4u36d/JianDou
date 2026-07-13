@@ -1,0 +1,362 @@
+.app-select {
+  position: relative;
+  width: 100%;
+}
+
+.app-select--toolbar {
+  width: auto;
+  min-width: 176px;
+}
+
+.app-select--admin {
+  width: 100%;
+}
+
+.app-select__trigger {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.app-select__trigger:disabled {
+  cursor: not-allowed;
+}
+
+.app-select--field .app-select__trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.86rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.03);
+  box-shadow: none;
+}
+
+.app-select--field.app-select--compact .app-select__trigger {
+  min-height: 44px;
+  padding: 0.72rem 0.86rem;
+  border-radius: var(--radius-sm);
+}
+
+.app-select--field .app-select__trigger:hover:not(:disabled) {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.app-select--field.app-select--open .app-select__trigger,
+.app-select--field .app-select__trigger:focus-visible {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
+}
+
+.app-select--field.app-select--disabled .app-select__trigger {
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.02);
+  opacity: 0.6;
+}
+
+.app-select--toolbar .app-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-strong);
+}
+
+.app-select--toolbar.app-select--open .app-select__trigger,
+.app-select--toolbar .app-select__trigger:hover:not(:disabled) {
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+}
+
+.app-select--admin .app-select__trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.78rem 0.95rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-strong);
+}
+
+.app-select--admin .app-select__trigger:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+}
+
+.app-select--admin.app-select--open .app-select__trigger,
+.app-select--admin .app-select__trigger:focus-visible {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
+}
+
+.app-select--admin.app-select--disabled .app-select__trigger {
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.02);
+  opacity: 0.6;
+}
+
+.app-select__prefix {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.app-select__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-select--field .app-select__label {
+  font-size: 1rem;
+}
+
+.app-select--field.app-select--compact .app-select__label {
+  font-size: 0.96rem;
+}
+
+.app-select--toolbar .app-select__label {
+  color: inherit;
+  font-size: 0.86rem;
+}
+
+.app-select--admin .app-select__label {
+  color: var(--text-strong);
+  font-size: 0.92rem;
+}
+
+.app-select--admin .app-select__label-placeholder {
+  color: var(--text-muted);
+}
+
+.app-select--admin .app-select__chevron {
+  color: var(--text-muted);
+}
+
+.app-select__label-placeholder {
+  color: var(--text-muted);
+}
+
+.app-select__chevron {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  transition: transform 180ms ease;
+}
+
+.app-select__chevron path {
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-select--open .app-select__chevron {
+  transform: rotate(180deg);
+}
+
+.app-select__menu {
+  position: fixed;
+  z-index: 1400;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.12),
+    0 6px 16px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.app-select__backdrop {
+  display: none;
+}
+
+.app-select__menu--admin {
+  border-color: rgba(99, 102, 241, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.app-select__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-strong);
+  text-align: left;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.app-select__option:hover:not(:disabled),
+.app-select__option-highlighted {
+  border-color: rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.app-select__option-selected {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent-indigo);
+  font-weight: 600;
+}
+
+.app-select__option-selected:hover:not(:disabled),
+.app-select__option-selected.app-select__option-highlighted {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.app-select__menu--admin .app-select__option {
+  color: var(--text-strong);
+}
+
+.app-select__menu--admin .app-select__option:hover:not(:disabled),
+.app-select__menu--admin .app-select__option-highlighted {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-select__menu--admin .app-select__option-selected {
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.app-select__option-disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.app-select__option-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-select__option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-select__option-description {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.app-select__menu--admin .app-select__option-description {
+  color: var(--text-muted);
+}
+
+.app-select__check {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--accent-indigo);
+}
+
+.app-select__menu--admin .app-select__check {
+  color: var(--accent-indigo);
+}
+
+.app-select__check path {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-select-fade-enter-active,
+.app-select-fade-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.app-select-fade-enter-from,
+.app-select-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.app-select-backdrop-fade-enter-active,
+.app-select-backdrop-fade-leave-active {
+  transition: opacity 140ms ease;
+}
+
+.app-select-backdrop-fade-enter-from,
+.app-select-backdrop-fade-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .app-select__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1390;
+    display: block;
+    border: 0;
+    background: rgba(10, 10, 20, 0.2);
+    backdrop-filter: blur(40px) saturate(2.0) saturate(1.5);
+  }
+
+  .app-select__menu {
+    z-index: 1400;
+    padding: 20px 10px 10px;
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 -18px 46px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .app-select__menu::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: -9px auto 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .app-select__option {
+    min-height: 46px;
+    border-radius: var(--radius-sm);
+  }
+
+  .app-select-fade-enter-from,
+  .app-select-fade-leave-to {
+    transform: translateY(14px);
+  }
+}

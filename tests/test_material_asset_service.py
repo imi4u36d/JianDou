@@ -1,13 +1,36 @@
 from __future__ import annotations
 
 import pytest
-
-pytestmark = pytest.mark.service
-
 from sqlalchemy import select
 
 from backend.models.task import BizMaterialAsset
+from backend.services.material_asset_mapping import material_asset_payload
 from backend.services.material_asset_service import MaterialAssetService
+
+pytestmark = pytest.mark.service
+
+
+def test_material_asset_payload_normalizes_external_values() -> None:
+    payload = material_asset_payload(
+        7,
+        {
+            "durationSeconds": "6.5",
+            "width": "1280",
+            "hasAudio": "yes",
+            "storagePath": "/tmp/material.png",
+            "fileUrl": "https://cdn.example.test/material.png",
+            "metadata": '{"source":"test"}',
+        },
+        "2026-07-11T00:00:00Z",
+    )
+
+    assert payload["owner_user_id"] == 7
+    assert payload["duration_seconds"] == 6.5
+    assert payload["width"] == 1280
+    assert payload["has_audio"] == 1
+    assert payload["local_file_path"] == "/tmp/material.png"
+    assert payload["public_url"] == "https://cdn.example.test/material.png"
+    assert payload["metadata_json"] == '{"source": "test"}'
 
 
 async def test_material_asset_service_rejects_cross_owner_upsert(db_session) -> None:

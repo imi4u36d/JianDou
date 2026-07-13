@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
 from typing import Any
 
 from backend.domain.enums import AttemptStatus, TaskStatus, WorkerStatus
@@ -9,29 +7,9 @@ from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.infrastructure.task_queue_port import TaskQueuePort
 from backend.infrastructure.task_repository import TaskRepository
-from backend.services.generation_service import GenerationProviderException
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator, TaskStateTransition
-from backend.shared import first_non_blank, now_iso, string_value
-
-_ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
-
-
-def map_value(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _stable_id(prefix: str, *parts: str) -> str:
-    seed = prefix + ":" + ":".join(parts)
-    return prefix + "_" + uuid.uuid5(uuid.NAMESPACE_OID, seed).hex
-
-
-def _duration_millis(started_at: str, finished_at: str) -> int:
-    try:
-        start = datetime.fromisoformat(started_at)
-        end = datetime.fromisoformat(finished_at)
-        return max(0, int((end - start).total_seconds() * 1000))
-    except (ValueError, TypeError):
-        return 0
+from backend.services.task_worker_record_factory import TaskWorkerRecordFactory
+from backend.shared import first_non_blank, string_value
 
 
 class TaskWorkerExecutionContext:
@@ -93,6 +71,7 @@ class TaskWorkerStatusStageService:
         self._task_repository = task_repository
         self._task_queue_port = task_queue_port
         self._execution_coordinator = execution_coordinator or TaskExecutionCoordinator()
+        self._record_factory = TaskWorkerRecordFactory()
 
     def update_status(
         self,
@@ -127,23 +106,9 @@ class TaskWorkerStatusStageService:
         input_summary: dict[str, Any],
         output_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        now = now_iso()
-        row: dict[str, Any] = {
-            "stageRunId": _stable_id("stgrun", task.id, stage_name, str(clip_index)),
-            "attemptId": task.active_attempt_id,
-            "stageName": stage_name,
-            "stageSeq": seq,
-            "clipIndex": clip_index,
-            "status": "COMPLETED",
-            "workerInstanceId": run_context.worker_instance_id,
-            "startedAt": now,
-            "finishedAt": now,
-            "durationMs": 0,
-            "inputSummary": input_summary,
-            "outputSummary": output_summary,
-            "errorCode": "",
-            "errorMessage": "",
-        }
+        row = self._record_factory.stage_run(
+            task, run_context.worker_instance_id, seq, stage_name, clip_index, input_summary, output_summary
+        )
         return self._execution_coordinator.record_stage_run(task, row)
 
     def create_pending_model_call(
@@ -155,118 +120,27 @@ class TaskWorkerStatusStageService:
         clip_index: int,
         kind: str,
     ) -> dict[str, Any]:
-        now = now_iso()
-        model_section = map_value(request_payload.get("model"))
-        provider_model = first_non_blank(
-            string_value(model_section.get("providerModel")),
-            string_value(model_section.get("textAnalysisModel")),
-        )
-        return {
-            "modelCallId": _stable_id("mdlcall", task.id, stage, kind, str(clip_index)),
-            "requestLogId": "reqlog_" + _stable_id("mdlcall", task.id, stage, kind, str(clip_index)),
-            "callKind": stage,
-            "stage": stage,
-            "operation": operation,
-            "provider": "generation",
-            "providerModel": provider_model,
-            "requestedModel": provider_model,
-            "resolvedModel": "",
-            "modelName": "",
-            "modelAlias": provider_model,
-            "endpointHost": "",
-            "requestId": "",
-            "requestPayload": request_payload,
-            "responsePayload": {},
-            "httpStatus": 0,
-            "responseCode": 0,
-            "success": False,
-            "status": "pending",
-            "errorCode": "",
-            "errorMessage": "",
-            "latencyMs": 0,
-            "durationMs": 0,
-            "inputTokens": 0,
-            "outputTokens": 0,
-            "startedAt": now,
-            "finishedAt": now,
-        }
+        return self._record_factory.pending_model_call(task, stage, operation, request_payload, clip_index, kind)
 
     def complete_model_call(
         self, pending_model_call: dict[str, Any], run: dict[str, Any], result: dict[str, Any]
     ) -> dict[str, Any]:
-        row = dict(pending_model_call or {})
-        model_info = map_value(result.get("modelInfo"))
-        started_at = string_value(row.get("startedAt"))
-        finished_at = string_value(run.get("updatedAt", now_iso()))
-        row["provider"] = string_value(model_info.get("provider", row.get("provider")))
-        row["providerModel"] = first_non_blank(
-            string_value(model_info.get("providerModel")), string_value(row.get("providerModel"))
-        )
-        row["requestedModel"] = first_non_blank(
-            string_value(model_info.get("requestedModel")), string_value(row.get("requestedModel"))
-        )
-        row["resolvedModel"] = string_value(model_info.get("resolvedModel"))
-        row["modelName"] = string_value(model_info.get("modelName", model_info.get("resolvedModel")))
-        row["modelAlias"] = string_value(model_info.get("modelName", model_info.get("resolvedModel")))
-        row["endpointHost"] = string_value(model_info.get("endpointHost"))
-        row["requestId"] = string_value(run.get("id"))
-        row["responsePayload"] = {"runId": string_value(run.get("id")), "result": result}
-        row["httpStatus"] = 200
-        row["responseCode"] = 200
-        row["success"] = True
-        row["status"] = "success"
-        row["errorCode"] = ""
-        row["errorMessage"] = ""
-        row["latencyMs"] = 0
-        row["durationMs"] = _duration_millis(started_at, finished_at)
-        row["finishedAt"] = finished_at
-        return row
+        return self._record_factory.complete_model_call(pending_model_call, run, result)
 
     def fail_model_call(self, pending_model_call: dict[str, Any], error: Exception) -> dict[str, Any]:
-        row = dict(pending_model_call or {})
-        started_at = string_value(row.get("startedAt"))
-        finished_at = now_iso()
-        http_status = error.http_status if isinstance(error, GenerationProviderException) else 0
-        response_payload: dict[str, Any] = {
-            "errorType": error.__class__.__name__ if error else "",
-            "errorMessage": first_non_blank(str(error) if error else "", "unknown"),
-        }
-        if isinstance(error, GenerationProviderException):
-            response_payload["providerRequest"] = error.provider_request
-            response_payload["providerResponse"] = error.provider_response
-            response_payload["httpStatus"] = error.http_status
-        row["responsePayload"] = response_payload
-        row["httpStatus"] = max(0, http_status)
-        row["responseCode"] = max(0, http_status)
-        row["success"] = False
-        row["status"] = "failed"
-        row["errorCode"] = error.__class__.__name__ if error else ""
-        row["errorMessage"] = first_non_blank(str(error) if error else "", "unknown")
-        row["durationMs"] = _duration_millis(started_at, finished_at)
-        row["finishedAt"] = finished_at
-        return row
+        return self._record_factory.fail_model_call(pending_model_call, error)
 
     def record_run_call_chain(
         self, task: TaskRecord, fallback_stage: str, run: dict[str, Any], result: dict[str, Any]
     ) -> None:
-        raw = result.get("callChain")
-        if not isinstance(raw, list):
-            return
-        for item in raw:
-            if not isinstance(item, dict):
-                continue
-            stage = string_value(item.get("stage"))
-            event = string_value(item.get("event"))
-            message = string_value(item.get("message"))
-            status = string_value(item.get("status"))
-            level = "INFO" if status.lower() == "success" else "WARN"
+        for trace in self._record_factory.run_call_chain(fallback_stage, run, result):
             self._execution_coordinator.record_trace(
                 task,
-                stage if stage else fallback_stage,
-                event if event else "generation.call",
-                message if message else "generation run completed",
-                level,
-                {"runId": string_value(run.get("id")), "status": status, "details": map_value(item.get("details"))},
+                trace["stage"],
+                trace["event"],
+                trace["message"],
+                trace["level"],
+                trace["payload"],
             )
 
     def complete_task(

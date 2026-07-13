@@ -1,24 +1,13 @@
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from backend.domain.enums import TaskStatus
-from backend.domain.generation_run import DEFAULT_OPENAI_IMAGE_MODEL
 from backend.domain.task_record import TaskRecord
 from backend.infrastructure.task_repository import TaskRepository
-from backend.services.task_artifact_assembler import _TaskArtifactNaming
+from backend.services.task_generation_request_factory import TaskGenerationRequestFactory
 from backend.services.task_worker_status_stage_service import TaskExecutionAbortedException
 from backend.shared import first_non_blank, string_value
-
-
-def _truncate_text(value: str, max_length: int) -> str:
-    if not value:
-        return ""
-    normalized = value.replace("\n", " ").strip()
-    if len(normalized) <= max_length:
-        return normalized
-    return normalized[:max_length] + "..."
 
 
 def _resolver_int_value(resolver: Any, section: str, key: str, fallback: int) -> int:
@@ -26,13 +15,6 @@ def _resolver_int_value(resolver: Any, section: str, key: str, fallback: int) ->
         return resolver.int_value(section, key, fallback=fallback)
     except TypeError:
         return resolver.int_value(section, key, default=fallback)
-
-
-def _resolver_value(resolver: Any, section: str, key: str, fallback: str) -> str:
-    try:
-        return resolver.value(section, key, fallback=fallback)
-    except TypeError:
-        return resolver.value(section, key, default=fallback)
 
 
 class GenerationRunKinds:
@@ -71,6 +53,10 @@ class TaskExecutionRuntimeSupport:
         self._task_repository = task_repository
         self._model_resolver = model_resolver or ModelRuntimePropertiesResolverStub()
         self._local_media_artifact_service = local_media_artifact_service
+        self._request_factory = TaskGenerationRequestFactory(
+            self._model_resolver,
+            local_media_artifact_service,
+        )
 
     def active_attempt(self, task: TaskRecord) -> dict[str, Any] | None:
         if not task.active_attempt_id:
@@ -163,22 +149,7 @@ class TaskExecutionRuntimeSupport:
         raise TaskExecutionAbortedException(task.status, first_non_blank(task.error_message, "任务已停止执行。"))
 
     def build_script_run_request(self, task: TaskRecord) -> dict[str, Any]:
-        source_text = first_non_blank(
-            task.transcript_text,
-            task.creative_prompt,
-            task.title,
-        )
-        request: dict[str, Any] = {
-            "kind": GenerationRunKinds.SCRIPT,
-            "input": {"text": source_text},
-            "model": {"textAnalysisModel": self._text_analysis_model(task)},
-            "storage": {
-                "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
-                "fileName": _TaskArtifactNaming.storyboard_file_name(task, "md"),
-            },
-        }
-        self._put_user_auth(request, task)
-        return dict(request)
+        return self._request_factory.build_script_run_request(task)
 
     def build_image_run_request(
         self,
@@ -192,47 +163,17 @@ class TaskExecutionRuntimeSupport:
         frame_role: str = "first",
         reference_image_urls: list[str] | None = None,
     ) -> dict[str, Any]:
-        normalized_frame_role = self._normalize_frame_role(frame_role)
-        input_data: dict[str, Any] = {
-            "prompt": prompt,
-            "width": width,
-            "height": height,
-            "frameRole": normalized_frame_role,
-        }
-        if duration_seconds > 0:
-            input_data["durationSeconds"] = duration_seconds
-        image_seed = self._image_seed(task, clip_index)
-        image_model = self._image_model(task)
-        if image_seed is not None and self._model_resolver.supports_seed(image_model):
-            input_data["seed"] = image_seed
-        raw_reference_urls: list[str] = []
-        if reference_image_url:
-            raw_reference_urls.append(reference_image_url)
-        if reference_image_urls:
-            raw_reference_urls.extend(reference_image_urls)
-        compatible = self._compatible_image_reference_url_list(raw_reference_urls, image_model)
-        if compatible:
-            input_data["referenceImageUrl"] = compatible[0]
-            input_data["referenceImageUrls"] = compatible
-        request: dict[str, Any] = {
-            "kind": GenerationRunKinds.IMAGE,
-            "input": input_data,
-            "model": {
-                "textAnalysisModel": self._text_analysis_model(task),
-                "providerModel": image_model,
-            },
-            "storage": {
-                "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
-                "fileStem": f"clip{max(1, clip_index)}-{normalized_frame_role}",
-            },
-            "metadata": {
-                "relatedTaskId": string_value(task.id),
-                "clipIndex": max(1, clip_index),
-                "frameRole": normalized_frame_role,
-            },
-        }
-        self._put_user_auth(request, task)
-        return dict(request)
+        return self._request_factory.build_image_run_request(
+            task,
+            clip_index,
+            prompt,
+            width,
+            height,
+            reference_image_url,
+            duration_seconds,
+            frame_role,
+            reference_image_urls,
+        )
 
     def build_character_sheet_run_request(
         self,
@@ -242,43 +183,13 @@ class TaskExecutionRuntimeSupport:
         width: int,
         height: int,
     ) -> dict[str, Any]:
-        """Build the dedicated image-generation request for one character sheet."""
-        name = string_value(getattr(character, "name", ""))
-        appearance = string_value(getattr(character, "appearance", ""))
-        definition = string_value(getattr(character, "definition", ""))
-        prompt = self._build_character_sheet_prompt(name, first_non_blank(definition, appearance))
-        image_model = self._image_model(task)
-        input_data: dict[str, Any] = {
-            "prompt": prompt,
-            "width": width,
-            "height": height,
-            "frameRole": "sheet",
-        }
-        image_seed = self._image_seed(task, 1000 + max(1, character_index))
-        if image_seed is not None and self._model_resolver.supports_seed(image_model):
-            input_data["seed"] = image_seed
-        request: dict[str, Any] = {
-            "kind": GenerationRunKinds.IMAGE,
-            "input": input_data,
-            "model": {
-                "textAnalysisModel": self._text_analysis_model(task),
-                "providerModel": image_model,
-            },
-            "storage": {
-                "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
-                "fileStem": f"character{max(1, character_index)}-sheet",
-            },
-            "metadata": {
-                "relatedTaskId": string_value(task.id),
-                "clipIndex": 1000 + max(1, character_index),
-                "frameRole": "sheet",
-                "variantKind": "character_sheet",
-                "characterIndex": max(1, character_index),
-                "characterName": name,
-            },
-        }
-        self._put_user_auth(request, task)
-        return dict(request)
+        return self._request_factory.build_character_sheet_run_request(
+            task,
+            character_index,
+            character,
+            width,
+            height,
+        )
 
     def build_workspace_image_run_request(
         self,
@@ -287,56 +198,7 @@ class TaskExecutionRuntimeSupport:
         height: int,
         output_index: int = 1,
     ) -> dict[str, Any]:
-        snapshot = task.request_snapshot or {}
-        asset_type = string_value(snapshot.get("assetType", ""))
-        if not asset_type:
-            asset_type = "character_sheet" if task.task_type == "character_sheet" else "free"
-        prompt = first_non_blank(
-            string_value(snapshot.get("creativePrompt", "")),
-            task.creative_prompt,
-            task.title,
-        )
-        reference_urls = self._reference_image_urls(task)
-        prompt = self._build_workspace_image_prompt(asset_type, task.title, prompt, bool(reference_urls))
-        prompt = self._append_aspect_ratio_instruction(prompt, task.aspect_ratio)
-        input_data: dict[str, Any] = {
-            "prompt": prompt,
-            "width": width,
-            "height": height,
-            "frameRole": asset_type,
-        }
-        if asset_type == "free":
-            input_data["promptPassthrough"] = True
-        image_model = self._image_model(task)
-        compatible = self._compatible_image_reference_url_list(reference_urls, image_model)
-        if compatible:
-            input_data["referenceImageUrl"] = compatible[0]
-            input_data["referenceImageUrls"] = compatible
-        image_seed = self._task_seed(task)
-        if image_seed is not None and self._model_resolver.supports_seed(image_model):
-            input_data["seed"] = image_seed
-        request: dict[str, Any] = {
-            "kind": GenerationRunKinds.IMAGE,
-            "input": input_data,
-            "model": {
-                "textAnalysisModel": self._text_analysis_model(task),
-                "providerModel": image_model,
-            },
-            "storage": {
-                "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
-                "fileStem": "workspace-image" if output_index <= 1 else f"workspace-image-{output_index}",
-                "requireRemoteSourceUrl": False,
-            },
-            "metadata": {
-                "relatedTaskId": string_value(task.id),
-                "taskType": task.task_type,
-                "assetType": asset_type,
-                "outputIndex": max(1, output_index),
-                "referenceImageCount": len(compatible),
-            },
-        }
-        self._put_user_auth(request, task)
-        return dict(request)
+        return self._request_factory.build_workspace_image_run_request(task, width, height, output_index)
 
     def build_video_run_request(
         self,
@@ -350,39 +212,17 @@ class TaskExecutionRuntimeSupport:
         first_frame_url: str,
         last_frame_url: str,
     ) -> dict[str, Any]:
-        input_data: dict[str, Any] = {
-            "prompt": self._build_video_clip_execution_prompt(prompt),
-            "videoSize": video_size,
-            "durationSeconds": duration_seconds,
-            "minDurationSeconds": min_duration_seconds,
-            "maxDurationSeconds": max_duration_seconds,
-            "firstFrameUrl": first_frame_url,
-            "generateAudio": self._default_video_generate_audio(),
-            "returnLastFrame": True,
-        }
-        if last_frame_url:
-            input_data["lastFrameUrl"] = last_frame_url
-        task_seed = self._task_seed(task)
-        if task_seed is not None:
-            input_data["seed"] = task_seed
-        request: dict[str, Any] = {
-            "kind": GenerationRunKinds.VIDEO,
-            "input": input_data,
-            "model": {
-                "textAnalysisModel": self._text_analysis_model(task),
-                "providerModel": self._video_model(task),
-            },
-            "storage": {
-                "relativeDir": _TaskArtifactNaming.task_running_relative_dir(task),
-                "fileStem": f"clip{max(1, clip_index)}",
-            },
-            "metadata": {
-                "relatedTaskId": string_value(task.id),
-                "clipIndex": max(1, clip_index),
-            },
-        }
-        self._put_user_auth(request, task)
-        return dict(request)
+        return self._request_factory.build_video_run_request(
+            task,
+            clip_index,
+            prompt,
+            video_size,
+            duration_seconds,
+            min_duration_seconds,
+            max_duration_seconds,
+            first_frame_url,
+            last_frame_url,
+        )
 
     def _parse_dimensions(self, value: str) -> list[int] | None:
         normalized = string_value(value).lower().replace("x", "*")
@@ -397,165 +237,28 @@ class TaskExecutionRuntimeSupport:
             return None
 
     def _text_analysis_model(self, task: TaskRecord) -> str:
-        return self._required_snapshot_model(task, "textAnalysisModel", "文本模型")
+        return self._request_factory.text_analysis_model(task)
 
     def _image_model(self, task: TaskRecord) -> str:
-        snapshot = task.request_snapshot or {}
-        return first_non_blank(string_value(snapshot.get("imageModel", "")), DEFAULT_OPENAI_IMAGE_MODEL)
+        return self._request_factory.image_model(task)
 
     def _video_model(self, task: TaskRecord) -> str:
-        return self._required_snapshot_model(task, "videoModel", "视频模型")
+        return self._request_factory.video_model(task)
 
     def _required_snapshot_model(self, task: TaskRecord, field_name: str, label: str) -> str:
-        snapshot = task.request_snapshot or {}
-        configured = string_value(snapshot.get(field_name, ""))
-        if configured:
-            return configured
-        raise ValueError(f"任务缺少必选模型：{label}（{field_name}）")
+        return self._request_factory.required_snapshot_model(task, field_name, label)
 
     def _task_seed(self, task: TaskRecord) -> int | None:
-        snapshot = task.request_snapshot or {}
-        configured = snapshot.get("seed")
-        if isinstance(configured, int):
-            return configured
-        return task.task_seed
+        return self._request_factory.task_seed(task)
 
     def _image_seed(self, task: TaskRecord, clip_index: int) -> int | None:
-        seed = self._task_seed(task)
-        if seed is not None:
-            return seed
-        task_identity = first_non_blank(task.id, task.title, task.creative_prompt, "task")
-        seed_source = f"{task_identity}:clip:{max(1, clip_index)}:keyframe"
-        raw = uuid.uuid5(uuid.NAMESPACE_OID, seed_source).int >> 64
-        return (raw % (2**31 - 2)) + 1
+        return self._request_factory.image_seed(task, clip_index)
 
     def _normalize_frame_role(self, frame_role: str) -> str:
-        return "last" if frame_role.lower() == "last" else "first"
-
-    def _build_character_sheet_prompt(self, name: str, description: str) -> str:
-        parts: list[str] = [
-            f"角色名称：{first_non_blank(name, '未命名角色')}",
-            f"角色设定：{description}",
-            "生成类型：角色三视图设定图。",
-            "必须输出同一角色的正面、侧面、背面三视图，放在同一张图中。",
-            "三个视图都必须是完整从头到脚全身像，人物整体缩小并居中，头顶、双手、鞋子、脚底四周保留清晰留白，不得裁切或超出图片外。",
-            "禁止半身像、胸像、近景特写、肖像照或过度放大构图；三个视图横向等距排列在同一张画布内。",
-            "使用标准中性站姿，身体直立，双臂自然下垂或微微离身，双手空置，不做动作戏、剧情动作、表演动作或复杂姿势。",
-            "只保留稳定穿戴配饰；禁止手拿、背负、牵引、互动或携带任何道具、武器、包袋、手机、文件、杯子、伞、花束等物体。",
-            "脸、发型、服装、体型、年龄感和配饰保持一致。",
-            "背景使用纯净浅色或纯白背景，不出现文字、箭头、水印、logo、说明标签或复杂场景。",
-        ]
-        return "\n".join([part for part in parts if part.strip()])
-
-    def _compatible_single_image_reference_url(self, reference_image_url: str, image_model: str) -> list[str]:
-        normalized = string_value(reference_image_url)
-        if not normalized:
-            return []
-        if normalized.startswith("/storage/"):
-            if self._local_media_artifact_service:
-                try:
-                    data_uri = self._local_media_artifact_service.image_data_uri_from_public_url(normalized)
-                    if data_uri:
-                        return [data_uri]
-                except RuntimeError:
-                    raise ValueError("referenceImageUrl is local storage address but cannot be converted to data URI")
-            raise ValueError("referenceImageUrl is local storage address; local media artifact service is required")
-        return [normalized]
-
-    @staticmethod
-    def _is_remote_http_url(url: str) -> bool:
-        normalized = string_value(url).lower()
-        return normalized.startswith("http://") or normalized.startswith("https://")
-
-    def _compatible_image_reference_url_list(self, urls: list[str], image_model: str) -> list[str]:
-        resolved: list[str] = []
-        for url in urls:
-            for item in self._compatible_single_image_reference_url(url, image_model):
-                if item and item not in resolved:
-                    resolved.append(item)
-        return resolved
-
-    def _reference_image_urls(self, task: TaskRecord) -> list[str]:
-        ctx = task.execution_context or {}
-        raw = ctx.get("referenceImageUrls")
-        if isinstance(raw, list):
-            values: list[str] = []
-            for item in raw:
-                normalized = string_value(item)
-                if normalized and normalized not in values:
-                    values.append(normalized)
-            return values
-        return []
-
-    def _supports_image_data_uri_references(self, image_model: str) -> bool:
-        lower = string_value(image_model).lower()
-        return "gpt-image" in lower
-
-    def _build_workspace_image_prompt(self, asset_type: str, title: str, description: str, has_references: bool) -> str:
-        normalized_asset_type = string_value(asset_type)
-        normalized_description = string_value(description)
-        if normalized_asset_type in ("free", ""):
-            return normalized_description
-        parts: list[str] = [
-            f"素材标题：{first_non_blank(title, '工作台图片生成')}",
-            f"素材描述：{normalized_description}",
-        ]
-        if has_references:
-            parts.append("参考图要求：严格沿用参考图中的主体结构、外观锚点、材质和关键比例，不要重新设计核心主体。")
-        if normalized_asset_type == "character_sheet":
-            parts.append("生成类型：角色三视图设定图。")
-            parts.append("必须输出同一角色的正面、侧面、背面三视图，放在同一张图中。")
-            parts.append(
-                "三个视图都必须是完整从头到脚全身像，人物整体缩小并居中，头顶、双手、鞋子、脚底四周保留清晰留白，不得裁切或超出图片外。"
-            )
-            parts.append("禁止半身像、胸像、近景特写、肖像照或过度放大构图；三个视图横向等距排列在同一张画布内。")
-            parts.append(
-                "使用标准中性站姿，身体直立，双臂自然下垂或微微离身，双手空置，不做动作戏、剧情动作、表演动作或复杂姿势。"
-            )
-            parts.append(
-                "只保留稳定穿戴配饰；禁止手拿、背负、牵引、互动或携带任何道具、武器、包袋、手机、文件、杯子、伞、花束等物体。"
-            )
-            parts.append("脸、发型、服装、体型、年龄感和配饰保持一致。")
-            parts.append("背景使用纯净浅色或纯白背景，不出现文字、箭头、水印、logo、说明标签或复杂场景。")
-        return "\n".join(parts)
-
-    def _append_aspect_ratio_instruction(self, prompt: str, aspect_ratio: str) -> str:
-        normalized_ratio = string_value(aspect_ratio)
-        if not normalized_ratio or normalized_ratio.lower() in {"auto", "智能"}:
-            return prompt
-        resolution = self._aspect_ratio_4k_resolution(normalized_ratio)
-        if resolution:
-            return (
-                f"{prompt}\n"
-                f"画面比例：{normalized_ratio}。请使用该比例对应的 4K 分辨率（{resolution}）生成图片，"
-                "按该画幅构图，不要自行拉伸或变形主体。"
-            )
-        return (
-            f"{prompt}\n"
-            f"画面比例：{normalized_ratio}。请使用该比例对应的 4K 分辨率生成图片，"
-            "按该画幅构图，不要自行拉伸或变形主体。"
-        )
-
-    def _aspect_ratio_4k_resolution(self, aspect_ratio: str) -> str:
-        return {
-            "16:9": "3840x2160",
-            "9:16": "2160x3840",
-            "9:20": "1728x3840",
-            "1:1": "2880x2880",
-            "21:9": "3808x1632",
-            "3:2": "3504x2336",
-            "2:3": "2336x3504",
-            "4:3": "3264x2448",
-            "3:4": "2448x3264",
-        }.get(string_value(aspect_ratio), "")
-
-    def _build_video_clip_execution_prompt(self, prompt: str) -> str:
-        return _truncate_text(prompt, 2200)
+        return self._request_factory.normalize_frame_role(frame_role)
 
     def _default_video_generate_audio(self) -> bool:
-        val = _resolver_value(self._model_resolver, "catalog.defaults", "video_generate_audio", "true")
-        return bool(val) and val.lower() in ("true", "1", "yes")
+        return self._request_factory.default_video_generate_audio()
 
     def _put_user_auth(self, request: dict[str, Any], task: TaskRecord) -> None:
-        if task.owner_user_id is not None:
-            request["auth"] = {"userId": str(task.owner_user_id)}
+        self._request_factory.put_user_auth(request, task)

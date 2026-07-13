@@ -1,222 +1,36 @@
 import { computed, ref, watch, type Ref } from "vue";
 import { useAuthSessionState } from "@/auth/session";
 import { fetchCreditSummary, fetchGenerationOptions } from "@/features/home";
-import type {
-  CreateGenerationTaskRequest,
-  CreditSummary,
-  GenerationImageSizeOption,
-  GenerationOptionsResponse,
-  GenerationTextAnalysisModelInfo,
-  GenerationVideoDurationOption,
-  GenerationVideoModelInfo,
-  GenerationVideoSizeOption,
-} from "@/types";
+import type { CreditSummary, GenerationOptionsResponse } from "@/types";
+import {
+  compareSizeByArea,
+  createRandomSeed,
+  formatCreditBalance,
+  imageOutputCountOptions,
+  imageQualityLabel,
+  imageSizeMatchesRatio,
+  isOpenAIModel,
+  modeOptions,
+  modelOptionDescription,
+  normalizeModelName,
+  normalizeSizeValue,
+  parseSeed,
+  parseSize,
+  ratioShape,
+  ratioValue,
+  resolveDefaultImageModel,
+  resolveVideoSizeRatio,
+  sizeRatioLabel,
+  videoAspectRatio,
+  videoOutputCountOptions,
+  type ModeValue,
+  type RatioOptionValue,
+  type WorkbenchForm,
+} from "./generationFormOptions";
+import { useGenerationFormCatalog } from "./useGenerationFormCatalog";
+import { useGenerationFormPresentation } from "./useGenerationFormPresentation";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type ModeValue = "video" | "image" | "character_sheet";
-export type AspectRatioValue = "16:9" | "9:16";
-export type RatioOptionValue = "智能" | "1:1" | "21:9" | "16:9" | "3:2" | "4:3" | "3:4" | "2:3" | "9:16" | "9:20";
-
-export type WorkbenchForm = Omit<CreateGenerationTaskRequest, "aspectRatio"> & {
-  aspectRatio: RatioOptionValue;
-  imageSize?: string | null;
-};
-
-export interface ModeOption {
-  value: ModeValue;
-  kind: "video" | "image";
-  label: string;
-  description: string;
-  iconName: "video" | "image" | "character";
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const modeOptions: ModeOption[] = [
-  {
-    value: "image",
-    kind: "image",
-    label: "图片",
-    description: "使用 OpenAI 图片模型生成或参考图再创作",
-    iconName: "image",
-  },
-  {
-    value: "video",
-    kind: "video",
-    label: "视频",
-    description: "创建阶段化视频任务",
-    iconName: "video",
-  },
-];
-
-const ratioDisplayOrder: RatioOptionValue[] = ["智能", "21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:20"];
-const sizeRatioCandidates: RatioOptionValue[] = ["21:9", "16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16", "9:20"];
-
-const videoOutputCountOptions = [1, 2, 3, 4, 6, 8, 10, 12];
-const imageOutputCountOptions = [1, 2, 3, 4];
-
-// ---------------------------------------------------------------------------
-// Pure utility functions
-// ---------------------------------------------------------------------------
-
-export function normalizeModelName(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/[\s._-]/g, "");
-}
-
-export function normalizeSizeValue(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/\*/g, "x");
-}
-
-export function parseSeed(value: unknown): number | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) {
-    return null;
-  }
-  const numeric = Number(raw);
-  if (!Number.isFinite(numeric) || !Number.isInteger(numeric) || numeric < 0) {
-    return null;
-  }
-  return Math.trunc(numeric);
-}
-
-export function createRandomSeed() {
-  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
-    const values = new Uint32Array(1);
-    window.crypto.getRandomValues(values);
-    return Math.max(1, values[0] % 2147483647);
-  }
-  return Math.max(1, Math.floor(Math.random() * 2147483647));
-}
-
-export function parseSize(item: { value: string; width?: number; height?: number }) {
-  if (typeof item.width === "number" && typeof item.height === "number" && item.width > 0 && item.height > 0) {
-    return { width: item.width, height: item.height };
-  }
-  const matched = String(item.value ?? "").match(/^(\d+)\s*[xX*]\s*(\d+)$/);
-  if (!matched) {
-    return null;
-  }
-  const width = Number(matched[1]);
-  const height = Number(matched[2]);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return null;
-  }
-  return { width, height };
-}
-
-export function resolveVideoSizeRatio(item: { value: string; width?: number; height?: number }): AspectRatioValue | null {
-  const parsed = parseSize(item);
-  if (!parsed || parsed.width === parsed.height) {
-    return null;
-  }
-  return parsed.width > parsed.height ? "16:9" : "9:16";
-}
-
-export function imageSizeMatchesRatio(item: GenerationImageSizeOption, ratio: string) {
-  if (ratio === "智能") {
-    return true;
-  }
-  const itemRatio = sizeRatioLabel(item);
-  return itemRatio === ratio;
-}
-
-export function compareSizeByArea(a: { value: string; width?: number; height?: number }, b: { value: string; width?: number; height?: number }) {
-  const aSize = parseSize(a);
-  const bSize = parseSize(b);
-  const aArea = aSize ? aSize.width * aSize.height : 0;
-  const bArea = bSize ? bSize.width * bSize.height : 0;
-  return aArea - bArea;
-}
-
-export function sizeRatioLabel(item: { value: string; width?: number; height?: number }): RatioOptionValue | null {
-  const parsed = parseSize(item);
-  if (!parsed) {
-    return null;
-  }
-  const actual = parsed.width / parsed.height;
-  const best = sizeRatioCandidates
-    .map((value) => {
-      const target = ratioValue(value);
-      return target ? { value, delta: Math.abs(actual - target) / target } : null;
-    })
-    .filter((item): item is { value: RatioOptionValue; delta: number } => Boolean(item))
-    .sort((a, b) => a.delta - b.delta)[0];
-  return best && best.delta <= 0.03 ? best.value : null;
-}
-
-export function ratioShape(value: RatioOptionValue) {
-  if (value === "智能") {
-    return "1 / 1";
-  }
-  return value.replace(":", " / ");
-}
-
-export function ratioValue(value: RatioOptionValue) {
-  if (value === "智能") {
-    return null;
-  }
-  const [width, height] = value.split(":").map(Number);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || height <= 0) {
-    return null;
-  }
-  return width / height;
-}
-
-export function videoAspectRatio(value: RatioOptionValue): AspectRatioValue {
-  return value === "9:16" ? "9:16" : "16:9";
-}
-
-export function imageQualityLabel(item: { value: string; label?: string | null; width?: number; height?: number }) {
-  const label = String(item.label ?? "");
-  if (/\b4K\b/i.test(label)) {
-    return "超清 4K";
-  }
-  if (/\b2K\b/i.test(label)) {
-    return "高清 2K";
-  }
-  if (/\b1K\b/i.test(label)) {
-    return "标准 1K";
-  }
-  const size = parseSize(item);
-  if (!size) {
-    return String(item.value ?? "");
-  }
-  const longest = Math.max(size.width, size.height);
-  if (longest >= 2800) {
-    return "超清 4K";
-  }
-  if (longest >= 1800) {
-    return "高清 2K";
-  }
-  return "标准 1K";
-}
-
-function modelOptionDescription(model: { description?: string | null; provider?: string | null; family?: string | null; value: string }) {
-  return model.description || model.provider || model.family || model.value;
-}
-
-function formatCreditBalance(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
-}
-
-function isOpenAIModel(model: { value?: string | null; label?: string | null; provider?: string | null; family?: string | null; description?: string | null }) {
-  const fields = [model.provider, model.family, model.value, model.label, model.description].map(normalizeModelName);
-  return fields.some((value) => value.includes("openai") || value.startsWith("gpt") || value.includes("gptimage") || value.includes("dalle"));
-}
-
-export function resolveDefaultImageModel(models: GenerationTextAnalysisModelInfo[], current?: string | null) {
-  const currentValue = String(current ?? "").trim();
-  if (currentValue && models.some((item) => item.value === currentValue)) {
-    return currentValue;
-  }
-  const gptModel = models.find((item) => [item.family, item.provider, item.value, item.label].map(normalizeModelName).some((value) => value.includes("gpt")));
-  return gptModel?.value || models[0]?.value || null;
-}
+export * from "./generationFormOptions";
 
 // ---------------------------------------------------------------------------
 // Composable
@@ -274,167 +88,51 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
 
   const showPromptPlaceholder = computed(() => !promptText.value.trim());
 
-  const textModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => (options.value?.textAnalysisModels ?? []).filter(isOpenAIModel));
+  const {
+    textModelOptions,
+    imageModelOptions,
+    videoModelOptions,
+    selectedImageModelOption,
+    selectedVideoModelOption,
+    ratioOptions,
+    availableVideoRatios,
+    availableImageRatios,
+    imageCandidateSizes,
+    imageSizeOptions,
+    videoSizeOptions,
+    durationOptions,
+    selectedImageSizeOption,
+    selectedImageSizeDimensions,
+    selectedVideoSizeOption,
+    selectedVideoSizeDimensions,
+  } = useGenerationFormCatalog({ options, form, selectedMode });
 
-  const imageModelOptions = computed<GenerationTextAnalysisModelInfo[]>(() => (options.value?.imageModels ?? []).filter(isOpenAIModel));
-
-  const videoModelOptions = computed<GenerationVideoModelInfo[]>(() => options.value?.videoModels ?? []);
-
-  const selectedImageModelOption = computed(() => {
-    const selected = normalizeModelName(form.value.imageModel);
-    return imageModelOptions.value.find((item) => normalizeModelName(item.value) === selected) ?? null;
-  });
-
-  const selectedVideoModelOption = computed(() => {
-    const selected = normalizeModelName(form.value.videoModel);
-    return videoModelOptions.value.find((item) => normalizeModelName(item.value) === selected) ?? null;
-  });
-
-  const selectedPrimaryModelLabel = computed(() => {
-    if (selectedMode.value.kind === "video") {
-      return selectedVideoModelOption.value?.label || selectedVideoModelOption.value?.value || "视频模型";
-    }
-    return selectedImageModelOption.value?.label || selectedImageModelOption.value?.value || "图片模型";
-  });
-
-  const creditLabel = computed(() => {
-    if (!authState.isAuthenticated.value || !credits.value) {
-      return "";
-    }
-    if (credits.value.exempt) {
-      return "积分免扣";
-    }
-    return `积分 ${formatCreditBalance(credits.value.balance ?? 0)}`;
-  });
-
-  const ratioOptions = computed(() => {
-    const values = selectedMode.value.kind === "image" ? availableImageRatios.value : availableVideoRatios.value;
-    return [...values]
-      .sort((a, b) => ratioDisplayOrder.indexOf(a) - ratioDisplayOrder.indexOf(b))
-      .map((value) => ({
-        value,
-        label: value,
-        shortLabel: value === "智能" ? "智能" : value,
-        shape: ratioShape(value),
-      }));
-  });
-
-  const availableVideoRatios = computed<RatioOptionValue[]>(() => {
-    const catalog = options.value?.aspectRatios ?? [];
-    const values = catalog
-      .map((item) => item.value)
-      .filter((value): value is AspectRatioValue => value === "16:9" || value === "9:16");
-    return values.length ? [...new Set(values)] : ["16:9", "9:16"];
-  });
-
-  const availableImageRatios = computed<RatioOptionValue[]>(() => {
-    const ratios = imageCandidateSizes.value
-      .map((item) => sizeRatioLabel(item))
-      .filter((value): value is RatioOptionValue => Boolean(value));
-    const unique = [...new Set(ratios)];
-    const available = unique.length ? unique : availableVideoRatios.value;
-    return available.filter((value) => value !== "智能");
-  });
-
-  const imageCandidateSizes = computed<GenerationImageSizeOption[]>(() => {
-    const source = options.value?.imageSizes ?? [];
-    const selectedSizes = selectedImageModelOption.value?.supportedSizes ?? [];
-    const normalizedSelectedSizes = selectedSizes.map(normalizeSizeValue);
-    return source.filter((item) => {
-      return !normalizedSelectedSizes.length || normalizedSelectedSizes.includes(normalizeSizeValue(item.value));
-    });
-  });
-
-  const imageSizeOptions = computed<GenerationImageSizeOption[]>(() => {
-    const filtered = imageCandidateSizes.value
-      .filter((item) => imageSizeMatchesRatio(item, form.value.aspectRatio))
-      .sort(compareSizeByArea);
-    return filtered;
-  });
-
-  const videoSizeOptions = computed<GenerationVideoSizeOption[]>(() => {
-    const selectedModel = normalizeModelName(form.value.videoModel);
-    const ratio = videoAspectRatio(form.value.aspectRatio);
-    return (options.value?.videoSizes ?? [])
-      .filter((item) => resolveVideoSizeRatio(item) === ratio)
-      .filter((item) => {
-        const supportedModels = Array.isArray(item.supportedModels) ? item.supportedModels : [];
-        return !selectedModel || !supportedModels.length || supportedModels.some((model) => normalizeModelName(model) === selectedModel);
-      })
-      .sort(compareSizeByArea);
-  });
-
-  const durationOptions = computed<GenerationVideoDurationOption[]>(() => {
-    const modelDurations = selectedVideoModelOption.value?.supportedDurations ?? [];
-    if (modelDurations.length) {
-      return [...new Set(modelDurations)]
-        .filter((item) => Number.isFinite(item) && item > 0)
-        .sort((a, b) => a - b)
-        .map((item) => ({ value: Math.trunc(item), label: `${Math.trunc(item)} 秒` }));
-    }
-    return [...(options.value?.videoDurations ?? [])].sort((a, b) => a.value - b.value);
-  });
-
-  const durationLabel = computed(() => {
-    if (durationMode.value === "auto") {
-      return "自动时长";
-    }
-    return selectedDurationSeconds.value ? `${selectedDurationSeconds.value}s` : "选择时长";
-  });
-
-  const outputCountLabel = computed(() => form.value.outputCount === "auto" ? "自动分镜" : `${form.value.outputCount} 段`);
-
-  const selectedImageSizeOption = computed(() => {
-    return imageSizeOptions.value.find((item) => item.value === form.value.imageSize) ?? null;
-  });
-
-  const selectedImageSizeDimensions = computed(() => {
-    return selectedImageSizeOption.value ? parseSize(selectedImageSizeOption.value) : null;
-  });
-
-  const selectedVideoSizeOption = computed(() => {
-    return videoSizeOptions.value.find((item) => item.value === form.value.videoSize) ?? null;
-  });
-
-  const selectedVideoSizeDimensions = computed(() => {
-    return selectedVideoSizeOption.value ? parseSize(selectedVideoSizeOption.value) : null;
-  });
-
-  const selectedMaterialAssetType = computed(() => selectedMode.value.value === "character_sheet" ? "character_sheet" : "free");
-
-  const ratioToolLabel = computed(() => {
-    return form.value.aspectRatio;
-  });
-
-  const parsedManualSeed = computed(() => parseSeed(seedInput.value));
-
-  const seedCapabilityHint = computed(() => {
-    if (selectedMode.value.kind === "video") {
-      return "视频任务会使用当前画幅创建阶段工作流。";
-    }
-    if (selectedMode.value.kind === "image" && !selectedImageModelOption.value?.supportsSeed) {
-      return "当前图片模型未声明支持种子，提交时不会传 seed。";
-    }
-    return "当前设置会记录到本次 OpenAI 图片生成任务。";
-  });
-
-  const isSeedReady = computed(() => seedMode.value === "auto" || parsedManualSeed.value !== null);
-
-  const isFormReady = computed(() => {
-    if (!promptText.value.trim()) {
-      return false;
-    }
-    if (!form.value.textAnalysisModel || !form.value.imageModel) {
-      return false;
-    }
-    if (selectedMode.value.kind === "video" && (!form.value.videoModel || !form.value.videoSize)) {
-      return false;
-    }
-    return isSeedReady.value;
-  });
-
-  const submitLabel = computed(() => {
-    return selectedMode.value.kind === "video" ? "生成视频" : selectedMode.value.value === "character_sheet" ? "生成三视图" : "生成图片";
+  const {
+    selectedPrimaryModelLabel,
+    creditLabel,
+    durationLabel,
+    outputCountLabel,
+    selectedMaterialAssetType,
+    ratioToolLabel,
+    parsedManualSeed,
+    seedCapabilityHint,
+    isSeedReady,
+    isFormReady,
+    submitLabel,
+    formatImageSizeOptionLabel,
+    resolvedImageAspectRatioForSubmit,
+  } = useGenerationFormPresentation({
+    authenticated: () => authState.isAuthenticated.value,
+    promptText,
+    form,
+    selectedMode,
+    selectedImageModel: selectedImageModelOption,
+    selectedVideoModel: selectedVideoModelOption,
+    credits,
+    seedMode,
+    seedInput,
+    durationMode,
+    selectedDurationSeconds,
   });
 
   // ---------------------------------------------------------------------------
@@ -443,20 +141,6 @@ export function useGenerationForm(formOptions: UseGenerationFormOptions) {
 
   function refreshAutoSeed() {
     autoSeed.value = createRandomSeed();
-  }
-
-  function formatImageSizeOptionLabel(item: GenerationImageSizeOption) {
-    const label = imageQualityLabel(item);
-    const quality = label.includes("4K") ? `${label} ✦` : label;
-    const ratio = sizeRatioLabel(item);
-    return form.value.aspectRatio === "智能" && ratio ? `${quality} · ${ratio}` : quality;
-  }
-
-  function resolvedImageAspectRatioForSubmit() {
-    if (form.value.aspectRatio !== "智能") {
-      return form.value.aspectRatio;
-    }
-    return "1:1";
   }
 
   async function loadOptions() {

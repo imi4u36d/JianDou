@@ -1,0 +1,117 @@
+.home-task-toast {
+  position: fixed;
+  right: 28px;
+  top: max(18px, env(safe-area-inset-top));
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(440px, calc(100vw - 32px));
+  min-height: 58px;
+  padding: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text-strong);
+  box-shadow:
+    0 22px 48px rgba(15, 23, 42, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.82) inset;
+  backdrop-filter: blur(40px) saturate(2);
+}
+
+.home-task-toast__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.home-task-toast__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-task-toast__body strong {
+  color: var(--text-strong);
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 820;
+  line-height: 1.25;
+}
+
+.home-task-toast__body small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.home-task-toast a {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: var(--accent-indigo);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.home-task-toast button {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.home-task-toast button:hover,
+.home-task-toast button:focus-visible {
+  background: #eef2ff;
+  color: var(--accent-blue);
+}
+
+.home-task-toast button :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+
+.home-toast-slide-enter-active,
+.home-toast-slide-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.home-toast-slide-enter-from,
+.home-toast-slide-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+@media (max-width: 720px) {
+  .home-task-toast {
+    right: 14px;
+    left: 14px;
+    top: auto;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    max-width: none;
+    padding: 12px;
+  }
+}

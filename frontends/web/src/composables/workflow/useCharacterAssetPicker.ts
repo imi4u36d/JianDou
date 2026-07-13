@@ -5,6 +5,14 @@ import { fetchMaterialAssets } from "@/features/workflows";
 import type { MaterialAssetLibraryItem, WorkflowCharacterSheet } from "@/types";
 import { characterSheetKey, characterSheetTitle } from "./useCharacterSheetUtils";
 
+export function materialAssetPreviewUrl(asset: MaterialAssetLibraryItem): string {
+  return asset.thumbnailUrl || asset.previewUrl || "";
+}
+
+export function materialAssetModelLabel(asset: MaterialAssetLibraryItem): string {
+  return asset.originModel || asset.originProvider || "未记录模型";
+}
+
 export function useCharacterAssetPicker() {
   const characterAssetPicker = reactive({
     openKey: "",
@@ -14,14 +22,6 @@ export function useCharacterAssetPicker() {
     error: "",
     assets: [] as MaterialAssetLibraryItem[],
   });
-
-  function materialAssetPreviewUrl(asset: MaterialAssetLibraryItem): string {
-    return asset.thumbnailUrl || asset.previewUrl || "";
-  }
-
-  function materialAssetModelLabel(asset: MaterialAssetLibraryItem): string {
-    return asset.originModel || asset.originProvider || "未记录模型";
-  }
 
   function isCharacterSheetSelectableAsset(asset: MaterialAssetLibraryItem): boolean {
     const assetType = typeof asset.assetType === "string" ? asset.assetType.trim().toLowerCase() : "";

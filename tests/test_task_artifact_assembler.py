@@ -8,6 +8,8 @@ from typing import Any
 
 from backend.domain.task_record import TaskRecord
 from backend.services.task_artifact_assembler import TaskExecutionArtifactAssembler
+from backend.services.task_image_material_assembler import TaskImageMaterialAssembler
+from backend.services.task_result_assembler import TaskResultAssembler
 
 
 def _task() -> TaskRecord:
@@ -37,6 +39,7 @@ def _image_task_without_asset_type() -> TaskRecord:
 def test_create_video_material_uses_media_result_fallbacks_and_thumbnail_candidate(tmp_path: Path) -> None:
     media_service = _RecordingMediaService(tmp_path)
     assembler = TaskExecutionArtifactAssembler(media_service)
+    assert isinstance(assembler._image_materials, TaskImageMaterialAssembler)
 
     material = assembler.create_video_material(
         _task(),
@@ -103,6 +106,7 @@ def test_extract_last_frame_url_reads_nested_role_image_url() -> None:
 def test_create_image_result_preserves_remote_metadata_and_material_pointer(tmp_path: Path) -> None:
     media_service = _RecordingMediaService(tmp_path)
     assembler = TaskExecutionArtifactAssembler(media_service)
+    assert isinstance(assembler._result_assembler, TaskResultAssembler)
     image_file = tmp_path / "workspace.png"
     image_file.write_bytes(b"image")
 

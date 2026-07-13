@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.service
 from typing import Any
+
+import pytest
 
 from backend.domain.enums import TaskStatus
 from backend.domain.task_record import TaskRecord
 from backend.domain.task_storyboard_planner import ShotPlan
+from backend.services.task_render_stage_contracts import FrameResolution as ContractFrameResolution
 from backend.services.task_render_stage_payloads import (
     FrameResolution,
     RenderStageRequest,
@@ -21,6 +21,12 @@ from backend.services.task_render_stage_payloads import (
     resolved_last_frame_source_type,
     resolved_last_frame_source_url,
 )
+
+pytestmark = pytest.mark.service
+
+
+def test_payload_module_preserves_render_contract_exports() -> None:
+    assert FrameResolution is ContractFrameResolution
 
 
 def test_render_stage_request_uses_isolated_default_lists() -> None:

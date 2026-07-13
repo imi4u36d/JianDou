@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from backend.domain.task_storyboard_planner import TaskStoryboardPlanner
@@ -55,3 +57,38 @@ def test_build_storyboard_shot_plans_skips_markdown_separator_rows() -> None:
     assert [plan.shot_label for plan in plans] == ["001", "002"]
     assert all(":---" not in plan.scene for plan in plans)
     assert "性别年龄" in plans[0].first_frame_prompt
+
+
+def test_duration_planner_parses_storyboard_ranges_and_distributes_remaining_clips() -> None:
+    planner = TaskStoryboardPlanner()
+    storyboard = """
+【分镜脚本】
+| 镜号 | 首帧描述 | 尾帧描述 | 分镜内容描述 | 时长 |
+| --- | --- | --- | --- | --- |
+| 001 | 门外 | 门内 | 推门进入 | 5-6秒 |
+| 002 | 桌前 | 窗边 | 起身走动 | 7秒 |
+"""
+    task = SimpleNamespace(min_duration_seconds=18, max_duration_seconds=24)
+
+    ranges = planner.extract_storyboard_shot_duration_ranges(storyboard)
+    plan = planner.build_clip_duration_plan(task, 20, 3, storyboard)
+
+    assert ranges == [[5, 6], [7, 7]]
+    assert plan == [[5, 5, 6], [7, 7, 7], [8, 6, 11]]
+
+
+def test_character_parser_prefers_list_definitions_and_extracts_appearance_anchor() -> None:
+    planner = TaskStoryboardPlanner()
+    storyboard = """
+【角色定义信息】
+- 林医生：外观锚点：短黑发、白大褂、银框眼镜；人物定位：急诊医生
+
+【分镜脚本】
+| 镜号 | 首帧描述 | 尾帧描述 | 分镜内容描述 | 时长 |
+| --- | --- | --- | --- | --- |
+"""
+
+    definitions = planner.extract_character_definitions(storyboard)
+
+    assert [(item.name, item.appearance) for item in definitions] == [("林医生", "短黑发、白大褂、银框眼镜")]
+    assert "人物定位" in definitions[0].definition

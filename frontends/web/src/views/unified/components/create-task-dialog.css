@@ -1,0 +1,129 @@
+.create-task-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 24px;
+}
+
+.create-task-dialog {
+  position: relative;
+  width: min(100%, 560px);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+  display: grid;
+}
+
+.create-task-dialog__close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.create-task-dialog__close:hover {
+  background: var(--bg-softer);
+  color: var(--text-strong);
+}
+
+.create-task-dialog__close > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.create-task-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--bg-softer);
+}
+
+.create-task-dialog__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.create-task-dialog__body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.create-field {
+  display: grid;
+  gap: 6px;
+}
+
+.create-field span {
+  color: var(--text-body);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.create-field textarea,
+.create-field input {
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: var(--bg-softer);
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.create-field textarea:focus,
+.create-field input:focus {
+  outline: none;
+  border-color: var(--accent-indigo);
+  background: #fff;
+}
+
+.create-task-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--bg-softer);
+}
+
+.create-status-text {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.create-status-text--error {
+  color: var(--accent-danger);
+  font-weight: 600;
+}
+
+.create-task-dialog__footer .jd-button--primary {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .create-task-dialog {
+    width: 100%;
+    max-height: 90vh;
+  }
+}

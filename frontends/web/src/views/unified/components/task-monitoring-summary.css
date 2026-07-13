@@ -1,0 +1,60 @@
+.task-monitoring-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.task-monitoring-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: var(--shadow-soft);
+}
+
+.task-monitoring-card h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.task-monitoring-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-monitoring-params {
+  display: grid;
+  gap: 8px;
+}
+
+.task-monitoring-params__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-body);
+  font-size: 0.8rem;
+}
+
+.task-monitoring-params__row strong {
+  color: var(--text-strong);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+
+@media (max-width: 1080px) {
+  .task-monitoring-summary {
+    grid-template-columns: 1fr;
+  }
+}
