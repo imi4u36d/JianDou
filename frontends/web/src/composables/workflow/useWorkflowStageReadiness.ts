@@ -4,7 +4,7 @@ import { canSelectVideoVersion } from "@/features/workflows/stage-workflow-prese
 import { selectedCharacterSheetVersion } from "./useCharacterSheetUtils";
 
 export function useWorkflowStageReadiness(workflow: Ref<WorkflowDetail | null>) {
-  const workflowCharacterSheets = computed(() => workflow.value?.characterSheets ?? []);
+  const workflowCharacterSheets = computed(() => workflow.value?.visualAssets ?? workflow.value?.characterSheets ?? []);
   const missingCharacterSheets = computed(() =>
     workflowCharacterSheets.value.filter((sheet) => !selectedCharacterSheetVersion(sheet)),
   );
@@ -50,8 +50,8 @@ export function useWorkflowStageReadiness(workflow: Ref<WorkflowDetail | null>) 
     ).length;
     return [
       { key: "storyboard" as const, index: 1, label: "分镜脚本", status: storyboardCount ? "已有版本" : "待生成", count: `${storyboardCount} 版`, ready: storyboardCount > 0 },
-      { key: "character" as const, index: 2, label: "角色三视图", status: selectedCharacterCount ? "已有角色" : storyboardCount ? "可生成" : "等分镜", count: `${selectedCharacterCount}/${workflowCharacterSheets.value.length || 0}`, ready: selectedCharacterCount > 0 },
-      { key: "keyframe" as const, index: 3, label: "关键帧", status: keyframeCount ? "已有关键帧" : storyboardCount ? "可生成" : "等角色", count: `${keyframeCount} 版`, ready: keyframeCount > 0 },
+      { key: "character" as const, index: 2, label: "公共素材", status: selectedCharacterCount ? "已有素材" : storyboardCount ? "可生成" : "等分镜", count: `${selectedCharacterCount}/${workflowCharacterSheets.value.length || 0}`, ready: selectedCharacterCount > 0 },
+      { key: "keyframe" as const, index: 3, label: "关键帧", status: keyframeCount ? "已有关键帧" : storyboardCount ? "可生成" : "等素材", count: `${keyframeCount} 版`, ready: keyframeCount > 0 },
       { key: "video" as const, index: 4, label: "视频片段", status: videoCount ? "已有视频" : keyframeCount ? "可生成" : "等关键帧", count: `${videoCount} 版`, ready: videoCount > 0 },
       { key: "final" as const, index: 5, label: "成片", status: current?.finalResult ? "已拼接" : canFinalize.value ? "可拼接" : "未就绪", count: current?.finalResult ? "已完成" : `${videoReadiness.value.selected}/${videoReadiness.value.total || 0}`, ready: Boolean(current?.finalResult || canFinalize.value) },
     ];

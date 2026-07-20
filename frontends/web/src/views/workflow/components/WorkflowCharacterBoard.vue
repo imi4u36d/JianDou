@@ -1,9 +1,9 @@
 <template>
   <section class="workflow-stage-board character-board">
     <div class="stage-board__head">
-      <h3>角色三视图</h3>
+      <h3>公共素材</h3>
       <div class="stage-board__meta">
-        <span class="surface-chip">{{ sheets.length }} 个角色</span>
+        <span class="surface-chip">{{ sheets.length }} 项素材</span>
         <button
           class="jd-button jd-button--primary jd-button--sm"
           type="button"
@@ -18,19 +18,22 @@
 
     <WorkflowStageEmptyState
       v-if="!sheets.length"
-      title="还没有角色三视图"
-      description="分镜识别到角色后，可在这里统一生成或从素材库选择角色形象。"
+      title="还没有公共素材"
+      description="分镜会自动识别角色、道具、建筑、场景等可复用视觉素材，并在这里统一管理。"
     />
     <div v-else class="character-list">
       <article v-for="sheet in sheets" :key="characterSheetKey(sheet)" class="character-card">
-        <strong>{{ characterSheetTitle(sheet) }}</strong>
+        <div class="character-card__title">
+          <strong>{{ characterSheetTitle(sheet) }}</strong>
+          <span class="surface-chip surface-chip-quiet">{{ visualAssetTypeLabel(sheet) }}</span>
+        </div>
         <button
           type="button"
           class="character-card__summary"
-          :aria-label="`查看${characterSheetTitle(sheet)}完整角色定义`"
+          :aria-label="`查看${characterSheetTitle(sheet)}完整素材定义`"
           @click="$emit('summary', sheet)"
         >
-          <span>角色定义</span>
+          <span>视觉定义</span>
           <p>{{ characterSheetAppearanceSummary(sheet) }}</p>
         </button>
 
@@ -108,7 +111,7 @@
                 v-model="characterAssetPicker.keyword"
                 class="field-input"
                 type="search"
-                placeholder="角色或标题"
+                placeholder="素材名称或标题"
                 @keyup.enter="loadCharacterAssetCandidates(sheet)"
             /></label>
             <label
@@ -185,6 +188,7 @@ import {
   characterSheetPreviewFrames,
   characterSheetTitle,
   characterSheetVersions,
+  visualAssetTypeLabel,
 } from "@/composables/workflow/useCharacterSheetUtils";
 import { stageVersionDisplayTitle } from "@/features/workflows/stage-workflow-presenters";
 import type { StageVersion, WorkflowCharacterSheet } from "@/types";

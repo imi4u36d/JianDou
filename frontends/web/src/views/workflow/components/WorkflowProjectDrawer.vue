@@ -92,34 +92,19 @@
             </span>
           </span>
         </button>
-        <div class="workflow-more-menu workflow-nav-item__menu">
+        <span class="workflow-nav-item__side">
           <button
             type="button"
-            class="workflow-more-menu__trigger"
-            aria-label="更多操作"
-            :popovertarget="`wfm-${item.id}`"
-            @click.stop
+            class="workflow-nav-item__delete"
+            aria-label="删除任务"
+            title="删除"
+            :disabled="busyActionKey === `delete-workflow-${item.id}`"
+            @click.stop="emit('delete', item)"
           >
-            <IconMore size="sm" />
+            <IconLoading v-if="busyActionKey === `delete-workflow-${item.id}`" size="xs" />
+            <IconDelete v-else size="xs" />
           </button>
-          <div
-            :id="`wfm-${item.id}`"
-            popover
-            class="workflow-more-menu__popover"
-            @beforetoggle="emit('position-menu', $event)"
-          >
-            <button
-              type="button"
-              class="workflow-menu-danger"
-              :disabled="busyActionKey === `delete-workflow-${item.id}`"
-              @click="emit('delete', item)"
-            >
-              <IconLoading v-if="busyActionKey === `delete-workflow-${item.id}`" size="xs" />
-              <IconDelete v-else size="xs" />
-              <span>{{ busyActionKey === `delete-workflow-${item.id}` ? "删除中" : "删除" }}</span>
-            </button>
-          </div>
-        </div>
+        </span>
       </article>
       <div v-if="loadingMore || hasMore" class="workflow-project-list__footer">
         <span ref="sentinelRef" class="workflow-project-list__sentinel" aria-hidden="true"></span>
@@ -138,16 +123,7 @@ import {
   workflowNavStatusTone,
   workflowNavUpdatedLabel,
 } from "@/features/workflows/stage-workflow-presenters";
-import {
-  IconClose,
-  IconDelete,
-  IconEmpty,
-  IconLoading,
-  IconMore,
-  IconRefresh,
-  IconSearch,
-  IconVideo,
-} from "@/components/icons";
+import { IconClose, IconDelete, IconEmpty, IconLoading, IconRefresh, IconSearch, IconVideo } from "@/components/icons";
 
 type WorkflowFilter = "all" | "active" | "ready" | "done";
 
@@ -171,7 +147,6 @@ const emit = defineEmits<{
   refresh: [];
   open: [workflowId: string, preferredStage: string];
   delete: [workflow: WorkflowSummary];
-  "position-menu": [event: ToggleEvent];
   "load-more": [];
   "page-size": [value: number];
 }>();
@@ -199,9 +174,10 @@ function emitViewportPageSize() {
   const filterHeight = drawer?.querySelector<HTMLElement>(".workflow-filter-strip")?.offsetHeight ?? 40;
   const styles = window.getComputedStyle(list ?? drawer!);
   const gap = Number.parseFloat(styles.rowGap || styles.gap || "10") || 10;
-  const itemHeight = item?.offsetHeight || 94;
-  const availableHeight = list?.clientHeight
-    ?? Math.max(0, (drawer?.clientHeight ?? window.innerHeight) - searchHeight - filterHeight - gap * 3);
+  const itemHeight = item?.offsetHeight || 86;
+  const availableHeight =
+    list?.clientHeight ??
+    Math.max(0, (drawer?.clientHeight ?? window.innerHeight) - searchHeight - filterHeight - gap * 3);
   const nextPageSize = Math.max(4, Math.floor(availableHeight / (itemHeight + gap)));
   if (Number.isFinite(nextPageSize) && nextPageSize !== lastPageSize) {
     lastPageSize = nextPageSize;

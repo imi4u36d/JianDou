@@ -17,6 +17,8 @@ export const materialLibraryTabs = [
   { key: "character_sheet", label: "角色三视图", assetType: "character_sheet" },
   { key: "scene", label: "场景", assetType: "scene" },
   { key: "prop", label: "道具", assetType: "prop" },
+  { key: "building", label: "建筑", assetType: "building" },
+  { key: "vehicle", label: "载具", assetType: "vehicle" },
   { key: "workflow", label: "工作流产物", assetType: "workflow" },
 ];
 
@@ -25,6 +27,8 @@ export const materialTypeFilterOptions: AppSelectOption[] = [
   { label: "角色三视图", value: "character_sheet" },
   { label: "场景", value: "scene" },
   { label: "道具", value: "prop" },
+  { label: "建筑", value: "building" },
+  { label: "载具", value: "vehicle" },
   { label: "自由模式", value: "free" },
   { label: "工作流产物", value: "workflow" },
 ];

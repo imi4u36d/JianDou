@@ -45,13 +45,14 @@ class WorkflowStageMutationStore:
             return None
         return version
 
-    async def find_asset(self, asset_id: str) -> BizMaterialAsset | None:
-        result = await self._db.execute(
-            select(BizMaterialAsset).where(
-                BizMaterialAsset.material_asset_id == asset_id,
-                BizMaterialAsset.is_deleted == 0,
-            )
-        )
+    async def find_asset(self, asset_id: str, owner_user_id: int | None = None) -> BizMaterialAsset | None:
+        filters = [
+            BizMaterialAsset.material_asset_id == asset_id,
+            BizMaterialAsset.is_deleted == 0,
+        ]
+        if owner_user_id is not None:
+            filters.append(BizMaterialAsset.owner_user_id == owner_user_id)
+        result = await self._db.execute(select(BizMaterialAsset).where(*filters))
         return result.scalar_one_or_none()
 
     async def list_stage_versions(self, workflow_id: str) -> list[BizStageVersion]:

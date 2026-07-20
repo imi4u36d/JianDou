@@ -6,7 +6,7 @@ import type { MaterialAssetLibraryItem, WorkflowCharacterSheet } from "@/types";
 import { characterSheetKey, characterSheetTitle } from "./useCharacterSheetUtils";
 
 export function materialAssetPreviewUrl(asset: MaterialAssetLibraryItem): string {
-  return asset.thumbnailUrl || asset.previewUrl || "";
+  return asset.thumbnailUrl || asset.previewUrl || asset.publicUrl || asset.fileUrl || "";
 }
 
 export function materialAssetModelLabel(asset: MaterialAssetLibraryItem): string {
@@ -23,9 +23,10 @@ export function useCharacterAssetPicker() {
     assets: [] as MaterialAssetLibraryItem[],
   });
 
-  function isCharacterSheetSelectableAsset(asset: MaterialAssetLibraryItem): boolean {
+  function isCharacterSheetSelectableAsset(asset: MaterialAssetLibraryItem, sheet?: WorkflowCharacterSheet): boolean {
     const assetType = typeof asset.assetType === "string" ? asset.assetType.trim().toLowerCase() : "";
-    const isSupportedAssetType = assetType === "character_sheet" || assetType === "free";
+    const expectedType = !sheet || !sheet.assetType || sheet.assetType === "character" ? "character_sheet" : sheet.assetType;
+    const isSupportedAssetType = assetType === expectedType || assetType === "free";
     const hasPreview = Boolean(asset.publicUrl || asset.fileUrl);
     return isSupportedAssetType && hasPreview;
   }
@@ -74,9 +75,9 @@ export function useCharacterAssetPicker() {
         model: characterAssetPicker.model.trim() || undefined,
       });
       if (characterAssetPicker.openKey !== expectedKey) return;
-      characterAssetPicker.assets = assets.filter(isCharacterSheetSelectableAsset);
+      characterAssetPicker.assets = assets.filter((asset) => isCharacterSheetSelectableAsset(asset, sheet));
     } catch (error) {
-      characterAssetPicker.error = error instanceof Error ? error.message : "角色三视图素材加载失败";
+      characterAssetPicker.error = error instanceof Error ? error.message : "公共素材加载失败";
       characterAssetPicker.assets = [];
     } finally {
       if (characterAssetPicker.openKey === expectedKey) {

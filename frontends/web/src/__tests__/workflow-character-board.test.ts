@@ -45,6 +45,8 @@ describe("workflow character board", () => {
     await nextTick();
 
     expect(host.textContent).toContain("主角");
+    expect(host.textContent).toContain("公共素材");
+    expect(host.textContent).toContain("角色");
     expect(host.textContent).toContain("黑色风衣，银灰短发");
     expect(host.querySelectorAll(".character-frame")).toHaveLength(3);
 
@@ -54,6 +56,38 @@ describe("workflow character board", () => {
 
     expect(onSummary).toHaveBeenCalledWith(sheet);
     expect(onPreviewVersion).toHaveBeenCalledWith("hero", "v1");
+    app.unmount();
+  });
+
+  it("renders non-character assets as part of the public material board", async () => {
+    const host = document.createElement("div");
+    const propAsset: WorkflowCharacterSheet = {
+      id: "key",
+      assetType: "prop",
+      assetIndex: 2,
+      name: "铜钥匙",
+      description: "三齿旧铜钥匙，圆环系红绳",
+      syntheticClipIndex: 1002,
+      versions: [{
+        ...version("v3", true),
+        clipIndex: 1002,
+        inputSummary: { variantKind: "visual_asset", assetType: "prop" },
+        outputSummary: { fileUrl: "/key.png" },
+      }],
+    };
+    const app = createApp(WorkflowCharacterBoard, {
+      sheets: [propAsset],
+      missingCount: 0,
+      previewVersionIds: {},
+      busyActionKey: "",
+    });
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("铜钥匙");
+    expect(host.textContent).toContain("道具");
+    expect(host.textContent).toContain("视觉定义");
+    expect(host.querySelectorAll(".character-frame")).toHaveLength(1);
     app.unmount();
   });
 

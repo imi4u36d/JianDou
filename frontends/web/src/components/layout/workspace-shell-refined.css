@@ -157,33 +157,25 @@
 }
 
 .workspace-page-header {
+  position: relative;
+  z-index: 90;
   display: flex;
+  width: 100%;
   flex: 0 0 auto;
-  min-height: 72px;
+  min-height: 64px;
   align-items: center;
-  padding: 14px 24px;
+  justify-content: space-between;
+  padding: 0 clamp(20px, 2.5vw, 36px);
   border-bottom: 1px solid var(--surface-border);
   background: var(--bg-surface);
 }
 
-.workspace-page-header h1,
-.workspace-page-header p {
-  margin: 0;
-}
-
 .workspace-page-header h1 {
+  margin: 0;
   color: var(--text-strong);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 1.25;
   letter-spacing: -0.02em;
-}
-
-.workspace-page-header p {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.4;
 }
 
 .workspace-route-view {
@@ -252,16 +244,12 @@
   }
 
   .workspace-page-header {
-    min-height: 60px;
-    padding: 10px 16px;
+    min-height: 56px;
+    padding-inline: 16px;
   }
 
   .workspace-page-header h1 {
-    font-size: 18px;
-  }
-
-  .workspace-page-header p {
-    font-size: 12px;
+    font-size: 16px;
   }
 }
 

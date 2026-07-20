@@ -49,7 +49,7 @@ export function workflowStageLabel(value?: string | null) {
     return "分镜脚本";
   }
   if (normalized === "character") {
-    return "角色三视图";
+    return "公共素材";
   }
   if (normalized === "keyframe") {
     return "关键帧";
@@ -80,8 +80,8 @@ export function workflowCanvasStageFromCurrent(
 export function workflowSummaryCanvasStage(workflow: WorkflowSummary): WorkflowCanvasStageKey {
   const normalizedStage = normalizeWorkflowCanvasStage(workflow.currentStage);
   if (normalizedStage === "keyframe") {
-    const characterTotal = Number(workflow.characterSheetCount ?? 0);
-    const selectedCharacterCount = Number(workflow.selectedCharacterSheetCount ?? 0);
+    const characterTotal = Number(workflow.visualAssetCount ?? workflow.characterSheetCount ?? 0);
+    const selectedCharacterCount = Number(workflow.selectedVisualAssetCount ?? workflow.selectedCharacterSheetCount ?? 0);
     if (characterTotal > 0 && selectedCharacterCount < characterTotal) {
       return "character";
     }
@@ -90,8 +90,8 @@ export function workflowSummaryCanvasStage(workflow: WorkflowSummary): WorkflowC
 }
 
 export function workflowSummaryCharacterCountLabel(workflow: WorkflowSummary) {
-  const characterTotal = Number(workflow.characterSheetCount ?? 0);
-  const selectedCharacterCount = Number(workflow.selectedCharacterSheetCount ?? workflow.characterSheetVersionCount ?? 0);
+  const characterTotal = Number(workflow.visualAssetCount ?? workflow.characterSheetCount ?? 0);
+  const selectedCharacterCount = Number(workflow.selectedVisualAssetCount ?? workflow.selectedCharacterSheetCount ?? workflow.visualAssetVersionCount ?? workflow.characterSheetVersionCount ?? 0);
   if (Number.isFinite(characterTotal) && characterTotal > 0) {
     return `${selectedCharacterCount}/${characterTotal}`;
   }

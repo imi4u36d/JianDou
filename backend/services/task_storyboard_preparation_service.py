@@ -92,6 +92,12 @@ class TaskStoryboardPreparationService:
 
         shot_plans = self._storyboard_planner.build_storyboard_shot_plans(task, storyboard_markdown)
         character_definitions = self._storyboard_planner.extract_character_definitions(storyboard_markdown)
+        visual_asset_extractor = getattr(
+            self._storyboard_planner, "extract_visual_asset_definitions", None
+        )
+        visual_asset_definitions = (
+            visual_asset_extractor(storyboard_markdown) if visual_asset_extractor else []
+        )
         storyboard_clip_count = len(shot_plans)
         requested_output_count = self._storyboard_planner.resolve_requested_output_count(
             task,
@@ -121,6 +127,8 @@ class TaskStoryboardPreparationService:
         put_execution_context(task, "plannedClipCount", len(clip_prompts))
         put_execution_context(task, "characterDefinitionCount", len(character_definitions))
         put_execution_context(task, "characterDefinitions", build_character_definition_context(character_definitions))
+        put_execution_context(task, "visualAssetDefinitionCount", len(visual_asset_definitions))
+        put_execution_context(task, "visualAssetDefinitions", visual_asset_definitions)
         put_execution_context(task, "clipPrompts", clip_prompts)
         put_execution_context(
             task,

@@ -6,6 +6,8 @@ export type {
   StageVersion,
   UpdateWorkflowSettingsRequest,
   WorkflowCharacterSheet,
+  WorkflowVisualAsset,
+  WorkflowVisualAssetType,
   WorkflowClipSlot,
   WorkflowDeleteResult,
   WorkflowDetail,

@@ -1,6 +1,6 @@
 import type { ComputedRef, Ref } from "vue";
 import { requireAuth } from "@/auth/modal";
-import { deleteWorkflow, generateCharacterSheet, selectCharacterSheetAsset, updateWorkflowSettings } from "@/features/workflows";
+import { deleteWorkflow, generateVisualAsset, selectVisualAsset, updateWorkflowSettings } from "@/features/workflows";
 import { buildWorkflowSettingsPayload, type WorkflowSettingsDraft } from "@/features/workflows/workflow-settings";
 import { formatApiErrorMessage } from "@/utils/api-error";
 import { messageApi } from "@/composables/useMessage";
@@ -26,8 +26,8 @@ interface StageWorkflowManagementOptions {
 export interface StageWorkflowManagementDependencies {
   requireAuthentication: typeof requireAuth;
   updateSettings: typeof updateWorkflowSettings;
-  generateCharacter: typeof generateCharacterSheet;
-  selectCharacterAsset: typeof selectCharacterSheetAsset;
+  generateCharacter: typeof generateVisualAsset;
+  selectCharacterAsset: typeof selectVisualAsset;
   removeWorkflow: typeof deleteWorkflow;
   message: Pick<typeof messageApi, "error" | "warning">;
 }
@@ -35,8 +35,8 @@ export interface StageWorkflowManagementDependencies {
 const defaultDependencies: StageWorkflowManagementDependencies = {
   requireAuthentication: requireAuth,
   updateSettings: updateWorkflowSettings,
-  generateCharacter: generateCharacterSheet,
-  selectCharacterAsset: selectCharacterSheetAsset,
+  generateCharacter: generateVisualAsset,
+  selectCharacterAsset: selectVisualAsset,
   removeWorkflow: deleteWorkflow,
   message: messageApi,
 };
@@ -70,7 +70,7 @@ export function useStageWorkflowManagementCommands(
       }
       await options.loadWorkflows();
     } catch (error) {
-      dependencies.message.error(formatApiErrorMessage(error, "角色三视图生成失败"));
+      dependencies.message.error(formatApiErrorMessage(error, "公共素材生成失败"));
     } finally {
       options.busyActionKey.value = "";
     }
@@ -84,7 +84,7 @@ export function useStageWorkflowManagementCommands(
       await dependencies.selectCharacterAsset(options.selectedWorkflowId.value, clipIndex, assetId);
       await options.reloadCurrentWorkflow();
     } catch (error) {
-      dependencies.message.error(error instanceof Error ? error.message : "角色三视图素材选择失败");
+      dependencies.message.error(error instanceof Error ? error.message : "公共素材选择失败");
     } finally {
       options.busyActionKey.value = "";
     }

@@ -19,10 +19,12 @@ def test_workflow_stage_routes_remain_on_public_router() -> None:
         ("POST", "/api/v3/workflows/{workflow_id}/storyboards/{version_id}/adjust"),
         ("POST", "/api/v3/workflows/{workflow_id}/clips/{clip_index}/keyframes/generate"),
         ("POST", "/api/v3/workflows/{workflow_id}/character-sheets/{character_index}/generate"),
+        ("POST", "/api/v3/workflows/{workflow_id}/visual-assets/{asset_index}/generate"),
+        ("POST", "/api/v3/workflows/{workflow_id}/visual-assets/{clip_index}/select-asset"),
         ("POST", "/api/v3/workflows/{workflow_id}/clips/{clip_index}/videos/generate"),
     }
     assert expected <= routes
-    assert len(router.routes) == 25
+    assert len(router.routes) == 27
 
 
 @pytest.mark.asyncio

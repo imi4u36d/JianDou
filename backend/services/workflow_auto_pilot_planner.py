@@ -20,7 +20,7 @@ class WorkflowAutoPilotPlanner:
         self,
         workflow: Any,
         versions: list[Any],
-        storyboard_plan_loader: Callable[[Any], tuple[list[dict[str, Any]], list[dict[str, Any]]]],
+        storyboard_plan_loader: Callable[[Any], tuple],
     ) -> list[dict[str, Any]]:
         storyboard_versions = [v for v in versions if v.stage_type == WorkflowStage.STORYBOARD.value]
         keyframe_versions = [v for v in versions if v.stage_type == WorkflowStage.KEYFRAME.value]
@@ -46,10 +46,12 @@ class WorkflowAutoPilotPlanner:
         if selected_storyboard is None:
             selected_storyboard = storyboard_versions[0]
 
-        characters, clips = storyboard_plan_loader(selected_storyboard)
+        resolved_plan = storyboard_plan_loader(selected_storyboard)
+        characters, clips = resolved_plan[:2]
+        visual_assets = resolved_plan[2] if len(resolved_plan) >= 3 else characters
         clip_indexes = [safe_int(clip.get("clipIndex"), 0) for clip in clips]
 
-        keyframe_steps = self.missing_keyframe_steps(characters, clip_indexes, keyframe_versions)
+        keyframe_steps = self.missing_keyframe_steps(visual_assets, clip_indexes, keyframe_versions)
         if keyframe_steps:
             return keyframe_steps
 
@@ -63,17 +65,17 @@ class WorkflowAutoPilotPlanner:
 
     @staticmethod
     def missing_keyframe_steps(
-        characters: list[dict[str, Any]], clip_indexes: list[int], keyframe_versions: list[Any]
+        visual_assets: list[dict[str, Any]], clip_indexes: list[int], keyframe_versions: list[Any]
     ) -> list[dict[str, Any]]:
         steps: list[dict[str, Any]] = []
-        existing_character_sheets = {
+        existing_visual_assets = {
             version.clip_index
             for version in keyframe_versions
             if version.clip_index > CHARACTER_SHEET_CLIP_INDEX_BASE
         }
-        for character_index, _character in enumerate(characters, start=1):
-            clip_index = CHARACTER_SHEET_CLIP_INDEX_BASE + character_index
-            if clip_index not in existing_character_sheets:
+        for asset_index, _asset in enumerate(visual_assets, start=1):
+            clip_index = CHARACTER_SHEET_CLIP_INDEX_BASE + asset_index
+            if clip_index not in existing_visual_assets:
                 steps.append({"type": "generate_keyframe", "clip_index": clip_index})
 
         for clip_index in sorted(index for index in clip_indexes if index != 0):
@@ -81,7 +83,8 @@ class WorkflowAutoPilotPlanner:
                 version
                 for version in keyframe_versions
                 if version.clip_index == clip_index
-                and trim(read_json_object(version.input_summary_json).get("variantKind", "")) != "character_sheet"
+                and trim(read_json_object(version.input_summary_json).get("variantKind", ""))
+                not in {"character_sheet", "visual_asset"}
             ]
             if not any(version.selected == 1 for version in versions_for_clip):
                 steps.append({"type": "generate_keyframe", "clip_index": clip_index})

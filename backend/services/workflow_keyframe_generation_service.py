@@ -77,12 +77,14 @@ class WorkflowKeyframeGenerationService:
         version_no = await self._versions.next_version_no(workflow_id, clip_index)
         width, height = _dimensions_from_aspect_ratio(workflow.aspect_ratio)
         character_sheet_urls = (
-            [] if target.is_character_sheet else await self._versions.resolve_character_sheet_urls(workflow_id)
+            [] if target.is_visual_asset else await self._versions.resolve_visual_asset_urls(
+                workflow_id, clip_index, workflow
+            )
         )
         previous_tail_frame_url = await self._versions.required_previous_tail_frame_url(
             workflow_id,
             clip_index,
-            target.is_character_sheet,
+            target.is_visual_asset,
             missing_message=(
                 f"镜头 {clip_index} 的前一个镜头（镜头 {clip_index - 1}）"
                 f"缺少尾帧远程 URL，请先确保前一个镜头的关键帧已完整生成。"
@@ -98,7 +100,7 @@ class WorkflowKeyframeGenerationService:
             previous_tail_frame_url,
         )
         end_frame = None
-        if not target.is_character_sheet:
+        if not target.is_visual_asset:
             end_frame = await self._generate_end_frame(
                 workflow,
                 target.clip,
@@ -125,7 +127,7 @@ class WorkflowKeyframeGenerationService:
             clip_index,
             version_id,
         )
-        workflow.current_stage = STAGE_KEYFRAME if target.is_character_sheet else WorkflowStage.VIDEO.value
+        workflow.current_stage = STAGE_KEYFRAME if target.is_visual_asset else WorkflowStage.VIDEO.value
         workflow.status = WorkflowStatus.READY.value
         workflow.update_time = now_iso()
         await self._db.commit()
@@ -153,13 +155,15 @@ class WorkflowKeyframeGenerationService:
         if not is_first and not is_last:
             raise ValueError(f"不支持的 frame_role: {frame_role}，仅支持 first/last。")
 
-        character_sheet_urls = await self._versions.resolve_character_sheet_urls(workflow_id)
+        character_sheet_urls = await self._versions.resolve_visual_asset_urls(
+            workflow_id, clip_index, workflow
+        )
         reused_start_frame_url = ""
         if is_first:
             reused_start_frame_url = await self._versions.required_previous_tail_frame_url(
                 workflow_id,
                 clip_index,
-                target.is_character_sheet,
+                target.is_visual_asset,
                 missing_message=(
                     f"镜头 {clip_index} 的前一个镜头（镜头 {clip_index - 1}）"
                     f"缺少已选尾帧 URL，请先生成并选中前一个镜头的尾帧。"

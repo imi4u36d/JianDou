@@ -73,10 +73,10 @@
             @position-menu="positionVersionMenu"
           />
 
-          <!-- ── 角色三视图 ── -->
+          <!-- ── 公共素材 ── -->
           <section v-else-if="activeCanvasStage === 'character'" class="workflow-stage-board character-board">
             <div class="stage-board__head">
-              <h3>角色三视图</h3>
+              <h3>公共素材</h3>
               <div class="stage-board__meta">
                 <span class="surface-chip">{{ workflowCharacterSheets.length }} 个角色</span>
                 <button
@@ -88,7 +88,7 @@
                 >
                   <IconLoading v-if="busyActionKey === 'clear-character-versions'" size="xs" />
                   <IconDelete v-else size="xs" />
-                  <span>{{ busyActionKey === 'clear-character-versions' ? '清空中' : '清空三视图版本' }}</span>
+                  <span>{{ busyActionKey === 'clear-character-versions' ? '清空中' : '清空素材版本' }}</span>
                 </button>
                 <button class="jd-button jd-button--primary jd-button--sm" type="button" :disabled="!missingCharacterSheets.length || busyActionKey === 'character-missing'" @click="handleGenerateMissingCharacterSheets">
                   <IconLoading v-if="busyActionKey === 'character-missing'" size="xs" />
@@ -96,7 +96,7 @@
                 </button>
               </div>
             </div>
-            <div v-if="!workflowCharacterSheets.length" class="workflow-empty workflow-empty-nested">暂无角色三视图</div>
+            <div v-if="!workflowCharacterSheets.length" class="workflow-empty workflow-empty-nested">暂无公共素材</div>
             <div v-else class="character-strip__list">
               <article v-for="sheet in workflowCharacterSheets" :key="characterSheetKey(sheet)" class="character-mini-card">
                 <div class="character-mini-card__head">

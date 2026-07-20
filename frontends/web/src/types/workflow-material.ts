@@ -1,6 +1,6 @@
 import type { WorkflowMetadataSummary, WorkflowStageType } from "./workflow-stage";
 
-export type MaterialAssetType = "character_sheet" | "scene" | "prop" | "free" | "workflow";
+export type MaterialAssetType = "character_sheet" | "scene" | "prop" | "building" | "vehicle" | "free" | "workflow";
 
 export interface MaterialAssetLibraryItem {
   id: string;

@@ -15,6 +15,7 @@
 }
 .stage-board__head,
 .stage-board__meta,
+.character-card__title,
 .character-card__actions,
 .asset-picker__head,
 .asset-picker__filters {
@@ -23,6 +24,9 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+.character-card__title {
+  align-items: center;
 }
 .stage-board__head h3,
 .asset-picker h4 {

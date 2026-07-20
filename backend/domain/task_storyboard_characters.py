@@ -166,7 +166,19 @@ class StoryboardCharacterParser:
         normalized = "" if storyboard_markdown is None else str(storyboard_markdown).strip()
         definitions_start = normalized.find("【角色定义信息】")
         if definitions_start < 0:
-            return []
+            # The workflow-wide public material format supersedes the legacy
+            # character-only table, while this facade remains character-only
+            # for task render compatibility.
+            if "【公共素材定义】" not in normalized:
+                return []
+            from backend.domain.workflow_storyboard_plan import parse_workflow_storyboard_markdown
+
+            assets = parse_workflow_storyboard_markdown(normalized).visual_assets
+            return [
+                CharacterDefinition(asset.name, asset.description, asset.description)
+                for asset in assets
+                if asset.asset_type == "character"
+            ]
         script_start = normalized.find("【分镜脚本】")
         block = normalized[definitions_start:script_start] if script_start > definitions_start else normalized[definitions_start:]
         return self._from_list(block) or self._from_table(block)

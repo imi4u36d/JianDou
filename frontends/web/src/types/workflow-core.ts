@@ -1,5 +1,5 @@
 import type { MaterialAssetLibraryItem } from "./workflow-material";
-import type { StageVersion, WorkflowCharacterSheet, WorkflowClipSlot } from "./workflow-stage";
+import type { StageVersion, WorkflowCharacterSheet, WorkflowClipSlot, WorkflowVisualAsset } from "./workflow-stage";
 
 export interface CreateWorkflowRequest {
   title: string;
@@ -49,6 +49,9 @@ export interface WorkflowSummary {
   characterSheetCount?: number;
   selectedCharacterSheetCount?: number;
   characterSheetVersionCount?: number;
+  visualAssetCount?: number;
+  selectedVisualAssetCount?: number;
+  visualAssetVersionCount?: number;
   keyframeVersionCount: number;
   videoVersionCount: number;
   executionMode?: string | null;
@@ -94,6 +97,7 @@ export interface WorkflowDetail extends Omit<WorkflowSummary, "storyboardVersion
   ratedAt?: string | null;
   storyboardVersions: StageVersion[];
   characterSheets?: WorkflowCharacterSheet[] | null;
+  visualAssets?: WorkflowVisualAsset[] | null;
   clipSlots: WorkflowClipSlot[];
   finalResult?: MaterialAssetLibraryItem | null;
   autoPilotNextStage?: string | null;

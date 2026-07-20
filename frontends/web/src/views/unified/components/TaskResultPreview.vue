@@ -90,14 +90,16 @@
             :aria-label="`预览${media.title || '任务结果'}`"
             @click="$emit('preview', media.title || '任务结果预览', media.url)"
           >
-            <img class="task-result-preview__image-glow" :src="media.url" alt="" aria-hidden="true" loading="lazy" />
             <img
               class="task-result-preview__image"
               :src="media.url"
               :alt="media.title || '任务结果预览'"
-              @load="$emit('ready')"
+              @load="handleImageReady(media, $event)"
               @error="$emit('failed')"
             />
+            <span v-if="imageMetadataByUrl[media.url]" class="task-result-preview__image-meta">
+              {{ imageMetadataByUrl[media.url] }}
+            </span>
           </button>
         </template>
         <div
@@ -136,6 +138,7 @@
 </template>
 
 <script setup lang="ts">
+import { reactive } from "vue";
 import { IconDownload, IconImage, IconLoading, IconShare, IconVideo, IconWarning } from "@/components/icons";
 import type { DownloadMediaKind } from "@/utils/download";
 
@@ -164,7 +167,7 @@ defineProps<{
   sharing: boolean;
   shared: boolean;
 }>();
-defineEmits<{
+const emit = defineEmits<{
   preview: [title: string, url: string];
   download: [url: string, title: string, mediaType: DownloadMediaKind];
   share: [];
@@ -172,6 +175,28 @@ defineEmits<{
   ready: [];
   failed: [];
 }>();
+
+const imageMetadataByUrl = reactive<Record<string, string>>({});
+
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = Math.abs(Math.trunc(left));
+  let b = Math.abs(Math.trunc(right));
+  while (b) {
+    [a, b] = [b, a % b];
+  }
+  return a || 1;
+}
+
+function handleImageReady(media: PreviewItem, event: Event) {
+  const image = event.currentTarget as HTMLImageElement;
+  const width = image.naturalWidth;
+  const height = image.naturalHeight;
+  if (width > 0 && height > 0) {
+    const divisor = greatestCommonDivisor(width, height);
+    imageMetadataByUrl[media.url] = `分辨率 ${width} × ${height} px · 比例 ${width / divisor}:${height / divisor}`;
+  }
+  emit("ready");
+}
 
 function referenceCardStyle(index: number) {
   const direction = index % 2 === 0 ? -1 : 1;

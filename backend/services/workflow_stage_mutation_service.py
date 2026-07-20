@@ -13,6 +13,7 @@ from backend.services.workflow_stage_mutation_policy import (
     resolve_delete_version_chain,
 )
 from backend.services.workflow_stage_mutation_store import WorkflowStageMutationStore
+from backend.services.workflow_visual_asset_selection import persist_visual_asset_selection
 from backend.shared import now_iso, trim
 
 STAGE_STORYBOARD = WorkflowStage.STORYBOARD.value
@@ -100,8 +101,8 @@ class WorkflowStageMutationService:
         version = await self._store.require_stage_version(workflow_id, version_id, STAGE_KEYFRAME)
         if version is None or version.clip_index != clip_index:
             return None
-        if trim(read_json_object(version.input_summary_json).get("variantKind")) == VARIANT_KIND_CHARACTER_SHEET:
-            raise ValueError("角色三视图不支持选择首帧/尾帧。")
+        if is_character_sheet_version(version):
+            raise ValueError("公共素材设定图不支持选择首帧/尾帧。")
 
         normalized_role = trim(frame_role).lower()
         is_first = normalized_role in ("first", "start", "首帧")
@@ -133,11 +134,17 @@ class WorkflowStageMutationService:
     async def touch_character_sheet_selection(
         self,
         workflow_id: str,
+        clip_index: int | None = None,
+        asset_id: str | None = None,
         owner_user_id: int | None = None,
     ) -> BizStageWorkflow | None:
         workflow = await self._store.require_workflow(workflow_id, owner_user_id)
         if workflow is None:
             return None
+        if clip_index is not None and asset_id:
+            await persist_visual_asset_selection(
+                self._db, self._store, workflow, clip_index, asset_id, owner_user_id
+            )
         workflow.update_time = now_iso()
         await self._db.commit()
         return workflow

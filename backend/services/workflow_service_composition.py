@@ -31,11 +31,20 @@ from backend.shared import trim
 def workflow_storyboard_plan(
     version: BizStageVersion | None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    characters, clips, _assets = workflow_storyboard_full_plan(version)
+    return characters, clips
+
+
+def workflow_storyboard_full_plan(
+    version: BizStageVersion | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     if version is None:
-        return [], []
+        return [], [], []
     output = read_json_object(version.output_summary_json)
     script = trim(output.get("scriptMarkdown") or output.get("previewText"))
-    return parse_workflow_storyboard_markdown(script).to_view()
+    plan = parse_workflow_storyboard_markdown(script)
+    characters, clips = plan.to_view()
+    return characters, clips, plan.visual_assets_view()
 
 
 @dataclass(slots=True)
@@ -63,7 +72,7 @@ def build_workflow_service_collaborators(
 ) -> WorkflowServiceCollaborators:
     model_validator = WorkflowModelValidator(generation_service)
     thumbnail_resolver = WorkflowThumbnailResolver(media_service)
-    view_mapper = WorkflowViewMapper(workflow_storyboard_plan)
+    view_mapper = WorkflowViewMapper(workflow_storyboard_full_plan)
     request_builder = WorkflowGenerationRequestBuilder()
     result_parser = WorkflowGenerationResultParser()
     row_factory = WorkflowPersistenceRowFactory()

@@ -27,7 +27,21 @@ describe("task result preview", () => {
     app.mount(host);
     await nextTick();
 
-    host.querySelector<HTMLButtonElement>(".task-result-preview__image-button")?.click();
+    const imageButton = host.querySelector<HTMLButtonElement>(".task-result-preview__image-button");
+    expect(imageButton?.querySelectorAll("img")).toHaveLength(1);
+    const resultImage = imageButton?.querySelector<HTMLImageElement>("img");
+    expect(resultImage?.getAttribute("src")).toBe("/result.png");
+    Object.defineProperties(resultImage, {
+      naturalWidth: { configurable: true, value: 1920 },
+      naturalHeight: { configurable: true, value: 1080 },
+    });
+    resultImage?.dispatchEvent(new Event("load"));
+    await nextTick();
+
+    expect(imageButton?.querySelector(".task-result-preview__image-meta")?.textContent).toContain(
+      "分辨率 1920 × 1080 px · 比例 16:9",
+    );
+    imageButton?.click();
     host.querySelector<HTMLButtonElement>('button[aria-label="下载参考图"]')?.click();
     [...host.querySelectorAll<HTMLButtonElement>(".task-result-preview__action")]
       .find((button) => button.textContent?.includes("分享"))

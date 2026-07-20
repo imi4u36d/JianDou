@@ -14,6 +14,12 @@ from backend.shared import random_id, trim
 
 STAGE_KEYFRAME = WorkflowStage.KEYFRAME.value
 VARIANT_KIND_CHARACTER_SHEET = "character_sheet"
+VARIANT_KIND_VISUAL_ASSET = "visual_asset"
+
+ASSET_TYPE_LABELS = {
+    "character": "角色三视图", "prop": "道具设定图", "building": "建筑设定图",
+    "scene": "场景设定图", "vehicle": "载具设定图", "other": "公共素材设定图",
+}
 
 
 @dataclass(frozen=True)
@@ -22,8 +28,12 @@ class KeyframeTarget:
     clip: dict[str, Any] | None
 
     @property
-    def is_character_sheet(self) -> bool:
+    def is_visual_asset(self) -> bool:
         return self.character is not None
+
+    @property
+    def asset_type(self) -> str:
+        return trim((self.character or {}).get("assetType"), "character")
 
 
 @dataclass(frozen=True)
@@ -67,13 +77,15 @@ class WorkflowKeyframePersistence:
     ) -> None:
         character = target.character
         clip = target.clip
+        asset_type = target.asset_type
+        asset_label = ASSET_TYPE_LABELS.get(asset_type, ASSET_TYPE_LABELS["other"])
         asset = self._row_factory.create_material_asset(
             wf=workflow,
             stage_type=STAGE_KEYFRAME,
             clip_index=clip_index,
             version_no=version_no,
             media_type="image",
-            title=f"{character.get('name')} 三视图" if character else f"镜头 {clip_index} 关键帧",
+            title=f"{character.get('name')} {asset_label}" if character else f"镜头 {clip_index} 关键帧",
             public_url=start.output_url,
             mime_type=start.mime_type,
             width=start.width,
@@ -89,9 +101,13 @@ class WorkflowKeyframePersistence:
                 "remoteSourceUrl": start.remote_url,
                 "reusedPreviousTailFrame": reused_previous_tail,
                 "characterName": character.get("name") if character else "",
+                "visualAssetName": character.get("name") if character else "",
+                "visualAssetType": asset_type if character else "",
                 "clip": clip or {},
             },
         )
+        if character:
+            asset.asset_role = "character_sheet" if asset_type == "character" else asset_type
         self._db.add(asset)
         output_summary: dict[str, Any] = {
             "fileUrl": start.output_url,
@@ -110,16 +126,21 @@ class WorkflowKeyframePersistence:
                     "sheetUrl": start.output_url,
                     "characterName": character.get("name", ""),
                     "characterAppearance": character.get("appearance", ""),
+                    "visualAssetName": character.get("name", ""),
+                    "visualAssetType": asset_type,
+                    "visualAssetDescription": character.get("description") or character.get("appearance", ""),
                 }
             )
             input_summary.update(
                 {
-                    "variantKind": VARIANT_KIND_CHARACTER_SHEET,
+                    "variantKind": VARIANT_KIND_CHARACTER_SHEET if asset_type == "character" else VARIANT_KIND_VISUAL_ASSET,
+                    "assetType": asset_type,
+                    "assetName": character.get("name", ""),
                     "characterName": character.get("name", ""),
                     "appearance": character.get("appearance", ""),
                 }
             )
-            title = f"{character.get('name')} 三视图 {version_no}"
+            title = f"{character.get('name')} {asset_label} {version_no}"
         else:
             end_remote_url = (end.remote_url or end.output_url) if end else ""
             output_summary.update(

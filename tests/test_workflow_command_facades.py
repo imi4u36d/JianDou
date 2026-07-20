@@ -53,3 +53,19 @@ async def test_stage_generation_keeps_character_sheet_index_guards() -> None:
         await commands.generate_keyframe("workflow-1", CHARACTER_SHEET_CLIP_INDEX_BASE)
     with pytest.raises(ValueError, match="角色序号必须从 1 开始"):
         await commands.generate_character_sheet("workflow-1", 0)
+
+
+@pytest.mark.asyncio
+async def test_stage_generation_supports_public_visual_asset_indexes() -> None:
+    commands = WorkflowStageCommands()
+    commands._keyframe_generation_service = SimpleNamespace(  # type: ignore[attr-defined]
+        generate=AsyncMock(return_value=SimpleNamespace(workflow_id="workflow-1"))
+    )
+    commands.get_workflow = AsyncMock(return_value={"workflowId": "workflow-1"})  # type: ignore[attr-defined,method-assign]
+
+    result = await commands.generate_visual_asset("workflow-1", 3, owner_user_id=7)
+
+    commands._keyframe_generation_service.generate.assert_awaited_once_with(  # type: ignore[attr-defined]
+        "workflow-1", CHARACTER_SHEET_CLIP_INDEX_BASE + 3, owner_user_id=7
+    )
+    assert result == {"workflowId": "workflow-1"}

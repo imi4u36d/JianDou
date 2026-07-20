@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.domain.task_storyboard_characters import StoryboardCharacterParser
+from backend.domain.workflow_storyboard_plan import parse_workflow_storyboard_markdown
 
 
 @dataclass(frozen=True)
@@ -231,11 +232,15 @@ class StoryboardShotPlanParser:
             raise ValueError(f"分镜解析失败，镜头 {shot_label} 缺少必填字段：" + "、".join(missing))
 
     def _extract_character_appearance_map(self, markdown: str) -> dict[str, str]:
-        return {
+        appearances = {
             definition.name: definition.appearance
             for definition in self._character_parser.extract_character_definitions(markdown)
             if definition.name and definition.appearance
         }
+        for asset in parse_workflow_storyboard_markdown(markdown).visual_assets:
+            if asset.name and asset.description:
+                appearances.setdefault(asset.name, asset.description)
+        return appearances
 
     @staticmethod
     def _augment_character_appearances(prompt: str, appearances: dict[str, str]) -> str:

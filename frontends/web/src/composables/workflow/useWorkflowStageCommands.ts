@@ -3,6 +3,7 @@ import {
   adjustStoryboard,
   finalizeWorkflow,
   generateCharacterSheet,
+  generateVisualAsset,
   generateKeyframe,
   generateKeyframeFrame,
   generateStoryboard,
@@ -19,6 +20,7 @@ export interface WorkflowStageCommandApi {
   adjustStoryboard: typeof adjustStoryboard;
   finalizeWorkflow: typeof finalizeWorkflow;
   generateCharacterSheet: typeof generateCharacterSheet;
+  generateVisualAsset?: typeof generateVisualAsset;
   generateKeyframe: typeof generateKeyframe;
   generateKeyframeFrame: typeof generateKeyframeFrame;
   generateStoryboard: typeof generateStoryboard;
@@ -40,6 +42,7 @@ const defaultApi: WorkflowStageCommandApi = {
   adjustStoryboard,
   finalizeWorkflow,
   generateCharacterSheet,
+  generateVisualAsset,
   generateKeyframe,
   generateKeyframeFrame,
   generateStoryboard,
@@ -79,7 +82,8 @@ export function useWorkflowStageCommands(options: WorkflowStageCommandOptions, a
     const index = characterSheetIndex(sheet);
     if (index === null) return;
     const clipIndex = characterSheetClipIndex(sheet) ?? index;
-    await run(`character-sheet-${clipIndex}`, (workflowId) => api.generateCharacterSheet(workflowId, index));
+    const generator = api.generateVisualAsset ?? api.generateCharacterSheet;
+    await run(`character-sheet-${clipIndex}`, (workflowId) => generator(workflowId, index));
   }
 
   async function handleGenerateKeyframeFrame(clipIndex: number, frameRole: string) {

@@ -140,6 +140,24 @@ def test_builder_creates_character_sheet_request() -> None:
     assert "red coat" in prompt
 
 
+def test_builder_creates_prop_visual_asset_request() -> None:
+    request, prompt = WorkflowGenerationRequestBuilder().build_keyframe_request(
+        _workflow(),
+        workflow_id="wf_builder",
+        clip_index=1002,
+        width=1024,
+        height=1024,
+        character={"assetType": "prop", "name": "铜钥匙", "description": "三齿旧铜钥匙，系红绳"},
+        clip=None,
+    )
+
+    assert request["input"]["frameRole"] == "sheet"
+    assert request["metadata"]["variantKind"] == "visual_asset"
+    assert request["metadata"]["assetType"] == "prop"
+    assert "multi-angle prop" in prompt
+    assert "铜钥匙" in prompt
+
+
 def test_builder_creates_video_request_with_existing_prompt_shape() -> None:
     request, prompt = WorkflowGenerationRequestBuilder().build_video_request(
         _workflow(),

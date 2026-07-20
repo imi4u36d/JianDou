@@ -13,8 +13,9 @@ STAGE_KEYFRAME = WorkflowStage.KEYFRAME.value
 STAGE_VIDEO = WorkflowStage.VIDEO.value
 CHARACTER_SHEET_CLIP_INDEX_BASE = 1000
 VARIANT_KIND_CHARACTER_SHEET = "character_sheet"
+VARIANT_KIND_VISUAL_ASSET = "visual_asset"
 
-StoryboardPlanResolver = Callable[[BizStageVersion | None], tuple[list[dict[str, Any]], list[dict[str, Any]]]]
+StoryboardPlanResolver = Callable[[BizStageVersion | None], tuple]
 
 
 def _trim(value: str | None, fallback: str = "") -> str:
@@ -80,18 +81,43 @@ class WorkflowViewMapper:
             and _trim(_read_json(v.input_summary_json).get("variantKind", "")) == VARIANT_KIND_CHARACTER_SHEET
             and v.selected == 1
         )
+        visual_asset_version_count = sum(
+            1
+            for v in versions
+            if v.stage_type == STAGE_KEYFRAME
+            and _trim(_read_json(v.input_summary_json).get("variantKind", ""))
+            in (VARIANT_KIND_CHARACTER_SHEET, VARIANT_KIND_VISUAL_ASSET)
+        )
+        selected_visual_asset_count = sum(
+            1
+            for v in versions
+            if v.stage_type == STAGE_KEYFRAME
+            and _trim(_read_json(v.input_summary_json).get("variantKind", ""))
+            in (VARIANT_KIND_CHARACTER_SHEET, VARIANT_KIND_VISUAL_ASSET)
+            and v.selected == 1
+        )
+        storyboard_versions = [v for v in versions if v.stage_type == STAGE_STORYBOARD]
+        selected_storyboard = next(
+            (v for v in storyboard_versions if v.stage_version_id == wf.selected_storyboard_version_id),
+            next((v for v in storyboard_versions if v.selected == 1), storyboard_versions[0] if storyboard_versions else None),
+        )
+        plan = self._storyboard_plan(selected_storyboard)
+        planned_characters = plan[0] if plan else []
+        planned_visual_assets = plan[2] if len(plan) >= 3 else planned_characters
         keyframe_count = sum(
             1
             for v in versions
             if v.stage_type == STAGE_KEYFRAME
-            and _trim(_read_json(v.input_summary_json).get("variantKind", "")) != VARIANT_KIND_CHARACTER_SHEET
+            and _trim(_read_json(v.input_summary_json).get("variantKind", ""))
+            not in (VARIANT_KIND_CHARACTER_SHEET, VARIANT_KIND_VISUAL_ASSET)
         )
         video_count = sum(1 for v in versions if v.stage_type == STAGE_VIDEO)
         selected_keyframe_count = sum(
             1
             for v in versions
             if v.stage_type == STAGE_KEYFRAME
-            and _trim(_read_json(v.input_summary_json).get("variantKind", "")) != VARIANT_KIND_CHARACTER_SHEET
+            and _trim(_read_json(v.input_summary_json).get("variantKind", ""))
+            not in (VARIANT_KIND_CHARACTER_SHEET, VARIANT_KIND_VISUAL_ASSET)
             and v.selected == 1
         )
         return {
@@ -108,8 +134,11 @@ class WorkflowViewMapper:
             "selectedKeyframeCount": selected_keyframe_count,
             "videoVersionCount": video_count,
             "characterSheetVersionCount": character_sheet_count,
-            "characterSheetCount": character_sheet_count,
+            "characterSheetCount": len(planned_characters),
             "selectedCharacterSheetCount": selected_character_sheet_count,
+            "visualAssetVersionCount": visual_asset_version_count,
+            "visualAssetCount": len(planned_visual_assets),
+            "selectedVisualAssetCount": selected_visual_asset_count,
             "executionMode": wf.execution_mode,
             "autoPilotState": wf.auto_pilot_state,
         }
@@ -130,7 +159,21 @@ class WorkflowViewMapper:
             selected_storyboard = next((v for v in storyboard_versions if v.selected == 1), None)
         if selected_storyboard is None and storyboard_versions:
             selected_storyboard = storyboard_versions[0]
-        characters, storyboard_clips = self._storyboard_plan(selected_storyboard)
+        resolved_plan = self._storyboard_plan(selected_storyboard)
+        if len(resolved_plan) >= 3:
+            characters, storyboard_clips, visual_assets = resolved_plan[:3]
+        else:
+            characters, storyboard_clips = resolved_plan
+            visual_assets = [
+                {
+                    "assetType": "character",
+                    "name": character.get("name", ""),
+                    "description": character.get("appearance", ""),
+                    "summary": character.get("summary", ""),
+                    "appearance": character.get("appearance", ""),
+                }
+                for character in characters
+            ]
 
         keyframe_versions = [v for v in versions if v.stage_type == STAGE_KEYFRAME]
         video_versions = [v for v in versions if v.stage_type == STAGE_VIDEO]
@@ -160,7 +203,14 @@ class WorkflowViewMapper:
                 "scene": clip.get("scene"),
                 "durationHint": clip.get("durationHint"),
                 "targetDurationSeconds": clip.get("targetDurationSeconds"),
-                "matchedCharacters": None,
+                "matchedCharacters": [
+                    asset for asset in visual_assets
+                    if asset.get("assetType") == "character" and asset.get("name") and asset.get("name") in str(clip)
+                ],
+                "matchedVisualAssets": [
+                    asset for asset in visual_assets
+                    if asset.get("name") and asset.get("name") in str(clip)
+                ],
                 "keyframeVersions": [
                     self.to_stage_version_row(v, asset_map.get(v.material_asset_id))
                     for v in sorted(keyframe_by_clip.get(clip_idx, []), key=lambda v: _safe_int(v.version_no, 0), reverse=True)
@@ -171,22 +221,30 @@ class WorkflowViewMapper:
                 ],
             })
 
+        visual_asset_items = []
         character_sheets = []
-        for idx, character in enumerate(characters, start=1):
+        character_index = 0
+        for idx, asset_definition in enumerate(visual_assets, start=1):
             synthetic_clip_index = CHARACTER_SHEET_CLIP_INDEX_BASE + idx
             sheet_versions = sorted(
                 keyframe_by_clip.get(synthetic_clip_index, []),
                 key=lambda v: _safe_int(v.version_no, 0),
                 reverse=True,
             )
-            character_sheets.append({
-                "id": f"{wf.workflow_id}-character-{idx}",
-                "characterName": character.get("name", ""),
-                "name": character.get("name", ""),
-                "displayName": character.get("name", ""),
-                "appearanceSummary": character.get("summary", ""),
-                "appearance": character.get("appearance", ""),
-                "characterIndex": idx,
+            asset_type = _trim(asset_definition.get("assetType"), "other")
+            if asset_type == "character":
+                character_index += 1
+            item = {
+                "id": f"{wf.workflow_id}-asset-{asset_type}-{idx}",
+                "assetType": asset_type,
+                "name": asset_definition.get("name", ""),
+                "displayName": asset_definition.get("name", ""),
+                "description": asset_definition.get("description") or asset_definition.get("appearance", ""),
+                "summary": asset_definition.get("summary", ""),
+                "appearanceSummary": asset_definition.get("summary", ""),
+                "appearance": asset_definition.get("appearance") or asset_definition.get("description", ""),
+                "assetIndex": idx,
+                "characterIndex": character_index if asset_type == "character" else None,
                 "syntheticClipIndex": synthetic_clip_index,
                 "clipIndex": synthetic_clip_index,
                 "versions": [
@@ -197,7 +255,11 @@ class WorkflowViewMapper:
                     self.to_stage_version_row(v, asset_map.get(v.material_asset_id))
                     for v in sheet_versions
                 ],
-            })
+            }
+            visual_asset_items.append(item)
+            if asset_type == "character":
+                item["characterName"] = asset_definition.get("name", "")
+                character_sheets.append(item)
 
         return {
             "id": wf.workflow_id,
@@ -234,6 +296,7 @@ class WorkflowViewMapper:
                 for v in storyboard_versions
             ],
             "characterSheets": character_sheets,
+            "visualAssets": visual_asset_items,
             "clipSlots": clip_slots,
             "finalResult": self.to_material_asset_row(asset_map.get(wf.final_join_asset_id)) if wf.final_join_asset_id else None,
         }
@@ -277,6 +340,8 @@ class WorkflowViewMapper:
             "id": asset.material_asset_id,
             "workflowId": asset.workflow_id,
             "stageType": asset.stage_type,
+            "assetType": asset.asset_role or "free",
+            "assetRole": asset.asset_role,
             "mediaType": asset.media_type,
             "title": asset.title,
             "mimeType": asset.mime_type,

@@ -10,6 +10,7 @@ STAGE_STORYBOARD = WorkflowStage.STORYBOARD.value
 STAGE_KEYFRAME = WorkflowStage.KEYFRAME.value
 STAGE_VIDEO = WorkflowStage.VIDEO.value
 VARIANT_KIND_CHARACTER_SHEET = "character_sheet"
+VARIANT_KIND_VISUAL_ASSET = "visual_asset"
 
 
 def _trim(value: Any, fallback: str = "") -> str:
@@ -53,21 +54,34 @@ class WorkflowGenerationRequestBuilder:
         clip: dict[str, Any] | None,
         character_sheet_urls: list[str] | None = None,
     ) -> tuple[dict[str, Any], str]:
-        is_character_sheet = character is not None
+        is_visual_asset = character is not None
+        asset_type = _trim((character or {}).get("assetType"), "character")
         prompt = (
-            self.character_sheet_prompt(character)
-            if is_character_sheet
+            self.visual_asset_prompt(character)
+            if is_visual_asset
             else self.keyframe_prompt(wf, clip or {})
         )
         input_payload: dict[str, Any] = {
             "prompt": prompt,
             "width": width,
             "height": height,
-            "frameRole": "sheet" if is_character_sheet else "first",
+            "frameRole": "sheet" if is_visual_asset else "first",
             "seed": wf.keyframe_seed,
         }
         if character_sheet_urls:
             input_payload["referenceImageUrls"] = character_sheet_urls
+        metadata = {
+            "workflowId": workflow_id,
+            "stage": STAGE_KEYFRAME,
+            "clipIndex": clip_index,
+            "variantKind": (
+                VARIANT_KIND_CHARACTER_SHEET
+                if is_visual_asset and asset_type == "character"
+                else VARIANT_KIND_VISUAL_ASSET if is_visual_asset else "keyframe"
+            ),
+        }
+        if is_visual_asset:
+            metadata["assetType"] = asset_type
         request = {
             "kind": "image",
             "input": input_payload,
@@ -79,12 +93,7 @@ class WorkflowGenerationRequestBuilder:
                 "relativeDir": f"tasks/{workflow_id}/running",
                 "fileStem": f"clip{clip_index}-first",
             },
-            "metadata": {
-                "workflowId": workflow_id,
-                "stage": STAGE_KEYFRAME,
-                "clipIndex": clip_index,
-                "variantKind": VARIANT_KIND_CHARACTER_SHEET if is_character_sheet else "keyframe",
-            },
+            "metadata": metadata,
             "auth": {
                 "userId": wf.owner_user_id,
             },
@@ -264,6 +273,26 @@ class WorkflowGenerationRequestBuilder:
             f"Show front view, side view, and back view in one image, full body, consistent outfit and face. "
             f"Character definition: {character.get('appearance', '')}. "
             "Plain light background, no text labels, no props, no logo, no watermark."
+        )
+
+    @classmethod
+    def visual_asset_prompt(cls, asset: dict[str, Any] | None) -> str:
+        if not asset:
+            return ""
+        asset_type = _trim(asset.get("assetType"), "character")
+        if asset_type == "character":
+            return cls.character_sheet_prompt(asset)
+        name = asset.get("name", "素材")
+        description = asset.get("description") or asset.get("appearance", "")
+        instructions = {
+            "prop": "Show a clean multi-angle prop design sheet with front, side, back, and a useful detail view; preserve exact shape, proportions, material, color, wear, and markings.",
+            "building": "Show a clean architectural reference sheet with main facade, side elevation, entrance, and a spatial anchor view; preserve structure, materials, windows, doors, and fixed landmarks.",
+            "scene": "Show a clean environment reference sheet with establishing view, reverse angle, and important spatial anchors; preserve layout, fixed objects, materials, palette, and lighting logic.",
+            "vehicle": "Show a clean vehicle turnaround with front, side, rear, and a detail view; preserve silhouette, color, materials, fixed markings, and persistent damage.",
+        }.get(asset_type, "Show a clean reusable visual reference sheet from multiple useful angles and preserve all stable identity anchors.")
+        return (
+            f"Create a production-ready visual asset reference for {name}. {instructions} "
+            f"Asset definition: {description}. Plain light background where applicable, no text labels, no people, no logo, no watermark."
         )
 
     @staticmethod

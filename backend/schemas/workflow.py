@@ -45,6 +45,9 @@ class WorkflowSummaryResponse(BaseModel):
     character_sheet_count: int = 0
     selected_character_sheet_count: int = 0
     character_sheet_version_count: int = 0
+    visual_asset_count: int = 0
+    selected_visual_asset_count: int = 0
+    visual_asset_version_count: int = 0
     keyframe_version_count: int = 0
     video_version_count: int = 0
     execution_mode: str = "manual"
