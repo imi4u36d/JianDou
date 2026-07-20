@@ -22,6 +22,10 @@ defineEmits<{ open: [clipIndex: number] }>();
 .missing-clips {
   display: grid;
   gap: 10px;
+  padding: 14px;
+  border: 1px solid #f3d39b;
+  border-radius: 10px;
+  background: #fff9ed;
 }
 .missing-clips__head {
   display: grid;
@@ -37,11 +41,18 @@ defineEmits<{ open: [clipIndex: number] }>();
   gap: 8px;
 }
 .missing-clips__list button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 12px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 999px;
-  background: #f8fafb;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-strong);
   cursor: pointer;
+}
+
+.missing-clips__list button:hover,
+.missing-clips__list button:focus-visible {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
 }
 </style>

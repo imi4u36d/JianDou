@@ -1,6 +1,6 @@
 <template>
   <section class="detail-stage-card" :class="{ 'detail-stage-card-image': imageMode }" aria-label="任务阶段">
-    <div v-if="imageMode" class="detail-stage-steps">
+    <div v-if="imageMode && stages.length" class="detail-stage-steps">
       <template v-for="(stage, index) in stages" :key="stage.key">
         <div
           class="detail-stage-step"
@@ -23,7 +23,7 @@
         <span v-if="index < stages.length - 1" class="detail-stage-step__chevron" aria-hidden="true">›</span>
       </template>
     </div>
-    <div v-else class="detail-stage-line">
+    <div v-else-if="stages.length" class="detail-stage-line">
       <div
         v-for="stage in stages"
         :key="stage.key"
@@ -37,11 +37,16 @@
         </span>
       </div>
     </div>
+    <div v-else class="detail-stage-empty">
+      <span class="detail-stage-empty__icon" aria-hidden="true"><IconEmpty size="sm" /></span>
+      <strong>暂无阶段信息</strong>
+      <small>任务开始处理后，阶段进度会显示在这里。</small>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { IconCheck, IconRefresh, IconWarning } from "@/components/icons";
+import { IconCheck, IconEmpty, IconRefresh, IconWarning } from "@/components/icons";
 import {
   stageStateClass,
   type TaskStageDisplayItem,

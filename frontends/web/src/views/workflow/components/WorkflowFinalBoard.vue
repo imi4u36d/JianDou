@@ -51,7 +51,16 @@
         </button>
       </div>
     </article>
-    <div v-else class="workflow-empty">{{ canFinalize ? "可拼接" : `缺 ${readiness.missing.length} 个镜头` }}</div>
+    <WorkflowStageEmptyState
+      v-else
+      :compact="readiness.missing.length > 0"
+      :title="canFinalize ? '片段已准备好' : `缺 ${readiness.missing.length} 个镜头`"
+      :description="
+        canFinalize
+          ? '点击右上角按钮，将已选视频片段拼接为最终成片。'
+          : `还需补齐 ${readiness.missing.length} 个镜头的视频片段。`
+      "
+    />
     <WorkflowMissingClips
       v-if="!finalResult && readiness.missing.length"
       :clips="readiness.missing"
@@ -66,6 +75,7 @@ import { durationLabel } from "@/features/workflows/stage-workflow-presenters";
 import type { MaterialAssetLibraryItem, WorkflowClipSlot } from "@/types";
 import { IconDownload, IconLoading } from "@/components/icons";
 import WorkflowMissingClips from "./WorkflowMissingClips.vue";
+import WorkflowStageEmptyState from "./WorkflowStageEmptyState.vue";
 
 defineProps<{
   finalResult: MaterialAssetLibraryItem | null;

@@ -42,13 +42,13 @@
   min-width: 164px;
   padding: 9px 11px;
   border: 1px solid rgba(99, 102, 241, 0.1);
-  border-radius: 14px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.78);
 }
 
 .version-switcher__tab-active {
   border-color: rgba(99, 102, 241, 0.22);
-  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
+  background: var(--bg-accent-soft);
 }
 
 .version-switcher__tab-main {
@@ -81,7 +81,7 @@
   padding: 0 10px;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -120,9 +120,9 @@
   width: 168px;
   padding: 7px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
 }
 
 .workflow-more-menu__popover > button {
@@ -150,7 +150,7 @@
   max-height: 62vh;
   overflow: auto;
   padding: 18px;
-  border-radius: 18px;
+  border-radius: 10px;
   background: #f8fafb;
   color: var(--text-body);
   line-height: 1.75;

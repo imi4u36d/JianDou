@@ -30,14 +30,19 @@ async function goLogin() {
 
 .forbidden-view__card {
   width: min(430px, 100%);
-  padding: 28px;
-  border-radius: var(--jd-radius-card);
+  padding: 36px 28px;
+  border-radius: 12px;
+  box-shadow: none;
   text-align: center;
 }
 
 .forbidden-view__card h1 {
   margin: 0;
   font-family: inherit;
-  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  color: var(--jd-text);
+  font-size: clamp(1.4rem, 5vw, 1.8rem);
+  font-weight: 720;
 }
+
+.forbidden-view__card :deep(.el-button) { margin-top: 22px; }
 </style>

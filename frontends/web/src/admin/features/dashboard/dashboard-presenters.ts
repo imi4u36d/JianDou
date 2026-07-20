@@ -1,9 +1,9 @@
-import type { AdminOverviewResponse, AdminTaskListItem, AdminUser, TaskStatus } from "@/types";
+import type { AdminOverviewResponse, AdminTaskListItem, TaskStatus } from "@/types";
 
-export function dashboardSummaryCards(overview: AdminOverviewResponse | null, users: AdminUser[]) {
+export function dashboardSummaryCards(overview: AdminOverviewResponse | null) {
   const counts = overview?.counts;
   return [
-    { label: "用户", value: users.length, note: "全部账号", tone: "accent" },
+    { label: "用户", value: counts?.totalUsers ?? 0, note: "全部账号", tone: "accent" },
     { label: "任务", value: counts?.totalTasks ?? 0, note: "总数", tone: "secondary" },
     { label: "成功", value: counts?.completedTasks ?? 0, note: "已完成", tone: "success" },
     { label: "失败", value: counts?.failedTasks ?? 0, note: "待排查", tone: "danger" },
@@ -12,14 +12,12 @@ export function dashboardSummaryCards(overview: AdminOverviewResponse | null, us
   ];
 }
 
-export function dashboardPulseItems(overview: AdminOverviewResponse | null, users: AdminUser[]) {
+export function dashboardPulseItems(overview: AdminOverviewResponse | null) {
   const counts = overview?.counts;
-  const count = (key: AdminUser["status"] | AdminUser["role"]) =>
-    users.filter((user) => user.status === key || user.role === key).length;
   return [
-    { label: "活跃用户", value: count("ACTIVE"), note: "可登录" },
-    { label: "管理员", value: count("ADMIN"), note: "后台" },
-    { label: "禁用账号", value: count("DISABLED"), note: "已暂停" },
+    { label: "活跃用户", value: counts?.activeUsers ?? 0, note: "可登录" },
+    { label: "管理员", value: counts?.adminUsers ?? 0, note: "后台" },
+    { label: "禁用账号", value: counts?.disabledUsers ?? 0, note: "已暂停" },
     { label: "在线 Worker", value: overview?.workers?.onlineCount ?? 0, note: "工作节点" },
     { label: "队列积压", value: overview?.queue?.queueLength ?? 0, note: "未开始" },
     { label: "高风险", value: counts?.highRiskTasks ?? 0, note: "需关注" },

@@ -9,17 +9,11 @@ export interface TextModelProbeInlineExpose {
   ensureReady: (force?: boolean) => Promise<boolean>;
   reset: () => void;
 }
-
 </script>
 
 <template>
   <div class="text-model-probe">
-    <button
-      type="button"
-      class="text-model-probe__button"
-      :disabled="buttonDisabled"
-      @click="handleProbe"
-    >
+    <button type="button" class="text-model-probe__button" :disabled="buttonDisabled" @click="handleProbe">
       <IconLoading v-if="probeState === 'loading'" size="xs" />
       <IconRefresh v-else-if="isCurrentModelReady" size="xs" />
       <IconCheck v-else size="xs" />
@@ -37,12 +31,15 @@ import { probeTextAnalysisModel } from "@/api/generation";
 import { IconCheck, IconLoading, IconRefresh } from "@/components/icons";
 import type { ProbeTextAnalysisModelResponse } from "@/types";
 
-const props = withDefaults(defineProps<{
-  modelValue: string;
-  disabled?: boolean;
-}>(), {
-  disabled: false,
-});
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    disabled?: boolean;
+  }>(),
+  {
+    disabled: false,
+  },
+);
 
 const probeState = ref<"idle" | "loading" | "success" | "error">("idle");
 const checkedModel = ref("");
@@ -52,7 +49,7 @@ const probeToken = ref(0);
 
 const normalizedModel = computed(() => props.modelValue.trim());
 const isCurrentModelReady = computed(
-  () => probeState.value === "success" && checkedModel.value === normalizedModel.value
+  () => probeState.value === "success" && checkedModel.value === normalizedModel.value,
 );
 const buttonDisabled = computed(() => props.disabled || probeState.value === "loading" || !normalizedModel.value);
 const buttonLabel = computed(() => {
@@ -158,21 +155,24 @@ defineExpose<TextModelProbeInlineExpose>({
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 34px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.88);
+  min-height: 40px;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 10px;
+  background: var(--bg-surface);
   color: var(--accent-blue);
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1;
   padding: 0 10px;
-  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
 }
 
 .text-model-probe__button:hover:not(:disabled) {
   border-color: rgba(99, 102, 241, 0.22);
-  background: #eef2ff;
+  background: var(--bg-accent-soft);
 }
 
 .text-model-probe__button:disabled {

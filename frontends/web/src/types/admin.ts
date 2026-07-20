@@ -25,6 +25,10 @@ export interface AdminOverviewCounts {
   semanticTasks: number;
   timedSemanticTasks: number;
   averageProgress: number;
+  totalUsers: number;
+  activeUsers: number;
+  adminUsers: number;
+  disabledUsers: number;
 }
 
 export interface AdminOverview {

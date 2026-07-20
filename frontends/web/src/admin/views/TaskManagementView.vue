@@ -1,6 +1,6 @@
 <template>
   <section class="task-page">
-    <div class="task-page__summary">
+    <div v-if="!initialLoading" class="task-page__summary">
       <el-card
         v-for="item in summaryCards"
         :key="item.label"
@@ -13,8 +13,8 @@
       </el-card>
     </div>
 
-    <div v-if="initialLoading" class="task-page__summary">
-      <div v-for="n in 4" :key="n" class="skeleton-card">
+    <div v-else class="task-page__summary" aria-label="任务统计加载中">
+      <div v-for="n in 2" :key="n" class="skeleton-card">
         <el-skeleton :rows="3" animated />
       </div>
     </div>
@@ -89,8 +89,8 @@
             @row-click="handleRowClick"
             @selection-change="handleSelectionChange"
           >
-            <el-table-column type="selection" width="48" />
-            <el-table-column type="expand" width="48">
+            <el-table-column type="selection" width="42" />
+            <el-table-column type="expand" width="42">
               <template #default="{ row }">
                 <AdminTaskDetailExpansion
                   :task="row"
@@ -100,7 +100,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="任务信息" min-width="260">
+            <el-table-column label="任务信息" min-width="210">
               <template #default="{ row }">
                 <div class="task-page__task-cell">
                   <strong>{{ row.title || "未命名任务" }}</strong>
@@ -109,7 +109,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="创建人" min-width="180">
+            <el-table-column label="创建人" min-width="90">
               <template #default="{ row }">
                 <div class="task-page__owner-cell">
                   <strong>{{ row.ownerUsername }}</strong>
@@ -117,7 +117,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="状态" min-width="120">
+            <el-table-column label="状态" min-width="90">
               <template #default="{ row }">
                 <div class="task-page__status-cell">
                   <el-tag :type="statusTagType(row.status)" effect="light">{{ statusLabel(row.status) }}</el-tag>
@@ -125,7 +125,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="进度" min-width="180">
+            <el-table-column label="进度" min-width="144">
               <template #default="{ row }">
                 <div class="task-page__progress-cell">
                   <div class="task-page__progress-head">
@@ -136,7 +136,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="任务参数" min-width="170">
+            <el-table-column label="任务参数" min-width="96">
               <template #default="{ row }">
                 <div class="task-page__meta-cell">
                   <span>{{ row.aspectRatio || "比例未记录" }}</span>
@@ -145,7 +145,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="素材 / 结果" min-width="150">
+            <el-table-column label="素材 / 结果" min-width="96">
               <template #default="{ row }">
                 <div class="task-page__meta-cell">
                   <span>素材 {{ row.sourceAssetCount ?? 0 }}</span>
@@ -154,17 +154,17 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="创建时间" min-width="180">
+            <el-table-column label="创建时间" min-width="122">
               <template #default="{ row }">
                 {{ formatDateTime(row.createdAt) }}
               </template>
             </el-table-column>
-            <el-table-column label="更新时间" min-width="180">
+            <el-table-column label="更新时间" min-width="122">
               <template #default="{ row }">
                 {{ formatDateTime(row.updatedAt) }}
               </template>
             </el-table-column>
-            <el-table-column fixed="right" label="操作" min-width="160">
+            <el-table-column fixed="right" label="操作" min-width="96">
               <template #default="{ row }">
                 <div class="task-page__action-cell">
                   <el-button

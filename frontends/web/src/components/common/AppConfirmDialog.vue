@@ -21,8 +21,15 @@
             <p id="app-confirm-message">{{ message }}</p>
           </div>
           <div class="app-confirm__actions">
-            <button ref="cancelButtonRef" type="button" class="app-confirm__cancel" @click="emit('cancel')">{{ cancelText }}</button>
-            <button type="button" class="app-confirm__confirm" :class="`app-confirm__confirm-${tone}`" @click="emit('confirm')">
+            <button ref="cancelButtonRef" type="button" class="app-confirm__cancel" @click="emit('cancel')">
+              {{ cancelText }}
+            </button>
+            <button
+              type="button"
+              class="app-confirm__confirm"
+              :class="`app-confirm__confirm-${tone}`"
+              @click="emit('confirm')"
+            >
               {{ confirmText }}
             </button>
           </div>
@@ -36,18 +43,21 @@
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { IconInfo, IconWarning } from "@/components/icons";
 
-const props = withDefaults(defineProps<{
-  open: boolean;
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  tone?: "danger" | "primary";
-}>(), {
-  confirmText: "确认",
-  cancelText: "取消",
-  tone: "danger",
-});
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    tone?: "danger" | "primary";
+  }>(),
+  {
+    confirmText: "确认",
+    cancelText: "取消",
+    tone: "danger",
+  },
+);
 
 const emit = defineEmits<{
   confirm: [];
@@ -87,8 +97,8 @@ onBeforeUnmount(restoreFocus);
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(10, 10, 20, 0.25);
-  backdrop-filter: blur(40px) saturate(2.0);
+  background: rgba(23, 26, 33, 0.44);
+  backdrop-filter: blur(8px);
 }
 
 .app-confirm__panel {
@@ -98,12 +108,10 @@ onBeforeUnmount(restoreFocus);
   gap: 14px;
   width: min(420px, 100%);
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  box-shadow: 0 24px 56px rgba(16, 24, 40, 0.18);
 }
 
 .app-confirm__icon {
@@ -111,7 +119,7 @@ onBeforeUnmount(restoreFocus);
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: 13px;
+  border-radius: 10px;
 }
 
 .app-confirm__icon-danger {
@@ -120,7 +128,7 @@ onBeforeUnmount(restoreFocus);
 }
 
 .app-confirm__icon-primary {
-  background: rgba(99, 102, 241, 0.12);
+  background: var(--bg-accent-soft);
   color: var(--accent-blue);
 }
 
@@ -159,14 +167,17 @@ onBeforeUnmount(restoreFocus);
 
 .app-confirm__cancel,
 .app-confirm__confirm {
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 15px;
-  border: 0;
-  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  border-radius: 10px;
   font-size: 0.84rem;
   font-weight: 820;
   cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
 }
 
 .app-confirm__cancel:active,
@@ -175,12 +186,13 @@ onBeforeUnmount(restoreFocus);
 }
 
 .app-confirm__cancel {
-  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--surface-border-strong);
+  background: var(--bg-surface);
   color: var(--text-body);
 }
 
 .app-confirm__cancel:hover {
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--bg-soft);
 }
 
 .app-confirm__confirm {
@@ -188,13 +200,11 @@ onBeforeUnmount(restoreFocus);
 }
 
 .app-confirm__confirm-danger {
-  background: linear-gradient(135deg, #fb7185, #e54865);
-  box-shadow: 0 8px 20px rgba(251, 113, 133, 0.25);
+  background: var(--accent-danger);
 }
 
 .app-confirm__confirm-primary {
   background: var(--bg-accent);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.2);
 }
 
 .app-confirm-fade-enter-active,
@@ -225,7 +235,7 @@ onBeforeUnmount(restoreFocus);
 
   .app-confirm__panel {
     width: 100%;
-    border-radius: var(--radius-lg);
+    border-radius: 12px 12px 0 0;
     padding: 26px 16px 14px;
   }
 
@@ -237,7 +247,7 @@ onBeforeUnmount(restoreFocus);
     width: 38px;
     height: 4px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.2);
+    background: #c7cbd4;
     transform: translateX(-50%);
   }
 

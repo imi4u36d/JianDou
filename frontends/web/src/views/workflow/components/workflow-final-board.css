@@ -37,7 +37,7 @@
 .final-result video {
   width: 100%;
   height: clamp(260px, 32vw, 460px);
-  border-radius: 16px;
+  border-radius: 10px;
   background: #eef2f4;
   object-fit: cover;
 }
@@ -57,11 +57,11 @@
   display: grid;
   place-items: center;
   justify-self: end;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 11px;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--accent-blue);
+  border-radius: 10px;
+  background: var(--accent-blue);
   color: #fff;
   cursor: pointer;
 }

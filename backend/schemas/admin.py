@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
 
@@ -14,12 +14,18 @@ class AdminRequestModel(BaseModel):
     )
 
 
-class AdminOverviewResponse(BaseModel):
-    total_tasks: int = 0
-    queued_tasks: int = 0
-    running_tasks: int = 0
-    completed_tasks: int = 0
-    failed_tasks: int = 0
+class AdminOverviewResponse(AdminRequestModel):
+    generated_at: str
+    counts: dict[str, int]
+    queue: dict[str, Any]
+    workers: dict[str, Any]
+    recent_tasks: list[dict[str, Any]] = Field(default_factory=list)
+    recent_failures: list[dict[str, Any]] = Field(default_factory=list)
+    recent_running_tasks: list[dict[str, Any]] = Field(default_factory=list)
+    recent_trace_count: int = 0
+    model_ready: bool = False
+    primary_model: str | None = None
+    text_model: str | None = None
 
 
 class AdminTaskBatchResult(BaseModel):

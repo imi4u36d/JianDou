@@ -1,6 +1,6 @@
 <template>
   <section class="user-page">
-    <div class="user-page__summary">
+    <div v-if="!initialLoading" class="user-page__summary">
       <el-card v-for="item in summaryCards" :key="item.label" class="surface-card user-page__summary-card" shadow="never">
         <p>{{ item.label }}</p>
         <strong>{{ item.value }}</strong>
@@ -8,8 +8,8 @@
       </el-card>
     </div>
 
-    <div v-if="initialLoading" class="user-page__summary">
-      <div v-for="n in 4" :key="n" class="skeleton-card">
+    <div v-else class="user-page__summary" aria-label="用户统计加载中">
+      <div v-for="n in 2" :key="n" class="skeleton-card">
         <el-skeleton :rows="3" animated />
       </div>
     </div>

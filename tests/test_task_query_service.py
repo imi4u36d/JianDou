@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.service
 from typing import Any
 
 import pytest
 
 from backend.domain.task_record import TaskRecord
+from backend.schemas.admin import AdminOverviewResponse
 from backend.services.task_execution_coordinator import TaskExecutionCoordinator
 from backend.services.task_query_service import TaskQueryService
+
+pytestmark = pytest.mark.service
 
 
 def _task(
@@ -183,6 +183,35 @@ async def test_admin_overview_builds_counts_and_recent_groups() -> None:
     assert [item["id"] for item in overview["recentRunningTasks"]] == ["task_running"]
 
 
+@pytest.mark.asyncio
+async def test_admin_overview_prefers_lightweight_repository_snapshot() -> None:
+    repository = _AdminOverviewRepository()
+    service = TaskQueryService(repository, TaskExecutionCoordinator())
+
+    overview = await service.admin_overview()
+
+    assert overview["counts"]["totalTasks"] == 42
+    assert overview["queue"]["queueSnapshot"] == ["task_queued"]
+    assert repository.snapshot_calls == 1
+
+
+def test_admin_overview_response_preserves_nested_camel_case_contract() -> None:
+    payload = {
+        "generatedAt": "2026-01-01T00:00:00+00:00",
+        "counts": {"totalTasks": 1},
+        "queue": {"queueLength": 0},
+        "workers": {"onlineCount": 0},
+        "recentTasks": [{"id": "task_1"}],
+        "modelReady": True,
+    }
+
+    response = AdminOverviewResponse.model_validate(payload).model_dump(by_alias=True)
+
+    assert response["counts"] == {"totalTasks": 1}
+    assert response["recentTasks"] == [{"id": "task_1"}]
+    assert response["modelReady"] is True
+
+
 class _TaskQueryRepository:
     def __init__(self, tasks: list[TaskRecord]) -> None:
         self.tasks = tasks
@@ -198,6 +227,39 @@ class _TaskQueryRepository:
 
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"Unexpected repository call: {name}")
+
+
+class _AdminOverviewRepository:
+    def __init__(self) -> None:
+        self.snapshot_calls = 0
+
+    async def admin_overview_snapshot(self) -> dict[str, Any]:
+        self.snapshot_calls += 1
+        return {
+            "counts": {
+                "totalTasks": 42,
+                "queuedTasks": 1,
+                "runningTasks": 0,
+                "completedTasks": 0,
+                "failedTasks": 0,
+                "highRiskTasks": 0,
+                "riskyTasks": 0,
+                "semanticTasks": 0,
+                "timedSemanticTasks": 0,
+                "averageProgress": 0,
+                "totalUsers": 2,
+                "activeUsers": 2,
+                "adminUsers": 1,
+                "disabledUsers": 0,
+            },
+            "queueSnapshot": ["task_queued"],
+            "recentTasks": [],
+            "recentFailures": [],
+            "recentRunningTasks": [],
+        }
+
+    async def find_all(self) -> list[TaskRecord]:
+        raise AssertionError("overview must not load full task aggregates")
 
 
 class _TaskSummaryRepository:

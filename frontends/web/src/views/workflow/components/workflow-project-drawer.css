@@ -1,10 +1,14 @@
 .workflow-project-drawer {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
-  padding: 0 4px 0 0;
+  padding: 14px;
   overflow: hidden;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 .workflow-search-box {
   display: flex;
@@ -12,9 +16,9 @@
   gap: 8px;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: var(--radius-full);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.55);
+  border-radius: 10px;
+  border: 1px solid #e4e7ec;
+  background: #f8f9fb;
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -22,8 +26,9 @@
 }
 
 .workflow-search-box:focus-within {
-  border-color: rgba(99, 102, 241, 0.4);
-  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(99, 102, 241, 0.52);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .workflow-search-box__icon {
@@ -40,7 +45,7 @@
 
 .workflow-search-box input {
   width: 100%;
-  min-height: 36px;
+  min-height: 38px;
   border: 0;
   outline: 0;
   box-shadow: none;
@@ -68,7 +73,9 @@
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 
 .workflow-search-box__clear:hover {
@@ -79,25 +86,24 @@
 .workflow-filter-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 2px 0;
+  gap: 6px;
+  padding: 0;
 }
 
 .workflow-filter-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 12px;
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #f8f9fb;
   color: var(--text-body);
   font-size: 0.78rem;
-  font-weight: 780;
+  font-weight: 700;
   cursor: pointer;
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
     background 160ms ease,
     color 160ms ease,
@@ -106,33 +112,31 @@
 
 .workflow-filter-chip:hover,
 .workflow-filter-chip:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(99, 102, 241, 0.26);
-  background: #fff;
+  border-color: #e4e7ec;
+  background: #f4f5f7;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+  box-shadow: none;
 }
 
 .workflow-filter-chip-active {
-  border-color: rgba(99, 102, 241, 0.2);
-  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
+  border-color: rgba(99, 102, 241, 0.22);
+  background: #eef0ff;
   color: var(--accent-blue);
-  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
+  box-shadow: none;
 }
 
 .workflow-filter-refresh {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   margin-left: auto;
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  border: 1px solid #e4e7ec;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #fff;
   color: var(--text-body);
   cursor: pointer;
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
     background 160ms ease,
     color 160ms ease,
@@ -141,11 +145,10 @@
 
 .workflow-filter-refresh:hover:not(:disabled),
 .workflow-filter-refresh:focus-visible {
-  transform: translateY(-1px);
   border-color: rgba(99, 102, 241, 0.26);
-  background: #fff;
+  background: #f5f6ff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+  box-shadow: none;
 }
 
 .workflow-filter-refresh:disabled {
@@ -190,10 +193,10 @@
   padding: 8px;
   border: 1px solid rgba(15, 23, 42, 0.07);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.66);
+  background: #fff;
   color: var(--text-strong);
   outline: none;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.84) inset;
+  box-shadow: none;
   transition:
     transform 150ms ease,
     border-color 150ms ease,
@@ -204,18 +207,16 @@
 
 .workflow-nav-item:hover,
 .workflow-nav-item:focus-visible {
-  transform: translateY(-1px);
   border-color: rgba(99, 102, 241, 0.18);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
 .workflow-nav-item-active {
   border-color: rgba(99, 102, 241, 0.42);
   background: #fff;
-  box-shadow:
-    0 0 0 1px rgba(99, 102, 241, 0.12),
-    0 12px 28px rgba(99, 102, 241, 0.12);
+  background: #f5f6ff;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.08);
 }
 
 .workflow-nav-item__main {
@@ -249,9 +250,7 @@
   flex: 0 0 auto;
   overflow: hidden;
   border-radius: 6px;
-  background:
-    linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(20, 184, 166, 0.12)),
-    rgba(245, 247, 252, 0.92);
+  background: #f0f0ff;
   color: var(--accent-indigo);
 }
 
@@ -261,7 +260,7 @@
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
+  background: #fff;
 }
 
 .workflow-nav-item__thumb::after {
@@ -297,7 +296,7 @@
   flex: 1;
   min-width: 0;
   font-size: 0.88rem;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--text-strong);
   overflow: hidden;
@@ -316,7 +315,7 @@
   min-height: 21px;
   max-width: 72px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 10px;
   background: rgba(15, 23, 42, 0.04);
   font-size: 0.72rem;
   font-weight: 700;
@@ -326,10 +325,22 @@
   white-space: nowrap;
 }
 
-.workflow-nav-item__status-active { background: rgba(99, 102, 241, 0.1); color: var(--accent-indigo); }
-.workflow-nav-item__status-done { background: rgba(132, 204, 22, 0.12); color: var(--accent-lime); }
-.workflow-nav-item__status-failed { background: rgba(229, 72, 101, 0.1); color: var(--accent-danger); }
-.workflow-nav-item__status-paused { background: rgba(245, 158, 11, 0.12); color: var(--accent-warning); }
+.workflow-nav-item__status-active {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
+}
+.workflow-nav-item__status-done {
+  background: rgba(132, 204, 22, 0.12);
+  color: var(--accent-lime);
+}
+.workflow-nav-item__status-failed {
+  background: rgba(229, 72, 101, 0.1);
+  color: var(--accent-danger);
+}
+.workflow-nav-item__status-paused {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--accent-warning);
+}
 
 .workflow-nav-item__meta {
   display: flex;
@@ -346,7 +357,7 @@
   align-items: center;
   min-height: 21px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 10px;
   background: rgba(15, 23, 42, 0.04);
   line-height: 1;
   white-space: nowrap;
@@ -382,7 +393,9 @@
 .workflow-empty-state {
   display: grid;
   gap: 12px;
-  padding: 40px 20px;
+  min-height: 240px;
+  align-content: center;
+  padding: 32px 20px;
   text-align: center;
   color: var(--text-body);
 }
@@ -390,11 +403,11 @@
 .workflow-empty-state__icon {
   display: grid;
   place-items: center;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: #eef2ff;
-  color: var(--accent-cyan);
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: #f0f1ff;
+  color: var(--accent-indigo);
   margin: 0 auto 4px;
 }
 
@@ -460,7 +473,7 @@
 .workflow-more-menu__trigger:hover {
   background: #eef2ff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.1);
+  box-shadow: none;
 }
 
 .workflow-more-menu__popover {
@@ -470,13 +483,11 @@
   width: 168px;
   padding: 7px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.1),
-    0 2px 8px rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
   overflow: hidden;
-  backdrop-filter: blur(40px) saturate(2.0);
+  backdrop-filter: none;
 }
 
 .workflow-more-menu__popover > button,
@@ -518,7 +529,7 @@
 }
 
 .workflow-more-menu__popover:popover-open {
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.07);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
 }
 
 .workflow-menu-danger {

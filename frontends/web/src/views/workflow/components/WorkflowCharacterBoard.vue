@@ -16,7 +16,11 @@
       </div>
     </div>
 
-    <div v-if="!sheets.length" class="workflow-empty">暂无角色三视图</div>
+    <WorkflowStageEmptyState
+      v-if="!sheets.length"
+      title="还没有角色三视图"
+      description="分镜识别到角色后，可在这里统一生成或从素材库选择角色形象。"
+    />
     <div v-else class="character-list">
       <article v-for="sheet in sheets" :key="characterSheetKey(sheet)" class="character-card">
         <strong>{{ characterSheetTitle(sheet) }}</strong>
@@ -185,6 +189,7 @@ import {
 import { stageVersionDisplayTitle } from "@/features/workflows/stage-workflow-presenters";
 import type { StageVersion, WorkflowCharacterSheet } from "@/types";
 import { IconClose, IconEmpty, IconLoading, IconPlus, IconRefresh, IconSearch } from "@/components/icons";
+import WorkflowStageEmptyState from "./WorkflowStageEmptyState.vue";
 
 const props = defineProps<{
   sheets: WorkflowCharacterSheet[];

@@ -45,7 +45,7 @@
   gap: 4px;
   padding: 12px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
+  border-radius: 10px;
   background: #fff;
   text-align: left;
   cursor: pointer;
@@ -87,7 +87,7 @@
   gap: 10px;
   padding: 12px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
+  border-radius: 10px;
   background: #f8fafb;
 }
 .keyframe-thumb img,
@@ -120,7 +120,7 @@
   min-width: 164px;
   padding: 9px 11px;
   border: 1px solid rgba(99, 102, 241, 0.1);
-  border-radius: 14px;
+  border-radius: 10px;
 }
 .version-tab-active,
 .video-card-active {
@@ -148,7 +148,7 @@
   background: rgba(99, 102, 241, 0.1);
   color: var(--accent-cyan);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 .more-menu {
   position: relative;
@@ -157,8 +157,8 @@
 .icon-action {
   display: grid;
   place-items: center;
-  width: 34px;
-  min-height: 34px;
+  width: 40px;
+  min-height: 40px;
   padding: 0;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 11px;
@@ -172,9 +172,9 @@
   width: 168px;
   padding: 7px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
 }
 .more-menu__popover > button {
   display: grid;
@@ -198,7 +198,7 @@
   gap: 12px;
   padding: 14px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 16px;
+  border-radius: 10px;
   background: #f8fafb;
 }
 .video-card__head > div {
@@ -209,7 +209,7 @@
 .video-card video {
   width: 100%;
   max-height: 560px;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #0f172a;
 }
 .video-card__actions {

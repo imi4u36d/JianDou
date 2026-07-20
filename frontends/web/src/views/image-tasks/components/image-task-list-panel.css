@@ -1,10 +1,14 @@
 .image-task-list-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
   overflow: hidden;
-  padding: 0 4px 0 0;
+  padding: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .image-task-search-field {
@@ -13,9 +17,9 @@
   gap: 8px;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: var(--radius-full);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.55);
+  border-radius: 10px;
+  border: 1px solid #e4e7ec;
+  background: #f8f9fb;
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -23,8 +27,9 @@
 }
 
 .image-task-search-field:focus-within {
-  border-color: rgba(99, 102, 241, 0.4);
-  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(99, 102, 241, 0.52);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .image-task-search-field__icon {
@@ -41,7 +46,7 @@
 
 .image-task-search-field input {
   width: 100%;
-  min-height: 36px;
+  min-height: 38px;
   border: 0;
   outline: 0;
   box-shadow: none;
@@ -69,7 +74,9 @@
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 
 .image-task-search-field__clear:hover {
@@ -80,25 +87,24 @@
 .image-task-filter-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 2px 0;
+  gap: 6px;
+  padding: 0;
 }
 
 .image-task-filter-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 12px;
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #f8f9fb;
   color: var(--text-body);
   font-size: 0.78rem;
-  font-weight: 780;
+  font-weight: 700;
   cursor: pointer;
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
     background 160ms ease,
     color 160ms ease,
@@ -107,33 +113,31 @@
 
 .image-task-filter-chip:hover,
 .image-task-filter-chip:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(99, 102, 241, 0.26);
-  background: #fff;
+  border-color: #e4e7ec;
+  background: var(--bg-canvas);
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+  box-shadow: none;
 }
 
 .image-task-filter-chip-active {
-  border-color: rgba(99, 102, 241, 0.2);
-  background: linear-gradient(135deg, rgba(238, 242, 255, 0.96), rgba(224, 231, 255, 0.92));
+  border-color: rgba(99, 102, 241, 0.22);
+  background: #eef0ff;
   color: var(--accent-blue);
-  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.08);
+  box-shadow: none;
 }
 
 .image-task-filter-refresh {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   margin-left: auto;
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  border: 1px solid #e4e7ec;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #fff;
   color: var(--text-body);
   cursor: pointer;
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
     background 160ms ease,
     color 160ms ease,
@@ -142,11 +146,10 @@
 
 .image-task-filter-refresh:hover:not(:disabled),
 .image-task-filter-refresh:focus-visible {
-  transform: translateY(-1px);
   border-color: rgba(99, 102, 241, 0.26);
-  background: #fff;
+  background: #f5f6ff;
   color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
+  box-shadow: none;
 }
 
 .image-task-filter-refresh:disabled {
@@ -157,7 +160,9 @@
 .image-task-list-state {
   display: grid;
   gap: 12px;
-  padding: 40px 20px;
+  min-height: 240px;
+  align-content: center;
+  padding: 32px 20px;
   text-align: center;
   color: var(--text-body);
 }
@@ -165,11 +170,11 @@
 .image-task-list-state__icon {
   display: grid;
   place-items: center;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: #eef2ff;
-  color: var(--accent-cyan);
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: #f0f1ff;
+  color: var(--accent-indigo);
   margin: 0 auto 4px;
 }
 
@@ -191,7 +196,7 @@
   gap: 10px;
   min-height: 0;
   overflow: auto;
-  padding-right: 4px;
+  padding-right: 2px;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -228,7 +233,10 @@
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .image-task-list__load-more:hover:not(:disabled),

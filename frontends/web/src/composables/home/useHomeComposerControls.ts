@@ -35,9 +35,7 @@ export function useHomeComposerControls(options: HomeComposerControlOptions) {
   const selectedPromptTemplate = ref<AppliedPromptTemplate | null>(null);
   const templateChipNonce = ref(0);
   const hasPromptInput = computed(() => options.prompt().trim().length > 0);
-  const promptPlaceholderLead = computed(() =>
-    options.selectedMode().kind === "video" ? "描述你想生成的视频" : "描述你想生成的图片，",
-  );
+  const promptPlaceholderLead = computed(() => (options.selectedMode().kind === "video" ? "描述视频…" : "描述画面…"));
 
   function toggleMenu(menu: Exclude<HomeComposerMenuKey, "">) {
     activeMenu.value = activeMenu.value === menu ? "" : menu;

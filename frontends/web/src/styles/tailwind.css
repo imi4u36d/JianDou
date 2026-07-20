@@ -5,150 +5,109 @@
 :root {
   color-scheme: light;
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "SF Pro Text",
-    "SF Pro Display",
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans SC",
-    "Microsoft YaHei",
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
   font-weight: 400;
 
-  /* ── Background system (light glass) ── */
-  --bg-base: #f0f2f7;
-  --bg-surface: rgba(255, 255, 255, 0.62);
-  --bg-surface-strong: rgba(255, 255, 255, 0.78);
-  --bg-soft: rgba(255, 255, 255, 0.45);
-  --bg-softer: rgba(255, 255, 255, 0.3);
-  --bg-accent-soft: rgba(99, 102, 241, 0.1);
+  /* ── Shared typography scale ── */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ── Shared neutral application surfaces ── */
+  --bg-base: #f4f5f7;
+  --bg-canvas: var(--bg-base);
+  --bg-surface: #ffffff;
+  --bg-surface-strong: #ffffff;
+  --bg-soft: #f8f9fb;
+  --bg-softer: #f4f5f7;
+  --bg-accent-soft: #f0f0ff;
 
   /* ── Border system ── */
-  --surface-border: rgba(255, 255, 255, 0.7);
-  --surface-border-strong: rgba(255, 255, 255, 0.9);
+  --surface-border: #e4e7ec;
+  --surface-border-strong: #d0d5dd;
 
   /* ── Text system (dark on light) ── */
-  --text-strong: rgba(15, 20, 30, 0.92);
-  --text-body: rgba(40, 50, 65, 0.72);
-  --text-muted: rgba(80, 90, 110, 0.55);
+  --text-strong: #171a21;
+  --text-body: #475467;
+  --text-muted: #68707d;
 
   /* ── Accent colors ── */
-  --accent-indigo: #6366f1;
-  --accent-cyan: #6366f1;
-  --accent-blue: #6366f1;
+  --accent-indigo: #5b5ce2;
+  --accent-cyan: #5b5ce2;
+  --accent-blue: #5b5ce2;
   --accent-lime: #16a34a;
   --accent-coral: #e54865;
   --accent-danger: #e54865;
   --accent-warning: #d97706;
-  --accent-strong: #6366f1;
-  --bg-accent: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  --accent-strong: #5b5ce2;
+  --bg-accent: #5b5ce2;
 
-  /* ── Shadow system (Liquid Glass — multi-layer) ── */
-  --shadow-panel:
-    0 1px 0 rgba(255, 255, 255, 0.95) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.03) inset,
-    0 8px 40px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-soft:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
-    0 4px 20px rgba(0, 0, 0, 0.06);
-  --shadow-glow:
-    0 0 0 1px rgba(99, 102, 241, 0.15),
-    0 12px 32px rgba(99, 102, 241, 0.1);
+  /* ── Low-elevation shadow system ── */
+  --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-glow: 0 0 0 3px rgba(91, 92, 226, 0.14);
   --shadow-raise: var(--shadow-panel);
   --shadow-raise-soft: var(--shadow-soft);
-  --shadow-pressed:
-    0 1px 3px rgba(0, 0, 0, 0.08) inset,
-    0 0 0 rgba(255, 255, 255, 0) inset;
-  --shadow-accent: var(--shadow-glow);
+  --shadow-pressed: inset 0 1px 2px rgba(16, 24, 40, 0.08);
+  --shadow-accent: none;
 
-  /* ── Liquid Glass parameters ── */
-  --glass-blur: blur(40px) saturate(2.0) brightness(1.02);
+  /* ── Legacy glass aliases mapped to solid shared surfaces ── */
+  --glass-blur: none;
   --glass-overlay-bg: rgba(10, 10, 20, 0.25);
-  --glass-overlay-blur: blur(40px) saturate(2);
-  --glass-panel-bg: rgba(255, 255, 255, 0.9);
-  --glass-panel-border: 1px solid rgba(255, 255, 255, 0.72);
-  --glass-panel-shadow: 0 22px 58px rgba(15, 23, 42, 0.16);
-  --glass-panel-blur: blur(40px) saturate(1.8);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  --glass-inner-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.03);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.5);
-  --glass-sheen: conic-gradient(
-    from 140deg at 50% 50%,
-    rgba(255, 255, 255, 0) 0deg,
-    rgba(255, 255, 255, 0.6) 40deg,
-    rgba(255, 255, 255, 0) 80deg,
-    rgba(255, 255, 255, 0) 180deg,
-    rgba(255, 255, 255, 0.3) 220deg,
-    rgba(255, 255, 255, 0) 260deg
-  );
+  --glass-overlay-blur: none;
+  --glass-panel-bg: #ffffff;
+  --glass-panel-border: 1px solid #e4e7ec;
+  --glass-panel-shadow: var(--shadow-panel);
+  --glass-panel-blur: none;
+  --glass-highlight: none;
+  --glass-inner-shadow: none;
+  --glass-border: 1px solid #e4e7ec;
+  --glass-sheen: none;
 
   /* ── Radius system ── */
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
-  --radius-xl: 28px;
+  --radius-sm: 10px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
   --radius-full: 999px;
 
-  /* ── Button system (matches the public-share like action) ── */
-  --button-radius: var(--radius-full);
-  --button-bg: rgba(255, 255, 255, 0.42);
-  --button-bg-bottom: rgba(255, 255, 255, 0.22);
-  --button-bg-hover: rgba(255, 255, 255, 0.58);
-  --button-bg-hover-bottom: rgba(255, 255, 255, 0.32);
-  --button-border: rgba(255, 255, 255, 0.6);
-  --button-color: var(--accent-blue);
-  --button-highlight: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.4) 28%,
-    rgba(255, 255, 255, 0.08) 52%,
-    rgba(255, 255, 255, 0.32) 100%
-  );
-  --button-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    inset 1px 0 0 rgba(255, 255, 255, 0.34),
-    inset -1px 0 0 rgba(255, 255, 255, 0.16),
-    0 10px 28px rgba(15, 23, 42, 0.12),
-    0 2px 6px rgba(15, 23, 42, 0.08);
-  --button-shadow-hover:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    inset 1px 0 0 rgba(255, 255, 255, 0.42),
-    inset -1px 0 0 rgba(255, 255, 255, 0.2),
-    0 14px 34px rgba(15, 23, 42, 0.16),
-    0 4px 12px rgba(15, 23, 42, 0.1);
-  --button-focus-ring:
-    0 0 0 1px rgba(255, 255, 255, 0.9),
-    0 0 0 4px rgba(99, 102, 241, 0.18),
-    var(--button-shadow);
-  --button-danger-bg: rgba(229, 72, 101, 0.14);
-  --button-danger-bg-bottom: rgba(229, 72, 101, 0.08);
-  --button-danger-bg-hover: rgba(229, 72, 101, 0.2);
-  --button-danger-bg-hover-bottom: rgba(229, 72, 101, 0.11);
-  --button-danger-border: rgba(255, 255, 255, 0.55);
-  --button-warning-bg: rgba(217, 119, 6, 0.16);
-  --button-warning-bg-bottom: rgba(217, 119, 6, 0.08);
-  --button-warning-bg-hover: rgba(217, 119, 6, 0.22);
-  --button-warning-bg-hover-bottom: rgba(217, 119, 6, 0.12);
-  --button-warning-border: rgba(255, 255, 255, 0.55);
-  --button-neutral-bg: rgba(255, 255, 255, 0.42);
-  --button-neutral-bg-bottom: rgba(255, 255, 255, 0.2);
-  --button-neutral-bg-hover: rgba(255, 255, 255, 0.58);
-  --button-neutral-bg-hover-bottom: rgba(255, 255, 255, 0.32);
-  --button-neutral-border: rgba(255, 255, 255, 0.62);
+  /* ── Shared 40px control system ── */
+  --button-radius: 10px;
+  --button-bg: #ffffff;
+  --button-bg-bottom: #ffffff;
+  --button-bg-hover: #f8f9fb;
+  --button-bg-hover-bottom: #f8f9fb;
+  --button-border: #d0d5dd;
+  --button-color: #171a21;
+  --button-highlight: none;
+  --button-shadow: var(--shadow-soft);
+  --button-shadow-hover: 0 1px 3px rgba(16, 24, 40, 0.08);
+  --button-focus-ring: 0 0 0 3px rgba(91, 92, 226, 0.18);
+  --button-danger-bg: #fff6f7;
+  --button-danger-bg-bottom: #fff6f7;
+  --button-danger-bg-hover: #ffecee;
+  --button-danger-bg-hover-bottom: #ffecee;
+  --button-danger-border: #f3bcc5;
+  --button-warning-bg: #fff9ed;
+  --button-warning-bg-bottom: #fff9ed;
+  --button-warning-bg-hover: #fff2d6;
+  --button-warning-bg-hover-bottom: #fff2d6;
+  --button-warning-border: #f3d39b;
+  --button-neutral-bg: #ffffff;
+  --button-neutral-bg-bottom: #ffffff;
+  --button-neutral-bg-hover: #f8f9fb;
+  --button-neutral-bg-hover-bottom: #f8f9fb;
+  --button-neutral-border: #d0d5dd;
 
   /* ── Scrollbar ── */
   --scrollbar-track: rgba(0, 0, 0, 0.03);
   --scrollbar-thumb: rgba(0, 0, 0, 0.1);
-  --scrollbar-thumb-hover: rgba(99, 102, 241, 0.4);
+  --scrollbar-thumb-hover: rgba(91, 92, 226, 0.42);
 
   /* ── Select arrow (dark for light bg) ── */
-  --select-arrow:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23374151' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23374151' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 html {
@@ -165,15 +124,8 @@ body {
   min-width: 320px;
   color: var(--text-strong);
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "SF Pro Text",
-    "SF Pro Display",
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans SC",
-    "Microsoft YaHei",
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
   font-weight: 400;
   background: var(--bg-base);
   overflow: hidden;
@@ -235,7 +187,7 @@ textarea {
 
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.18);
 }
 
 input:focus-visible,
@@ -262,44 +214,24 @@ textarea:focus-visible {
 }
 
 @layer components {
-  /* ── Liquid Glass surface ── */
+  /* ── Shared solid surface ── */
   .glass {
     background: var(--bg-surface);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
     border: var(--glass-border);
     box-shadow: var(--shadow-panel);
     position: relative;
     overflow: hidden;
   }
 
-  /* Refraction sheen — conic gradient simulates light bending through liquid */
   .glass::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: var(--glass-sheen);
-    opacity: 0.12;
-    pointer-events: none;
-    z-index: 0;
+    display: none;
   }
 
-  /* Bottom inner shadow — creates depth and floating dimensionality */
   .glass::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      180deg,
-      transparent 0%,
-      transparent 85%,
-      rgba(0, 0, 0, 0.02) 100%
-    );
-    pointer-events: none;
-    z-index: 0;
+    display: none;
   }
 
-  /* ── Surface panels (Liquid Glass) ── */
+  /* ── Surface panels ── */
   .surface-panel,
   .surface-tile,
   .page-header,
@@ -307,8 +239,6 @@ textarea:focus-visible {
     position: relative;
     scrollbar-gutter: stable;
     background: var(--bg-surface);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
     border: var(--glass-border);
     box-shadow: var(--shadow-panel);
   }
@@ -335,30 +265,13 @@ textarea:focus-visible {
     background: var(--bg-surface-strong);
   }
 
-  /* ── Liquid Glass sheen utility ──
-     Apply to any glass panel to add conic refraction sheen + bottom inner shadow.
-     Element must have position: relative and overflow: hidden. */
+  /* Legacy class retained as a no-op while call sites migrate. */
   .liquid-glass::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: var(--glass-sheen);
-    opacity: 0.1;
-    pointer-events: none;
-    z-index: 0;
-    border-radius: inherit;
+    display: none;
   }
 
   .liquid-glass::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow:
-      inset 0 -1px 2px rgba(0, 0, 0, 0.03),
-      inset 0 1px 1px rgba(255, 255, 255, 0.6);
-    pointer-events: none;
-    z-index: 0;
+    display: none;
   }
 
   /* Ensure child content sits above the sheen layers */
@@ -377,13 +290,13 @@ textarea:focus-visible {
     min-height: 28px;
     padding: 0 0.78rem;
     border-radius: var(--radius-full);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid var(--surface-border);
+    background: var(--bg-soft);
     color: var(--text-body);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.02em;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    box-shadow: none;
   }
 
   .surface-chip-compact {
@@ -434,20 +347,18 @@ textarea:focus-visible {
     line-height: 1.7;
   }
 
-  /* ── Form inputs (Liquid Glass) ── */
+  /* ── Form inputs ── */
   .field-input,
   .field-select,
   .field-textarea {
     width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    min-height: 40px;
+    border: 1px solid var(--surface-border-strong);
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.45);
+    background: var(--bg-surface);
     color: var(--text-strong);
-    padding: 0.9rem 1rem;
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 -0.5px 0 rgba(0, 0, 0, 0.02) inset,
-      0 2px 8px rgba(0, 0, 0, 0.03);
+    padding: 0.68rem 0.88rem;
+    box-shadow: none;
     transition:
       border-color 180ms ease,
       box-shadow 180ms ease,
@@ -476,7 +387,7 @@ textarea:focus-visible {
 
   .field-input-compact,
   .field-select-compact {
-    min-height: 42px;
+    min-height: 40px;
   }
 
   .field-select-compact {
@@ -496,9 +407,9 @@ textarea:focus-visible {
   .field-input:focus,
   .field-select:focus,
   .field-textarea:focus {
-    border-color: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
-    background: rgba(255, 255, 255, 0.55);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.14);
+    background: var(--bg-surface);
   }
 
   .field-textarea {
@@ -506,20 +417,20 @@ textarea:focus-visible {
   }
 
   .field-select:hover {
-    border-color: rgba(99, 102, 241, 0.3);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    border-color: var(--accent-blue);
+    box-shadow: none;
   }
 
   .field-select:disabled {
     cursor: not-allowed;
     color: var(--text-muted);
-    background: rgba(0, 0, 0, 0.03);
+    background: var(--bg-soft);
     opacity: 0.6;
   }
 
   .field-select option,
   .field-select optgroup {
-    background: #fff;
+    background: var(--bg-surface);
     color: var(--text-strong);
   }
 
@@ -535,15 +446,10 @@ textarea:focus-visible {
     border-radius: var(--button-radius);
     cursor: pointer;
     border: 1px solid var(--button-border);
-    background:
-      var(--button-highlight),
-      linear-gradient(180deg, var(--button-bg), var(--button-bg-bottom));
-    background-blend-mode: screen, normal;
+    background: var(--button-bg);
     color: var(--button-color);
     font-weight: 800;
     text-decoration: none;
-    backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-    -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
     box-shadow: var(--button-shadow);
     transition:
       transform 180ms ease,
@@ -554,29 +460,29 @@ textarea:focus-visible {
   }
 
   .jd-button:not(.jd-button--xs):not(.jd-button--sm):not(.jd-button--lg) {
-    min-height: 44px;
+    min-height: 40px;
     padding: 0 1rem;
   }
 
   .jd-button--xs {
-    min-height: 28px;
+    min-height: 32px;
     padding: 0 0.55rem;
     font-size: 0.75rem;
   }
 
   .jd-button--compact {
-    min-height: 38px;
+    min-height: 40px;
     padding: 0 0.9rem;
   }
 
   .jd-button--sm {
-    min-height: 34px;
+    min-height: 40px;
     padding: 0 0.8rem;
     font-size: 0.8rem;
   }
 
   .jd-button--lg {
-    min-height: 52px;
+    min-height: 44px;
     padding: 0 1.6rem;
     font-size: 1rem;
   }
@@ -587,12 +493,12 @@ textarea:focus-visible {
   }
 
   .jd-button--primary {
-    --button-bg: rgba(99, 102, 241, 0.18);
-    --button-bg-bottom: rgba(99, 102, 241, 0.08);
-    --button-bg-hover: rgba(99, 102, 241, 0.26);
-    --button-bg-hover-bottom: rgba(99, 102, 241, 0.12);
-    --button-border: rgba(255, 255, 255, 0.58);
-    --button-color: var(--accent-blue);
+    --button-bg: var(--accent-blue);
+    --button-bg-bottom: var(--accent-blue);
+    --button-bg-hover: #4c4dcb;
+    --button-bg-hover-bottom: #4c4dcb;
+    --button-border: var(--accent-blue);
+    --button-color: #ffffff;
   }
 
   .jd-button--secondary {
@@ -605,11 +511,11 @@ textarea:focus-visible {
   }
 
   .jd-button--ghost {
-    --button-bg: rgba(255, 255, 255, 0.18);
-    --button-bg-bottom: rgba(255, 255, 255, 0.08);
-    --button-bg-hover: rgba(255, 255, 255, 0.42);
-    --button-bg-hover-bottom: rgba(255, 255, 255, 0.2);
-    --button-border: rgba(255, 255, 255, 0.34);
+    --button-bg: transparent;
+    --button-bg-bottom: transparent;
+    --button-bg-hover: var(--bg-soft);
+    --button-bg-hover-bottom: var(--bg-soft);
+    --button-border: transparent;
     --button-color: var(--text-body);
   }
 
@@ -632,30 +538,25 @@ textarea:focus-visible {
   }
 
   .jd-button--accent {
-    --button-bg: rgba(16, 185, 129, 0.16);
-    --button-bg-bottom: rgba(16, 185, 129, 0.08);
-    --button-bg-hover: rgba(16, 185, 129, 0.22);
-    --button-bg-hover-bottom: rgba(16, 185, 129, 0.12);
-    --button-border: rgba(255, 255, 255, 0.55);
+    --button-bg: #ecfdf3;
+    --button-bg-bottom: #ecfdf3;
+    --button-bg-hover: #dcfae6;
+    --button-bg-hover-bottom: #dcfae6;
+    --button-border: #abefc6;
     --button-color: var(--accent-lime);
   }
 
   .jd-button:hover:not(:disabled) {
     transform: translateY(-1px);
     border-color: var(--button-border);
-    background:
-      var(--button-highlight),
-      linear-gradient(180deg, var(--button-bg-hover), var(--button-bg-hover-bottom));
+    background: var(--button-bg-hover);
     color: var(--button-color);
     box-shadow: var(--button-shadow-hover);
   }
 
   .jd-button:active:not(:disabled) {
     transform: scale(0.97);
-    box-shadow:
-      inset 0 2px 6px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.72),
-      0 4px 14px rgba(15, 23, 42, 0.1);
+    box-shadow: var(--shadow-pressed);
   }
 
   .jd-button:focus-visible {
@@ -669,15 +570,15 @@ textarea:focus-visible {
     box-shadow: none;
   }
 
-  /* ── Segmented control (Liquid Glass) ── */
+  /* ── Segmented control ── */
   .segmented-shell {
     display: inline-flex;
     gap: 0.35rem;
     padding: 0.3rem;
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) inset;
+    background: var(--bg-soft);
+    border: 1px solid var(--surface-border);
+    box-shadow: none;
   }
 
   /* ── Progress ── */
@@ -685,8 +586,8 @@ textarea:focus-visible {
     overflow: hidden;
     height: 8px;
     border-radius: var(--radius-full);
-    background: rgba(0, 0, 0, 0.06);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
+    background: var(--surface-border);
+    box-shadow: none;
   }
 
   .linear-progress__bar {

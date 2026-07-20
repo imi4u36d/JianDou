@@ -10,7 +10,9 @@
             <IconInfo v-else size="sm" />
           </span>
           <span class="message-toast__content">{{ entry.content }}</span>
-          <button type="button" class="message-toast__close" aria-label="关闭" @click="remove(entry.id)"><IconClose size="xs" /></button>
+          <button type="button" class="message-toast__close" aria-label="关闭" @click="remove(entry.id)">
+            <IconClose size="xs" />
+          </button>
         </div>
       </TransitionGroup>
     </div>
@@ -43,12 +45,10 @@ const { entries, remove } = useMessage();
   gap: 10px;
   min-height: 44px;
   padding: 10px 14px 10px 16px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+  border: 1px solid var(--surface-border);
   pointer-events: auto;
 }
 
@@ -80,7 +80,7 @@ const { entries, remove } = useMessage();
 }
 
 .message-toast--info .message-toast__icon {
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--bg-accent-soft);
   color: var(--accent-blue);
 }
 
@@ -111,12 +111,14 @@ const { entries, remove } = useMessage();
 }
 
 .message-toast__close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-soft);
 }
 
 .message-slide-enter-active,
 .message-slide-leave-active {
-  transition: opacity 200ms ease, transform 200ms ease;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 
 .message-slide-enter-from,

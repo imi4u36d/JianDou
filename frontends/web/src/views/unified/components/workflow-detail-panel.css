@@ -16,11 +16,11 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px;
-  border: var(--glass-border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(32px) saturate(1.8);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  backdrop-filter: none;
 }
 
 .workflow-canvas-header__body {
@@ -56,7 +56,7 @@
 }
 
 .workflow-canvas-header__actions .jd-button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 12px;
   border-radius: 8px;
   color: var(--text-strong);
@@ -66,26 +66,11 @@
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.05), 0 8px 22px rgba(20, 184, 166, 0.12);
+  box-shadow: none;
 }
 
 .workflow-task-view-btn::before {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  z-index: -1;
-  background: linear-gradient(
-    115deg,
-    rgba(99, 102, 241, 0) 0%,
-    rgba(99, 102, 241, 0.18) 18%,
-    rgba(20, 184, 166, 0.42) 34%,
-    rgba(245, 158, 11, 0.34) 50%,
-    rgba(236, 72, 153, 0.36) 66%,
-    rgba(99, 102, 241, 0.2) 82%,
-    rgba(99, 102, 241, 0) 100%
-  );
-  background-size: 260% 100%;
-  animation: workflow-task-view-button-shine 2.6s linear infinite;
+  display: none;
 }
 
 .workflow-task-view-btn > svg,
@@ -95,7 +80,7 @@
 }
 
 .workflow-task-view-btn:hover {
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 10px 28px rgba(99, 102, 241, 0.2);
+  box-shadow: none;
 }
 
 @keyframes workflow-task-view-button-shine {
@@ -231,12 +216,25 @@
   font-size: 0.88rem;
 }
 
-.workflow-empty-large { min-height: 120px; display: grid; place-items: center; }
-.workflow-empty-nested { padding: 16px; }
+.workflow-empty-large {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+}
+.workflow-empty-nested {
+  padding: 16px;
+}
 
 /* ── Version Switcher ── */
-.version-switcher { display: grid; gap: 8px; }
-.version-switcher__tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.version-switcher {
+  display: grid;
+  gap: 8px;
+}
+.version-switcher__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .version-switcher__tab {
   display: flex;
@@ -285,7 +283,9 @@
 }
 
 /* ── More Menu ── */
-.workflow-more-menu { position: relative; }
+.workflow-more-menu {
+  position: relative;
+}
 
 .workflow-more-menu__trigger {
   display: grid;
@@ -299,7 +299,9 @@
   cursor: pointer;
 }
 
-.workflow-more-menu__trigger:hover { background: var(--bg-soft); }
+.workflow-more-menu__trigger:hover {
+  background: var(--bg-soft);
+}
 
 .workflow-more-menu__popover {
   position: fixed;
@@ -331,10 +333,17 @@
 }
 
 .workflow-more-menu__popover button:hover,
-.workflow-more-menu__popover a:hover { background: var(--bg-softer); }
-.workflow-more-menu__popover button:disabled { opacity: 0.4; cursor: not-allowed; }
+.workflow-more-menu__popover a:hover {
+  background: var(--bg-softer);
+}
+.workflow-more-menu__popover button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
-.workflow-menu-danger { color: var(--accent-danger) !important; }
+.workflow-menu-danger {
+  color: var(--accent-danger) !important;
+}
 
 /* ── Character ── */
 .character-strip__list {
@@ -379,8 +388,15 @@
   text-align: left;
 }
 
-.character-mini-card__summary-label { font-size: 0.7rem; color: var(--text-muted); }
-.character-mini-card__summary p { margin: 0; font-size: 0.8rem; color: var(--text-body); }
+.character-mini-card__summary-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.character-mini-card__summary p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-body);
+}
 
 .character-mini-card__frames {
   display: flex;
@@ -430,9 +446,216 @@
   cursor: pointer;
 }
 
-.workflow-icon-action:hover { background: var(--bg-softer); }
-.workflow-icon-action:disabled { opacity: 0.4; cursor: not-allowed; }
+.workflow-icon-action:hover {
+  background: var(--bg-softer);
+}
+.workflow-icon-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 @media (max-width: 900px) {
-  .character-strip__list { grid-template-columns: 1fr; }
+  .character-strip__list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Video workflow concept alignment ── */
+.workflow-canvas-main {
+  gap: 12px;
+  background: var(--bg-base);
+}
+
+.workflow-canvas-header {
+  top: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  backdrop-filter: none;
+}
+
+.workflow-canvas-header__body h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.workflow-canvas-header__actions .jd-button,
+.workflow-icon-action,
+:deep(.workflow-icon-action),
+:deep(.icon-action),
+:deep(.more-menu__trigger),
+:deep(.workflow-more-menu__trigger) {
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.workflow-task-view-btn {
+  box-shadow: none;
+}
+
+.workflow-task-view-btn::before {
+  display: none;
+}
+
+.workflow-canvas-grid,
+.workflow-stage-canvas {
+  gap: 12px;
+}
+
+.workflow-stage-board,
+:deep(.workflow-stage-board) {
+  gap: 18px;
+  min-height: 520px;
+  padding: 20px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.stage-board__head,
+:deep(.stage-board__head) {
+  min-height: 48px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.stage-board__head h3,
+:deep(.stage-board__head h3) {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.stage-board__meta,
+:deep(.stage-board__meta),
+:deep(.stage-board__head-actions) {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.version-switcher__tab,
+:deep(.version-switcher__tab),
+:deep(.version-tab) {
+  min-height: 40px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.version-switcher__tab-active,
+:deep(.version-switcher__tab-active),
+:deep(.version-tab-active) {
+  border-color: var(--accent-blue);
+  background: var(--bg-accent-soft);
+}
+
+.workflow-more-menu__popover,
+:deep(.workflow-more-menu__popover),
+:deep(.more-menu__popover) {
+  padding: 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
+  backdrop-filter: none;
+}
+
+.character-mini-card,
+:deep(.character-card),
+:deep(.clip-detail-card),
+:deep(.storyboard-preview-card),
+:deep(.video-card),
+:deep(.final-result__meta) {
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.character-mini-card {
+  padding: 14px;
+}
+
+:deep(.clip-timeline) {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+:deep(.clip-timeline__item) {
+  min-height: 48px;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: #fff;
+}
+
+:deep(.clip-timeline__item:last-child) {
+  border-bottom: 0;
+}
+
+:deep(.clip-timeline__item-active) {
+  color: var(--accent-blue);
+  background: var(--bg-accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent-blue);
+}
+
+:deep(.frame-card),
+:deep(.keyframe-thumb),
+.character-mini-frame {
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+}
+
+:deep(.frame-card__preview),
+:deep(.keyframe-thumb),
+:deep(.video-card video),
+:deep(.final-result video) {
+  overflow: hidden;
+  border-radius: 10px;
+  background: #f4f5f7;
+}
+
+.workflow-empty,
+:deep(.workflow-empty) {
+  min-height: 160px;
+  border: 1px dashed var(--surface-border-strong);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+@media (max-width: 760px) {
+  .workflow-canvas-header {
+    position: static;
+    padding: 16px;
+  }
+
+  .workflow-stage-board,
+  :deep(.workflow-stage-board) {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .stage-board__head,
+  :deep(.stage-board__head) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stage-board__meta,
+  :deep(.stage-board__meta),
+  :deep(.stage-board__head-actions) {
+    justify-content: flex-start;
+  }
 }

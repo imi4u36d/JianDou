@@ -40,42 +40,58 @@
             </div>
           </div>
 
-          <slot>
-            <div v-if="kind === 'image' && !imageLoadFailed" class="app-preview-dialog__media">
-              <img class="app-preview-dialog__image" :src="url" :alt="title" @load="markMediaReady" @error="handleImageError" />
-              <div v-if="mediaLoading" class="app-preview-dialog__loading" role="status" aria-live="polite">
-                <IconLoading size="md" />
-                <span>加载预览中</span>
-              </div>
+          <div
+            class="app-preview-dialog__content"
+            :class="{ 'app-preview-dialog__content-with-details': $slots.details }"
+          >
+            <div class="app-preview-dialog__body">
+              <slot>
+                <div v-if="kind === 'image' && !imageLoadFailed" class="app-preview-dialog__media">
+                  <img
+                    class="app-preview-dialog__image"
+                    :src="url"
+                    :alt="title"
+                    @load="markMediaReady"
+                    @error="handleImageError"
+                  />
+                  <div v-if="mediaLoading" class="app-preview-dialog__loading" role="status" aria-live="polite">
+                    <IconLoading size="md" />
+                    <span>加载预览中</span>
+                  </div>
+                </div>
+                <div v-else-if="kind === 'image'" class="app-preview-dialog__fallback">
+                  <IconImage size="lg" />
+                  <span>{{ title }}</span>
+                </div>
+                <div v-else-if="kind === 'video' && url" class="app-preview-dialog__media">
+                  <video
+                    class="app-preview-dialog__video"
+                    :src="url"
+                    controls
+                    playsinline
+                    preload="metadata"
+                    @loadstart="markMediaLoading"
+                    @loadedmetadata="markMediaReady"
+                    @loadeddata="markMediaReady"
+                    @canplay="markMediaReady"
+                  ></video>
+                  <div v-if="mediaLoading" class="app-preview-dialog__loading" role="status" aria-live="polite">
+                    <IconLoading size="md" />
+                    <span>加载预览中</span>
+                  </div>
+                </div>
+                <div v-else-if="kind === 'video'" class="app-preview-dialog__fallback">
+                  <IconVideo size="lg" />
+                  <span>暂无可播放视频</span>
+                </div>
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div v-else class="app-preview-dialog__markdown" v-html="html"></div>
+              </slot>
             </div>
-            <div v-else-if="kind === 'image'" class="app-preview-dialog__fallback">
-              <IconImage size="lg" />
-              <span>{{ title }}</span>
-            </div>
-            <div v-else-if="kind === 'video' && url" class="app-preview-dialog__media">
-              <video
-                class="app-preview-dialog__video"
-                :src="url"
-                controls
-                playsinline
-                preload="metadata"
-                @loadstart="markMediaLoading"
-                @loadedmetadata="markMediaReady"
-                @loadeddata="markMediaReady"
-                @canplay="markMediaReady"
-              ></video>
-              <div v-if="mediaLoading" class="app-preview-dialog__loading" role="status" aria-live="polite">
-                <IconLoading size="md" />
-                <span>加载预览中</span>
-              </div>
-            </div>
-            <div v-else-if="kind === 'video'" class="app-preview-dialog__fallback">
-              <IconVideo size="lg" />
-              <span>暂无可播放视频</span>
-            </div>
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div v-else class="app-preview-dialog__markdown" v-html="html"></div>
-          </slot>
+            <aside v-if="$slots.details" class="app-preview-dialog__details" aria-label="预览详情">
+              <slot name="details"></slot>
+            </aside>
+          </div>
 
           <button
             v-if="showNavigation"
@@ -127,8 +143,18 @@ const emit = defineEmits<{
   next: [];
 }>();
 const {
-  overlayRef, mediaLoading, downloadUrl, widePanel, markMediaLoading, markMediaReady,
-  handleImageError, handleDownload, handlePrevious, handleNext, handleTouchStart, handleTouchEnd,
+  overlayRef,
+  mediaLoading,
+  downloadUrl,
+  widePanel,
+  markMediaLoading,
+  markMediaReady,
+  handleImageError,
+  handleDownload,
+  handlePrevious,
+  handleNext,
+  handleTouchStart,
+  handleTouchEnd,
 } = useAppPreviewDialog(props, emit);
 </script>
 

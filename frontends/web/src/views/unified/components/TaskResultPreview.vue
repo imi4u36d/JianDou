@@ -102,18 +102,33 @@
         </template>
         <div
           v-if="!mediaItems.length && awaitingCompletedPreview"
-          class="task-result-preview__pending"
+          class="task-result-preview__empty task-result-preview__pending"
           role="status"
           aria-live="polite"
         >
-          <IconLoading size="md" /><span>加载预览中</span>
+          <span class="task-result-preview__empty-icon" aria-hidden="true"><IconLoading size="md" /></span>
+          <strong>加载预览中</strong>
+          <span>结果生成完成后会自动显示在这里。</span>
         </div>
-        <div v-else-if="!mediaItems.length">{{ taskStatus === "COMPLETED" ? "暂无可预览结果" : "生成中" }}</div>
+        <div v-else-if="!mediaItems.length" class="task-result-preview__empty">
+          <span class="task-result-preview__empty-icon" aria-hidden="true">
+            <IconImage v-if="taskStatus === 'COMPLETED'" size="md" />
+            <IconLoading v-else size="md" />
+          </span>
+          <strong>{{ taskStatus === "COMPLETED" ? "暂无可预览结果" : "正在生成结果" }}</strong>
+          <span>
+            {{ taskStatus === "COMPLETED" ? "当前任务没有可展示的图片结果。" : "任务处理完成后，结果会显示在这里。" }}
+          </span>
+        </div>
         <div v-if="previewLoading" class="task-result-preview__loading" role="status" aria-live="polite">
-          <IconLoading size="md" /><span>加载预览中</span>
+          <span class="task-result-preview__empty-icon" aria-hidden="true"><IconLoading size="md" /></span>
+          <strong>加载预览中</strong>
+          <span>正在获取预览资源，请稍候。</span>
         </div>
         <div v-else-if="loadState === 'failed'" class="task-result-preview__loading task-result-preview__loading-error">
-          <IconWarning size="sm" /><span>预览加载失败</span>
+          <span class="task-result-preview__empty-icon" aria-hidden="true"><IconWarning size="sm" /></span>
+          <strong>预览加载失败</strong>
+          <span>资源暂时无法显示，请稍后刷新重试。</span>
         </div>
       </div>
     </div>

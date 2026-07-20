@@ -26,19 +26,16 @@ import { IconHome, IconTask } from "@/components/icons";
   display: grid;
   place-items: center;
   padding: 24px;
-  background: linear-gradient(180deg, #f6fbff 0%, #ffffff 52%, #f4fbf7 100%);
+  background: var(--bg-base);
 }
 
 .forbidden-view__card {
   width: min(380px, 100%);
   padding: 22px;
-  border-radius: 22px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow:
-    0 16px 38px rgba(99, 102, 241, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(40px) saturate(2.0);
+  border-radius: 12px;
+  border: 1px solid var(--surface-border);
+  background: var(--bg-surface);
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.08);
   text-align: center;
 }
 
@@ -69,9 +66,9 @@ import { IconHome, IconTask } from "@/components/icons";
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 42px;
+  min-height: 40px;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 0.88rem;
   font-weight: 800;
   text-decoration: none;
@@ -84,14 +81,14 @@ import { IconHome, IconTask } from "@/components/icons";
 }
 
 .forbidden-view__primary {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  background: var(--accent-indigo);
   color: #fff;
-  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.16);
+  box-shadow: none;
 }
 
 .forbidden-view__secondary {
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--surface-border-strong);
+  background: var(--bg-surface);
   color: var(--text-strong);
 }
 
@@ -100,7 +97,7 @@ import { IconHome, IconTask } from "@/components/icons";
 .forbidden-view__primary:focus-visible,
 .forbidden-view__secondary:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.12);
+  box-shadow: var(--shadow-soft);
 }
 
 @media (max-width: 640px) {
