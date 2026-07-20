@@ -109,34 +109,66 @@ class TaskAdminQueryService:
         }
 
     async def overview(self) -> dict[str, Any]:
+        overview_snapshot = self._repo_method("admin_overview_snapshot")
+        if overview_snapshot:
+            snapshot = await overview_snapshot()
+            queue_snapshot = snapshot["queueSnapshot"]
+            return self._overview_response(
+                counts=snapshot["counts"],
+                queue_snapshot=queue_snapshot,
+                recent_tasks=snapshot["recentTasks"],
+                recent_failures=snapshot["recentFailures"],
+                recent_running=snapshot["recentRunningTasks"],
+            )
+
         queue_snapshot = self._coordinator.queue_snapshot()
         tasks = await self._all_tasks()
         tasks.sort(key=lambda task: string_value(task.created_at), reverse=True)
         total = len(tasks)
         recent_failures = [task for task in tasks if task.status == "FAILED"][:6]
-        recent_running = [
-            task for task in tasks if task.status in {"ANALYZING", "PLANNING", "RENDERING"}
-        ][:6]
+        recent_running = [task for task in tasks if task.status in {"ANALYZING", "PLANNING", "RENDERING"}][:6]
         running_count = sum(
             1 for task in tasks if task.status in {"ANALYZING", "PLANNING", "RENDERING"}
         )
+        counts = {
+            "totalTasks": total,
+            "queuedTasks": len(queue_snapshot),
+            "runningTasks": running_count,
+            "completedTasks": sum(1 for task in tasks if task.status == "COMPLETED"),
+            "failedTasks": sum(1 for task in tasks if task.status == "FAILED"),
+            "highRiskTasks": 0,
+            "riskyTasks": 0,
+            "semanticTasks": sum(1 for task in tasks if task.has_transcript),
+            "timedSemanticTasks": sum(1 for task in tasks if task.has_timed_transcript),
+            "averageProgress": sum(task.progress for task in tasks) // total if total else 0,
+            "totalUsers": 0,
+            "activeUsers": 0,
+            "adminUsers": 0,
+            "disabledUsers": 0,
+        }
+        return self._overview_response(
+            counts=counts,
+            queue_snapshot=queue_snapshot,
+            recent_tasks=[self._to_list_item(task) for task in tasks[:8]],
+            recent_failures=[self._to_list_item(task) for task in recent_failures],
+            recent_running=[self._to_list_item(task) for task in recent_running],
+        )
+
+    def _overview_response(
+        self,
+        counts: dict[str, int],
+        queue_snapshot: list[str],
+        recent_tasks: list[dict[str, Any]],
+        recent_failures: list[dict[str, Any]],
+        recent_running: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        generated_at = TaskRecord.now_iso()
         return {
-            "generatedAt": TaskRecord.now_iso(),
-            "counts": {
-                "totalTasks": total,
-                "queuedTasks": len(queue_snapshot),
-                "runningTasks": running_count,
-                "completedTasks": sum(1 for task in tasks if task.status == "COMPLETED"),
-                "failedTasks": sum(1 for task in tasks if task.status == "FAILED"),
-                "highRiskTasks": 0,
-                "riskyTasks": 0,
-                "semanticTasks": sum(1 for task in tasks if task.has_transcript),
-                "timedSemanticTasks": sum(1 for task in tasks if task.has_timed_transcript),
-                "averageProgress": sum(task.progress for task in tasks) // total if total else 0,
-            },
+            "generatedAt": generated_at,
+            "counts": counts,
             "queue": {
-                "generatedAt": TaskRecord.now_iso(),
-                "queueLength": len(queue_snapshot),
+                "generatedAt": generated_at,
+                "queueLength": counts["queuedTasks"],
                 "queueSnapshot": queue_snapshot,
                 "runningWorkers": 0,
                 "userQueues": [],
@@ -146,9 +178,9 @@ class TaskAdminQueryService:
                 "oldestQueuedTaskCreatedAt": None,
             },
             "workers": {"items": [], "onlineCount": 0},
-            "recentTasks": [self._to_list_item(task) for task in tasks[:8]],
-            "recentFailures": [self._to_list_item(task) for task in recent_failures],
-            "recentRunningTasks": [self._to_list_item(task) for task in recent_running],
+            "recentTasks": recent_tasks,
+            "recentFailures": recent_failures,
+            "recentRunningTasks": recent_running,
             "recentTraceCount": 0,
         }
 

@@ -1,7 +1,7 @@
 <template>
   <section class="public-share-gallery" aria-label="用户分享">
     <div class="public-share-gallery__head">
-      <h2>大家正在分享</h2>
+      <h2>作品</h2>
       <button class="jd-button jd-button--secondary jd-button--sm" type="button" :disabled="loading" @click="loadAll">
         <IconRefresh size="xs" />
         刷新
@@ -23,8 +23,15 @@
             :style="publicShareCardStyle(item)"
             @click="openPreview(item)"
           >
-            <img v-if="publicSharePreviewUrl(item)" :src="publicSharePreviewUrl(item)" :alt="item.title" loading="lazy" />
-            <span v-else class="public-share-card__placeholder">{{ item.mediaType === "video" ? "视频" : "图片" }}</span>
+            <img
+              v-if="publicSharePreviewUrl(item)"
+              :src="publicSharePreviewUrl(item)"
+              :alt="item.title"
+              loading="lazy"
+            />
+            <span v-else class="public-share-card__placeholder">{{
+              item.mediaType === "video" ? "视频" : "图片"
+            }}</span>
             <span class="public-share-card__meta">
               <strong>{{ item.title }}</strong>
               <small><IconHeart size="xs" :filled="item.likedByMe" /> {{ item.likeCount }}</small>
@@ -49,7 +56,12 @@
             :style="publicShareCardStyle(item)"
             @click="openPreview(item)"
           >
-            <img v-if="publicSharePreviewUrl(item)" :src="publicSharePreviewUrl(item)" :alt="item.title" loading="lazy" />
+            <img
+              v-if="publicSharePreviewUrl(item)"
+              :src="publicSharePreviewUrl(item)"
+              :alt="item.title"
+              loading="lazy"
+            />
             <span v-else class="public-share-card__placeholder">视频</span>
             <span class="public-share-card__play" aria-hidden="true"><IconVideo size="sm" /></span>
             <span class="public-share-card__meta">
@@ -83,7 +95,11 @@
       </template>
 
       <div v-if="previewItem" class="public-share-preview__media">
-        <img v-if="previewItem.mediaType === 'image'" :src="publicShareMediaUrl(previewItem)" :alt="previewItem.title" />
+        <img
+          v-if="previewItem.mediaType === 'image'"
+          :src="publicShareMediaUrl(previewItem)"
+          :alt="previewItem.title"
+        />
         <video
           v-else
           :src="publicShareMediaUrl(previewItem)"
@@ -104,8 +120,16 @@ import { publicShareCardStyle, publicSharePreviewUrl } from "@/utils/public-shar
 import { publicShareMediaUrl, usePublicShareGallery } from "./usePublicShareGallery";
 
 const {
-  imageShares, videoShares, loading, likeBusy, previewItem, loadAll,
-  openPreview, closePreview, toggleLike, downloadPreview,
+  imageShares,
+  videoShares,
+  loading,
+  likeBusy,
+  previewItem,
+  loadAll,
+  openPreview,
+  closePreview,
+  toggleLike,
+  downloadPreview,
 } = usePublicShareGallery();
 </script>
 

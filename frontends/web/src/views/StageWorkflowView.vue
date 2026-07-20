@@ -134,6 +134,24 @@
           </main>
         </section>
       </template>
+
+      <section v-else class="workflow-selection-empty" aria-labelledby="workflow-selection-empty-title">
+        <div class="workflow-selection-empty__icon" aria-hidden="true">
+          <IconVideo size="xl" />
+        </div>
+        <div class="workflow-selection-empty__copy">
+          <p class="workflow-selection-empty__eyebrow">视频工作流</p>
+          <h2 id="workflow-selection-empty-title">选择一个视频任务开始创作</h2>
+          <p>从左侧列表打开任务，即可继续分镜、角色、关键帧、视频片段与成片制作。</p>
+        </div>
+        <ol class="workflow-selection-empty__stages" aria-label="视频制作阶段">
+          <li><span>1</span>分镜</li>
+          <li><span>2</span>角色</li>
+          <li><span>3</span>关键帧</li>
+          <li><span>4</span>视频</li>
+          <li><span>5</span>成片</li>
+        </ol>
+      </section>
     </section>
   </section>
 
@@ -205,6 +223,7 @@ import WorkflowFinalBoard from "./workflow/components/WorkflowFinalBoard.vue";
 import ImagePreviewOverlay from "./workflow/components/ImagePreviewOverlay.vue";
 import CharacterSummaryDialog from "./workflow/components/CharacterSummaryDialog.vue";
 import type { AppSelectOption } from "@/components/common/app-select";
+import { IconVideo } from "@/components/icons";
 
 type DetailRouteStageKey = WorkflowDetailRouteStageKey;
 type CanvasStageKey = WorkflowCanvasStageKey;

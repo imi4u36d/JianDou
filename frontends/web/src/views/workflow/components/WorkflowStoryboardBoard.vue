@@ -27,7 +27,11 @@
       </div>
     </div>
 
-    <div v-if="!versions.length" class="workflow-empty workflow-empty-large">暂无分镜版本</div>
+    <WorkflowStageEmptyState
+      v-if="!versions.length"
+      title="还没有分镜脚本"
+      description="点击右上角“生成”，先把创作想法拆成清晰的镜头计划。"
+    />
     <div v-else class="storyboard-layout">
       <article class="storyboard-preview-card">
         <div class="version-switcher__tabs">
@@ -123,6 +127,7 @@ import {
 } from "@/features/workflows/stage-workflow-presenters";
 import type { StageVersion } from "@/types";
 import { IconCheck, IconDelete, IconLoading, IconMore, IconPlus } from "@/components/icons";
+import WorkflowStageEmptyState from "./WorkflowStageEmptyState.vue";
 
 defineProps<{
   versions: StageVersion[];

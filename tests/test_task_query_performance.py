@@ -119,6 +119,36 @@ async def test_task_list_and_trace_use_lightweight_queries(db_session) -> None:
     assert "metadata_json" not in selected_sql
 
 
+async def test_admin_overview_uses_constant_lightweight_queries(db_session) -> None:
+    repository = TaskRepository(db_session)
+    for index in range(12):
+        task = _task(
+            f"task_overview_{index:02d}",
+            created_at=f"2026-01-{index + 1:02d}T00:00:00+00:00",
+        )
+        task.status = "FAILED" if index % 3 == 0 else "COMPLETED"
+        await repository.save_mutation(TaskPersistenceMutation().set_task(task))
+
+    statements: list[str] = []
+    event.listen(
+        db_session.bind.sync_engine,
+        "before_cursor_execute",
+        lambda _conn, _cursor, statement, _parameters, _context, _executemany: statements.append(statement),
+    )
+
+    overview = await TaskQueryService(repository).admin_overview()
+
+    selected = [statement.lower() for statement in statements if statement.lstrip().lower().startswith("select")]
+    assert len(selected) <= 8
+    assert overview["counts"]["totalTasks"] == 12
+    assert len(overview["recentTasks"]) == 8
+    assert len(overview["recentFailures"]) == 4
+    selected_sql = "\n".join(selected)
+    assert "biz_task_model_calls" not in selected_sql
+    assert "biz_material_assets" not in selected_sql
+    assert "biz_task_results" not in selected_sql
+
+
 async def test_task_detail_uses_lightweight_payload_and_filters_inline_media(db_session) -> None:
     repository = TaskRepository(db_session)
     inline_image = "data:image/png;base64," + ("a" * 8192)

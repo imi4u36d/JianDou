@@ -16,6 +16,7 @@ from backend.infrastructure.task_repository_mapping import (
     _record_from_biz_task,
 )
 from backend.infrastructure.task_repository_mutations import TaskRepositoryMutationService
+from backend.infrastructure.task_repository_overview import TaskRepositoryOverviewService
 from backend.infrastructure.task_repository_queries import TaskRepositoryQueryService
 from backend.infrastructure.task_repository_queue import TaskRepositoryQueueService
 from backend.models.task import (
@@ -125,6 +126,9 @@ class TaskRepository:
     def _queue_service(self) -> TaskRepositoryQueueService:
         return TaskRepositoryQueueService(self)
 
+    def _overview_service(self) -> TaskRepositoryOverviewService:
+        return TaskRepositoryOverviewService(self)
+
     async def list_task_summaries(
         self,
         owner_user_id: int | None = None,
@@ -149,6 +153,9 @@ class TaskRepository:
         exclude_task_type: str | None = None,
     ) -> int:
         return await self._query_service().count_task_summaries(owner_user_id, q, status, task_type, exclude_task_type)
+
+    async def admin_overview_snapshot(self) -> dict[str, Any]:
+        return await self._overview_service().snapshot()
 
     async def find_detail_light(self, task_id: str, owner_user_id: int | None = None) -> dict[str, Any] | None:
         return await self._query_service().find_detail_light(task_id, owner_user_id)

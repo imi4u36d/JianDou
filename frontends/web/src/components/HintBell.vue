@@ -53,8 +53,8 @@ const props = withDefaults(
     text: "",
     items: () => [],
     align: "right",
-    maxWidth: 288
-  }
+    maxWidth: 288,
+  },
 );
 
 const root = ref<HTMLElement | null>(null);
@@ -168,10 +168,7 @@ async function syncPopoverPosition() {
   const viewportPadding = 12;
   const preferredWidth = Math.max(220, props.maxWidth);
   const maxWidth = Math.min(preferredWidth, window.innerWidth - viewportPadding * 2);
-  let left =
-    props.align === "left"
-      ? rect.left
-      : rect.right - maxWidth;
+  let left = props.align === "left" ? rect.left : rect.right - maxWidth;
   left = clamp(left, viewportPadding, window.innerWidth - maxWidth - viewportPadding);
 
   let top = rect.bottom + 12;
@@ -216,7 +213,6 @@ onBeforeUnmount(() => {
   clearLeaveTimer();
   unbindDocumentListeners();
 });
-
 </script>
 
 <style scoped>
@@ -231,7 +227,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--surface-border);
   box-shadow: none;
   transition:
     background 180ms ease,
@@ -243,9 +239,9 @@ onBeforeUnmount(() => {
 .hint-bell:hover,
 .hint-bell:focus-visible {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--bg-soft);
   color: var(--accent-blue);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-soft);
 }
 
 .hint-bell-active {
@@ -275,13 +271,11 @@ onBeforeUnmount(() => {
   z-index: 4200;
   width: min(18rem, calc(100vw - 1.5rem));
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid var(--surface-border);
+  background: var(--bg-surface);
   padding: 12px;
   color: var(--text-strong);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.14);
 }
 
 .hint-title {
@@ -317,7 +311,9 @@ onBeforeUnmount(() => {
 
 .hint-fade-enter-active,
 .hint-fade-leave-active {
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
 }
 
 .hint-fade-enter-from,

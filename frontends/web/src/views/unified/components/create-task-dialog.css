@@ -4,19 +4,20 @@
   z-index: 150;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.35);
   padding: 24px;
+  background: rgba(17, 24, 39, 0.42);
 }
 
 .create-task-dialog {
   position: relative;
+  display: grid;
   width: min(100%, 560px);
   max-height: 85vh;
   overflow: auto;
-  border-radius: var(--radius-lg);
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
-  display: grid;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
 }
 
 .create-task-dialog__close {
@@ -26,76 +27,57 @@
   z-index: 10;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #72798a;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
 }
 
-.create-task-dialog__close:hover {
-  background: var(--bg-softer);
-  color: var(--text-strong);
-}
-
-.create-task-dialog__close > svg {
-  width: 16px;
-  height: 16px;
-}
+.create-task-dialog__close:hover,
+.create-task-dialog__close:focus-visible { border-color: rgba(91, 92, 226, 0.34); background: #f0f0ff; color: #5b5ce2; }
+.create-task-dialog__close > svg { width: 16px; height: 16px; }
 
 .create-task-dialog__head {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--bg-softer);
+  min-height: 64px;
+  padding: 16px 66px 16px 20px;
+  border-bottom: 1px solid #eef0f3;
 }
 
-.create-task-dialog__head h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-strong);
-}
+.create-task-dialog__head h2 { margin: 0; color: #171a24; font-size: 1.06rem; font-weight: 700; }
 
-.create-task-dialog__body {
-  display: grid;
-  gap: 14px;
-  padding: 18px 20px;
-}
-
-.create-field {
-  display: grid;
-  gap: 6px;
-}
-
-.create-field span {
-  color: var(--text-body);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
+.create-task-dialog__body { display: grid; gap: 16px; padding: 18px 20px 20px; }
+.create-field { display: grid; gap: 7px; }
+.create-field > span { color: #4e5564; font-size: 0.8rem; font-weight: 600; }
 
 .create-field textarea,
 .create-field input {
   min-height: 42px;
   padding: 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid #dfe2e8;
   border-radius: 10px;
-  background: var(--bg-softer);
-  color: var(--text-strong);
-  font-size: 0.9rem;
-  resize: vertical;
+  background: var(--bg-soft);
+  color: #252936;
   font-family: inherit;
+  font-size: 0.88rem;
+  resize: vertical;
 }
 
 .create-field textarea:focus,
-.create-field input:focus {
-  outline: none;
-  border-color: var(--accent-indigo);
-  background: #fff;
+.create-field input:focus { outline: none; border-color: #5b5ce2; background: #fff; box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.1); }
+
+.create-field :deep(.app-select__trigger) {
+  min-height: 42px;
+  border-color: #dfe2e8;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  box-shadow: none;
 }
 
 .create-task-dialog__footer {
@@ -103,27 +85,29 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--bg-softer);
+  padding-top: 16px;
+  border-top: 1px solid #eef0f3;
 }
 
-.create-status-text {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.create-status-text--error {
-  color: var(--accent-danger);
-  font-weight: 600;
-}
+.create-status-text { color: #72798a; font-size: 0.8rem; }
+.create-status-text--error { color: #d73552; font-weight: 600; }
 
 .create-task-dialog__footer .jd-button--primary {
+  min-height: 40px;
   margin-left: auto;
+  padding: 0 18px;
+  border: 1px solid #5b5ce2;
+  border-radius: 10px;
+  background: #5b5ce2;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(91, 92, 226, 0.2);
+  backdrop-filter: none;
 }
 
+.create-task-dialog__footer .jd-button--primary:hover:not(:disabled) { background: #4c4dd0; box-shadow: none; transform: none; }
+
 @media (max-width: 640px) {
-  .create-task-dialog {
-    width: 100%;
-    max-height: 90vh;
-  }
+  .create-task-dialog-overlay { align-items: end; padding: 10px; }
+  .create-task-dialog { width: 100%; max-height: calc(100dvh - 20px); }
+  .create-task-dialog__body { padding-inline: 14px; }
 }

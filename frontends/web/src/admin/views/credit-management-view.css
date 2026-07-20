@@ -1,6 +1,7 @@
 .credit-page {
   display: grid;
-  gap: 16px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .credit-page > *,
@@ -9,83 +10,90 @@
   max-width: 100%;
 }
 
+.credit-page :deep(.el-card) {
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.credit-page :deep(.el-card__header) { min-height: 56px; padding: 10px 14px; }
+.credit-page :deep(.el-card__body) { padding: 14px; }
+
 .credit-page__toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 16px;
+  gap: 12px;
 }
 
-.credit-page__toolbar-spacer {
-  flex: 1 1 auto;
-  min-width: 0;
-}
+.credit-page__toolbar-spacer { flex: 1 1 auto; min-width: 0; }
+.credit-page__toolbar :deep(.el-button) { min-height: 34px; padding: 7px 11px; font-size: 0.8rem; }
 
-.credit-page__tabs :deep(.el-tabs__header) {
-  margin-bottom: 18px;
-}
+.credit-page__tabs :deep(.el-tabs__header) { margin: 0 0 14px; }
+.credit-page__tabs :deep(.el-tabs__nav-wrap::after) { height: 1px; background: var(--jd-border); }
+.credit-page__tabs :deep(.el-tabs__item) { height: 38px; padding: 0 18px; font-size: 0.82rem; }
+.credit-page__tabs :deep(.el-tabs__active-bar) { height: 2px; }
 
 .credit-page__filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(220px, 420px) auto;
+  align-items: end;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   padding: 12px;
   border: 1px solid var(--jd-border);
-  border-radius: var(--jd-radius-card);
-  background: var(--jd-surface-muted);
+  border-radius: 9px;
+  background: #fafbfc;
 }
 
-.credit-page__filters-action {
-  margin-right: 0;
+.credit-page__filters :deep(.el-form-item__label) {
+  height: 22px;
+  padding: 0 0 5px;
+  color: #657082;
+  font-size: 0.76rem;
+  line-height: 1;
 }
 
-.credit-page__alert {
-  margin-bottom: 14px;
-}
+.credit-page__filters :deep(.el-input) { width: 100%; }
+.credit-page__filters-action { margin: 0; }
+.credit-page__filters-action :deep(.el-button) { min-width: 76px; min-height: 36px; }
+.credit-page__alert { margin-bottom: 12px; }
 
 .credit-page__table {
   width: 100%;
+  border: 1px solid var(--jd-border);
+  border-radius: 9px;
 }
 
-.credit-page__primary-cell {
-  display: grid;
-  gap: 4px;
-}
+.credit-page__table :deep(th.el-table__cell) { height: 42px; padding: 5px 0; }
+.credit-page__table :deep(td.el-table__cell) { height: 50px; padding: 6px 0; }
 
-.credit-page__primary-cell span {
-  color: var(--jd-text-soft);
-  font-size: 0.9rem;
-}
+.credit-page__primary-cell { display: grid; gap: 3px; }
+.credit-page__primary-cell strong { font-size: 0.84rem; font-weight: 650; }
+.credit-page__primary-cell span { color: var(--jd-text-soft); font-size: 0.74rem; }
 
 .credit-page__actions {
   display: flex;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 2px;
 }
 
 .credit-page__actions :deep(.el-button),
 .credit-page__table :deep(.el-button.is-link) {
-  min-height: 34px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: var(--jd-surface-muted);
-  font-size: 0.78rem;
-  font-weight: 760;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 7px;
+  background: transparent;
+  font-size: 0.75rem;
 }
 
-.credit-page__actions :deep(.el-button:hover),
-.credit-page__table :deep(.el-button.is-link:hover) {
-  background: var(--jd-accent-soft);
-}
+.credit-page__positive { color: var(--jd-success); font-weight: 650; }
+.credit-page__negative { color: var(--jd-danger); font-weight: 650; }
 
-.credit-page__positive {
-  color: var(--el-color-success);
-  font-weight: 600;
-}
+.credit-page :deep(.el-dialog .el-table) { max-height: 58vh; }
+.credit-page :deep(.el-dialog .el-textarea__inner) { min-height: 96px; border-radius: 9px; }
 
-.credit-page__negative {
-  color: var(--el-color-warning);
-  font-weight: 600;
+@media (max-width: 700px) {
+  .credit-page__filters { grid-template-columns: 1fr; }
+  .credit-page__filters-action :deep(.el-button) { width: 100%; }
 }

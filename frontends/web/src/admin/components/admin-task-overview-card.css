@@ -1,12 +1,18 @@
-.admin-task-detail-card :deep(.el-card__header) { padding: 14px 16px; }
-.admin-task-detail-card :deep(.el-card__body) { padding: 16px; }
+.admin-task-detail-card {
+  min-width: 0;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.admin-task-detail-card :deep(.el-card__header) { min-height: 52px; padding: 11px 14px; }
+.admin-task-detail-card :deep(.el-card__body) { padding: 14px; }
 
 .admin-task-detail-card__header,
 .admin-detail-section-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .admin-task-detail-card__header { flex-wrap: wrap; }
@@ -15,64 +21,52 @@
 .admin-detail-section h4 {
   margin: 0;
   color: var(--jd-text);
-  font-size: 0.98rem;
-  font-weight: 850;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
-.admin-task-detail-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.admin-detail-section-title { justify-content: flex-start; margin-bottom: 12px; }
-.admin-detail-section-compact {
-  padding: 12px 14px;
+.admin-task-detail-card__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-task-detail-card__actions :deep(.el-button) { min-height: 30px; margin: 0; }
+.admin-detail-section-title { justify-content: flex-start; margin-bottom: 10px; }
+
+.admin-detail-section-compact,
+.admin-detail-text-block {
+  padding: 10px 12px;
   border: 1px solid var(--jd-border);
-  border-radius: var(--jd-radius-card);
-  background: var(--jd-surface-muted);
+  border-radius: 8px;
+  background: #fafbfc;
 }
 
 .admin-detail-section p,
 .admin-detail-text-block p {
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   color: var(--jd-text-soft);
-  font-size: 0.9rem;
-  line-height: 1.65;
+  font-size: 0.8rem;
+  line-height: 1.6;
 }
 
-.admin-detail-text-block {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--jd-border);
-  border-radius: var(--jd-radius-card);
-  background: var(--jd-surface-muted);
-}
+.admin-detail-text-block { margin-top: 10px; border-left: 3px solid rgba(91, 92, 226, 0.34); }
+.admin-detail-text-block strong { display: block; font-size: 0.76rem; font-weight: 700; }
+.admin-detail-text-block p { max-height: 150px; overflow: auto; overflow-wrap: anywhere; }
+.admin-task-detail-muted { color: var(--jd-text-soft); font-size: 0.74rem; line-height: 1.5; }
+.admin-task-detail-error { margin-top: 12px; }
 
-.admin-detail-text-block strong {
-  display: block;
-  color: var(--jd-text);
-  font-size: 0.82rem;
-  font-weight: 850;
-}
-
-.admin-detail-text-block p {
-  max-height: 150px;
-  overflow: auto;
-  overflow-wrap: anywhere;
-}
-
-.admin-task-detail-muted { color: var(--jd-text-soft); font-size: 0.78rem; line-height: 1.5; }
-.admin-task-detail-error { margin-top: 16px; }
+.admin-task-detail-card :deep(.el-divider) { margin: 14px 0; border-color: var(--jd-border); }
 .admin-task-detail-card :deep(.el-descriptions__label) {
-  width: 112px;
+  width: 108px;
   color: var(--jd-text-soft);
-  font-weight: 780;
+  background: #fafbfc !important;
+  font-size: 0.76rem;
+  font-weight: 650;
 }
-.admin-task-detail-card :deep(.el-descriptions__content) { color: var(--jd-text); overflow-wrap: anywhere; }
-.admin-task-detail-card :deep(.el-table) { width: 100%; }
-.admin-task-detail-card :deep(.el-table__inner-wrapper) { border-radius: var(--jd-radius-card); }
+.admin-task-detail-card :deep(.el-descriptions__content) { color: var(--jd-text); font-size: 0.8rem; overflow-wrap: anywhere; }
+.admin-task-detail-card :deep(.el-table) { width: 100%; border: 1px solid var(--jd-border); border-radius: 8px; }
+.admin-task-detail-card :deep(.el-table th.el-table__cell) { height: 38px; padding: 4px 0; }
+.admin-task-detail-card :deep(.el-table td.el-table__cell) { padding: 5px 0; }
 
 @media (max-width: 720px) {
-  .admin-task-detail-card :deep(.el-card__header),
-  .admin-task-detail-card :deep(.el-card__body) { padding: 14px; }
   .admin-task-detail-card__actions { width: 100%; }
-  .admin-task-detail-card__actions .el-button { flex: 1 1 120px; }
+  .admin-task-detail-card__actions .el-button { flex: 1 1 110px; }
   .admin-task-detail-card :deep(.el-descriptions__body) { overflow-x: auto; }
   .admin-detail-text-block p { max-height: 220px; }
 }

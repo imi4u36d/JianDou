@@ -1,65 +1,48 @@
 :root {
   color-scheme: light;
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "SF Pro Text",
-    "SF Pro Display",
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans SC",
-    "Microsoft YaHei",
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #17202a;
-  background: #f4f6f8;
+  color: #171a21;
+  background: #f4f5f7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --jd-bg: #f4f6f8;
-  --jd-bg-muted: #eef2f5;
+  --jd-bg: #f4f5f7;
+  --jd-bg-muted: #eef0f3;
   --jd-surface: #ffffff;
   --jd-surface-strong: #ffffff;
-  --jd-surface-muted: #f8fafb;
-  --jd-border: rgba(23, 32, 42, 0.1);
-  --jd-border-strong: rgba(23, 32, 42, 0.16);
-  --jd-text: #17202a;
-  --jd-text-soft: #5d6875;
-  --jd-text-muted: #8a95a3;
-  --jd-accent: #0f9f8f;
-  --jd-accent-soft: rgba(15, 159, 143, 0.1);
-  --jd-secondary: #315f9f;
-  --jd-secondary-soft: rgba(49, 95, 159, 0.1);
+  --jd-surface-muted: #f8f9fb;
+  --jd-border: #e4e7ec;
+  --jd-border-strong: #d6dae1;
+  --jd-text: #171a21;
+  --jd-text-soft: #68707d;
+  --jd-text-muted: #9299a5;
+  --jd-accent: #5b5ce2;
+  --jd-accent-soft: rgba(91, 92, 226, 0.09);
+  --jd-secondary: #5b5ce2;
+  --jd-secondary-soft: rgba(91, 92, 226, 0.09);
   --jd-success: #248a52;
   --jd-success-soft: rgba(36, 138, 82, 0.1);
   --jd-warning: #b76a12;
   --jd-warning-soft: rgba(183, 106, 18, 0.12);
   --jd-danger: #bf4e4e;
   --jd-danger-soft: rgba(191, 78, 78, 0.1);
-  --jd-radius-card: 8px;
-  --jd-radius-control: 7px;
-  --jd-shadow-card: 0 1px 2px rgba(23, 32, 42, 0.05), 0 12px 30px rgba(23, 32, 42, 0.06);
-  --jd-shadow-focus: 0 0 0 3px rgba(15, 159, 143, 0.14);
-  --jd-button-glass-bg: rgba(255, 255, 255, 0.48);
-  --jd-button-glass-bg-bottom: rgba(255, 255, 255, 0.24);
-  --jd-button-glass-bg-hover: rgba(255, 255, 255, 0.64);
-  --jd-button-glass-bg-hover-bottom: rgba(255, 255, 255, 0.34);
-  --jd-button-glass-border: rgba(255, 255, 255, 0.64);
-  --jd-button-glass-highlight: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.38) 30%,
-    rgba(255, 255, 255, 0.08) 54%,
-    rgba(255, 255, 255, 0.32) 100%
-  );
-  --jd-button-glass-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(23, 32, 42, 0.08),
-    0 8px 24px rgba(23, 32, 42, 0.1),
-    0 2px 6px rgba(23, 32, 42, 0.06);
+  --jd-radius-card: 12px;
+  --jd-radius-control: 10px;
+  --jd-shadow-card: 0 1px 2px rgba(23, 26, 33, 0.04);
+  --jd-shadow-focus: 0 0 0 3px rgba(91, 92, 226, 0.14);
+  --jd-button-glass-bg: #ffffff;
+  --jd-button-glass-bg-bottom: #ffffff;
+  --jd-button-glass-bg-hover: #f8f8ff;
+  --jd-button-glass-bg-hover-bottom: #f8f8ff;
+  --jd-button-glass-border: #dfe2e8;
+  --jd-button-glass-highlight: none;
+  --jd-button-glass-shadow: 0 1px 2px rgba(23, 26, 33, 0.06);
 }
 
 * {
@@ -97,9 +80,7 @@ select {
 
 .page-shell {
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 246, 248, 0.8)),
-    var(--jd-bg);
+  background: var(--jd-bg);
 }
 
 .surface-card {
@@ -109,9 +90,9 @@ select {
 }
 
 .el-button {
-  min-height: 34px;
+  min-height: 40px;
   border-radius: var(--jd-radius-control);
-  font-weight: 720;
+  font-weight: 650;
 }
 
 .el-button:not(.is-link) {
@@ -121,24 +102,13 @@ select {
   --el-button-hover-border-color: var(--jd-button-glass-border);
   --el-button-active-bg-color: transparent;
   --el-button-active-border-color: rgba(255, 255, 255, 0.58);
-  background:
-    var(--jd-button-glass-highlight),
-    linear-gradient(180deg, var(--jd-button-glass-bg), var(--jd-button-glass-bg-bottom));
-  background-blend-mode: screen, normal;
-  backdrop-filter: blur(22px) saturate(1.7) brightness(1.05);
-  -webkit-backdrop-filter: blur(22px) saturate(1.7) brightness(1.05);
-  box-shadow: var(--jd-button-glass-shadow);
+  background: var(--jd-button-glass-bg);
+  box-shadow: none;
 }
 
 .el-button:not(.is-link):hover {
-  background:
-    var(--jd-button-glass-highlight),
-    linear-gradient(180deg, var(--jd-button-glass-bg-hover), var(--jd-button-glass-bg-hover-bottom));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(23, 32, 42, 0.08),
-    0 12px 28px rgba(23, 32, 42, 0.13),
-    0 3px 10px rgba(23, 32, 42, 0.08);
+  background: var(--jd-button-glass-bg-hover);
+  box-shadow: none;
 }
 
 .el-button--small {
@@ -148,13 +118,14 @@ select {
 }
 
 .el-button--primary {
-  --jd-button-glass-bg: rgba(15, 159, 143, 0.18);
-  --jd-button-glass-bg-bottom: rgba(15, 159, 143, 0.08);
-  --jd-button-glass-bg-hover: rgba(15, 159, 143, 0.26);
-  --jd-button-glass-bg-hover-bottom: rgba(15, 159, 143, 0.12);
-  --el-button-text-color: var(--jd-accent);
-  --el-button-hover-text-color: #0b877a;
-  --el-button-active-text-color: #087267;
+  --jd-button-glass-bg: var(--jd-accent);
+  --jd-button-glass-bg-bottom: var(--jd-accent);
+  --jd-button-glass-bg-hover: #4d4ed1;
+  --jd-button-glass-bg-hover-bottom: #4d4ed1;
+  --el-button-text-color: #ffffff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-text-color: #ffffff;
+  --el-button-border-color: var(--jd-accent);
 }
 
 .el-button.is-plain:not(.el-button--primary) {
@@ -191,7 +162,10 @@ select {
 .el-textarea__inner {
   border: 1px solid transparent;
   box-shadow: 0 0 0 1px var(--jd-border) inset !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .el-input__wrapper,
@@ -204,7 +178,9 @@ select {
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px rgba(15, 159, 143, 0.62) inset, var(--jd-shadow-focus) !important;
+  box-shadow:
+    0 0 0 1px rgba(91, 92, 226, 0.72) inset,
+    var(--jd-shadow-focus) !important;
 }
 
 .el-input__inner,
@@ -407,7 +383,9 @@ select {
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
 }
 
 .fade-enter-from,

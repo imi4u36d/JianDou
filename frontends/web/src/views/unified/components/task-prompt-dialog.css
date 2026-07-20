@@ -5,9 +5,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(10, 10, 20, 0.25);
-  backdrop-filter: blur(34px) saturate(1.8);
-  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+  background: rgba(17, 24, 39, 0.42);
 }
 
 .task-prompt-dialog__panel {
@@ -15,13 +13,11 @@
   gap: 14px;
   width: min(640px, 100%);
   max-height: min(78vh, 680px);
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow:
-    0 22px 56px rgba(0, 0, 0, 0.13),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  padding: 18px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
 }
 
 .task-prompt-dialog__header {
@@ -29,103 +25,61 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef0f3;
 }
 
 .task-prompt-dialog__header h3,
 .task-prompt-dialog__header p,
-.task-prompt-dialog__content p {
-  margin: 0;
-}
-.task-prompt-dialog__header h3 {
-  color: var(--text-strong);
-  font-size: 1rem;
-  font-weight: 850;
-  line-height: 1.35;
-}
-.task-prompt-dialog__header p {
-  margin-top: 4px;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 720;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.task-prompt-dialog__content p { margin: 0; }
+.task-prompt-dialog__header h3 { color: #171a24; font-size: 1rem; font-weight: 700; line-height: 1.4; }
+.task-prompt-dialog__header p { margin-top: 4px; overflow: hidden; color: #72798a; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
+
 .task-prompt-dialog__close {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text-muted);
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #72798a;
   cursor: pointer;
 }
+
 .task-prompt-dialog__close:hover,
-.task-prompt-dialog__close:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(99, 102, 241, 0.2);
-  background: #fff;
-  color: var(--accent-blue);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.07);
-}
+.task-prompt-dialog__close:focus-visible { border-color: rgba(91, 92, 226, 0.34); background: #f0f0ff; color: #5b5ce2; }
+
 .task-prompt-dialog__content {
-  min-height: 160px;
+  min-height: 180px;
   max-height: min(56vh, 480px);
   overflow: auto;
-  padding: 12px;
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: 12px;
-  background: rgba(248, 250, 255, 0.86);
+  padding: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: var(--bg-soft);
 }
+
 .task-prompt-dialog__content pre {
   margin: 0;
-  color: var(--text-strong);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 0.8rem;
-  line-height: 1.7;
+  color: #343846;
+  font-family: inherit;
+  font-size: 0.84rem;
+  line-height: 1.75;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-.task-prompt-dialog__content p {
-  display: grid;
-  min-height: 132px;
-  place-items: center;
-  color: var(--text-muted);
-  font-size: 0.86rem;
-  font-weight: 760;
-}
-.task-prompt-dialog__content-empty {
-  background: rgba(255, 255, 255, 0.66);
-}
-.task-prompt-dialog-fade-enter-active,
-.task-prompt-dialog-fade-leave-active {
-  transition: opacity 160ms ease;
-}
-.task-prompt-dialog-fade-enter-active .task-prompt-dialog__panel,
-.task-prompt-dialog-fade-leave-active .task-prompt-dialog__panel {
-  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.task-prompt-dialog-fade-enter-from,
-.task-prompt-dialog-fade-leave-to {
-  opacity: 0;
-}
-.task-prompt-dialog-fade-enter-from .task-prompt-dialog__panel,
-.task-prompt-dialog-fade-leave-to .task-prompt-dialog__panel {
-  transform: translateY(8px) scale(0.985);
-}
+
+.task-prompt-dialog__content p { display: grid; min-height: 150px; place-items: center; color: #8a91a1; font-size: 0.84rem; }
+.task-prompt-dialog__content-empty { background: #fafbfc; }
+.task-prompt-dialog-fade-enter-active, .task-prompt-dialog-fade-leave-active { transition: opacity 160ms ease; }
+.task-prompt-dialog-fade-enter-active .task-prompt-dialog__panel, .task-prompt-dialog-fade-leave-active .task-prompt-dialog__panel { transition: transform 180ms ease; }
+.task-prompt-dialog-fade-enter-from, .task-prompt-dialog-fade-leave-to { opacity: 0; }
+.task-prompt-dialog-fade-enter-from .task-prompt-dialog__panel, .task-prompt-dialog-fade-leave-to .task-prompt-dialog__panel { transform: translateY(8px); }
 
 @media (max-width: 640px) {
-  .task-prompt-dialog {
-    padding: 14px;
-  }
-  .task-prompt-dialog__panel {
-    max-height: calc(100vh - 28px);
-    padding: 14px;
-  }
-  .task-prompt-dialog__content {
-    max-height: min(62vh, 480px);
-  }
+  .task-prompt-dialog { align-items: end; padding: 10px; }
+  .task-prompt-dialog__panel { max-height: calc(100dvh - 20px); padding: 14px; }
+  .task-prompt-dialog__content { max-height: 62vh; }
 }

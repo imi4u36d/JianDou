@@ -21,10 +21,24 @@
         </header>
 
         <div class="auth-dialog__tabs" role="tablist" aria-label="账号操作">
-          <button type="button" :class="{ 'auth-dialog__tab-active': modal.mode === 'login' }" @click="switchAuthModalMode('login')">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="modal.mode === 'login'"
+            :tabindex="modal.mode === 'login' ? 0 : -1"
+            :class="{ 'auth-dialog__tab-active': modal.mode === 'login' }"
+            @click="switchAuthModalMode('login')"
+          >
             登录
           </button>
-          <button type="button" :class="{ 'auth-dialog__tab-active': modal.mode === 'register' }" @click="switchAuthModalMode('register')">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="modal.mode === 'register'"
+            :tabindex="modal.mode === 'register' ? 0 : -1"
+            :class="{ 'auth-dialog__tab-active': modal.mode === 'register' }"
+            @click="switchAuthModalMode('register')"
+          >
             激活
           </button>
         </div>
@@ -32,7 +46,13 @@
         <form v-if="modal.mode === 'login'" class="auth-dialog__form" @submit.prevent="handleLogin">
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">用户名</span>
-            <input ref="loginUsernameRef" v-model.trim="loginForm.username" autocomplete="username" placeholder="用户名" type="text" />
+            <input
+              ref="loginUsernameRef"
+              v-model.trim="loginForm.username"
+              autocomplete="username"
+              placeholder="用户名"
+              type="text"
+            />
           </label>
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">密码</span>
@@ -64,7 +84,13 @@
         <form v-else class="auth-dialog__form" @submit.prevent="handleRegister">
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">邀请码</span>
-            <input ref="registerCodeRef" v-model.trim="registerForm.code" autocomplete="off" placeholder="邀请码" type="text" />
+            <input
+              ref="registerCodeRef"
+              v-model.trim="registerForm.code"
+              autocomplete="off"
+              placeholder="邀请码"
+              type="text"
+            />
           </label>
           <label class="auth-dialog__field">
             <span class="auth-dialog__field-label">用户名</span>
@@ -110,8 +136,17 @@ import { IconClose, IconEye, IconEyeOff, IconLoading } from "@/components/icons"
 import { useAuthDialog } from "./useAuthDialog";
 
 const {
-  modal, submitting, showLoginPassword, showRegisterPassword, loginUsernameRef,
-  registerCodeRef, loginForm, registerForm, handleClose, handleLogin, handleRegister,
+  modal,
+  submitting,
+  showLoginPassword,
+  showRegisterPassword,
+  loginUsernameRef,
+  registerCodeRef,
+  loginForm,
+  registerForm,
+  handleClose,
+  handleLogin,
+  handleRegister,
 } = useAuthDialog();
 </script>
 

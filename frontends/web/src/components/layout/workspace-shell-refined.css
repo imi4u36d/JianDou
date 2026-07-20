@@ -1,0 +1,279 @@
+.workspace-shell {
+  --shell-ink: #171a21;
+  --shell-paper: var(--bg-canvas);
+  background: var(--bg-canvas);
+  font-family: inherit;
+}
+
+.workspace-sidebar {
+  width: 78px;
+  flex-basis: 78px;
+  padding: 24px 10px 20px;
+  border-right: 1px solid var(--surface-border);
+  background: var(--bg-surface);
+  color: var(--text-strong);
+}
+
+.workspace-sidebar__top {
+  gap: clamp(66px, 12vh, 118px);
+}
+.sidebar-brand {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+}
+.sidebar-brand:hover {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.sidebar-brand__logo {
+  width: 34px;
+  height: 34px;
+  filter: none;
+}
+.sidebar-nav {
+  gap: 12px;
+}
+
+.sidebar-nav__item {
+  width: 58px;
+  min-height: 58px;
+  gap: 6px;
+  padding: 7px 3px;
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+.sidebar-nav__item::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  width: 2px;
+  height: 0;
+  background: var(--accent-blue);
+  transition: height 180ms ease;
+}
+
+.sidebar-nav__item:hover,
+.sidebar-nav__item-active {
+  color: var(--accent-blue);
+  background: var(--bg-accent-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+.sidebar-nav__item-active::before {
+  height: 28px;
+}
+.sidebar-nav__icon {
+  width: 23px;
+  height: 23px;
+}
+.sidebar-nav__item-active .sidebar-nav__icon :deep(.icon__detail) {
+  stroke: #ffffff;
+  fill: #ffffff;
+}
+.sidebar-nav__label {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+}
+
+.workspace-sidebar :deep(.sidebar-account-zone) {
+  gap: 10px;
+}
+.workspace-sidebar :deep(.sidebar-credit-card) {
+  width: 44px;
+  min-height: 32px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  color: var(--text-strong);
+}
+.workspace-sidebar :deep(.sidebar-credit-card:hover) {
+  background: var(--bg-accent-soft);
+  box-shadow: none;
+  transform: none;
+}
+.workspace-sidebar :deep(.sidebar-credit-card strong) {
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 600;
+}
+.workspace-sidebar :deep(.sidebar-account__trigger) {
+  width: 44px;
+  height: 44px;
+  color: var(--text-strong);
+}
+.workspace-sidebar :deep(.sidebar-account__trigger:hover),
+.workspace-sidebar :deep(.sidebar-account__trigger[aria-expanded="true"]) {
+  background: var(--bg-soft);
+  box-shadow: none;
+  transform: none;
+}
+.workspace-sidebar :deep(.sidebar-account__avatar) {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--surface-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-strong);
+  box-shadow: none;
+  font:
+    600 9px/1 ui-monospace,
+    monospace;
+}
+.workspace-sidebar :deep(.sidebar-account__status) {
+  border-color: var(--bg-surface);
+  background: var(--accent-blue);
+}
+.workspace-sidebar :deep(.sidebar-user-popover) {
+  left: 60px;
+  width: 244px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  color: var(--text-strong);
+  backdrop-filter: none;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
+}
+.workspace-sidebar :deep(.sidebar-user-popover__avatar) {
+  border-radius: 50%;
+  background: var(--accent-blue);
+  box-shadow: none;
+}
+.workspace-sidebar :deep(.sidebar-user-popover__link),
+.workspace-sidebar :deep(.sidebar-user-popover__logout) {
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.workspace-content {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas);
+  overflow: hidden;
+}
+
+.workspace-page-header {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 72px;
+  align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--surface-border);
+  background: var(--bg-surface);
+}
+
+.workspace-page-header h1,
+.workspace-page-header p {
+  margin: 0;
+}
+
+.workspace-page-header h1 {
+  color: var(--text-strong);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.workspace-page-header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.workspace-route-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.workspace-route-view > * {
+  min-height: 100%;
+}
+
+@media (max-width: 768px) {
+  .workspace-sidebar {
+    width: 100%;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    border-bottom: 1px solid var(--surface-border);
+  }
+  .workspace-sidebar__top {
+    gap: 8px;
+  }
+  .sidebar-brand {
+    width: 38px;
+    height: 38px;
+  }
+  .sidebar-brand__logo {
+    width: 27px;
+    height: 27px;
+  }
+  .sidebar-nav {
+    gap: 2px;
+  }
+  .sidebar-nav__item {
+    min-width: 58px;
+    min-height: 38px;
+    grid-auto-flow: column;
+    padding: 0 8px;
+    color: var(--text-muted);
+  }
+  .sidebar-nav__item::before {
+    left: 50%;
+    top: auto;
+    bottom: -8px;
+    width: 0;
+    height: 2px;
+    transform: translateX(-50%);
+  }
+  .sidebar-nav__item-active::before {
+    width: 24px;
+    height: 2px;
+  }
+  .sidebar-nav__icon {
+    width: 19px;
+    height: 19px;
+  }
+  .sidebar-nav__label {
+    font-size: 10px;
+  }
+  .workspace-sidebar :deep(.sidebar-credit-card) {
+    min-height: 34px;
+  }
+  .workspace-sidebar :deep(.sidebar-user-popover) {
+    left: auto;
+    right: 0;
+  }
+
+  .workspace-page-header {
+    min-height: 60px;
+    padding: 10px 16px;
+  }
+
+  .workspace-page-header h1 {
+    font-size: 18px;
+  }
+
+  .workspace-page-header p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 540px) {
+  .sidebar-brand {
+    display: none;
+  }
+  .sidebar-nav__item {
+    min-width: 52px;
+    padding-inline: 6px;
+  }
+  .sidebar-nav__label {
+    display: none;
+  }
+}

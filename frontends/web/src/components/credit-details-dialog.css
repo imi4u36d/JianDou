@@ -5,9 +5,9 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 23, 42, 0.24);
-  backdrop-filter: blur(34px) saturate(1.7);
-  -webkit-backdrop-filter: blur(34px) saturate(1.7);
+  background: rgba(23, 26, 33, 0.44);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .credit-dialog {
@@ -17,11 +17,11 @@
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 14px;
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--bg-surface);
   color: var(--text-strong);
-  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.2);
   overflow: hidden;
 }
 
@@ -67,15 +67,15 @@
   width: 34px;
   height: 34px;
   border: 0;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  background: var(--bg-soft);
   color: var(--text-body);
   cursor: pointer;
 }
 
 .credit-dialog__close:hover,
 .credit-recharge__head button:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: #eef0f3;
 }
 
 .credit-dialog__summary {
@@ -89,9 +89,9 @@
   gap: 7px;
   min-width: 0;
   padding: 13px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--bg-soft);
 }
 
 .credit-dialog__metric span {
@@ -129,27 +129,30 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: 40px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 0.82rem;
   font-weight: 850;
   cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
 }
 
 .credit-dialog__recharge {
   padding: 0 18px;
   background: var(--bg-accent);
   color: #fff;
-  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.22);
 }
 
 .credit-dialog__refresh,
 .credit-dialog__pager button {
   gap: 6px;
   padding: 0 12px;
-  background: rgba(0, 0, 0, 0.045);
+  border: 1px solid var(--surface-border-strong);
+  background: var(--bg-surface);
   color: var(--text-body);
 }
 
@@ -195,8 +198,8 @@
   display: grid;
   place-items: center;
   min-height: 176px;
-  border: 1px dashed rgba(15, 23, 42, 0.1);
-  border-radius: 16px;
+  border: 1px dashed var(--surface-border-strong);
+  border-radius: 10px;
   color: var(--text-muted);
   font-size: 0.86rem;
   font-weight: 760;
@@ -209,9 +212,9 @@
 .credit-dialog__table-wrap {
   min-height: 0;
   overflow: auto;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.46);
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--bg-surface);
 }
 
 .credit-dialog__table {
@@ -224,7 +227,7 @@
 .credit-dialog__table th,
 .credit-dialog__table td {
   padding: 11px 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid var(--surface-border);
   text-align: left;
   white-space: nowrap;
 }
@@ -233,7 +236,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--bg-soft);
   color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 850;
@@ -297,7 +300,8 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 23, 42, 0.18);
+  background: rgba(23, 26, 33, 0.36);
+  backdrop-filter: blur(8px);
 }
 
 .credit-recharge__panel {
@@ -305,10 +309,10 @@
   display: grid;
   gap: 14px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  box-shadow: 0 22px 56px rgba(16, 24, 40, 0.18);
 }
 
 .credit-recharge__head {
@@ -331,8 +335,8 @@
   display: grid;
   gap: 5px;
   padding: 13px;
-  border-radius: 15px;
-  background: rgba(99, 102, 241, 0.08);
+  border-radius: 10px;
+  background: var(--bg-accent-soft);
 }
 
 .credit-recharge__group span {
@@ -391,7 +395,7 @@
   .credit-dialog {
     width: 100%;
     max-height: calc(100vh - 24px);
-    border-radius: 20px;
+    border-radius: 12px 12px 0 0;
     padding: 14px;
   }
 

@@ -82,7 +82,15 @@
           </article>
         </div>
 
-        <div v-if="!selectedClip.videoVersions.length" class="workflow-empty">暂无视频版本</div>
+        <WorkflowStageEmptyState
+          v-if="!selectedClip.videoVersions.length"
+          title="暂无视频版本"
+          :description="
+            selectedKeyframeVersion(selectedClip)
+              ? '点击右上角“生成”，将当前镜头的关键帧转成视频片段。'
+              : '请先在关键帧阶段为当前镜头选择关键帧。'
+          "
+        />
         <div v-else class="video-version-panel">
           <div class="version-tabs">
             <article
@@ -199,6 +207,11 @@
           </article>
         </div>
       </article>
+      <WorkflowStageEmptyState
+        v-else
+        title="先选择一个镜头"
+        description="从左侧镜头列表选择要处理的镜头，再生成或查看视频片段。"
+      />
     </section>
   </section>
 </template>
@@ -218,6 +231,7 @@ import {
 import type { WorkflowPreviewFrame } from "@/features/workflows/stage-workflow-presenters";
 import type { StageVersion, WorkflowClipSlot } from "@/types";
 import { IconCheck, IconDelete, IconDownload, IconEmpty, IconLoading, IconMore, IconPlus } from "@/components/icons";
+import WorkflowStageEmptyState from "./WorkflowStageEmptyState.vue";
 
 defineProps<{
   slots: WorkflowClipSlot[];

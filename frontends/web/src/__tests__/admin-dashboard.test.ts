@@ -8,16 +8,14 @@ import {
   dashboardSummaryCards,
   normalizeDashboardPercent,
 } from "@/admin/features/dashboard/dashboard-presenters";
-import type { AdminOverviewResponse, AdminUser } from "@/types";
-
-const user = {
-  id: 1, username: "admin", role: "ADMIN", status: "ACTIVE",
-  createdAt: "2026-01-01", updatedAt: "2026-01-01",
-} as AdminUser;
+import type { AdminOverviewResponse } from "@/types";
 
 const overview = {
   generatedAt: "2026-01-01",
-  counts: { totalTasks: 8, completedTasks: 5, failedTasks: 1, runningTasks: 1, queuedTasks: 1, highRiskTasks: 1, averageProgress: 62 },
+  counts: {
+    totalTasks: 8, completedTasks: 5, failedTasks: 1, runningTasks: 1, queuedTasks: 1,
+    highRiskTasks: 1, averageProgress: 62, totalUsers: 3, activeUsers: 2, adminUsers: 1, disabledUsers: 1,
+  },
   queue: { queueLength: 1, userQueues: [] },
   workers: { onlineCount: 2, items: [] },
   recentTasks: [], recentFailures: [], recentRunningTasks: [], recentTraceCount: 4, modelReady: true,
@@ -25,8 +23,8 @@ const overview = {
 
 describe("admin dashboard", () => {
   it("builds summary and pulse view models", () => {
-    expect(dashboardSummaryCards(overview, [user])[0]).toMatchObject({ label: "用户", value: 1 });
-    expect(dashboardPulseItems(overview, [user])).toEqual(expect.arrayContaining([
+    expect(dashboardSummaryCards(overview)[0]).toMatchObject({ label: "用户", value: 3 });
+    expect(dashboardPulseItems(overview)).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: "在线 Worker", value: 2 }),
       expect.objectContaining({ label: "平均进度", value: "62%" }),
     ]));
@@ -36,12 +34,11 @@ describe("admin dashboard", () => {
     expect(dashboardSeverityLabel()).toBe("待分析");
   });
 
-  it("keeps successful data when one dashboard request fails", async () => {
+  it("reports overview failures and finishes loading", async () => {
     const reportError = vi.fn();
     const state = useAdminDashboard({
       api: {
-        fetchOverview: vi.fn(async () => overview),
-        fetchUsers: vi.fn(async () => { throw new Error("users unavailable"); }),
+        fetchOverview: vi.fn(async () => { throw new Error("overview unavailable"); }),
       },
       reportError,
       loadOnMount: false,
@@ -49,9 +46,27 @@ describe("admin dashboard", () => {
 
     await state.loadDashboard();
 
-    expect(state.overview.value).toEqual(overview);
+    expect(state.overview.value).toBeNull();
     expect(state.initialLoading.value).toBe(false);
     expect(state.refreshing.value).toBe(false);
-    expect(reportError).toHaveBeenCalledWith("users unavailable");
+    expect(reportError).toHaveBeenCalledWith("overview unavailable");
+  });
+
+  it("deduplicates concurrent refreshes", async () => {
+    let resolveOverview!: (value: AdminOverviewResponse) => void;
+    const fetchOverview = vi.fn(() => new Promise<AdminOverviewResponse>((resolve) => {
+      resolveOverview = resolve;
+    }));
+    const state = useAdminDashboard({ api: { fetchOverview }, loadOnMount: false });
+
+    const first = state.loadDashboard();
+    const second = state.loadDashboard();
+
+    expect(first).toBe(second);
+    expect(fetchOverview).toHaveBeenCalledTimes(1);
+    expect(state.refreshing.value).toBe(true);
+    resolveOverview(overview);
+    await first;
+    expect(state.refreshing.value).toBe(false);
   });
 });

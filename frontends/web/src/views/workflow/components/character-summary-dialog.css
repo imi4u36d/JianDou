@@ -6,14 +6,15 @@
   place-items: center;
   padding: 20px;
   background: rgba(15, 23, 42, 0.36);
-  backdrop-filter: blur(18px);
+  backdrop-filter: none;
 }
 .dialog-card {
   width: min(560px, calc(100vw - 32px));
   padding: 18px;
-  border-radius: 18px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
 }
 .dialog-head {
   display: flex;
@@ -30,10 +31,10 @@
 .dialog-head button {
   display: grid;
   place-items: center;
-  width: 34px;
-  min-height: 34px;
+  width: 40px;
+  min-height: 40px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 11px;
+  border-radius: 10px;
   background: #f8fafb;
   cursor: pointer;
 }
@@ -52,6 +53,6 @@
     width: 100%;
     max-height: 76vh;
     padding: 26px 16px 16px;
-    border-radius: 22px;
+    border-radius: 12px;
   }
 }

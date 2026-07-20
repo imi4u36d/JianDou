@@ -11,12 +11,9 @@
   padding: 12px;
   border: 1px solid rgba(34, 197, 94, 0.24);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--bg-surface);
   color: var(--text-strong);
-  box-shadow:
-    0 22px 48px rgba(15, 23, 42, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.82) inset;
-  backdrop-filter: blur(40px) saturate(2);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.14);
 }
 
 .home-task-toast__icon {
@@ -40,7 +37,7 @@
   color: var(--text-strong);
   min-width: 0;
   font-size: 0.9rem;
-  font-weight: 820;
+  font-weight: 700;
   line-height: 1.25;
 }
 

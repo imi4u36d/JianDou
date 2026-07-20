@@ -1,6 +1,6 @@
 <template>
   <div class="home-composer__toolbar">
-    <div class="home-menu home-menu-hidden" aria-hidden="true">
+    <div class="home-menu">
       <button
         type="button"
         class="home-tool"
@@ -139,7 +139,7 @@
       </span>
     </Transition>
 
-    <div class="home-menu home-menu-hidden" aria-hidden="true">
+    <div v-if="selectedMode.kind === 'image'" class="home-menu">
       <button
         type="button"
         class="home-tool"
@@ -206,7 +206,7 @@
       </transition>
     </div>
 
-    <div class="home-menu home-menu-hidden" aria-hidden="true">
+    <div v-if="selectedMode.kind === 'image'" class="home-menu">
       <button
         type="button"
         class="home-tool"
@@ -214,7 +214,7 @@
         @click="emit('toggleMenu', 'seed')"
       >
         <span class="home-tool__icon"><IconTag /></span>
-        {{ seedMode === "auto" ? "自动" : "手动" }}
+        高级
       </button>
       <transition name="home-popover-float">
         <div v-if="activeMenu === 'seed'" class="home-popover home-popover-seed">

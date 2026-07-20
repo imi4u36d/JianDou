@@ -1,41 +1,52 @@
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-start;
   gap: 8px;
 }
 
 .detail-actions-card {
   padding: 12px;
-  border: var(--glass-border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.64);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  box-shadow: none;
 }
 
 .detail-actions-card-image {
-  justify-content: flex-end;
-  padding: 8px 0 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
 }
 
 .detail-actions-card .jd-button {
-  border-color: transparent;
-  background: transparent;
-  color: var(--accent-indigo);
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text-body);
   box-shadow: none;
+  backdrop-filter: none;
 }
 
 .detail-actions-card .jd-button:hover:not(:disabled),
-.detail-actions-card .jd-button:focus-visible:not(:disabled) { color: var(--accent-blue); }
-.detail-actions-card .jd-button--warning { color: #d97706; }
-.detail-actions-card .jd-button--warning:hover:not(:disabled) { color: #b45309; }
-.detail-actions-card .jd-button--danger { color: #e54865; }
-.detail-actions-card .jd-button--danger:hover:not(:disabled) { color: #be123c; }
-.detail-actions-card .jd-button:disabled { color: rgba(100, 116, 139, 0.52); }
+.detail-actions-card .jd-button:focus-visible:not(:disabled) {
+  border-color: rgba(91, 92, 226, 0.34);
+  background: var(--bg-accent-soft);
+  color: var(--accent-indigo);
+  box-shadow: none;
+  transform: none;
+}
+
+.detail-actions-card .jd-button--primary {
+  border-color: var(--accent-indigo);
+  background: var(--accent-indigo);
+  color: #fff;
+}
+
+.detail-actions-card .jd-button--warning { color: var(--accent-warning); }
+.detail-actions-card .jd-button--danger { color: var(--accent-danger); }
+.detail-actions-card .jd-button:disabled { color: #a0a6b3; background: var(--bg-soft); }
 
 .jd-button__pause {
   display: inline-block;
@@ -46,6 +57,5 @@
 }
 
 @media (max-width: 640px) {
-  .detail-actions { flex-direction: column; }
-  .detail-actions .jd-button { justify-content: center; }
+  .detail-actions-card-image { grid-template-columns: 1fr; }
 }

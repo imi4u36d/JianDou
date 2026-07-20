@@ -1,8 +1,7 @@
 <template>
   <section class="prompt-template-gallery" aria-label="提示词模板">
     <div class="prompt-template-gallery__head">
-      <h2>灵感模板</h2>
-      <span>{{ promptTemplates.length }} 种风格</span>
+      <h2>模板</h2>
     </div>
 
     <div class="prompt-template-gallery__rail">
@@ -32,7 +31,11 @@
       @close="closePreview"
     >
       <template v-if="previewTemplate" #actions>
-        <button type="button" class="jd-button jd-button--sm prompt-template-preview__apply" @click="applyTemplate(previewTemplate)">
+        <button
+          type="button"
+          class="jd-button jd-button--sm prompt-template-preview__apply"
+          @click="applyTemplate(previewTemplate)"
+        >
           <IconCheck size="xs" />
           <span>应用</span>
         </button>

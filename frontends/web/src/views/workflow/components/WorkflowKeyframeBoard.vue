@@ -160,9 +160,17 @@
             </div>
           </article>
         </div>
-        <div v-else class="workflow-empty">暂无关键帧</div>
+        <WorkflowStageEmptyState
+          v-else
+          title="还没有关键帧"
+          description="为当前镜头生成首尾关键帧，确认画面后即可进入视频生成。"
+        />
       </article>
-      <div v-else class="workflow-empty">选择分镜版本</div>
+      <WorkflowStageEmptyState
+        v-else
+        title="选择分镜版本"
+        description="从左侧镜头列表选择要处理的镜头，再生成或查看关键帧。"
+      />
     </section>
   </section>
 </template>
@@ -188,6 +196,7 @@ import {
   IconRefresh,
   IconWarning,
 } from "@/components/icons";
+import WorkflowStageEmptyState from "./WorkflowStageEmptyState.vue";
 
 const props = defineProps<{
   slots: WorkflowClipSlot[];

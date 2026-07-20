@@ -27,6 +27,16 @@ async def test_admin_users_lists_bootstrap_admin(auth_client):
     )
 
 
+async def test_admin_overview_keeps_nested_dashboard_contract(auth_client):
+    response = await auth_client.get("/api/v3/admin/overview")
+
+    assert response.status_code == 200
+    overview = response.json()
+    assert {"generatedAt", "counts", "queue", "workers", "recentTasks", "modelReady"} <= overview.keys()
+    assert overview["counts"]["totalUsers"] >= 1
+    assert overview["counts"]["adminUsers"] >= 1
+
+
 async def test_admin_can_create_and_update_user_with_camel_case_payload(auth_client):
     create_response = await auth_client.post(
         "/api/v3/admin/users",

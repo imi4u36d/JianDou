@@ -19,8 +19,11 @@
     <section class="image-task-detail-area">
       <div v-if="!detailSelectedId" class="image-task-detail-empty">
         <div class="image-task-detail-empty__content">
+          <span class="image-task-detail-empty__icon" aria-hidden="true">
+            <IconImage size="md" />
+          </span>
           <h3>选择项目查看详情</h3>
-          <p>图片任务会在这里显示</p>
+          <p>从左侧选择一项图片任务，这里会显示生成进度、结果预览和任务信息。</p>
         </div>
       </div>
 
@@ -55,6 +58,7 @@ import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { messageApi } from "@/composables/useMessage";
 import { deleteTask } from "@/api/tasks";
 import AppConfirmDialog from "@/components/common/AppConfirmDialog.vue";
+import { IconImage } from "@/components/icons";
 
 const list = useImageTaskList();
 const selection = useImageTaskSelection();
@@ -177,23 +181,33 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
 });
 
-watch(selectedId, (nextId) => {
-  scheduleDetailSelection(nextId);
-}, { immediate: true });
+watch(
+  selectedId,
+  (nextId) => {
+    scheduleDetailSelection(nextId);
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
 .image-task-view {
+  --workspace-canvas: var(--bg-canvas);
+  --workspace-surface: var(--bg-surface);
+  --workspace-surface-subtle: var(--bg-soft);
+  --workspace-border: #e4e7ec;
+  --workspace-radius: 12px;
+  --workspace-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   height: 100%;
   min-height: 0;
-  background: var(--bg-base);
+  background: var(--workspace-canvas);
   color: var(--text-strong);
-  padding: 18px 22px 18px 18px;
+  padding: 16px;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 348px) minmax(0, 1fr);
   align-content: stretch;
-  gap: 22px;
+  gap: 16px;
   position: relative;
 }
 
@@ -201,6 +215,10 @@ watch(selectedId, (nextId) => {
   min-height: 0;
   min-width: 0;
   overflow: auto;
+  border: 1px solid var(--workspace-border);
+  border-radius: var(--workspace-radius);
+  background: var(--workspace-surface);
+  box-shadow: var(--workspace-shadow);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -210,6 +228,7 @@ watch(selectedId, (nextId) => {
 }
 
 .image-task-detail-area :deep(.task-detail-panel) {
+  min-height: 100%;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -223,22 +242,61 @@ watch(selectedId, (nextId) => {
   place-items: center;
   height: 100%;
   min-height: 200px;
+  padding: 32px;
 }
 
 .image-task-detail-empty__content {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 360px;
   text-align: center;
   color: var(--text-muted);
 }
 
+.image-task-detail-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: var(--workspace-surface-subtle);
+  color: var(--accent-indigo);
+}
+
 .image-task-detail-empty__content h3 {
-  margin: 0 0 6px;
-  font-size: 1rem;
-  color: var(--text-body);
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .image-task-detail-empty__content p {
   margin: 0;
-  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
+.image-task-view :deep(.image-task-list-item) {
+  border-color: var(--workspace-border);
+  border-radius: 12px;
+  background: var(--workspace-surface);
+  box-shadow: none;
+}
+
+.image-task-view :deep(.image-task-list-item:hover),
+.image-task-view :deep(.image-task-list-item:focus-within) {
+  border-color: rgba(99, 102, 241, 0.26);
+  background: var(--workspace-surface);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.image-task-view :deep(.image-task-list-item-active) {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: #f5f6ff;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.08);
 }
 
 /* ── Responsive ── */
@@ -260,5 +318,14 @@ watch(selectedId, (nextId) => {
 }
 
 @media (max-width: 640px) {
+  .image-task-view {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .image-task-detail-empty {
+    min-height: 280px;
+    padding: 24px;
+  }
 }
 </style>

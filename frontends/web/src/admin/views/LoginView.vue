@@ -9,7 +9,7 @@
           <p>企业级配置与账号管理</p>
         </div>
       </div>
-      <el-form label-position="top" @submit.prevent="handleSubmit">
+      <el-form aria-label="管理员登录" label-position="top" @submit.prevent="handleSubmit">
         <el-form-item label="用户名" class="auth-form-item">
           <el-input v-model.trim="form.username" autocomplete="username" placeholder="用户名" />
         </el-form-item>
@@ -77,7 +77,12 @@ async function handleSubmit() {
   padding: 24px;
   overflow: hidden;
   isolation: isolate;
-  background: var(--bg-base);
+  background: #eef0f4;
+}
+
+.admin-login-screen :deep(.auth-carousel-bg) {
+  opacity: 0.16;
+  filter: saturate(0.45);
 }
 
 .auth-screen__panel {
@@ -85,46 +90,46 @@ async function handleSubmit() {
   z-index: 1;
   width: min(430px, 100%);
   display: grid;
-  gap: 18px;
-  padding: 22px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  background: var(--glass-panel-bg);
-  box-shadow:
-    var(--glass-panel-shadow),
-    var(--glass-sheen);
-  backdrop-filter: var(--glass-panel-blur);
-  -webkit-backdrop-filter: var(--glass-panel-blur);
+  gap: 22px;
+  padding: 30px;
+  border: 1px solid var(--jd-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 54px rgba(23, 26, 33, 0.12);
   max-width: calc(100% - 28px);
 }
 
 .auth-screen__brand {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   text-align: left;
 }
 
 .auth-screen__logo {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
 }
 
 .auth-screen__brand h1 {
   margin: 0;
   line-height: 1.15;
-  color: var(--text-strong);
-  font-size: clamp(1.45rem, 4vw, 1.9rem);
+  color: var(--jd-text);
+  font-size: clamp(1.35rem, 4vw, 1.7rem);
+  font-weight: 740;
 }
 
 .auth-screen__brand p {
   margin: 6px 0 0;
-  color: var(--text-body);
+  color: var(--jd-text-soft);
+  font-size: 0.82rem;
 }
 
 :deep(.el-form-item__label) {
-  color: var(--text-body);
-  font-weight: 800;
-  padding-bottom: 6px;
+  padding-bottom: 5px;
+  color: var(--jd-text-soft);
+  font-size: 0.78rem;
+  font-weight: 650;
 }
 
 :deep(.el-form-item) {
@@ -136,23 +141,17 @@ async function handleSubmit() {
 }
 
 :deep(.el-input__wrapper) {
-  min-height: 48px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.78));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.03);
+  min-height: 44px;
+  border: 1px solid var(--jd-border);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none !important;
   transition: box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
 }
 
 :deep(.el-input__wrapper.is-focus) {
-  border-color: rgba(99, 102, 241, 0.64);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 0 0 1px rgba(99, 102, 241, 0.36),
-    0 0 0 4px rgba(99, 102, 241, 0.18);
+  border-color: var(--jd-accent);
+  box-shadow: var(--jd-shadow-focus) !important;
 }
 
 :deep(.el-input__inner) {
@@ -160,43 +159,19 @@ async function handleSubmit() {
 }
 
 .auth-screen__submit {
-  --el-button-bg-color: transparent;
-  --el-button-text-color: var(--accent-blue);
-  --el-button-hover-text-color: var(--accent-blue);
   width: 100%;
   margin-top: 4px;
-  height: 48px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.08) 52%, rgba(255, 255, 255, 0.24)),
-    linear-gradient(180deg, rgba(99, 102, 241, 0.22), rgba(99, 102, 241, 0.1));
-  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-  font-weight: 800;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    0 12px 28px rgba(99, 102, 241, 0.14),
-    0 2px 6px rgba(15, 23, 42, 0.08);
-  transition:
-    background 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease,
-    opacity 180ms ease;
+  height: 44px;
+  border-radius: 9px;
+  font-weight: 700;
+  box-shadow: none;
+  transition: background-color 160ms ease, opacity 160ms ease;
 }
 
 .auth-screen__submit:hover:not(:disabled),
 .auth-screen__submit:focus-visible {
-  transform: translateY(-1px);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.12) 52%, rgba(255, 255, 255, 0.28)),
-    linear-gradient(180deg, rgba(99, 102, 241, 0.3), rgba(99, 102, 241, 0.14));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
-    0 16px 34px rgba(99, 102, 241, 0.18),
-    0 4px 12px rgba(15, 23, 42, 0.1);
+  background: #4d4ed1;
+  box-shadow: none;
 }
 
 .auth-screen__submit.is-loading,
@@ -212,8 +187,8 @@ async function handleSubmit() {
 
   .auth-screen__panel {
     gap: 14px;
-    padding: 18px;
-    border-radius: 22px;
+    padding: 22px;
+    border-radius: 12px;
     max-width: 100%;
   }
 }

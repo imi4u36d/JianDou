@@ -37,7 +37,6 @@ const statusClass = computed(() => {
       return "status-idle";
   }
 });
-
 </script>
 
 <style scoped>
@@ -52,9 +51,9 @@ const statusClass = computed(() => {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--bg-soft);
   color: var(--badge-color);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--surface-border);
   box-shadow: none;
   white-space: nowrap;
 }
