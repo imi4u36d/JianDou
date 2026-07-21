@@ -92,3 +92,25 @@ def test_character_parser_prefers_list_definitions_and_extracts_appearance_ancho
 
     assert [(item.name, item.appearance) for item in definitions] == [("林医生", "短黑发、白大褂、银框眼镜")]
     assert "人物定位" in definitions[0].definition
+
+
+def test_planner_exposes_public_visual_assets_and_keeps_character_projection() -> None:
+    planner = TaskStoryboardPlanner()
+    storyboard = """
+【公共素材定义】
+| 素材类型 | 素材名称 | 视觉描述 | 一致性锚点 |
+| --- | --- | --- | --- |
+| 角色 | 林医生 | 短黑发、白大褂 | 银框眼镜 |
+| 道具 | 急救箱 | 红色硬壳箱 | 白色十字标志 |
+| 建筑 | 急诊楼 | 白色三层建筑 | 红色雨棚入口 |
+
+【分镜脚本】
+| 镜号 | 首帧描述 | 尾帧描述 | 分镜内容描述 | 时长 |
+| --- | --- | --- | --- | --- |
+"""
+
+    assets = planner.extract_visual_asset_definitions(storyboard)
+    characters = planner.extract_character_definitions(storyboard)
+
+    assert [asset["assetType"] for asset in assets] == ["character", "prop", "building"]
+    assert characters[0].name == "林医生"

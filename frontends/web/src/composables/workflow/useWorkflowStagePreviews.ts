@@ -81,7 +81,7 @@ export function useWorkflowStagePreviews(selectedWorkflow: Ref<WorkflowDetail | 
     for (const version of storyboardVersions) storyboardAdjustmentDrafts[version.id] ??= "";
     previewStoryboardVersionId.value = storyboardVersions.find((version) => version.id === previewStoryboardVersionId.value)?.id ?? storyboardVersions.find((version) => version.selected)?.id ?? storyboardVersions[0]?.id ?? "";
 
-    for (const sheet of workflow.characterSheets ?? []) {
+    for (const sheet of workflow.visualAssets ?? workflow.characterSheets ?? []) {
       const sheetKey = characterSheetKey(sheet);
       const versions = characterSheetVersions(sheet);
       previewCharacterSheetVersionIds[sheetKey] = versions.find((version) => version.id === previewCharacterSheetVersionIds[sheetKey])?.id ?? versions.find((version) => version.selected)?.id ?? versions[0]?.id ?? "";

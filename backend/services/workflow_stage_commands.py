@@ -88,6 +88,23 @@ class WorkflowStageCommands:
             return None
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
 
+    async def generate_visual_asset(
+        self,
+        workflow_id: str,
+        asset_index: int,
+        owner_user_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        if asset_index <= 0:
+            raise ValueError("公共素材序号必须从 1 开始。")
+        workflow = await self._keyframe_generation_service.generate(
+            workflow_id,
+            CHARACTER_SHEET_CLIP_INDEX_BASE + asset_index,
+            owner_user_id=owner_user_id,
+        )
+        if workflow is None:
+            return None
+        return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
+
     async def generate_keyframe_frame(
         self,
         workflow_id: str,
@@ -150,11 +167,24 @@ class WorkflowStageCommands:
     ) -> dict[str, Any] | None:
         workflow = await self._stage_mutation_service.touch_character_sheet_selection(
             workflow_id,
+            clip_index,
+            asset_id,
             owner_user_id=owner_user_id,
         )
         if workflow is None:
             return None
         return await self.get_workflow(workflow_id, owner_user_id=owner_user_id)
+
+    async def select_visual_asset(
+        self,
+        workflow_id: str,
+        clip_index: int,
+        asset_id: str,
+        owner_user_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        return await self.select_character_sheet_asset(
+            workflow_id, clip_index, asset_id, owner_user_id=owner_user_id
+        )
 
     async def generate_video(
         self,

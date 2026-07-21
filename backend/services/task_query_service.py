@@ -16,7 +16,6 @@ from backend.services.task_execution_coordinator import TaskExecutionCoordinator
 from backend.services.task_query_cache import TaskQueryCache
 from backend.services.task_query_policy import (
     matches_task_status,
-    showcase_comparator,
     task_comparator,
     task_type_set,
 )
@@ -45,7 +44,6 @@ class TaskQueryService:
             repo_method=self._repo_method,
             to_list_item=self._to_list_item,
             task_comparator=self._task_comparator,
-            showcase_comparator=self._showcase_comparator,
             matches_status=self._matches_status,
         )
 
@@ -175,9 +173,6 @@ class TaskQueryService:
     ) -> dict[str, Any]:
         return await self._admin_queries.list_tasks(q, status, sort, offset, limit)
 
-    async def showcase_cases(self) -> dict[str, Any]:
-        return await self._admin_queries.showcase_cases()
-
     # ------------------------------------------------------------------
     # Get single task
     # ------------------------------------------------------------------
@@ -298,10 +293,6 @@ class TaskQueryService:
     @staticmethod
     def _task_comparator(sort: str | None):
         return task_comparator(sort)
-
-    @staticmethod
-    def _showcase_comparator():
-        return showcase_comparator()
 
     @staticmethod
     def _matches_status(task: TaskRecord, status_filter: str | None) -> bool:

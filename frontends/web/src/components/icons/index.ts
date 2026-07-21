@@ -26,7 +26,6 @@ import IconRefresh from "./IconRefresh.vue";
 import IconEdit from "./IconEdit.vue";
 import IconDelete from "./IconDelete.vue";
 import IconDownload from "./IconDownload.vue";
-import IconShare from "./IconShare.vue";
 import IconHeart from "./IconHeart.vue";
 import IconSettings from "./IconSettings.vue";
 import IconUser from "./IconUser.vue";
@@ -77,7 +76,6 @@ export const iconComponentMap: Record<IconName, Component> = {
   edit: IconEdit,
   delete: IconDelete,
   download: IconDownload,
-  share: IconShare,
   heart: IconHeart,
   settings: IconSettings,
   user: IconUser,
@@ -122,7 +120,6 @@ export {
   IconEdit,
   IconDelete,
   IconDownload,
-  IconShare,
   IconHeart,
   IconSettings,
   IconUser,

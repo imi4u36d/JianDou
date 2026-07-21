@@ -87,16 +87,3 @@ export function assetOriginalImageUrl(asset: MaterialAssetLibraryItem) {
 export function assetVideoPreviewUrl(asset: MaterialAssetLibraryItem) {
   return assetPublicUrl(asset);
 }
-
-export function isAssetShareable(asset: MaterialAssetLibraryItem) {
-  return (asset.mediaType === "image" || asset.mediaType === "video") && Boolean(assetPublicUrl(asset));
-}
-
-export function materialShareSource(asset: MaterialAssetLibraryItem): {
-  sourceType: "task" | "workflow" | "material";
-  sourceId: string;
-} {
-  if (asset.workflowId) return { sourceType: "workflow", sourceId: asset.workflowId };
-  if (asset.taskId) return { sourceType: "task", sourceId: asset.taskId };
-  return { sourceType: "material", sourceId: asset.id };
-}

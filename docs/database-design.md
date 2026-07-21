@@ -183,7 +183,7 @@ Task queue enqueue lifecycle belongs to `TaskExecutionCoordinator` and command s
 
 Task monitoring snapshots belong in `backend.domain.task_monitoring`. Task list/detail views and admin diagnosis should use the same output, join, clip-continuity, active attempt, and worker summary rules.
 
-Task worker API view mapping belongs in `backend.services.task_worker_view_mapper`. Worker pipeline services should not shape list/detail/showcase response dictionaries directly.
+Task worker API view mapping belongs in `backend.services.task_worker_view_mapper`. Worker pipeline services should not shape list/detail response dictionaries directly.
 
 `biz_task_results` stores produced media outputs. The database constrains clip indexes, timing values, dimensions, and file sizes to non-negative ranges. It should reference material/model-call rows where possible and avoid storing the same URL under multiple names.
 

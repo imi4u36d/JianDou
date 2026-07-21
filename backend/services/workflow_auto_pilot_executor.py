@@ -77,7 +77,12 @@ class WorkflowAutoPilotStepExecutor:
                 clip_index,
             )
             if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
-                await self._workflow_service.generate_character_sheet(
+                generator = getattr(
+                    self._workflow_service,
+                    "generate_visual_asset",
+                    self._workflow_service.generate_character_sheet,
+                )
+                await generator(
                     workflow_id,
                     clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE,
                     owner_user_id=owner_user_id,
@@ -282,7 +287,8 @@ class WorkflowAutoPilotStepExecutor:
                 max_attempts,
             )
             if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
-                await service.generate_character_sheet(
+                generator = getattr(service, "generate_visual_asset", service.generate_character_sheet)
+                await generator(
                     workflow_id,
                     clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE,
                     owner_user_id=owner_user_id,

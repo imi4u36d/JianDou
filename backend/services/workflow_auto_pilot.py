@@ -142,8 +142,8 @@ class WorkflowAutoPilot:
                         clip_index = step.get("clip_index", 0)
                         clip_label = step.get("clip_index", "?")
                         if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
-                            stage_name = "三视图"
-                            clip_label = f"角色 {clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE}"
+                            stage_name = "公共素材"
+                            clip_label = f"素材 {clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE}"
                         else:
                             stage_name = "关键帧"
                             clip_label = f"镜头 {clip_label}"

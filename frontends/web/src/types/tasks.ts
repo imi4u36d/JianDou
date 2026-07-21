@@ -1,4 +1,4 @@
-/** Task lifecycle, monitoring, and showcase contracts. */
+/** Task lifecycle and monitoring contracts. */
 export type {
   EditingMode,
   RateTaskEffectRequest,
@@ -17,10 +17,6 @@ export type {
   TaskPlanClip,
   TaskPlanSegment,
   TaskRequestSnapshot,
-  TaskShowcaseItem,
-  TaskShowcaseMedia,
-  TaskShowcaseModels,
-  TaskShowcaseResponse,
   TaskSourceAssetSummary,
   TaskStageRun,
   TaskStatus,

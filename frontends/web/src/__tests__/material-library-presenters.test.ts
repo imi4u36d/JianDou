@@ -4,7 +4,6 @@ import {
   assetPreviewClass,
   assetPreviewStyle,
   isWorkflowArtifactAsset,
-  materialShareSource,
   storyboardPreviewHtml,
 } from "@/features/materials/material-library-presenters";
 
@@ -36,17 +35,6 @@ describe("material library presenters", () => {
       "--material-preview-ratio": "0.5000",
     });
     expect(assetPreviewClass(asset({ width: 4000, height: 500 }))).toBe("material-card__preview-panorama");
-  });
-
-  it("prefers workflow then task ownership for sharing", () => {
-    expect(materialShareSource(asset({ workflowId: "workflow-1", taskId: "task-1" }))).toEqual({
-      sourceType: "workflow",
-      sourceId: "workflow-1",
-    });
-    expect(materialShareSource(asset({ taskId: "task-1" }))).toEqual({
-      sourceType: "task",
-      sourceId: "task-1",
-    });
   });
 
   it("renders storyboard markdown from asset metadata", () => {

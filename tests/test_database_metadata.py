@@ -9,9 +9,6 @@ import backend.models  # noqa: F401
 from backend.database import Base
 
 REQUIRED_CONSTRAINED_STRING_COLUMNS = {
-    ("biz_public_shares", "media_type"),
-    ("biz_public_shares", "source_type"),
-    ("biz_public_shares", "status"),
     ("biz_stage_versions", "stage_type"),
     ("biz_stage_versions", "status"),
     ("biz_stage_workflows", "current_stage"),

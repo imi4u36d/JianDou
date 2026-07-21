@@ -151,15 +151,6 @@
               <span>下载</span>
             </button>
             <button
-              v-if="isAssetShareable(asset)"
-              type="button"
-              :disabled="sharing"
-              @click="handleMenuAction($event, () => emit('share', asset))"
-            >
-              <IconShare size="xs" />
-              <span>{{ shared ? "已分享" : "分享" }}</span>
-            </button>
-            <button
               type="button"
               class="material-menu-danger"
               :disabled="busyActionKey === `delete-${asset.id}`"
@@ -187,7 +178,6 @@ import {
   assetPreviewClass,
   assetPreviewStyle,
   assetVideoPosterUrl,
-  isAssetShareable,
   storyboardPreviewHtml,
 } from "@/features/materials/material-library-presenters";
 import {
@@ -199,7 +189,6 @@ import {
   IconLoading,
   IconMore,
   IconPlus,
-  IconShare,
   IconUpload,
   IconVideo,
   IconWorkflow,
@@ -211,8 +200,6 @@ const props = defineProps<{
   selected: boolean;
   favorite: boolean;
   busyActionKey: string;
-  sharing: boolean;
-  shared: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -223,7 +210,6 @@ const emit = defineEmits<{
   reuse: [assetId: string];
   rename: [asset: MaterialAssetLibraryItem];
   download: [asset: MaterialAssetLibraryItem];
-  share: [asset: MaterialAssetLibraryItem];
   delete: [asset: MaterialAssetLibraryItem];
 }>();
 

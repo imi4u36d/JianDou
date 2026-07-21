@@ -28,9 +28,13 @@ def request_metadata(request: dict[str, Any]) -> dict[str, Any]:
 def invalid_storyboard_reason(storyboard: str) -> str:
     if not storyboard or not storyboard.strip():
         return "review output is blank"
-    if "【 】" not in storyboard and "【 " not in storyboard:
-        return "review output missing character definitions"
-    if "【 】" not in storyboard:
+    has_material_section = any(
+        marker in storyboard
+        for marker in ("【公共素材定义】", "【角色定义信息】", "【 角色 】", "【 】")
+    )
+    if not has_material_section:
+        return "review output missing public material definitions"
+    if not any(marker in storyboard for marker in ("【分镜脚本】", "【 分镜 】", "【 】")):
         return "review output missing storyboard section"
     return ""
 

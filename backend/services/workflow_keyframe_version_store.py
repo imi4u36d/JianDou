@@ -41,12 +41,14 @@ class WorkflowKeyframeVersionStore:
             raise ValueError("请先选中一个分镜版本。")
         output = read_json_object(storyboard.output_summary_json)
         script = trim(output.get("scriptMarkdown") or output.get("previewText"))
-        characters, clips = parse_workflow_storyboard_markdown(script).to_view()
+        plan = parse_workflow_storyboard_markdown(script)
+        characters, clips = plan.to_view()
+        visual_assets = plan.visual_assets_view()
         if clip_index >= CHARACTER_SHEET_CLIP_INDEX_BASE:
-            character_index = clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE - 1
-            if character_index < 0 or character_index >= len(characters):
-                raise ValueError("角色不存在，请重新选择分镜版本。")
-            return KeyframeTarget(character=characters[character_index], clip=None)
+            asset_index = clip_index - CHARACTER_SHEET_CLIP_INDEX_BASE - 1
+            if asset_index < 0 or asset_index >= len(visual_assets):
+                raise ValueError("公共素材不存在，请重新选择分镜版本。")
+            return KeyframeTarget(character=visual_assets[asset_index], clip=None)
         clip = next((item for item in clips if safe_int(item.get("clipIndex"), 0) == clip_index), None)
         if clip is None:
             raise ValueError("镜头不存在，请重新选择分镜版本。")
@@ -71,6 +73,14 @@ class WorkflowKeyframeVersionStore:
         return next((version for version in storyboards if version.selected == 1), storyboards[0] if storyboards else None)
 
     async def resolve_character_sheet_urls(self, workflow_id: str) -> list[str]:
+        return await self.resolve_visual_asset_urls(workflow_id)
+
+    async def resolve_visual_asset_urls(
+        self,
+        workflow_id: str,
+        clip_index: int | None = None,
+        workflow: BizStageWorkflow | None = None,
+    ) -> list[str]:
         result = await self._db.execute(
             select(BizStageVersion).where(
                 BizStageVersion.workflow_id == workflow_id,
@@ -80,8 +90,24 @@ class WorkflowKeyframeVersionStore:
                 BizStageVersion.is_deleted == 0,
             )
         )
+        matched_asset_indexes: set[int] | None = None
+        if clip_index is not None and workflow is not None:
+            storyboard = await self.selected_storyboard_version(workflow)
+            output = read_json_object(storyboard.output_summary_json) if storyboard else {}
+            plan = parse_workflow_storyboard_markdown(trim(output.get("scriptMarkdown") or output.get("previewText")))
+            clip = next((item for item in plan.clips if item.clip_index == clip_index), None)
+            if clip is not None:
+                clip_text = str(clip.to_view())
+                matched_asset_indexes = {
+                    index
+                    for index, asset in enumerate(plan.visual_assets, start=1)
+                    if asset.name and asset.name in clip_text
+                }
         urls: list[str] = []
         for version in result.scalars().all():
+            asset_index = safe_int(version.clip_index, 0) - CHARACTER_SHEET_CLIP_INDEX_BASE
+            if matched_asset_indexes is not None and asset_index not in matched_asset_indexes:
+                continue
             output = read_json_object(version.output_summary_json)
             url = trim(output.get("remoteSourceUrl") or output.get("sheetUrl") or output.get("fileUrl"))
             if url:

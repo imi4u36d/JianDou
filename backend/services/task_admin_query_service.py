@@ -1,4 +1,4 @@
-"""Administrative and public showcase task read models."""
+"""Administrative task read models."""
 
 from __future__ import annotations
 
@@ -12,9 +12,7 @@ from backend.shared import string_value
 
 
 class TaskAdminQueryService:
-    """Build admin list/overview and public showcase responses."""
-
-    SHOWCASE_LIMIT = 8
+    """Build admin list and overview responses."""
 
     def __init__(
         self,
@@ -23,7 +21,6 @@ class TaskAdminQueryService:
         repo_method: Callable[[str], Any | None],
         to_list_item: Callable[[TaskRecord], dict[str, Any]],
         task_comparator: Callable[[str | None], Any],
-        showcase_comparator: Callable[[], Any],
         matches_status: Callable[[TaskRecord, str | None], bool],
     ) -> None:
         self._repository = repository
@@ -31,7 +28,6 @@ class TaskAdminQueryService:
         self._repo_method = repo_method
         self._to_list_item = to_list_item
         self._task_comparator = task_comparator
-        self._showcase_comparator = showcase_comparator
         self._matches_status = matches_status
 
     async def list_tasks(
@@ -68,44 +64,6 @@ class TaskAdminQueryService:
             "total": len(filtered),
             "offset": offset,
             "limit": limit,
-        }
-
-    async def showcase_cases(self) -> dict[str, Any]:
-        tasks = await self._all_tasks()
-        eligible = [
-            task
-            for task in tasks
-            if task.status == "COMPLETED" and (task.completed_output_count > 0 or task.outputs)
-        ]
-        eligible.sort(key=self._showcase_comparator())
-        items = []
-        for task in eligible[: self.SHOWCASE_LIMIT]:
-            preview_url = next(
-                (
-                    string_value(output.get("previewUrl", output.get("remoteUrl", "")))
-                    for output in task.outputs
-                    if string_value(output.get("previewUrl", output.get("remoteUrl", "")))
-                ),
-                "",
-            )
-            if not preview_url:
-                continue
-            items.append(
-                {
-                    "taskId": task.id,
-                    "title": task.title,
-                    "taskType": task.task_type,
-                    "aspectRatio": task.aspect_ratio,
-                    "effectRating": task.effect_rating,
-                    "previewUrl": preview_url,
-                    "completedOutputCount": task.completed_output_count,
-                    "updatedAt": task.updated_at,
-                }
-            )
-        return {
-            "generatedAt": TaskRecord.now_iso(),
-            "totalCompletedTasks": sum(1 for task in tasks if task.status == "COMPLETED"),
-            "items": items,
         }
 
     async def overview(self) -> dict[str, Any]:

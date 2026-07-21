@@ -23,6 +23,8 @@ export interface WorkflowStageInputSummary {
   frameRole?: string | null;
   generationMode?: string | null;
   variantKind?: string | null;
+  assetType?: string | null;
+  assetName?: string | null;
   characterName?: string | null;
   characterDefinition?: string | null;
   characterAppearance?: string | null;
@@ -105,8 +107,14 @@ export interface StageVersion {
   asset?: MaterialAssetLibraryItem | null;
 }
 
-export interface WorkflowCharacterSheet {
+export type WorkflowVisualAssetType = "character" | "prop" | "building" | "scene" | "vehicle" | "other" | string;
+
+export interface WorkflowVisualAsset {
   id?: string | null;
+  assetType?: WorkflowVisualAssetType | null;
+  assetIndex?: number | null;
+  description?: string | null;
+  summary?: string | null;
   characterName?: string | null;
   name?: string | null;
   displayName?: string | null;
@@ -119,6 +127,9 @@ export interface WorkflowCharacterSheet {
   keyframeVersions?: StageVersion[] | null;
 }
 
+/** Backward-compatible character projection of a public visual asset. */
+export type WorkflowCharacterSheet = WorkflowVisualAsset;
+
 export interface WorkflowClipSlot {
   clipIndex: number;
   shotLabel?: string | null;
@@ -126,6 +137,7 @@ export interface WorkflowClipSlot {
   durationHint?: string | null;
   targetDurationSeconds?: number | null;
   matchedCharacters?: WorkflowCharacterSheet[] | null;
+  matchedVisualAssets?: WorkflowVisualAsset[] | null;
   keyframeVersions: StageVersion[];
   videoVersions: StageVersion[];
 }

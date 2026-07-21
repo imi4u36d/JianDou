@@ -1,5 +1,5 @@
 import { createApp, nextTick } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import ImageTaskListPanel from "@/views/image-tasks/components/ImageTaskListPanel.vue";
 import { calculateImageTaskPageSize } from "@/views/image-tasks/composables/useImageTaskListViewport";
 
@@ -10,26 +10,20 @@ describe("image task list panel", () => {
     expect(calculateImageTaskPageSize(-1, 0, 0)).toBe(4);
   });
 
-  it("renders filtered empty state and emits search clearing", async () => {
+  it("renders the filtered empty state", async () => {
     const host = document.createElement("div");
-    const updateSearchText = vi.fn();
     const app = createApp(ImageTaskListPanel, {
       filteredItems: [],
       loading: false,
       loadingMore: false,
       hasMore: false,
       selectedId: "",
-      searchText: "portrait",
-      statusFilter: "all",
-      "onUpdate:searchText": updateSearchText,
-      "onUpdate:statusFilter": vi.fn(),
+      filterActive: true,
     });
     app.mount(host);
     await nextTick();
 
     expect(host.textContent).toContain("没有匹配图片");
-    host.querySelector<HTMLButtonElement>(".image-task-search-field__clear")?.click();
-    expect(updateSearchText).toHaveBeenCalledWith("");
     app.unmount();
   });
 });

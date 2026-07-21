@@ -80,6 +80,13 @@ export function generateCharacterSheet(workflowId: string, characterIndex: numbe
   );
 }
 
+export function generateVisualAsset(workflowId: string, assetIndex: number) {
+  return postJson<WorkflowDetail>(
+    `${workflowPath(workflowId)}/visual-assets/${assetIndex}/generate`,
+    {},
+  );
+}
+
 export function generateKeyframeFrame(workflowId: string, clipIndex: number, frameRole: string) {
   return postJson<WorkflowDetail>(
     `${workflowPath(workflowId)}/clips/${clipIndex}/keyframes/${encodeURIComponent(frameRole)}/generate`,
@@ -104,6 +111,13 @@ export function selectKeyframeFrame(workflowId: string, clipIndex: number, versi
 export function selectCharacterSheetAsset(workflowId: string, clipIndex: number, assetId: string) {
   return postJson<WorkflowDetail>(
     `${workflowPath(workflowId)}/character-sheets/${clipIndex}/select-asset`,
+    { assetId },
+  );
+}
+
+export function selectVisualAsset(workflowId: string, clipIndex: number, assetId: string) {
+  return postJson<WorkflowDetail>(
+    `${workflowPath(workflowId)}/visual-assets/${clipIndex}/select-asset`,
     { assetId },
   );
 }

@@ -202,8 +202,6 @@ The automated source-size policy prevents the modules improved so far from growi
 - `types/credits.ts`: 60 lines
 - `types/health.ts`: 80 lines
 - `types/material.ts`: 30 lines
-- `types/public-share.ts`: 70 lines
-- `types/showcase.ts`: 60 lines
 - `types/generation.ts`: 20 lines
 - `types/generation-catalog.ts`: 90 lines
 - `types/generation-media.ts`: 80 lines
@@ -250,7 +248,6 @@ The automated source-size policy prevents the modules improved so far from growi
 - `useMaterialLibraryLifecycle.ts`: 150 lines
 - `useMaterialAssetCommands.ts`: 220 lines
 - `useMaterialFavoriteCommands.ts`: 270 lines
-- `useMaterialSharing.ts`: 110 lines
 - `material-library-view.css`: 850 lines
 - `MaterialAssetCard.vue`: 320 lines
 - `material-asset-card.css`: 430 lines
@@ -274,9 +271,6 @@ The automated source-size policy prevents the modules improved so far from growi
 - `PromptTemplateGallery.vue`: 110 lines
 - `prompt-templates.ts`: 110 lines
 - `prompt-template-gallery.css`: 260 lines
-- `PublicShareGallery.vue`: 140 lines
-- `usePublicShareGallery.ts`: 140 lines
-- `public-share-gallery.css`: 220 lines
 - `home-composer-toolbar.css`: 710 lines
 - `active-task-presenters.ts`: 50 lines
 - `home-submission.ts`: 120 lines
@@ -305,7 +299,6 @@ The automated source-size policy prevents the modules improved so far from growi
 - `useCreateTaskDialog.ts`: 170 lines
 - `create-task-options.ts`: 100 lines
 - `useTaskPreviewState.ts`: 90 lines
-- `useTaskResultSharing.ts`: 120 lines
 - `useTaskDetail.ts`: 400 lines
 - `useTaskDetailLoader.ts`: 130 lines
 - `useTaskDetailCommands.ts`: 170 lines
@@ -375,7 +368,7 @@ The automated source-size policy prevents the modules improved so far from growi
 1. Continue splitting task persistence: mapping, full aggregate loading, summary orchestration, summary filters/support reads, task detail reads, detail child rows, atomic mutation ordering, entity upserts, and queue/worker persistence now have separate modules. Keep `task_repository.py` as the low-level session/row compatibility facade; keep transaction ownership in `task_repository_mutations.py`, summary SQL support in `task_repository_summary_support.py`, and entity mapping in `task_repository_entity_upserts.py`.
 2. Continue splitting unified workspace panels: the unreferenced and superseded `WorkflowResultPanel.vue` has been removed. `CreateTaskDialog.vue` now delegates focus lifecycle, catalog loading and authenticated submission to `useCreateTaskDialog.ts`, model/size policy to `create-task-options.ts`, and styling to its CSS module. `WorkflowDetailPanel.vue` delegates header progress/status and AutoPilot synchronization to `useWorkflowDetailHeader.ts`, reuses the current workflow page's storyboard, keyframe, video and final boards, and shares header settings, character summary and image preview components; only its enhanced character-material picker remains locally composed. Keep `TaskDetailPanel.vue` as the detail composition root; task status actions, stage timelines, and monitoring/artifact summaries have independent components and styles.
 3. Keep `StageWorkflowView.vue` as the current workflow composition root. Character completeness, video readiness, five-stage status and finalization hints are shared with the unified workspace through `useWorkflowStageReadiness.ts`; character summaries, keyframe galleries, failed-image state and preview keyboard lifecycle share `useWorkflowPreviewInteractions.ts`; version deletion, stage clearing and asset reuse share `useWorkflowVersionCommands.ts`; settings mutation, workflow deletion, batch character generation and character asset selection belong to `useStageWorkflowManagementCommands.ts`; route/detail loading belongs to `useStageWorkflowDetailLoader.ts`; download handling, popover positioning and menu lifecycle belong to `useStageWorkflowInteractions.ts`.
-4. Keep `MaterialLibraryView.vue` as the material feature composition root. Tabs, filters, batch selection, favorite-folder projection and query construction belong in `useMaterialLibraryState.ts`; authenticated initial loading, route filter hydration, infinite-scroll observer and watcher cleanup belong in `useMaterialLibraryLifecycle.ts`; asset rename/upload/delete/reuse/download transactions, favorite-folder commands, sharing, preview navigation and pagination/loading have dedicated composables.
+4. Keep `MaterialLibraryView.vue` as the material feature composition root. Tabs, filters, batch selection, favorite-folder projection and query construction belong in `useMaterialLibraryState.ts`; authenticated initial loading, route filter hydration, infinite-scroll observer and watcher cleanup belong in `useMaterialLibraryLifecycle.ts`; asset rename/upload/delete/reuse/download transactions, favorite-folder commands, preview navigation and pagination/loading have dedicated composables.
 5. Keep `model_config_service.py` as a compatibility facade and preserve the separated runtime/admin/user boundaries. `model_config_runtime.py` owns the cached facade and catalog queries; text profile construction belongs to `model_config_runtime_text.py`, while image/video profile construction belongs to `model_config_runtime_media.py`. Runtime user/global-default credential scope and sibling-provider fallback belong to `model_config_runtime_credentials.py`; YAML discovery, overlay merging, caching and fail-fast behavior belong to `model_config_runtime_snapshot.py`.
 6. Continue the admin task page split with list loading/pagination state if it grows again; display rows, expandable details, and terminate/delete confirmation orchestration now have independent modules.
 7. Keep `TaskDetailView.vue` focused on API loading, retry/delete commands, trace/diagnosis composition and routing. Task overview, request parameters, monitoring, duration diagnostics, artifacts and plan rendering belong to `AdminTaskOverviewCard.vue`; their display models remain in `admin-task-detail-presenters.ts`.

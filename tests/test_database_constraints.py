@@ -10,7 +10,6 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from backend.infrastructure.task_persistence_mutation import TaskPersistenceMutation
 from backend.infrastructure.task_repository import TaskRepository
 from backend.models.log import BizRequestLog
-from backend.models.public_share import BizPublicShare, BizPublicShareLike
 from backend.models.task import (
     BizMaterialAsset,
     BizTask,
@@ -214,40 +213,6 @@ def _material_asset_row(**overrides):
     }
     row.update(overrides)
     return BizMaterialAsset(**row)
-
-
-def _public_share_row(**overrides):
-    row = {
-        "share_id": "share_constraints",
-        "owner_user_id": 1,
-        "material_asset_id": "asset_constraints",
-        "source_type": "material",
-        "source_id": "asset_constraints",
-        "media_type": "image",
-        "title": "Share",
-        "status": "ACTIVE",
-        "like_count": 0,
-        "create_time": "2026-01-01T00:00:00+00:00",
-        "update_time": "2026-01-01T00:00:00+00:00",
-        "is_deleted": 0,
-        "remark": "",
-    }
-    row.update(overrides)
-    return BizPublicShare(**row)
-
-
-def _public_share_like_row(**overrides):
-    row = {
-        "like_id": "like_constraints",
-        "share_id": "share_constraints",
-        "user_id": 1,
-        "create_time": "2026-01-01T00:00:00+00:00",
-        "update_time": "2026-01-01T00:00:00+00:00",
-        "is_deleted": 0,
-        "remark": "",
-    }
-    row.update(overrides)
-    return BizPublicShareLike(**row)
 
 
 def _request_log_row(**overrides):
@@ -590,37 +555,6 @@ async def test_material_asset_rejects_invalid_selected_flag(db_session):
 
 async def test_material_asset_rejects_negative_size(db_session):
     db_session.add(_material_asset_row(material_asset_id="asset_bad_size", size_bytes=-1))
-
-    with pytest.raises(_CONSTRAINT_ERROR):
-        await db_session.commit()
-
-
-async def test_public_share_rejects_invalid_status(db_session):
-    db_session.add(_public_share_row(status="PUBLISHED"))
-
-    with pytest.raises(_CONSTRAINT_ERROR):
-        await db_session.commit()
-
-
-async def test_public_share_rejects_negative_like_count(db_session):
-    db_session.add(_public_share_row(share_id="share_bad_like_count", material_asset_id="asset_bad_like_count", like_count=-1))
-
-    with pytest.raises(_CONSTRAINT_ERROR):
-        await db_session.commit()
-
-
-async def test_public_share_like_rejects_duplicate_share_user(db_session):
-    db_session.add_all([
-        _public_share_like_row(like_id="like_constraints_1"),
-        _public_share_like_row(like_id="like_constraints_2"),
-    ])
-
-    with pytest.raises(_CONSTRAINT_ERROR):
-        await db_session.commit()
-
-
-async def test_public_share_like_rejects_invalid_deleted_flag(db_session):
-    db_session.add(_public_share_like_row(like_id="like_bad_deleted", is_deleted=2))
 
     with pytest.raises(_CONSTRAINT_ERROR):
         await db_session.commit()

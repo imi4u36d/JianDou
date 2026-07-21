@@ -137,34 +137,6 @@ async def test_get_task_enforces_owner_boundary() -> None:
 
 
 @pytest.mark.asyncio
-async def test_showcase_cases_returns_completed_tasks_with_preview() -> None:
-    hidden = _task("task_hidden", 1, "Hidden", "COMPLETED", "2026-01-01T00:01:00+00:00")
-    hidden.completed_output_count = 1
-    shown = _task("task_shown", 1, "Shown", "COMPLETED", "2026-01-01T00:02:00+00:00")
-    shown.completed_output_count = 1
-    shown.effect_rating = 5
-    shown.outputs.append({"previewUrl": "https://example.test/video.mp4"})
-    failed = _task("task_failed", 1, "Failed", "FAILED", "2026-01-01T00:03:00+00:00")
-    service = TaskQueryService(_TaskQueryRepository([hidden, shown, failed]), TaskExecutionCoordinator())
-
-    showcase = await service.showcase_cases()
-
-    assert showcase["totalCompletedTasks"] == 2
-    assert showcase["items"] == [
-        {
-            "taskId": "task_shown",
-            "title": "Shown",
-            "taskType": "video_generation",
-            "aspectRatio": "16:9",
-            "effectRating": 5,
-            "previewUrl": "https://example.test/video.mp4",
-            "completedOutputCount": 1,
-            "updatedAt": "2026-01-01T00:02:00+00:00",
-        }
-    ]
-
-
-@pytest.mark.asyncio
 async def test_admin_overview_builds_counts_and_recent_groups() -> None:
     running = _task("task_running", 1, "Running", "RENDERING", "2026-01-02T00:00:00+00:00", 50)
     failed = _task("task_failed", 2, "Failed", "FAILED", "2026-01-03T00:00:00+00:00", 20)

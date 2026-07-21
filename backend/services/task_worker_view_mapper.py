@@ -8,7 +8,7 @@ from backend.shared import first_non_blank, map_value, safe_int, string_value
 
 
 class TaskViewMapper:
-    """Maps raw task records to view models (list item, detail, showcase)."""
+    """Maps raw task records to list and detail view models."""
 
     def __init__(self, local_media_artifact_service: Any | None = None) -> None:
         self._local_media_artifact_service = local_media_artifact_service
@@ -90,29 +90,6 @@ class TaskViewMapper:
         row["outputs"] = task.outputs
         row["monitoring"] = monitoring
         return row
-
-    def to_showcase_item(self, task: TaskRecord) -> dict[str, Any]:
-        monitoring = self._monitoring_summary(task)
-        return {
-            "id": task.id,
-            "title": task.title,
-            "status": task.status,
-            "createdAt": task.created_at,
-            "updatedAt": task.updated_at,
-            "sourceFileName": task.source_file_name,
-            "aspectRatio": task.aspect_ratio,
-            "minDurationSeconds": task.min_duration_seconds,
-            "maxDurationSeconds": task.max_duration_seconds,
-            "completedOutputCount": task.completed_output_count,
-            "taskSeed": task.task_seed,
-            "effectRating": task.effect_rating,
-            "description": task.title,
-            "previewUrl": monitoring.get("latestVideoOutputUrl", ""),
-            "downloadUrl": monitoring.get("latestVideoOutputUrl", ""),
-            "joinName": monitoring.get("latestJoinName", ""),
-            "models": task.request_snapshot or {},
-            "media": {},
-        }
 
     def _monitoring_summary(self, task: TaskRecord) -> dict[str, Any]:
         return task_monitoring_snapshot(task)

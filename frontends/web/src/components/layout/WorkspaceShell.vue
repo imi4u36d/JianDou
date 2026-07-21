@@ -29,10 +29,8 @@
     <div class="workspace-main">
       <main class="workspace-content glass">
         <header v-if="pageHeader" class="workspace-page-header">
-          <div>
-            <h1>{{ pageHeader.title }}</h1>
-            <p>{{ pageHeader.description }}</p>
-          </div>
+          <h1>{{ pageHeader.title }}</h1>
+          <div id="workspace-page-actions" class="workspace-page-header__actions"></div>
         </header>
         <div class="workspace-route-view"><RouterView /></div>
       </main>
@@ -60,13 +58,13 @@ const navItems: { to: string; label: string; icon: IconName }[] = [
 
 const pageHeader = computed(() => {
   if (route.path.startsWith("/image-tasks")) {
-    return { title: "图片任务", description: "管理生成记录与结果" };
+    return { title: "图片任务" };
   }
   if (route.path.startsWith("/video-tasks")) {
-    return { title: "视频任务", description: "管理创作流程与生成进度" };
+    return { title: "视频任务" };
   }
   if (route.path.startsWith("/materials")) {
-    return { title: "素材", description: "集中管理生成素材与收藏" };
+    return { title: "素材" };
   }
   return null;
 });

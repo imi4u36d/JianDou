@@ -17,7 +17,7 @@ from backend.services.workflow_keyframe_support import (
 from backend.services.workflow_lifecycle_commands import WorkflowLifecycleCommands
 from backend.services.workflow_service_composition import (
     build_workflow_service_collaborators,
-    workflow_storyboard_plan,
+    workflow_storyboard_full_plan,
 )
 from backend.services.workflow_stage_commands import (
     CHARACTER_SHEET_CLIP_INDEX_BASE as CHARACTER_SHEET_CLIP_INDEX_BASE,
@@ -127,5 +127,5 @@ class WorkflowService(WorkflowLifecycleCommands, WorkflowStageCommands):
     def _storyboard_plan(
         self,
         version: BizStageVersion | None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        return workflow_storyboard_plan(version)
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        return workflow_storyboard_full_plan(version)

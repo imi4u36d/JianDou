@@ -42,4 +42,22 @@ describe("workflow stage readiness", () => {
     expect(state.finalizeButtonLabel.value).toBe("拼接");
     expect(state.finalizeHint.value).toBe("等待镜头");
   });
+
+  it("uses all analyzed public assets for the material-stage gap", () => {
+    const workflow = ref({
+      storyboardVersions: [{ id: "storyboard-1" }],
+      visualAssets: [
+        { assetType: "character", versions: [{ id: "character-1", selected: true }] },
+        { assetType: "building", versions: [] },
+      ],
+      characterSheets: [{ versions: [{ id: "legacy-character", selected: true }] }],
+      clipSlots: [],
+    } as unknown as WorkflowDetail);
+
+    const state = useWorkflowStageReadiness(workflow);
+
+    expect(state.workflowCharacterSheets.value).toHaveLength(2);
+    expect(state.missingCharacterSheets.value).toHaveLength(1);
+    expect(state.canvasStageItems.value[1]).toMatchObject({ label: "公共素材", count: "1/2" });
+  });
 });

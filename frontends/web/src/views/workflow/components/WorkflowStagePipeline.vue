@@ -75,9 +75,9 @@ onMounted(revealActiveStage);
   gap: 0;
   flex: 0 0 auto;
   min-width: 0;
-  min-height: 72px;
+  min-height: 70px;
   align-items: stretch;
-  padding: 8px 0 0;
+  padding: 10px 4px 0;
   scroll-padding-inline: 8px;
   scroll-snap-type: x proximity;
   overscroll-behavior-inline: contain;
@@ -94,39 +94,43 @@ onMounted(revealActiveStage);
   grid-template-columns: 1fr;
   justify-items: center;
   align-content: start;
-  gap: 6px;
+  gap: 8px;
   box-sizing: border-box;
-  min-height: 64px;
-  padding: 0 8px 8px;
+  min-height: 60px;
+  padding: 0 8px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-body);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   scroll-snap-align: center;
   transition:
-    border-color 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease,
     color 180ms ease;
 }
 
 .workflow-stage-step:not(:last-child)::after {
   content: "";
   position: absolute;
-  top: 14px;
-  left: calc(50% + 22px);
-  width: calc(100% - 44px);
+  z-index: 0;
+  top: 15px;
+  left: calc(50% + 20px);
+  width: calc(100% - 40px);
   height: 1px;
-  background: var(--surface-border, #e4e7ec);
+  background: #dfe3eb;
 }
 
-.workflow-stage-step:hover,
-.workflow-stage-step-active {
-  background: var(--bg-accent-soft, #f0f0ff);
+.workflow-stage-step:hover {
   color: var(--accent-blue);
-  box-shadow: none;
+}
+
+.workflow-stage-step:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-blue) 42%, transparent);
+  outline-offset: -2px;
+}
+
+.workflow-stage-step-active {
+  color: var(--accent-blue);
 }
 
 .workflow-stage-step__index {
@@ -134,20 +138,43 @@ onMounted(revealActiveStage);
   place-items: center;
   position: relative;
   z-index: 1;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 1px solid var(--surface-border, #e4e7ec);
+  border: 1px solid #dfe3eb;
   background: #fff;
-  color: currentColor;
+  color: var(--text-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 600;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.workflow-stage-step:hover .workflow-stage-step__index {
+  border-color: color-mix(in srgb, var(--accent-blue) 45%, #dfe3eb);
+  color: var(--accent-blue);
+  transform: translateY(-1px);
 }
 
 .workflow-stage-step-active .workflow-stage-step__index {
   border-color: var(--accent-blue);
   background: var(--accent-blue);
   color: #fff;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-blue) 12%, transparent);
+}
+
+.workflow-stage-step-ready:not(.workflow-stage-step-active) .workflow-stage-step__index {
+  border-color: color-mix(in srgb, var(--accent-blue) 32%, #dfe3eb);
+  background: var(--bg-accent-soft, #f0f0ff);
+  color: var(--accent-blue);
+}
+
+.workflow-stage-step-ready:not(:last-child)::after {
+  background: color-mix(in srgb, var(--accent-blue) 38%, #dfe3eb);
 }
 
 .workflow-stage-step__text {
@@ -166,8 +193,16 @@ onMounted(revealActiveStage);
 
 .workflow-stage-step__text strong {
   color: var(--text-strong);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
   text-align: center;
+  transition: color 180ms ease;
+}
+
+.workflow-stage-step:hover .workflow-stage-step__text strong,
+.workflow-stage-step-active .workflow-stage-step__text strong {
+  color: var(--accent-blue);
 }
 
 .workflow-stage-step__text small,
@@ -192,7 +227,7 @@ onMounted(revealActiveStage);
     right: 0;
     bottom: 0;
     width: 28px;
-    height: 72px;
+    height: 70px;
     pointer-events: none;
     background: linear-gradient(90deg, transparent, var(--workspace-surface, #fff));
   }
@@ -207,19 +242,19 @@ onMounted(revealActiveStage);
   }
 
   .workflow-stage-pipeline {
-    grid-template-columns: repeat(5, minmax(104px, 1fr));
+    grid-template-columns: repeat(5, minmax(112px, 1fr));
     overflow-x: auto;
   }
 }
 
 @media (max-width: 640px) {
   .workflow-stage-pipeline {
-    grid-template-columns: repeat(5, minmax(96px, 1fr));
-    padding-top: 7px;
+    grid-template-columns: repeat(5, minmax(104px, 1fr));
+    padding-top: 9px;
   }
 
   .workflow-stage-step {
-    min-height: 60px;
+    min-height: 58px;
     padding-inline: 6px;
   }
 }

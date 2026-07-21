@@ -35,14 +35,6 @@ def task_comparator(sort: str | None) -> Callable[[TaskRecord], Any]:
     return lambda task: (sort_key(task),)
 
 
-def showcase_comparator() -> Callable[[TaskRecord], Any]:
-    def sort_key(task: TaskRecord) -> Any:
-        rating = task.effect_rating if task.effect_rating is not None else float("-inf")
-        return (-rating, -task.completed_output_count, string_value(task.updated_at))
-
-    return sort_key
-
-
 def matches_task_status(task: TaskRecord, status_filter: str | None) -> bool:
     if not status_filter:
         return True

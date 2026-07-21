@@ -23,3 +23,5 @@ def test_openapi_command_exports_schema(tmp_path) -> None:
     assert schema["info"]["title"] == "JianDou API"
     assert "/api/v3/health" in schema["paths"]
     assert "/api/v3/auth/login" in schema["paths"]
+    assert all(not path.startswith("/api/v3/public-shares") for path in schema["paths"])
+    assert "/api/v3/tasks/showcase" not in schema["paths"]

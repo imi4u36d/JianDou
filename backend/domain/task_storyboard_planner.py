@@ -7,6 +7,7 @@ from typing import Any
 from backend.domain.task_storyboard_characters import CharacterDefinition, StoryboardCharacterParser
 from backend.domain.task_storyboard_duration import StoryboardDurationPlanner
 from backend.domain.task_storyboard_shots import ShotPlan, StoryboardShotPlanParser, string_value
+from backend.domain.workflow_storyboard_plan import parse_workflow_storyboard_markdown
 
 __all__ = ["ShotPlan", "TaskStoryboardPlanner", "string_value"]
 
@@ -31,6 +32,10 @@ class TaskStoryboardPlanner:
 
     def extract_character_definitions(self, storyboard_markdown: str) -> list[CharacterDefinition]:
         return self._character_parser.extract_character_definitions(storyboard_markdown)
+
+    def extract_visual_asset_definitions(self, storyboard_markdown: str) -> list[dict[str, Any]]:
+        """Return all reusable visual entities discovered during storyboard analysis."""
+        return parse_workflow_storyboard_markdown(storyboard_markdown).visual_assets_view()
 
     def resolve_requested_output_count(self, task: Any, storyboard_clip_count: int) -> int:
         available = max(1, storyboard_clip_count)

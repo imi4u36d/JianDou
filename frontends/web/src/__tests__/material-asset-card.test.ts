@@ -29,8 +29,6 @@ function mountCard(batchMode: boolean, listeners: Record<string, (...args: unkno
     selected: false,
     favorite: false,
     busyActionKey: "",
-    sharing: false,
-    shared: false,
     ...listeners,
   });
   app.mount(host);

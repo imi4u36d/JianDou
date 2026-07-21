@@ -4,11 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import TaskResultPreview from "@/views/unified/components/TaskResultPreview.vue";
 
 describe("task result preview", () => {
-  it("renders media and emits preview, download and share actions", async () => {
+  it("renders media and emits preview and download actions", async () => {
     const host = document.createElement("div");
     const onPreview = vi.fn();
     const onDownload = vi.fn();
-    const onShare = vi.fn();
     const app = createApp(TaskResultPreview, {
       progressPercent: 100,
       previewLoading: false,
@@ -17,25 +16,30 @@ describe("task result preview", () => {
       referenceItems: [{ url: "/reference.png", title: "参考图" }],
       awaitingCompletedPreview: false,
       taskStatus: "COMPLETED",
-      shareable: true,
-      sharing: false,
-      shared: false,
       onPreview,
       onDownload,
-      onShare,
     });
     app.mount(host);
     await nextTick();
 
-    host.querySelector<HTMLButtonElement>(".task-result-preview__image-button")?.click();
-    host.querySelector<HTMLButtonElement>('button[aria-label="下载参考图"]')?.click();
-    [...host.querySelectorAll<HTMLButtonElement>(".task-result-preview__action")]
-      .find((button) => button.textContent?.includes("分享"))
-      ?.click();
+    const imageButton = host.querySelector<HTMLButtonElement>(".task-result-preview__image-button");
+    expect(imageButton?.querySelectorAll("img")).toHaveLength(1);
+    const resultImage = imageButton?.querySelector<HTMLImageElement>("img");
+    expect(resultImage?.getAttribute("src")).toBe("/result.png");
+    Object.defineProperties(resultImage, {
+      naturalWidth: { configurable: true, value: 1920 },
+      naturalHeight: { configurable: true, value: 1080 },
+    });
+    resultImage?.dispatchEvent(new Event("load"));
+    await nextTick();
 
+    expect(imageButton?.querySelector(".task-result-preview__image-meta")?.textContent).toContain(
+      "分辨率 1920 × 1080 px · 比例 16:9",
+    );
+    imageButton?.click();
+    host.querySelector<HTMLButtonElement>('button[aria-label="下载参考图"]')?.click();
     expect(onPreview).toHaveBeenCalledWith("结果图", "/result.png");
     expect(onDownload).toHaveBeenCalledWith("/reference.png", "参考图", "image");
-    expect(onShare).toHaveBeenCalledOnce();
     app.unmount();
   });
 
@@ -49,9 +53,6 @@ describe("task result preview", () => {
       referenceItems: [],
       awaitingCompletedPreview: true,
       taskStatus: "RENDERING",
-      shareable: false,
-      sharing: false,
-      shared: false,
     });
     app.mount(host);
     await nextTick();

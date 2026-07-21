@@ -150,6 +150,38 @@ async def generate_character_sheet(
     return result
 
 
+@router.post("/{workflow_id}/visual-assets/{asset_index}/generate", response_model=WorkflowDetailResponse)
+async def generate_visual_asset(
+    workflow_id: str, asset_index: int, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    user = await require_user(request)
+    result = await run_workflow_action(
+        lambda: workflow_service(db, request).generate_visual_asset(
+            workflow_id, asset_index, owner_user_id=user["id"]
+        )
+    )
+    if result is None:
+        raise not_found("workflow")
+    return result
+
+
+@router.post("/{workflow_id}/visual-assets/{clip_index}/select-asset", response_model=WorkflowDetailResponse)
+async def select_visual_asset(
+    workflow_id: str,
+    clip_index: int,
+    payload: SelectCharacterSheetAssetRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    user = await require_user(request)
+    result = await workflow_service(db, request).select_visual_asset(
+        workflow_id, clip_index, payload.asset_id, owner_user_id=user["id"]
+    )
+    if result is None:
+        raise not_found("workflow")
+    return result
+
+
 @router.post("/{workflow_id}/character-sheets/{clip_index}/select-asset", response_model=WorkflowDetailResponse)
 async def select_character_sheet_asset(
     workflow_id: str,

@@ -28,5 +28,6 @@ def test_text_run_values_project_provider_status_and_storyboard_validation() -> 
     assert interaction["success"] is False
     assert interaction["responseId"] == "failed"
     assert invalid_storyboard_reason("") == "review output is blank"
-    assert invalid_storyboard_reason("plain text") == "review output missing character definitions"
-    assert invalid_storyboard_reason("【 】\n【 】") == ""
+    assert invalid_storyboard_reason("plain text") == "review output missing public material definitions"
+    assert invalid_storyboard_reason("【公共素材定义】\n【分镜脚本】") == ""
+    assert invalid_storyboard_reason("【角色定义信息】\n【分镜脚本】") == ""

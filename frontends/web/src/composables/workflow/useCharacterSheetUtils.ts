@@ -1,4 +1,4 @@
-import type { WorkflowCharacterSheet, WorkflowDetail, StageVersion, WorkflowStageOutputSummary } from "@/types";
+import type { WorkflowCharacterSheet, WorkflowDetail, StageVersion, WorkflowStageOutputSummary, WorkflowVisualAsset } from "@/types";
 
 interface PreviewFrame {
   role: string;
@@ -27,6 +27,10 @@ export function characterSheetClipIndex(sheet: WorkflowCharacterSheet): number |
 }
 
 export function characterSheetIndex(sheet: WorkflowCharacterSheet): number | null {
+  const assetIndex = Number(sheet.assetIndex);
+  if (Number.isInteger(assetIndex) && assetIndex > 0) {
+    return assetIndex;
+  }
   const directIndex = Number(sheet.characterIndex);
   if (Number.isInteger(directIndex) && directIndex > 0) {
     return directIndex;
@@ -42,13 +46,28 @@ export function characterSheetTitle(sheet: WorkflowCharacterSheet): string {
   return sheet.characterName?.trim()
     || sheet.displayName?.trim()
     || sheet.name?.trim()
-    || `角色 #${characterSheetClipIndex(sheet) ?? "-"}`;
+    || `素材 #${characterSheetClipIndex(sheet) ?? "-"}`;
 }
 
 export function characterSheetAppearanceSummary(sheet: WorkflowCharacterSheet): string {
   return sheet.appearanceSummary?.trim()
     || sheet.appearance?.trim()
-    || "暂无角色外观摘要";
+    || sheet.summary?.trim()
+    || sheet.description?.trim()
+    || "暂无素材视觉描述";
+}
+
+export const visualAssetTypeLabels: Record<string, string> = {
+  character: "角色",
+  prop: "道具",
+  building: "建筑",
+  scene: "场景",
+  vehicle: "载具",
+  other: "其他",
+};
+
+export function visualAssetTypeLabel(asset: WorkflowVisualAsset): string {
+  return visualAssetTypeLabels[asset.assetType?.trim() || "other"] || "其他";
 }
 
 export function characterSheetVersions(sheet: WorkflowCharacterSheet): StageVersion[] {
@@ -60,7 +79,7 @@ export function selectedCharacterSheetVersion(sheet: WorkflowCharacterSheet): St
 }
 
 export function hasMissingCharacterSheets(workflow: WorkflowDetail): boolean {
-  const sheets = workflow.characterSheets ?? [];
+  const sheets = workflow.visualAssets ?? workflow.characterSheets ?? [];
   return sheets.some((sheet) => !selectedCharacterSheetVersion(sheet));
 }
 
@@ -103,7 +122,7 @@ export function characterSheetPreviewFrames(version: StageVersion): PreviewFrame
   if (previewUrl) {
     frames.push({
       role: "sheet",
-      label: "三视图",
+      label: version.inputSummary?.assetType && version.inputSummary.assetType !== "character" ? "设定图" : "三视图",
       url: previewUrl,
     });
   }

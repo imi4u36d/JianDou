@@ -90,7 +90,6 @@ def _register_routers(app: FastAPI) -> None:
         health,
         material_assets,
         material_center,
-        public_shares,
         runtime_config,
         tasks,
         uploads,
@@ -107,7 +106,6 @@ def _register_routers(app: FastAPI) -> None:
         uploads.router,
         material_assets.router,
         material_center.router,
-        public_shares.router,
         workflows.router,
         admin.router,
     ):

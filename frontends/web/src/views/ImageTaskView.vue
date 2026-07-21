@@ -1,17 +1,25 @@
 <template>
   <section class="image-task-view" :class="{ 'image-task-view-detail-active': selectedId }">
+    <Teleport defer to="#workspace-page-actions">
+      <ImageTaskToolbar
+        v-model:search-text="list.searchText.value"
+        v-model:status-filter="list.statusFilter.value"
+        :loading="list.loading.value"
+        :loading-more="list.loadingMore.value"
+        :refreshing="refreshingList"
+        @refresh="handleRefresh"
+      />
+    </Teleport>
+
     <ImageTaskListPanel
-      v-model:search-text="list.searchText.value"
-      v-model:status-filter="list.statusFilter.value"
       :filtered-items="list.filteredItems.value"
       :loading="list.loading.value"
       :loading-more="list.loadingMore.value"
       :has-more="list.hasMore.value"
       :selected-id="selection.selectedId.value"
-      :refreshing="refreshingList"
+      :filter-active="Boolean(list.searchText.value.trim()) || list.statusFilter.value !== 'all'"
       @select="handleSelect"
       @delete="handleDelete"
-      @refresh="handleRefresh"
       @load-more="list.loadMore"
       @page-size-change="handlePageSizeChange"
     />
@@ -51,6 +59,7 @@ import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useImageTaskList } from "@/composables/image-tasks/useImageTaskList";
 import { useImageTaskSelection } from "@/composables/image-tasks/useImageTaskSelection";
 import ImageTaskListPanel from "./image-tasks/components/ImageTaskListPanel.vue";
+import ImageTaskToolbar from "./image-tasks/components/ImageTaskToolbar.vue";
 import TaskDetailPanel from "./unified/components/TaskDetailPanel.vue";
 import type { ImageTaskListItem } from "@/types/image-task-list";
 import { requireAuth } from "@/auth/modal";

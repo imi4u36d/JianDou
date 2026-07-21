@@ -153,6 +153,10 @@ def test_workflow_view_mapper_builds_summary_and_detail() -> None:
         lambda _version: (
             [{"name": "A", "summary": "Hero", "appearance": "red coat"}],
             [{"clipIndex": 1, "shotLabel": "Shot 1", "scene": "intro", "targetDurationSeconds": 5}],
+            [
+                {"assetType": "character", "name": "A", "summary": "Hero", "description": "red coat"},
+                {"assetType": "prop", "name": "Key", "summary": "brass key", "description": "old brass key"},
+            ],
         )
     )
 
@@ -174,6 +178,8 @@ def test_workflow_view_mapper_builds_summary_and_detail() -> None:
     assert detail["clipSlots"][0]["keyframeVersions"][0]["asset"]["publicUrl"] == "/media/keyframe.png"
     assert detail["clipSlots"][0]["keyframeVersions"][0]["asset"]["previewUrl"] == "/media/keyframe-thumb.png"
     assert detail["characterSheets"][0]["keyframeVersions"][0]["id"] == "kv_character"
+    assert [asset["assetType"] for asset in detail["visualAssets"]] == ["character", "prop"]
+    assert detail["visualAssets"][1]["name"] == "Key"
     assert detail["finalResult"]["id"] == "mat_final"
     assert detail["finalResult"]["publicUrl"] == "/media/final.mp4"
     assert detail["finalResult"]["previewUrl"] == ""

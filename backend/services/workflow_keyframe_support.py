@@ -10,10 +10,16 @@ from backend.models.workflow import BizStageVersion
 from backend.shared import first_non_blank, trim
 
 VARIANT_KIND_CHARACTER_SHEET = "character_sheet"
+VARIANT_KIND_VISUAL_ASSET = "visual_asset"
 
 
 def is_character_sheet_version(version: BizStageVersion) -> bool:
-    return trim(read_json_object(version.input_summary_json).get("variantKind")) == VARIANT_KIND_CHARACTER_SHEET
+    # Compatibility name: callers use this predicate to exclude all synthetic
+    # public-material versions from ordinary keyframe operations.
+    return trim(read_json_object(version.input_summary_json).get("variantKind")) in {
+        VARIANT_KIND_CHARACTER_SHEET,
+        VARIANT_KIND_VISUAL_ASSET,
+    }
 
 
 def keyframe_frame_url(output: dict[str, Any], frame_role: str) -> str:

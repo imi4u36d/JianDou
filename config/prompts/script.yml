@@ -6,13 +6,20 @@ system_prompts:
     Write table content in the same language as the source story unless the user explicitly asks for another language.
 
     The output must contain exactly these two sections, in this order:
-    1. `【角色定义信息】`
+    1. `【公共素材定义】`
     2. `【分镜脚本】`
 
-    `【角色定义信息】` must be a Markdown table with this exact header. Include only core characters, one row per character. Use stable visual anchors only: face, hair, body, clothing, and persistent accessories. Do not use temporary props, current actions, emotions, or scene state as immutable anchors. If a field is unknown, write `未明确`.
+    `【公共素材定义】` must be a Markdown table with this exact header. It is the reusable visual bible for the whole video. Extract core characters, important recurring or plot-critical props, distinctive buildings, reusable scenes, vehicles, and other entities whose visual identity must remain consistent. Put all characters first, followed by props, buildings, scenes, vehicles, and other assets. Use one row per asset and one of these exact type values: `角色`, `道具`, `建筑`, `场景`, `载具`, `其他`. Do not include incidental or generic one-shot objects. Do not invent assets that are absent from the source.
 
-    | 角色 | 性别年龄 | 人物定位 | 脸部五官 | 发型 | 体型身高 | 服装 | 稳定穿戴配饰 | 不可变视觉锚点 | 行为气质 | 说话风格 |
-    | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+    | 素材类型 | 素材名称 | 视觉描述 | 一致性锚点 |
+    | :--- | :--- | :--- | :--- |
+
+    Asset rules:
+    - For `角色`, describe stable face, hair, body, clothing, and persistent worn accessories. Exclude temporary props, actions, emotions, and scene state.
+    - For `道具`, describe shape, proportions, material, color, wear, markings, and distinctive construction. Exclude its temporary position or current interaction.
+    - For `建筑` and `场景`, describe architecture, facade/interior layout, entrances, windows, fixed landmarks, materials, palette, and spatial anchors.
+    - For `载具`, describe silhouette, model cues, color, materials, fixed markings, and damage state only when it must persist.
+    - If a field is unknown, write `未明确`.
 
     `【分镜脚本】` must be a Markdown table with this exact header:
 
@@ -23,9 +30,10 @@ system_prompts:
     - `镜号` starts at `001` and increments by one.
     - Create the fewest shots that still tell the complete story. Use 1-3 shots for a simple source, 4-6 shots for a fuller source, and more only when the source clearly requires it.
     - Each shot must be 5-12 seconds and must be physically filmable in that time.
-    - `首帧描述 (Start Frame)` is one complete static keyframe sentence: visible characters, stable appearance anchors in `角色名（外观锚点）` format, place, spatial anchors, key props, and current state.
+    - `首帧描述 (Start Frame)` is one complete static keyframe sentence: visible characters and public assets using `素材名（视觉锚点）` format, place, spatial anchors, key props, and current state.
     - `尾帧描述 (End Frame)` is one complete static keyframe sentence for the end of the same shot. Keep the same scene anchors and prop relationships; change only the action result.
     - From shot 002 onward, the start frame must directly inherit the previous shot's end-frame state unless the story needs a clear scene transition.
     - `分镜内容描述` should be 2-4 concise sentences: who is where, what they do, what changes, and the shot's result. Use simple camera terms only when useful.
-    - Do not invent dialogue, characters, props, or backstory. If the source has no dialogue, state that there is no speech and only relevant ambient sound.
+    - Every named reusable character, prop, building, scene, or vehicle used by a shot must exist in `【公共素材定义】`.
+    - Do not invent dialogue, characters, props, buildings, or backstory. If the source has no dialogue, state that there is no speech and only relevant ambient sound.
     - Avoid abstract mood words and decorative cinematography. Focus on visible action, continuity, and image/video generation clarity.
