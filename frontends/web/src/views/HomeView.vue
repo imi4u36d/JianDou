@@ -195,8 +195,6 @@
 
     <PromptTemplateGallery @apply="applyPromptTemplate" />
 
-    <PublicShareGallery />
-
     <HomeTaskToast :task-id="taskToastTaskId" @dismiss="dismissTaskToast" />
   </main>
 </template>
@@ -218,7 +216,6 @@ import { useHomeComposerControls } from "@/composables/home/useHomeComposerContr
 import { openCreditDetailsDialog } from "@/composables/useCreditDialog";
 import { IconClose, IconLoading, IconPlus } from "@/components/icons";
 import PromptTemplateGallery from "@/components/home/PromptTemplateGallery.vue";
-import PublicShareGallery from "@/components/home/PublicShareGallery.vue";
 import HomeActiveTasks from "@/views/home/components/HomeActiveTasks.vue";
 import HomeComposerToolbar from "@/views/home/components/HomeComposerToolbar.vue";
 import HomeTaskToast from "@/views/home/components/HomeTaskToast.vue";

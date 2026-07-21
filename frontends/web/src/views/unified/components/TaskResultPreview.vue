@@ -41,7 +41,6 @@
           </article>
         </div>
       </aside>
-
       <div class="task-result-preview__main">
         <template v-for="media in mediaItems" :key="`${media.type}-${media.url}`">
           <div class="task-result-preview__actions">
@@ -58,15 +57,6 @@
               @click="$emit('download', media.url, media.title || '任务结果', media.type)"
             >
               <IconDownload size="xs" />下载
-            </button>
-            <button
-              v-if="shareable"
-              class="task-result-preview__action"
-              type="button"
-              :disabled="sharing"
-              @click="$emit('share')"
-            >
-              <IconShare size="xs" />{{ shared ? "已分享" : "分享" }}
             </button>
           </div>
           <video
@@ -136,12 +126,10 @@
     </div>
   </section>
 </template>
-
 <script setup lang="ts">
 import { reactive } from "vue";
-import { IconDownload, IconImage, IconLoading, IconShare, IconVideo, IconWarning } from "@/components/icons";
+import { IconDownload, IconImage, IconLoading, IconVideo, IconWarning } from "@/components/icons";
 import type { DownloadMediaKind } from "@/utils/download";
-
 interface PreviewItem {
   url: string;
   title: string;
@@ -154,7 +142,6 @@ interface ReferenceItem {
   title: string;
   thumbnailUrl?: string | null;
 }
-
 defineProps<{
   progressPercent: number;
   previewLoading: boolean;
@@ -163,21 +150,15 @@ defineProps<{
   referenceItems: ReferenceItem[];
   awaitingCompletedPreview: boolean;
   taskStatus: string;
-  shareable: boolean;
-  sharing: boolean;
-  shared: boolean;
 }>();
 const emit = defineEmits<{
   preview: [title: string, url: string];
   download: [url: string, title: string, mediaType: DownloadMediaKind];
-  share: [];
   loading: [];
   ready: [];
   failed: [];
 }>();
-
 const imageMetadataByUrl = reactive<Record<string, string>>({});
-
 function greatestCommonDivisor(left: number, right: number): number {
   let a = Math.abs(Math.trunc(left));
   let b = Math.abs(Math.trunc(right));
@@ -186,7 +167,6 @@ function greatestCommonDivisor(left: number, right: number): number {
   }
   return a || 1;
 }
-
 function handleImageReady(media: PreviewItem, event: Event) {
   const image = event.currentTarget as HTMLImageElement;
   const width = image.naturalWidth;
@@ -197,7 +177,6 @@ function handleImageReady(media: PreviewItem, event: Event) {
   }
   emit("ready");
 }
-
 function referenceCardStyle(index: number) {
   const direction = index % 2 === 0 ? -1 : 1;
   return {
@@ -206,5 +185,4 @@ function referenceCardStyle(index: number) {
   };
 }
 </script>
-
 <style scoped src="./task-result-preview.css"></style>

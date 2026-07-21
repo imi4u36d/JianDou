@@ -3,6 +3,7 @@ import { downloadMedia, inferMediaDownloadKind } from "@/utils/download";
 
 const originalUserAgent = Object.getOwnPropertyDescriptor(window.navigator, "userAgent");
 const originalMaxTouchPoints = Object.getOwnPropertyDescriptor(window.navigator, "maxTouchPoints");
+const originalShare = Object.getOwnPropertyDescriptor(window.navigator, "share");
 
 function setNavigatorValue(name: "userAgent" | "maxTouchPoints", value: string | number) {
   Object.defineProperty(window.navigator, name, { configurable: true, value });
@@ -16,6 +17,11 @@ afterEach(() => {
   }
   if (originalMaxTouchPoints) {
     Object.defineProperty(window.navigator, "maxTouchPoints", originalMaxTouchPoints);
+  }
+  if (originalShare) {
+    Object.defineProperty(window.navigator, "share", originalShare);
+  } else {
+    Reflect.deleteProperty(window.navigator, "share");
   }
 });
 
@@ -76,5 +82,19 @@ describe("downloadMedia", () => {
     };
 
     await expect(downloadMedia({ url: "/storage/frame.png", title: "首帧", mediaType: "image" })).rejects.toThrow("未获得相册权限");
+  });
+
+  it("falls back to browser download without invoking system sharing", async () => {
+    setNavigatorValue("userAgent", "Mozilla/5.0 (Linux; Android 14; Mobile)");
+    setNavigatorValue("maxTouchPoints", 5);
+    const share = vi.fn(async () => undefined);
+    Object.defineProperty(window.navigator, "share", { configurable: true, value: share });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    const result = await downloadMedia({ url: "/storage/frame.png", title: "首帧", mediaType: "image" });
+
+    expect(result.target).toBe("browser");
+    expect(clickSpy).toHaveBeenCalledOnce();
+    expect(share).not.toHaveBeenCalled();
   });
 });

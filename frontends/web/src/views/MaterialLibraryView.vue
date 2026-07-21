@@ -1,63 +1,71 @@
 <template>
   <section class="material-view">
-    <header class="material-topbar">
-      <nav class="material-tabs" aria-label="素材分类">
-        <button
-          v-for="tab in libraryTabs"
-          :key="tab.key"
-          type="button"
-          class="material-tab"
-          :class="{ 'material-tab-active': activeLibraryTab === tab.key }"
-          @click="selectLibraryTab(tab.key)"
-        >
-          {{ tab.label }}
-        </button>
-      </nav>
-
-      <div class="material-topbar__tools liquid-glass">
-        <label class="material-search">
-          <span class="material-search__icon" aria-hidden="true"><IconSearch size="sm" /></span>
-          <input v-model="filters.q" type="search" placeholder="搜索素材" @keyup.enter="loadAssets" />
+    <Teleport defer to="#workspace-page-actions">
+      <div class="material-topbar">
+        <nav class="material-tabs" aria-label="素材分类">
           <button
-            v-if="filters.q"
-            class="material-search__clear"
+            v-for="tab in libraryTabs"
+            :key="tab.key"
             type="button"
-            aria-label="清除搜索"
-            @click="
-              filters.q = '';
-              loadAssets();
-            "
+            class="material-tab"
+            :class="{ 'material-tab-active': activeLibraryTab === tab.key }"
+            @click="selectLibraryTab(tab.key)"
           >
-            <IconClose size="xs" />
+            {{ tab.label }}
           </button>
-        </label>
-        <label
-          class="material-workflow-toggle"
-          :class="{ 'material-workflow-toggle-active': filters.showWorkflowArtifacts }"
-        >
-          <input v-model="filters.showWorkflowArtifacts" type="checkbox" @change="loadAssets" />
-          <span class="material-workflow-toggle__track" aria-hidden="true"></span>
-          <span class="material-workflow-toggle__text">工作流产物</span>
-        </label>
-        <span class="material-toolbar-divider"></span>
-        <button
-          class="material-toolbar-link"
-          type="button"
-          :class="{ 'material-toolbar-link-active': advancedFiltersOpen || activeFilterCount > 0 }"
-          aria-label="筛选素材"
-          title="筛选"
-          @click="advancedFiltersOpen = !advancedFiltersOpen"
-        >
-          <IconSettings size="sm" />
-          <span v-if="activeFilterCount > 0" class="material-toolbar-badge">{{ activeFilterCount }}</span>
-        </button>
-        <button class="material-toolbar-primary" type="button" :disabled="loading" @click="loadAssets">
-          <IconLoading v-if="loading" size="sm" />
-          <IconSearch v-else size="sm" />
-          搜索
-        </button>
+        </nav>
+
+        <div class="material-topbar__tools liquid-glass">
+          <label class="material-tab-select">
+            <span>素材分类</span>
+            <select :value="activeLibraryTab" aria-label="素材分类" @change="handleLibraryTabSelect">
+              <option v-for="tab in libraryTabs" :key="tab.key" :value="tab.key">{{ tab.label }}</option>
+            </select>
+          </label>
+          <label class="material-search">
+            <span class="material-search__icon" aria-hidden="true"><IconSearch size="sm" /></span>
+            <input v-model="filters.q" type="search" placeholder="搜索素材" @keyup.enter="loadAssets" />
+            <button
+              v-if="filters.q"
+              class="material-search__clear"
+              type="button"
+              aria-label="清除搜索"
+              @click="
+                filters.q = '';
+                loadAssets();
+              "
+            >
+              <IconClose size="xs" />
+            </button>
+          </label>
+          <label
+            class="material-workflow-toggle"
+            :class="{ 'material-workflow-toggle-active': filters.showWorkflowArtifacts }"
+          >
+            <input v-model="filters.showWorkflowArtifacts" type="checkbox" @change="loadAssets" />
+            <span class="material-workflow-toggle__track" aria-hidden="true"></span>
+            <span class="material-workflow-toggle__text">工作流产物</span>
+          </label>
+          <span class="material-toolbar-divider"></span>
+          <button
+            class="material-toolbar-link"
+            type="button"
+            :class="{ 'material-toolbar-link-active': advancedFiltersOpen || activeFilterCount > 0 }"
+            aria-label="筛选素材"
+            title="筛选"
+            @click="advancedFiltersOpen = !advancedFiltersOpen"
+          >
+            <IconSettings size="sm" />
+            <span v-if="activeFilterCount > 0" class="material-toolbar-badge">{{ activeFilterCount }}</span>
+          </button>
+          <button class="material-toolbar-primary" type="button" :disabled="loading" @click="loadAssets">
+            <IconLoading v-if="loading" size="sm" />
+            <IconSearch v-else size="sm" />
+            搜索
+          </button>
+        </div>
       </div>
-    </header>
+    </Teleport>
 
     <section class="material-favorite-folders" aria-label="收藏夹">
       <div class="material-favorite-folders__head">
@@ -178,8 +186,6 @@
         :selected="isAssetChecked(asset.id)"
         :favorite="isAssetFavorited(asset.id)"
         :busy-action-key="busyActionKey"
-        :sharing="sharingAssetId === asset.id"
-        :shared="Boolean(sharedAssetRecords[asset.id])"
         @toggle-selection="toggleAssetSelection"
         @preview="openAssetPreview"
         @favorite="openFavoriteDialog"
@@ -187,7 +193,6 @@
         @reuse="handleReuseAsset"
         @rename="openRenameDialog"
         @download="handleDownloadAsset"
-        @share="openMaterialShareConfirm"
         @delete="handleDeleteAsset"
       />
 
@@ -232,17 +237,6 @@
         >
           <IconHeart size="xs" :filled="isAssetFavorited(previewAsset.id)" />
           <span>{{ isAssetFavorited(previewAsset.id) ? "已收藏" : "收藏" }}</span>
-        </button>
-        <button
-          v-if="isAssetShareable(previewAsset)"
-          type="button"
-          class="jd-button jd-button--sm"
-          :disabled="sharingAssetId === previewAsset.id"
-          aria-label="分享预览素材"
-          @click="openMaterialShareConfirm(previewAsset)"
-        >
-          <IconShare size="xs" />
-          <span>{{ sharedAssetRecords[previewAsset.id] ? "已分享" : "分享" }}</span>
         </button>
       </template>
       <template v-if="previewAsset" #details>
@@ -362,11 +356,6 @@
     </Teleport>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
-    <AppConfirmDialog
-      v-bind="shareConfirmDialog"
-      @confirm="acceptMaterialShareConfirm"
-      @cancel="cancelMaterialShareConfirm"
-    />
   </section>
 </template>
 
@@ -374,12 +363,10 @@
 import { computed, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import { fetchMaterialAssetPage } from "@/features/materials";
-import { isAssetShareable } from "@/features/materials/material-library-presenters";
 import { requireAuth } from "@/auth/modal";
 import { useConfirmDialog } from "@/composables/useConfirmDialog";
 import { useMaterialPreview } from "@/composables/materials/useMaterialPreview";
 import { useMaterialPagination } from "@/composables/materials/useMaterialPagination";
-import { useMaterialSharing } from "@/composables/materials/useMaterialSharing";
 import { useMaterialFavoriteCommands } from "@/composables/materials/useMaterialFavoriteCommands";
 import { useMaterialAssetCommands } from "@/composables/materials/useMaterialAssetCommands";
 import { useMaterialLibraryState } from "@/composables/materials/useMaterialLibraryState";
@@ -400,10 +387,13 @@ import {
   IconPlus,
   IconSearch,
   IconSettings,
-  IconShare,
 } from "@/components/icons";
 
 const route = useRoute();
+
+function handleLibraryTabSelect(event: Event) {
+  selectLibraryTab((event.target as HTMLSelectElement).value);
+}
 
 function formatMaterialDate(value: string) {
   const date = new Date(value);
@@ -460,15 +450,6 @@ const {
   },
 });
 const { confirmDialog, requestConfirm, acceptConfirm, cancelConfirm } = useConfirmDialog();
-const {
-  sharingAssetId,
-  sharedAssetRecords,
-  shareConfirmDialog,
-  openMaterialShareConfirm,
-  cancelMaterialShareConfirm,
-  acceptMaterialShareConfirm,
-} = useMaterialSharing();
-
 const {
   loadFavoriteFolders,
   cacheMaterialAssets,

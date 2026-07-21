@@ -56,7 +56,6 @@ export default [
       "src/api/generation.ts",
       "src/api/health.ts",
       "src/api/material-assets.ts",
-      "src/api/public-shares.ts",
       "src/api/script.ts",
       "src/api/showcase.ts",
       "src/api/tasks.ts",
@@ -83,7 +82,6 @@ export default [
       "src/types/auth.ts",
       "src/types/credits.ts",
       "src/types/health.ts",
-      "src/types/public-shares.ts",
       "src/types/uploads.ts",
     ],
     rules: {

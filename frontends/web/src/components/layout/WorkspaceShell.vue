@@ -30,6 +30,7 @@
       <main class="workspace-content glass">
         <header v-if="pageHeader" class="workspace-page-header">
           <h1>{{ pageHeader.title }}</h1>
+          <div id="workspace-page-actions" class="workspace-page-header__actions"></div>
         </header>
         <div class="workspace-route-view"><RouterView /></div>
       </main>

@@ -8,7 +8,7 @@ export interface MediaDownloadOptions {
 }
 
 export interface MediaDownloadResult {
-  target: "album" | "browser" | "share";
+  target: "album" | "browser";
 }
 
 type NativeResult = boolean | string | number | { success?: boolean; granted?: boolean; status?: string; message?: string } | null | undefined;
@@ -63,10 +63,6 @@ export async function downloadMedia(options: MediaDownloadOptions): Promise<Medi
     const savedToAlbum = await trySaveMediaToAlbum(payload);
     if (savedToAlbum) {
       return { target: "album" };
-    }
-    const shared = await tryShareMedia(payload);
-    if (shared) {
-      return { target: "share" };
     }
   }
 
@@ -146,28 +142,6 @@ function nativeResultAllows(result: NativeResult): boolean {
   return true;
 }
 
-async function tryShareMedia(payload: NativeAlbumPayload): Promise<boolean> {
-  if (typeof navigator === "undefined" || typeof navigator.share !== "function" || typeof File === "undefined") {
-    return false;
-  }
-
-  try {
-    const response = await fetch(payload.url);
-    if (!response.ok) return false;
-    const blob = await response.blob();
-    const type = blob.type || fallbackMimeType(payload.mediaType);
-    const file = new File([blob], payload.fileName, { type });
-    const shareData: ShareData = { files: [file], title: payload.fileName };
-    if (typeof navigator.canShare === "function" && !navigator.canShare(shareData)) {
-      return false;
-    }
-    await navigator.share(shareData);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function inferMediaFileName(url: string, preferredName: string | null | undefined, mediaType: DownloadMediaKind): string {
   const extension = extensionFromUrl(url) || defaultExtension(mediaType);
   const fromPreferred = sanitizeFileName(preferredName || "");
@@ -209,10 +183,6 @@ function defaultExtension(mediaType: DownloadMediaKind): string {
   if (mediaType === "image") return "png";
   if (mediaType === "video") return "mp4";
   return "download";
-}
-
-function fallbackMimeType(mediaType: "image" | "video"): string {
-  return mediaType === "image" ? "image/png" : "video/mp4";
 }
 
 function toAbsoluteUrl(url: string): string {

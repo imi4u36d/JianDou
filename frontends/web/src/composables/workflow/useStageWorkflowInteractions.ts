@@ -36,7 +36,6 @@ export function useStageWorkflowInteractions() {
     try {
       const result = await downloadMedia({ url, title, mediaType: "video" });
       if (result.target === "album") messageApi.success("已保存到相册");
-      else if (result.target === "share") messageApi.info("已打开系统分享，可保存到相册");
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "下载失败");
     }

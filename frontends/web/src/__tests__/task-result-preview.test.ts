@@ -4,11 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import TaskResultPreview from "@/views/unified/components/TaskResultPreview.vue";
 
 describe("task result preview", () => {
-  it("renders media and emits preview, download and share actions", async () => {
+  it("renders media and emits preview and download actions", async () => {
     const host = document.createElement("div");
     const onPreview = vi.fn();
     const onDownload = vi.fn();
-    const onShare = vi.fn();
     const app = createApp(TaskResultPreview, {
       progressPercent: 100,
       previewLoading: false,
@@ -17,12 +16,8 @@ describe("task result preview", () => {
       referenceItems: [{ url: "/reference.png", title: "参考图" }],
       awaitingCompletedPreview: false,
       taskStatus: "COMPLETED",
-      shareable: true,
-      sharing: false,
-      shared: false,
       onPreview,
       onDownload,
-      onShare,
     });
     app.mount(host);
     await nextTick();
@@ -43,13 +38,8 @@ describe("task result preview", () => {
     );
     imageButton?.click();
     host.querySelector<HTMLButtonElement>('button[aria-label="下载参考图"]')?.click();
-    [...host.querySelectorAll<HTMLButtonElement>(".task-result-preview__action")]
-      .find((button) => button.textContent?.includes("分享"))
-      ?.click();
-
     expect(onPreview).toHaveBeenCalledWith("结果图", "/result.png");
     expect(onDownload).toHaveBeenCalledWith("/reference.png", "参考图", "image");
-    expect(onShare).toHaveBeenCalledOnce();
     app.unmount();
   });
 
@@ -63,9 +53,6 @@ describe("task result preview", () => {
       referenceItems: [],
       awaitingCompletedPreview: true,
       taskStatus: "RENDERING",
-      shareable: false,
-      sharing: false,
-      shared: false,
     });
     app.mount(host);
     await nextTick();

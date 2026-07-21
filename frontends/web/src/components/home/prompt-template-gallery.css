@@ -1,6 +1,6 @@
 .prompt-template-gallery {
   --prompt-template-edge: 2px;
-  --prompt-template-card-width: clamp(190px, 16vw, 238px);
+  --prompt-template-card-width: clamp(164px, 13vw, 196px);
   display: grid;
   width: min(100%, 1400px);
   min-width: 0;
@@ -65,7 +65,7 @@
   position: relative;
   flex: 0 0 auto;
   width: var(--prompt-template-card-width);
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 5 / 7;
   overflow: hidden;
   padding: 0;
   border: 1px solid #e4e7ef;
@@ -93,11 +93,12 @@
   height: 100%;
   object-fit: cover;
   object-position: center;
+  transform: scale(1.08);
   transition: transform 200ms ease;
 }
 
 .prompt-template-card:hover img {
-  transform: scale(1.025);
+  transform: scale(1.105);
 }
 
 .prompt-template-card__meta {
@@ -206,7 +207,7 @@
 @media (max-width: 720px) {
   .prompt-template-gallery {
     --prompt-template-edge: max(2px, env(safe-area-inset-left));
-    --prompt-template-card-width: min(72vw, 230px);
+    --prompt-template-card-width: min(52vw, 184px);
     width: 100%;
   }
 

@@ -46,13 +46,6 @@ async def _uid(request: Request) -> int:
     return user["id"]
 
 
-# ── 公开接口（无需登录） ─────────────────────────────────────────────────
-
-@router.get("/showcase", response_model=list[TaskListItemResponse])
-async def list_showcase_tasks(request: Request):
-    return await _svc(request).showcase_cases()
-
-
 @router.get("/seedance/{remote_task_id}")
 async def get_seedance_task_result(remote_task_id: str, request: Request):
     return await _svc(request).get_seedance_task_result(remote_task_id)

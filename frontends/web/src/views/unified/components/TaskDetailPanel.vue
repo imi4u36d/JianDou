@@ -82,12 +82,8 @@
           :reference-items="selectedTaskReferenceItems"
           :awaiting-completed-preview="selectedTaskAwaitingCompletedPreview"
           :task-status="selectedTaskActionTask?.status || ''"
-          :shareable="selectedTaskShareable"
-          :sharing="sharingTaskResult"
-          :shared="Boolean(selectedTaskShareRecord)"
           @preview="openTaskPreviewItem"
           @download="handleDownloadMedia"
-          @share="openTaskShareConfirm"
           @loading="markTaskPreviewLoading"
           @ready="markTaskPreviewReady"
           @failed="markTaskPreviewFailed"
@@ -149,7 +145,6 @@
     </section>
 
     <AppConfirmDialog v-bind="confirmDialog" @confirm="acceptConfirm" @cancel="cancelConfirm" />
-    <AppConfirmDialog v-bind="shareConfirmDialog" @confirm="acceptTaskShareConfirm" @cancel="cancelTaskShareConfirm" />
     <TaskPromptDialog
       :open="promptDialogOpen"
       :title="selectedTask?.title || '当前任务'"
@@ -194,7 +189,6 @@ import { messageApi } from "@/composables/useMessage";
 import { downloadMedia, type DownloadMediaKind } from "@/utils/download";
 import { useTaskDetail } from "../composables/useTaskDetail";
 import { useTaskPreviewState } from "../composables/useTaskPreviewState";
-import { useTaskResultSharing } from "../composables/useTaskResultSharing";
 import type { TaskDetail, TaskListItem, TaskMaterial } from "@/types";
 
 const props = defineProps<{
@@ -263,8 +257,6 @@ async function handleDownloadMedia(url: string, title: string, mediaType: Downlo
     const result = await downloadMedia({ url, title, mediaType });
     if (result.target === "album") {
       messageApi.success("已保存到相册");
-    } else if (result.target === "share") {
-      messageApi.info("已打开系统分享，可保存到相册");
     }
   } catch (error) {
     messageApi.error(error instanceof Error ? error.message : "下载失败");
@@ -310,22 +302,6 @@ const selectedTaskHeaderAspectRatio = computed(() => {
   const aspectRatio = requestSnapshot?.aspectRatio || task.aspectRatio || "";
   return String(aspectRatio).trim() || "未设置";
 });
-const selectedTaskPreviewMaterialId = computed(() => selectedTaskPreviewMedia.value?.materialAssetId || "");
-const {
-  acceptTaskShareConfirm,
-  cancelTaskShareConfirm,
-  openTaskShareConfirm,
-  selectedTaskShareRecord,
-  selectedTaskShareable,
-  shareConfirmDialog,
-  sharingTaskResult,
-} = useTaskResultSharing({
-  selectedTaskId: () => props.selectedTaskId,
-  selectedTask,
-  selectedTaskActionTask,
-  materialAssetId: selectedTaskPreviewMaterialId,
-});
-
 function openPromptDialog() {
   promptDialogOpen.value = true;
 }

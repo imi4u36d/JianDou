@@ -8,7 +8,6 @@
 - `@/types/workflows`
 - `@/types/materials`
 - `@/types/uploads`
-- `@/types/public-shares`
 - `@/types/credits`
 - `@/types/health`
 - `@/types/admin`
@@ -20,7 +19,6 @@ The following modules now own their definitions directly:
 - `auth.ts`
 - `credits.ts`
 - `health.ts`
-- `public-shares.ts`
 - `uploads.ts`
 
 The compatibility barrel re-exports those contracts and imports only the auth primitives still required by legacy admin definitions. The remaining domain modules currently re-export definitions that have not yet been moved.

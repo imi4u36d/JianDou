@@ -134,10 +134,6 @@ class TaskApplicationServiceImpl:
         """List tasks (admin) with pagination."""
         return await self._query_service.admin_list_tasks(q, status, sort, offset=offset, limit=limit)
 
-    async def showcase_cases(self) -> dict[str, Any]:
-        """Return public showcase data."""
-        return await self._query_service.showcase_cases()
-
     async def get_task(self, task_id: str, user_id: int) -> dict[str, Any]:
         """Get a single task by ID with owner check."""
         return await self._query_service.get_task(task_id, user_id)

@@ -4,7 +4,5 @@ export * from "./credits";
 export * from "./generation";
 export * from "./health";
 export * from "./material";
-export * from "./public-share";
-export * from "./showcase";
 export * from "./task";
 export * from "./workflow";
